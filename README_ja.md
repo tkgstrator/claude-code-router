@@ -34,19 +34,14 @@
 
 ### 1. Docker で起動（推奨）
 
-推奨される実行方法は Docker Compose です。[Docker](https://docs.docker.com/get-docker/) と [Docker Compose](https://docs.docker.com/compose/install/) を事前にインストールしてください。
+推奨される実行方法は Docker Compose です。[Docker](https://docs.docker.com/get-docker/) と [Docker Compose](https://docs.docker.com/compose/install/) を事前にインストールしてください。イメージは Docker Hub で公開済みのため、リポジトリのクローンは不要です。
 
-**ステップ 1 — リポジトリをクローン：**
-
-```shell
-git clone https://github.com/musistudio/claude-code-router.git
-cd claude-code-router
-```
-
-**ステップ 2 — 設定ファイルを作成：**
+**ステップ 1 — 作業ディレクトリと設定ファイルを作成：**
 
 ```shell
-mkdir -p ~/.claude-code-router
+mkdir -p ~/ccr ~/.claude-code-router
+cd ~/ccr
+
 cat > ~/.claude-code-router/config.json << 'EOF'
 {
   "APIKEY": "your-secret-key",
@@ -63,6 +58,25 @@ cat > ~/.claude-code-router/config.json << 'EOF'
     "default": "openai,gpt-4o-mini"
   }
 }
+EOF
+```
+
+**ステップ 2 — `compose.yaml` を作成：**
+
+```shell
+cat > compose.yaml << 'EOF'
+services:
+  ccr:
+    image: musistudio/claude-code-router:latest
+    ports:
+      - "127.0.0.1:3456:3456"
+    volumes:
+      - ${HOME}/.claude-code-router:/root/.claude-code-router
+      - ${HOME}/.claude:/root/.claude
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
 EOF
 ```
 

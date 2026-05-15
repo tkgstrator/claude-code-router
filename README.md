@@ -36,19 +36,14 @@
 
 ### 1. Quick Start with Docker
 
-The recommended way to run Claude Code Router is via Docker Compose. This requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
+The recommended way to run Claude Code Router is via Docker Compose. This requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). No repository clone is needed — the image is published to Docker Hub.
 
-**Step 1 — Clone the repository and build:**
-
-```shell
-git clone https://github.com/musistudio/claude-code-router.git
-cd claude-code-router
-```
-
-**Step 2 — Create your config file:**
+**Step 1 — Create a working directory and config file:**
 
 ```shell
-mkdir -p ~/.claude-code-router
+mkdir -p ~/ccr ~/.claude-code-router
+cd ~/ccr
+
 cat > ~/.claude-code-router/config.json << 'EOF'
 {
   "APIKEY": "your-secret-key",
@@ -65,6 +60,25 @@ cat > ~/.claude-code-router/config.json << 'EOF'
     "default": "openai,gpt-4o-mini"
   }
 }
+EOF
+```
+
+**Step 2 — Create a `compose.yaml` file:**
+
+```shell
+cat > compose.yaml << 'EOF'
+services:
+  ccr:
+    image: musistudio/claude-code-router:latest
+    ports:
+      - "127.0.0.1:3456:3456"
+    volumes:
+      - ${HOME}/.claude-code-router:/root/.claude-code-router
+      - ${HOME}/.claude:/root/.claude
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
 EOF
 ```
 

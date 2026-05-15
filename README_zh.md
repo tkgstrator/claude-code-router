@@ -34,19 +34,14 @@
 
 ### 1. Docker 快速启动（推荐）
 
-推荐使用 Docker Compose 运行 Claude Code Router。需要提前安装 [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/)。
+推荐使用 Docker Compose 运行 Claude Code Router。需要提前安装 [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/)。镜像已发布至 Docker Hub，无需克隆仓库。
 
-**第一步 — 克隆仓库：**
-
-```shell
-git clone https://github.com/musistudio/claude-code-router.git
-cd claude-code-router
-```
-
-**第二步 — 创建配置文件：**
+**第一步 — 创建工作目录和配置文件：**
 
 ```shell
-mkdir -p ~/.claude-code-router
+mkdir -p ~/ccr ~/.claude-code-router
+cd ~/ccr
+
 cat > ~/.claude-code-router/config.json << 'EOF'
 {
   "APIKEY": "your-secret-key",
@@ -63,6 +58,25 @@ cat > ~/.claude-code-router/config.json << 'EOF'
     "default": "openai,gpt-4o-mini"
   }
 }
+EOF
+```
+
+**第二步 — 创建 `compose.yaml` 文件：**
+
+```shell
+cat > compose.yaml << 'EOF'
+services:
+  ccr:
+    image: musistudio/claude-code-router:latest
+    ports:
+      - "127.0.0.1:3456:3456"
+    volumes:
+      - ${HOME}/.claude-code-router:/root/.claude-code-router
+      - ${HOME}/.claude:/root/.claude
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
 EOF
 ```
 
