@@ -13,3 +13,4 @@ docs/.docusaurus
 
 # Package manager caches
 .pnpm-store/
+packages/server/.env
