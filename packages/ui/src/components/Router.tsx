@@ -12,7 +12,7 @@ export function Router() {
   // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
+      <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
         <CardHeader className='border-b p-4'>
           <CardTitle className='text-lg'>{t('router.title')}</CardTitle>
         </CardHeader>
@@ -65,7 +65,7 @@ export function Router() {
   })
 
   return (
-    <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
+    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
       <CardHeader className='border-b p-4'>
         <CardTitle className='text-lg'>{t('router.title')}</CardTitle>
       </CardHeader>

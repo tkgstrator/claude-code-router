@@ -59,7 +59,7 @@ export function Providers() {
   // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
+      <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
         <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
           <CardTitle className='text-lg'>{t('providers.title')}</CardTitle>
         </CardHeader>
@@ -524,7 +524,7 @@ export function Providers() {
   })
 
   return (
-    <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
+    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
       <CardHeader className='flex flex-col border-b p-4 gap-3'>
         <div className='flex flex-row items-center justify-between'>
           <CardTitle className='text-lg'>

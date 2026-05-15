@@ -30,7 +30,7 @@ export function Transformers() {
   // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
+      <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
         <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
           <CardTitle className='text-lg'>{t('transformers.title')}</CardTitle>
         </CardHeader>
@@ -106,7 +106,7 @@ export function Transformers() {
   }
 
   return (
-    <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
+    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
       <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
         <CardTitle className='text-lg'>
           {t('transformers.title')}{' '}
