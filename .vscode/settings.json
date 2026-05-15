@@ -1,0 +1,50 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.turbo": true,
+    "**/.cache": true,
+    "**/.next": true,
+    "**/coverage": true,
+    "**/.parcel-cache": true,
+    "**/tsconfig.tsbuildinfo": true
+  },
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.turbo/**": true,
+    "**/.cache/**": true,
+    "**/.next/**": true,
+    "**/coverage/**": true,
+    "**/.parcel-cache/**": true,
+    "**/packages/*/dist/**": true,
+    "**/.claude/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.turbo": true,
+    "**/.cache": true,
+    "**/.next": true,
+    "**/coverage": true,
+    "**/bun.lock": true,
+    "**/package-lock.json": true,
+    "**/yarn.lock": true
+  },
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports.biome": "explicit",
+    "quickfix.biome": "explicit"
+  },
+  "[typescript]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[typescriptreact]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[javascript]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[javascriptreact]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[json]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[jsonc]": { "editor.defaultFormatter": "biomejs.biome" }
+}

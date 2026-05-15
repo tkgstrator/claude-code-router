@@ -4,7 +4,6 @@ log.txt
 .idea
 dist
 .DS_Store
-.vscode
 tsconfig.tsbuildinfo
 
 # Documentation build output
