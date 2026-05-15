@@ -6,6 +6,7 @@ services:
     volumes:
       - ${HOME}/.claude-code-router:/root/.claude-code-router
       - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.codex:/root/.codex
     env_file:
       - path: .env
         required: false
