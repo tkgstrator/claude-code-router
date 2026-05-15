@@ -3,12 +3,9 @@
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "files": {
     "includes": [
-      "src/**/*.{ts,tsx}",
+      "packages/shared/src/**/*.{ts,tsx}",
       "!**/node_modules",
-      "!src/**/components/ui/*.{ts,tsx}",
-      "!src/**/index.css",
-      "!src/**/routeTree.gen.ts",
-      "__tests__/**/*.{ts,tsx}"
+      "!**/dist"
     ]
   },
   "linter": {

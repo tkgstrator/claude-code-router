@@ -3,30 +3,30 @@
  * Note: This module does not contain CLI interaction logic, interaction logic is provided by the caller
  */
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { sanitizeConfig } from './sensitiveFields';
-import { PresetMetadata, ManifestFile } from './types';
-import { HOME_DIR } from '../constants';
+import * as fs from 'node:fs/promises'
+import * as path from 'node:path'
+import { HOME_DIR } from '../constants'
+import { sanitizeConfig } from './sensitiveFields'
+import type { ManifestFile, PresetMetadata } from './types'
 
 /**
  * Export options
  */
 export interface ExportOptions {
-  includeSensitive?: boolean;
-  description?: string;
-  author?: string;
-  tags?: string;
+  includeSensitive?: boolean
+  description?: string
+  author?: string
+  tags?: string
 }
 
 /**
  * Export result
  */
 export interface ExportResult {
-  presetDir: string;
-  sanitizedConfig: any;
-  metadata: PresetMetadata;
-  sanitizedCount: number;
+  presetDir: string
+  sanitizedConfig: any
+  metadata: PresetMetadata
+  sanitizedCount: number
 }
 
 /**
@@ -38,7 +38,7 @@ export interface ExportResult {
  */
 export function createManifest(
   presetName: string,
-  config: any,
+  _config: any,
   sanitizedConfig: any,
   options: ExportOptions
 ): ManifestFile {
@@ -47,13 +47,13 @@ export function createManifest(
     version: '1.0.0',
     description: options.description,
     author: options.author,
-    keywords: options.tags ? options.tags.split(',').map(t => t.trim()) : undefined,
-  };
+    keywords: options.tags ? options.tags.split(',').map((t) => t.trim()) : undefined
+  }
 
   return {
     ...metadata,
-    ...sanitizedConfig,
-  };
+    ...sanitizedConfig
+  }
 }
 
 /**
@@ -74,42 +74,42 @@ export async function exportPreset(
     version: '1.0.0',
     description: options.description,
     author: options.author,
-    keywords: options.tags ? options.tags.split(',').map(t => t.trim()) : undefined,
-  };
+    keywords: options.tags ? options.tags.split(',').map((t) => t.trim()) : undefined
+  }
 
   // 2. Sanitize configuration
-  const { sanitizedConfig, sanitizedCount } = await sanitizeConfig(config);
+  const { sanitizedConfig, sanitizedCount } = await sanitizeConfig(config)
 
   // 3. Generate manifest.json (flattened structure)
   const manifest: ManifestFile = {
     ...metadata,
-    ...sanitizedConfig,
-  };
+    ...sanitizedConfig
+  }
 
   // 4. Create preset directory
-  const presetDir = path.join(HOME_DIR, 'presets', presetName);
+  const presetDir = path.join(HOME_DIR, 'presets', presetName)
 
   // Check if preset directory already exists
   try {
-    await fs.access(presetDir);
-    throw new Error(`Preset directory already exists: ${presetName}`);
+    await fs.access(presetDir)
+    throw new Error(`Preset directory already exists: ${presetName}`)
   } catch (error: any) {
     if (error.code !== 'ENOENT') {
-      throw error;
+      throw error
     }
   }
 
   // Create preset directory
-  await fs.mkdir(presetDir, { recursive: true });
+  await fs.mkdir(presetDir, { recursive: true })
 
   // 5. Write manifest.json to preset directory
-  const manifestPath = path.join(presetDir, 'manifest.json');
-  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  const manifestPath = path.join(presetDir, 'manifest.json')
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
 
   return {
     presetDir,
     sanitizedConfig,
     metadata,
-    sanitizedCount,
-  };
+    sanitizedCount
+  }
 }
