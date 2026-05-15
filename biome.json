@@ -14,6 +14,9 @@
       "packages/shared/src/**/*.{ts,tsx}",
       "packages/cli/src/**/*.{ts,tsx}",
       "packages/server/src/**/*.{ts,tsx}",
+      "packages/ui/src/**/*.{ts,tsx}",
+      "!packages/ui/src/components/ui/**/*.{ts,tsx}",
+      "!packages/ui/src/locales",
       "!**/node_modules",
       "!**/dist"
     ]
@@ -48,6 +51,29 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["packages/ui/src/**/*.{ts,tsx}"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noStaticElementInteractions": "warn",
+            "noSvgWithoutTitle": "warn",
+            "useKeyWithClickEvents": "warn",
+            "noLabelWithoutControl": "warn",
+            "noNoninteractiveTabindex": "warn",
+            "useButtonType": "warn"
+          },
+          "correctness": {
+            "useExhaustiveDependencies": "warn"
+          },
+          "suspicious": {
+            "noArrayIndexKey": "warn"
+          }
+        }
+      }
+    }
+  ],
   "formatter": {
     "enabled": true,
     "formatWithErrors": false,
