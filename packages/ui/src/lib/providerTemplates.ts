@@ -17,7 +17,21 @@ export const PROVIDER_TEMPLATES: Provider[] = [
     name: 'openai',
     api_base_url: 'https://api.openai.com/v1/chat/completions',
     api_key: '',
-    models: ['gpt-5.5', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-4o', 'gpt-4o-mini']
+    models: [
+      'gpt-5.5',
+      'gpt-5.5-pro',
+      'gpt-5.4',
+      'gpt-5.4-pro',
+      'gpt-5.4-mini',
+      'gpt-5.4-nano',
+      'gpt-5.3-codex',
+      'gpt-5-mini',
+      'o3',
+      'gpt-4.1',
+      'gpt-4.1-mini',
+      'gpt-4o',
+      'gpt-4o-mini'
+    ]
   },
   {
     name: 'anthropic',
