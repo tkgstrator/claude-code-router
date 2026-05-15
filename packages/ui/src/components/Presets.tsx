@@ -138,7 +138,7 @@ export function Presets() {
 
   // 返回上一页
   const handleGoBack = () => {
-    navigate('/dashboard')
+    navigate('/models')
   }
 
   // Load market presets

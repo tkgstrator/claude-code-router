@@ -30,11 +30,11 @@ export function Transformers() {
   // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
-        <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
+      <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
+        <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
           <CardTitle className='text-lg'>{t('transformers.title')}</CardTitle>
         </CardHeader>
-        <CardContent className='flex-grow flex items-center justify-center p-4'>
+        <CardContent className='flex-grow flex items-center justify-center px-6 py-4'>
           <div className='text-gray-500'>Loading transformers configuration...</div>
         </CardContent>
       </Card>
@@ -106,15 +106,15 @@ export function Transformers() {
   }
 
   return (
-    <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
-      <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
+    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
+      <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
         <CardTitle className='text-lg'>
           {t('transformers.title')}{' '}
           <span className='text-sm font-normal text-gray-500'>({validTransformers.length})</span>
         </CardTitle>
         <Button onClick={handleAddTransformer}>{t('transformers.add')}</Button>
       </CardHeader>
-      <CardContent className='flex-grow overflow-y-auto p-4'>
+      <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
         <TransformerList
           transformers={validTransformers}
           onEdit={setEditingTransformerIndex}

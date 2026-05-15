@@ -253,7 +253,7 @@ export function DebugPage() {
       {/* 头部 */}
       <header className='flex h-16 items-center justify-between border-b bg-white px-6'>
         <div className='flex items-center gap-4'>
-          <Button variant='ghost' size='sm' onClick={() => navigate('/dashboard')}>
+          <Button variant='ghost' size='sm' onClick={() => navigate('/models')}>
             <ArrowLeft className='h-4 w-4 mr-2' />
             返回
           </Button>
