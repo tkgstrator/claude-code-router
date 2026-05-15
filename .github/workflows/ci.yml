@@ -21,8 +21,10 @@ jobs:
           bun-version: latest
       - name: Install commitlint
         run: |
-          bun install conventional-changelog-conventionalcommits
-          bun install commitlint@latest
+          bun install \
+            commitlint@latest \
+            @commitlint/config-conventional \
+            conventional-changelog-conventionalcommits
       - name: Validate current commit (push)
         if: github.event_name == 'push'
         run: bunx commitlint --last --verbose
