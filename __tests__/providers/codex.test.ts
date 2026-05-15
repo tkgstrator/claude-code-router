@@ -16,7 +16,8 @@ import { join } from "path";
 import { homedir } from "os";
 
 const AUTH_PATH = join(homedir(), ".codex", "auth.json");
-const hasCredentials = existsSync(AUTH_PATH);
+const hasCredentials =
+  existsSync(AUTH_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
 
 describe.skipIf(!hasCredentials)("codex / gpt-5.5", () => {
   beforeAll(() => {

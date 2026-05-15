@@ -18,7 +18,8 @@ import { join } from "path";
 import { homedir } from "os";
 
 const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
-const hasCredentials = existsSync(CREDENTIALS_PATH);
+const hasCredentials =
+  existsSync(CREDENTIALS_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
 
 describe.skipIf(!hasCredentials)("claude / claude-haiku-4-5 (claude-code-credentials)", () => {
   test(

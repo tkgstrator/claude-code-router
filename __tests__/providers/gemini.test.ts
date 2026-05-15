@@ -14,7 +14,8 @@ import {
   type SSEEvent,
 } from "./helpers";
 
-const hasApiKey = Boolean(process.env.GEMINI_API_KEY);
+const hasApiKey =
+  Boolean(process.env.GEMINI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS;
 
 describe.skipIf(!hasApiKey)("gemini / gemini-2.5-flash", () => {
   test(
