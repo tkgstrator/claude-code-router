@@ -116,21 +116,19 @@ const _TRUE_COLOR_BG_PREFIX = '\x1b[48;2;'
 
 // Convert hexadecimal color to RGB format
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  // Remove # and spaces
-  hex = hex.replace(/^#/, '').trim()
-
-  // Handle shorthand form (#RGB -> #RRGGBB)
-  if (hex.length === 3) {
-    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
+  // Remove # and spaces, then expand shorthand (#RGB -> #RRGGBB).
+  let normalised: string = hex.replace(/^#/, '').trim()
+  if (normalised.length === 3) {
+    normalised = normalised[0] + normalised[0] + normalised[1] + normalised[1] + normalised[2] + normalised[2]
   }
 
-  if (hex.length !== 6) {
+  if (normalised.length !== 6) {
     return null
   }
 
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
+  const r = parseInt(normalised.substring(0, 2), 16)
+  const g = parseInt(normalised.substring(2, 4), 16)
+  const b = parseInt(normalised.substring(4, 6), 16)
 
   // Validate RGB values
   if (

@@ -1,0 +1,9 @@
+language js
+
+`z.string().min(1)` as $match where {
+  register_diagnostic(
+    span=$match,
+    message="Use `z.string().nonempty()` instead of `z.string().min(1)` for clearer intent.",
+    severity="warn"
+  )
+}

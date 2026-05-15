@@ -1,0 +1,9 @@
+language js
+
+`z.string().url()` as $match where {
+  register_diagnostic(
+    span=$match,
+    message="Use `z.url()` instead of `z.string().url()` (Zod v4 has a native builder).",
+    severity="warn"
+  )
+}

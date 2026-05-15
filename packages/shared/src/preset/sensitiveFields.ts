@@ -105,14 +105,16 @@ function sanitizeObject(config: any, path: string = '', sanitizedCount: number =
     return { sanitized: config, count: sanitizedCount }
   }
 
+  let count: number = sanitizedCount
+
   if (Array.isArray(config)) {
     const sanitizedArray: any[] = []
     for (let i = 0; i < config.length; i++) {
-      const result = sanitizeObject(config[i], path ? `${path}[${i}]` : `[${i}]`, sanitizedCount)
+      const result = sanitizeObject(config[i], path ? `${path}[${i}]` : `[${i}]`, count)
       sanitizedArray.push(result.sanitized)
-      sanitizedCount = result.count
+      count = result.count
     }
-    return { sanitized: sanitizedArray, count: sanitizedCount }
+    return { sanitized: sanitizedArray, count }
   }
 
   const sanitizedObj: any = {}
@@ -150,20 +152,20 @@ function sanitizeObject(config: any, path: string = '', sanitizedCount: number =
         const envVarName = generateEnvVarName('global', entityName, key)
         sanitizedObj[key] = `\${${envVarName}}`
 
-        sanitizedCount++
+        count++
       }
     } else if (typeof value === 'object' && value !== null) {
       // Recursively process nested objects
-      const result = sanitizeObject(value, currentPath, sanitizedCount)
+      const result = sanitizeObject(value, currentPath, count)
       sanitizedObj[key] = result.sanitized
-      sanitizedCount = result.count
+      count = result.count
     } else {
       // Keep original value
       sanitizedObj[key] = value
     }
   }
 
-  return { sanitized: sanitizedObj, count: sanitizedCount }
+  return { sanitized: sanitizedObj, count }
 }
 
 /**
