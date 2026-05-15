@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "bun run ../../scripts/build-server.ts",
-    "dev": "bun run src/index.ts"
+    "dev": "while bun run src/index.ts; do echo 'Restarting server...'; done"
   },
   "keywords": [
     "claude",

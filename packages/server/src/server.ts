@@ -82,6 +82,10 @@ export const createServer = async (config: any): Promise<any> => {
     return { "input_tokens": tokenCount }
   });
 
+  app.get("/api/update/check", async (_req: any, _reply: any) => {
+    return { hasUpdate: false };
+  });
+
   // Add endpoint to read config.json with access control
   app.get("/api/config", async (req: any, reply: any) => {
     return await readConfigFile();
