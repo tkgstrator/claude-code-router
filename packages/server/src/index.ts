@@ -183,7 +183,7 @@ async function getServer(options: RunOptions = {}) {
   });
 
   await Promise.allSettled(
-      presets.map(async preset => await serverInstance.registerNamespace(`/preset/${preset.name}`, preset.config))
+      presets.map(async (preset: any) => await serverInstance.registerNamespace(`/preset/${preset.name}`, preset.config))
   )
 
   // Register and configure plugins from config
@@ -454,8 +454,7 @@ export type { IAgent, ITool } from "./agents/type";
 export { initDir, initConfig, readConfigFile, writeConfigFile, backupConfigFile } from "./utils";
 export { pluginManager, tokenSpeedPlugin } from "@musistudio/llms";
 
-// Start service if this file is run directly
-if (require.main === module) {
+if (import.meta.main) {
   run().catch((error) => {
     console.error('Failed to start server:', error);
     process.exit(1);

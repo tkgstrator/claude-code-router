@@ -3,7 +3,7 @@
  * @param stream
  * @param processor
  */
-export const rewriteStream = (stream: ReadableStream, processor: (data: any, controller: ReadableStreamController<any>) => Promise<any>): ReadableStream => {
+export const rewriteStream = (stream: ReadableStream, processor: (data: any, controller: ReadableStreamDefaultController<any>) => Promise<any>): ReadableStream => {
   const reader = stream.getReader()
 
   return new ReadableStream({

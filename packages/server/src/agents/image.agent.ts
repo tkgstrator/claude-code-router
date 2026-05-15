@@ -1,6 +1,5 @@
 import { IAgent, ITool } from "./type";
-import { createHash } from "crypto";
-import * as LRU from "lru-cache";
+import { LRUCache } from "lru-cache";
 
 interface ImageCacheEntry {
   source: any;
@@ -8,11 +7,10 @@ interface ImageCacheEntry {
 }
 
 class ImageCache {
-  private cache: any;
+  private cache: LRUCache<string, ImageCacheEntry>;
 
   constructor(maxSize = 100) {
-    const CacheClass: any = (LRU as any).LRUCache || (LRU as any);
-    this.cache = new CacheClass({
+    this.cache = new LRUCache({
       max: maxSize,
       ttl: 5 * 60 * 1000, // 5 minutes
     });
@@ -20,19 +18,15 @@ class ImageCache {
 
   storeImage(id: string, source: any): void {
     if (this.hasImage(id)) return;
-    this.cache.set(id, {
-      source,
-      timestamp: Date.now(),
-    });
+    this.cache.set(id, { source, timestamp: Date.now() });
   }
 
   getImage(id: string): any {
-    const entry = this.cache.get(id);
-    return entry ? entry.source : null;
+    return this.cache.get(id)?.source ?? null;
   }
 
-  hasImage(hash: string): boolean {
-    return this.cache.has(hash);
+  hasImage(id: string): boolean {
+    return this.cache.has(id);
   }
 
   clear(): void {
@@ -229,10 +223,8 @@ Always ensure that your response reflects a clear, accurate interpretation of th
             }),
           }
         )
-          .then((res) => res.json())
-          .catch((err) => {
-            return null;
-          });
+          .then((res) => res.json() as Promise<any>)
+          .catch(() => null);
         if (!agentResponse || !agentResponse.content) {
           return "analyzeImage Error";
         }

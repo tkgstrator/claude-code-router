@@ -1,11 +1,15 @@
-export class SSEParserTransform extends TransformStream<string, any> {
+export class SSEParserTransform extends TransformStream<Uint8Array | string, any> {
     private buffer = '';
     private currentEvent: Record<string, any> = {};
+    private decoder = new TextDecoder();
 
     constructor() {
         super({
-            transform: (chunk: string, controller) => {
-                this.buffer += chunk;
+            transform: (chunk, controller) => {
+                const text = chunk instanceof Uint8Array
+                    ? this.decoder.decode(chunk, { stream: true })
+                    : chunk;
+                this.buffer += text;
                 const lines = this.buffer.split('\n');
 
                 // Keep last line (may be incomplete)
