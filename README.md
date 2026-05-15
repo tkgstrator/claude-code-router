@@ -20,17 +20,18 @@
 
 ![](blog/images/claude-code.png)
 
-## ✨ Features
+## Features
 
-- **Model Routing**: Route requests to different models based on your needs (e.g., background tasks, thinking, long context).
-- **Multi-Provider Support**: Supports various model providers like OpenRouter, DeepSeek, Ollama, Gemini, Volcengine, and SiliconFlow.
-- **Request/Response Transformation**: Customize requests and responses for different providers using transformers.
-- **Dynamic Model Switching**: Switch models on-the-fly within Claude Code using the `/model` command.
-- **CLI Model Management**: Manage models and providers directly from the terminal with `ccr model`.
-- **GitHub Actions Integration**: Trigger Claude Code tasks in your GitHub workflows.
-- **Plugin System**: Extend functionality with custom transformers.
-- **Claude Code Subscription**: Use your existing Claude Code OAuth token as a backend via the `claude-code-credentials` transformer — no separate API key needed.
-- **OpenAI Codex Support**: Route Claude Code requests to OpenAI's Codex coding agent (`gpt-5-codex`, `gpt-5.1-codex-mini`) via the `openai-responses` transformer using your OpenAI API key.
+Claude Code Router sits between Claude Code and the LLM, so you can route every request to whichever model fits best — without touching your Claude Code setup.
+
+- **Automatic routing by task type** — Background tasks go to a fast, cheap model; reasoning tasks to a powerful one; long documents to a high-context model. Configure once, works automatically.
+- **Any provider** — OpenAI, Gemini, DeepSeek, OpenRouter, Ollama (local), Groq, and more. Mix providers freely.
+- **ChatGPT Plus (Codex)** — Route through your ChatGPT Plus subscription via Codex CLI credentials, or use gpt-5.5 / gpt-5.4 / gpt-5.3-codex via OpenAI API key.
+- **No extra API key** — Use your existing Claude Code sign-in as a backend via the `claude-code-credentials` transformer.
+- **Switch models mid-session** — Type `/model gemini,gemini-3.1-pro-preview` inside Claude Code to change the model on the fly.
+- **Config UI & CLI** — `ccr ui` opens a browser editor; `ccr model` handles everything from the terminal.
+- **GitHub Actions** — Works in CI/CD pipelines with `NON_INTERACTIVE_MODE`.
+- **Custom transformers** — Write plugins to support any provider or modify request/response behavior.
 
 ## 🤖 Available Models
 
@@ -253,57 +254,36 @@ Minimal example:
 
 For per-provider configuration details, see the [Provider guides](#providers).
 
-### 3. Running Claude Code with the Router (CLI mode)
-
-Start Claude Code using the router:
+### 3. Start Claude Code
 
 ```shell
 ccr code
 ```
 
-> **Note**: After modifying the configuration file, you need to restart the service for the changes to take effect:
->
-> ```shell
-> ccr restart
-> ```
+After editing `config.json`, restart the service for changes to take effect:
 
-### 4. UI Mode
+```shell
+ccr restart
+```
 
-For a more intuitive experience, you can use the UI mode to manage your configuration:
+### 4. Config UI
 
 ```shell
 ccr ui
 ```
 
-This will open a web-based interface where you can easily view and edit your `config.json` file.
+Opens a browser-based editor for `config.json`.
 
 ![UI](/blog/images/ui.png)
 
 ### 5. CLI Model Management
-
-For users who prefer terminal-based workflows, you can use the interactive CLI model selector:
 
 ```shell
 ccr model
 ```
 ![](blog/images/models.gif)
 
-This command provides an interactive interface to:
-
-- View current configuration:
-- See all configured models (default, background, think, longContext, webSearch, image)
-- Switch models: Quickly change which model is used for each router type
-- Add new models: Add models to existing providers
-- Create new providers: Set up complete provider configurations including:
-   - Provider name and API endpoint
-   - API key
-   - Available models
-   - Transformer configuration with support for:
-     - Multiple transformers (openrouter, deepseek, gemini, etc.)
-     - Transformer options (e.g., maxtoken with custom limits)
-     - Provider-specific routing (e.g., OpenRouter provider preferences)
-
-The CLI tool validates all inputs and provides helpful prompts to guide you through the configuration process, making it easy to manage complex setups without editing JSON files manually.
+An interactive terminal UI to view and change your provider/model setup without editing JSON. You can switch the model for any routing scenario (default, background, think, longContext…), add models to existing providers, or create a new provider from scratch.
 
 ### 6. Presets Management
 
@@ -329,45 +309,19 @@ ccr preset info my-preset
 ccr preset delete my-preset
 ```
 
-**Preset Features:**
-- **Export**: Save your current configuration as a preset directory (with manifest.json)
-- **Install**: Install presets from local directories
-- **Sensitive Data Handling**: API keys and other sensitive data are automatically sanitized during export (marked as `{{field}}` placeholders)
-- **Dynamic Configuration**: Presets can include input schemas for collecting required information during installation
-- **Version Control**: Each preset includes version metadata for tracking updates
+API keys are automatically redacted on export (`{{field}}` placeholders) and prompted for on install. Presets are stored in `~/.claude-code-router/presets/<name>/manifest.json`.
 
-**Preset File Structure:**
-```
-~/.claude-code-router/presets/
-├── my-preset/
-│   └── manifest.json    # Contains configuration and metadata
-```
+### 7. Activate Command
 
-### 7. Activate Command (Environment Variables Setup)
-
-The `activate` command allows you to set up environment variables globally in your shell, enabling you to use the `claude` command directly or integrate Claude Code Router with applications built using the Agent SDK.
-
-To activate the environment variables, run:
+Point your shell (and any Agent SDK apps) at the router without using `ccr code`:
 
 ```shell
 eval "$(ccr activate)"
 ```
 
-This command outputs the necessary environment variables in shell-friendly format, which are then set in your current shell session. After activation, you can:
+This sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and a few other environment variables so that `claude` and Anthropic SDK apps route through CCR automatically.
 
-- **Use `claude` command directly**: Run `claude` commands without needing to use `ccr code`. The `claude` command will automatically route requests through Claude Code Router.
-- **Integrate with Agent SDK applications**: Applications built with the Anthropic Agent SDK will automatically use the configured router and models.
-
-The `activate` command sets the following environment variables:
-
-- `ANTHROPIC_AUTH_TOKEN`: API key from your configuration
-- `ANTHROPIC_BASE_URL`: The local router endpoint (default: `http://127.0.0.1:3456`)
-- `NO_PROXY`: Set to `127.0.0.1` to prevent proxy interference
-- `DISABLE_TELEMETRY`: Disables telemetry
-- `DISABLE_COST_WARNINGS`: Disables cost warnings
-- `API_TIMEOUT_MS`: API timeout from your configuration
-
-> **Note**: Make sure the Claude Code Router service is running (`ccr start`) before using the activated environment variables. The environment variables are only valid for the current shell session. To make them persistent, you can add `eval "$(ccr activate)"` to your shell configuration file (e.g., `~/.zshrc` or `~/.bashrc`).
+To persist across sessions, add the line to your `~/.zshrc` or `~/.bashrc`. The router must be running (`ccr start`) for the variables to have any effect.
 
 #### Providers
 
