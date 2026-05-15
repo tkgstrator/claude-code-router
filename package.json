@@ -3,6 +3,7 @@
   "version": "2.0.0",
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
+    "dev": "bun run --filter @ccr/server dev & bun run --filter @ccr/ui dev & wait",
     "build": "bun run build:shared && bun run build:core && bun run build:server && bun run build:cli && bun run build:ui",
     "build:core": "bun run --filter @musistudio/llms build",
     "build:shared": "bun run --filter @ccr/shared build",
