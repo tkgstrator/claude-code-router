@@ -1,0 +1,38 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.turbo": true,
+    "**/.cache": true,
+    "**/.next": true,
+    "**/coverage": true,
+    "**/.parcel-cache": true,
+    "**/bun.lock": false
+  },
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.turbo/**": true,
+    "**/.cache/**": true,
+    "**/.next/**": true,
+    "**/coverage/**": true,
+    "**/.parcel-cache/**": true,
+    "**/packages/*/dist/**": true,
+    "**/.claude/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.turbo": true,
+    "**/.cache": true,
+    "**/.next": true,
+    "**/coverage": true,
+    "**/bun.lock": true,
+    "**/package-lock.json": true,
+    "**/yarn.lock": true
+  }
+}
