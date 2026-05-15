@@ -11,8 +11,8 @@ import {
   PRESETS_DIR,
   REFERENCE_COUNT_FILE,
   readPresetFile,
-} from "@CCR/shared";
-import { getServer } from "@CCR/server";
+} from "@ccr/shared";
+import { getServer } from "@ccr/server";
 import { writeFileSync, existsSync, readFileSync, mkdirSync } from "fs";
 import { checkForUpdates, performUpdate } from "./update";
 import { version } from "../../package.json";

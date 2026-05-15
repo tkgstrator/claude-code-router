@@ -5,7 +5,7 @@ import { join } from "path";
 import { initConfig, initDir } from "./utils";
 import { createServer } from "./server";
 import { apiKeyAuth } from "./middleware/auth";
-import { CONFIG_FILE, HOME_DIR, listPresets } from "@CCR/shared";
+import { CONFIG_FILE, HOME_DIR, listPresets } from "@ccr/shared";
 import { createStream } from 'rotating-file-stream';
 import { sessionUsageCache } from "@musistudio/llms";
 import { SSEParserTransform } from "./utils/SSEParser.transform";
