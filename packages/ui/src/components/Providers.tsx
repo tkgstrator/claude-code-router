@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
+import { PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
 import type { Provider } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
@@ -34,30 +35,12 @@ export function Providers() {
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [isNewProvider, setIsNewProvider] = useState<boolean>(false)
-  const [providerTemplates, setProviderTemplates] = useState<ProviderType[]>([])
+  const [providerTemplates] = useState<ProviderType[]>(PROVIDER_TEMPLATES)
   const [showApiKey, setShowApiKey] = useState<Record<number, boolean>>({})
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState<string>('')
   const comboInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    const fetchProviderTemplates = async () => {
-      try {
-        const response = await fetch('https://pub-0dc3e1677e894f07bbea11b17a29e032.r2.dev/providers.json')
-        if (response.ok) {
-          const data = await response.json()
-          setProviderTemplates(data || [])
-        } else {
-          console.error('Failed to fetch provider templates')
-        }
-      } catch (error) {
-        console.error('Failed to fetch provider templates:', error)
-      }
-    }
-
-    fetchProviderTemplates()
-  }, [])
 
   // Fetch available transformers when component mounts
   useEffect(() => {
