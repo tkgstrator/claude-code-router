@@ -49,7 +49,8 @@
     "status_fail": "失败",
     "status_unknown": "未检查",
     "status_testing": "测试中…",
-    "no_models": "暂无模型，请先添加供应商。"
+    "no_models": "暂无模型，请先添加供应商。",
+    "assign_routes": "分配到路由"
   },
   "login": {
     "title": "登录到您的账户",
@@ -138,7 +139,6 @@
     "name_required": "名称为必填项",
     "name_duplicate": "已存在同名供应商",
     "search": "搜索供应商..."
-
   },
   "router": {
     "title": "路由",
