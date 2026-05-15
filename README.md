@@ -39,25 +39,31 @@ The following providers and models are configured by default. Edit `~/.claude-co
 ### Codex — ChatGPT Plus via Codex CLI credentials
 Requires `~/.codex/auth.json`. Run `codex` to authenticate.
 
-| Model   | Used for                            |
-|---------|-------------------------------------|
-| gpt-5.5 | default / think / longContext       |
+| Model          | Used for                            |
+|----------------|-------------------------------------|
+| gpt-5.5        | default / think / longContext       |
+| gpt-5.4        | High capability                     |
+| gpt-5.3-codex  | Coding-optimized                    |
 
 ### OpenAI — `$OPENAI_API_KEY`
 
-| Model        | Notes            |
-|--------------|------------------|
-| gpt-4.1      | High capability  |
-| gpt-4.1-mini | Fast, economical |
-| gpt-4o       | High capability  |
-| gpt-4o-mini  | Fast, economical |
+| Model          | Notes              |
+|----------------|--------------------|
+| gpt-5.5        | Latest, high capability |
+| gpt-5.4        | High capability    |
+| gpt-5.3-codex  | Coding-optimized   |
+| gpt-4.1        | High capability    |
+| gpt-4.1-mini   | Fast, economical   |
+| gpt-4o         | High capability    |
+| gpt-4o-mini    | Fast, economical   |
 
 ### Gemini — `$GEMINI_API_KEY`
 
-| Model            | Notes           |
-|------------------|-----------------|
-| gemini-2.5-flash | Fast, default   |
-| gemini-2.5-pro   | High capability |
+| Model                 | Notes           |
+|-----------------------|-----------------|
+| gemini-3.1-pro-preview | Latest, high capability |
+| gemini-2.5-flash      | Fast, default   |
+| gemini-2.5-pro        | High capability |
 
 ### Claude — Claude Code OAuth credentials
 Requires `~/.claude/.credentials.json`. Sign in via Claude Code.

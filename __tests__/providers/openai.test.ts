@@ -86,3 +86,186 @@ describe.skipIf(!hasApiKey)("openai / gpt-4.1", () => {
     TEST_TIMEOUT
   );
 });
+
+describe.skipIf(!hasApiKey)("openai / gpt-5.5", () => {
+  test(
+    "streaming response has correct Anthropic SSE shape",
+    async () => {
+      let events;
+      try {
+        events = await streamMessage({
+          model: "openai,gpt-5.5",
+          max_tokens: 100,
+          messages: [{ role: "user", content: "Say exactly: hello" }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+          console.warn("openai gpt-5.5 not available, skipping");
+          return;
+        }
+        throw err;
+      }
+
+      assertAnthropicSSEShape(events);
+      const text = extractTextFromEvents(events);
+      expect(text.length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "response contains expected text",
+    async () => {
+      let events;
+      try {
+        events = await streamMessage({
+          model: "openai,gpt-5.5",
+          max_tokens: 50,
+          messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+          console.warn("openai gpt-5.5 not available, skipping");
+          return;
+        }
+        throw err;
+      }
+
+      const text = extractTextFromEvents(events);
+      expect(text.toLowerCase()).toContain("pong");
+    },
+    TEST_TIMEOUT
+  );
+});
+
+describe.skipIf(!hasApiKey)("openai / gpt-5.4", () => {
+  test(
+    "streaming response has correct Anthropic SSE shape",
+    async () => {
+      let events;
+      try {
+        events = await streamMessage({
+          model: "openai,gpt-5.4",
+          max_tokens: 100,
+          messages: [{ role: "user", content: "Say exactly: hello" }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+          console.warn("openai gpt-5.4 not available, skipping");
+          return;
+        }
+        throw err;
+      }
+
+      assertAnthropicSSEShape(events);
+      const text = extractTextFromEvents(events);
+      expect(text.length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "response contains expected text",
+    async () => {
+      let events;
+      try {
+        events = await streamMessage({
+          model: "openai,gpt-5.4",
+          max_tokens: 50,
+          messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+          console.warn("openai gpt-5.4 not available, skipping");
+          return;
+        }
+        throw err;
+      }
+
+      const text = extractTextFromEvents(events);
+      expect(text.toLowerCase()).toContain("pong");
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "non-streaming response returns Anthropic message format",
+    async () => {
+      let res;
+      try {
+        res = await sendMessage({
+          model: "openai,gpt-5.4",
+          max_tokens: 50,
+          messages: [{ role: "user", content: "Reply with only the number 42." }],
+          stream: false,
+        });
+      } catch (err: any) {
+        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+          console.warn("openai gpt-5.4 not available, skipping");
+          return;
+        }
+        throw err;
+      }
+
+      expect(res.ok).toBe(true);
+      const body = await res.json() as any;
+      expect(body.type).toBe("message");
+      expect(body.role).toBe("assistant");
+      expect(Array.isArray(body.content)).toBe(true);
+      const text = body.content.map((c: any) => c.text ?? "").join("");
+      expect(text).toContain("42");
+    },
+    TEST_TIMEOUT
+  );
+});
+
+describe.skipIf(!hasApiKey)("openai / gpt-5.3-codex", () => {
+  test(
+    "streaming response has correct Anthropic SSE shape",
+    async () => {
+      let events;
+      try {
+        events = await streamMessage({
+          model: "openai,gpt-5.3-codex",
+          max_tokens: 100,
+          messages: [{ role: "user", content: "Say exactly: hello" }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+          console.warn("openai gpt-5.3-codex not available, skipping");
+          return;
+        }
+        throw err;
+      }
+
+      assertAnthropicSSEShape(events);
+      const text = extractTextFromEvents(events);
+      expect(text.length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "response contains expected text",
+    async () => {
+      let events;
+      try {
+        events = await streamMessage({
+          model: "openai,gpt-5.3-codex",
+          max_tokens: 50,
+          messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+          console.warn("openai gpt-5.3-codex not available, skipping");
+          return;
+        }
+        throw err;
+      }
+
+      const text = extractTextFromEvents(events);
+      expect(text.toLowerCase()).toContain("pong");
+    },
+    TEST_TIMEOUT
+  );
+});

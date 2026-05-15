@@ -74,3 +74,105 @@ describe.skipIf(!hasCredentials)("codex / gpt-5.5", () => {
     TEST_TIMEOUT
   );
 });
+
+describe.skipIf(!hasCredentials)("codex / gpt-5.4", () => {
+  test(
+    "streaming response has correct Anthropic SSE shape",
+    async () => {
+      const events = await streamMessage({
+        model: "codex,gpt-5.4",
+        max_tokens: 100,
+        messages: [{ role: "user", content: "Say exactly: hello" }],
+      });
+
+      assertAnthropicSSEShape(events);
+      const text = extractTextFromEvents(events);
+      expect(text.length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "response contains text content",
+    async () => {
+      const events = await streamMessage({
+        model: "codex,gpt-5.4",
+        max_tokens: 50,
+        messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+      });
+
+      const text = extractTextFromEvents(events);
+      expect(text.toLowerCase()).toContain("pong");
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "message_start event contains model info",
+    async () => {
+      const events = await streamMessage({
+        model: "codex,gpt-5.4",
+        max_tokens: 50,
+        messages: [{ role: "user", content: "Hi" }],
+      });
+
+      const startEvent = events.find((e) => e.event === "message_start");
+      expect(startEvent).toBeDefined();
+      const message = (startEvent?.data as any)?.message;
+      expect(message).toBeDefined();
+      expect(message?.role).toBe("assistant");
+    },
+    TEST_TIMEOUT
+  );
+});
+
+describe.skipIf(!hasCredentials)("codex / gpt-5.3-codex", () => {
+  test(
+    "streaming response has correct Anthropic SSE shape",
+    async () => {
+      const events = await streamMessage({
+        model: "codex,gpt-5.3-codex",
+        max_tokens: 100,
+        messages: [{ role: "user", content: "Say exactly: hello" }],
+      });
+
+      assertAnthropicSSEShape(events);
+      const text = extractTextFromEvents(events);
+      expect(text.length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "response contains text content",
+    async () => {
+      const events = await streamMessage({
+        model: "codex,gpt-5.3-codex",
+        max_tokens: 50,
+        messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+      });
+
+      const text = extractTextFromEvents(events);
+      expect(text.toLowerCase()).toContain("pong");
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "message_start event contains model info",
+    async () => {
+      const events = await streamMessage({
+        model: "codex,gpt-5.3-codex",
+        max_tokens: 50,
+        messages: [{ role: "user", content: "Hi" }],
+      });
+
+      const startEvent = events.find((e) => e.event === "message_start");
+      expect(startEvent).toBeDefined();
+      const message = (startEvent?.data as any)?.message;
+      expect(message).toBeDefined();
+      expect(message?.role).toBe("assistant");
+    },
+    TEST_TIMEOUT
+  );
+});

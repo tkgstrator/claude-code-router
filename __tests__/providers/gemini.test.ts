@@ -82,8 +82,7 @@ describe.skipIf(!hasApiKey)("gemini / gemini-2.5-pro", () => {
           messages: [{ role: "user", content: "Say exactly: hello" }],
         });
       } catch (err: any) {
-        // gemini-2.5-pro may return 503 under high demand; treat as skipped
-        if (err.message?.includes("503") || err.message?.includes("503") || err.message?.includes("UNAVAILABLE")) {
+        if (err.message?.includes("503") || err.message?.includes("UNAVAILABLE")) {
           console.warn("gemini-2.5-pro unavailable (503), skipping assertion");
           return;
         }
@@ -93,6 +92,57 @@ describe.skipIf(!hasApiKey)("gemini / gemini-2.5-pro", () => {
       assertAnthropicSSEShape(events);
       const text = extractTextFromEvents(events);
       expect(text.length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT
+  );
+});
+
+describe.skipIf(!hasApiKey)("gemini / gemini-3.1-pro-preview", () => {
+  test(
+    "streaming response has correct Anthropic SSE shape",
+    async () => {
+      let events: SSEEvent[];
+      try {
+        events = await streamMessage({
+          model: "gemini,gemini-3.1-pro-preview",
+          max_tokens: 100,
+          messages: [{ role: "user", content: "Say exactly: hello" }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("503") || err.message?.includes("UNAVAILABLE") || err.message?.includes("404")) {
+          console.warn("gemini-3.1-pro-preview unavailable, skipping assertion");
+          return;
+        }
+        throw err;
+      }
+
+      assertAnthropicSSEShape(events);
+      const text = extractTextFromEvents(events);
+      expect(text.length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT
+  );
+
+  test(
+    "response contains expected text",
+    async () => {
+      let events: SSEEvent[];
+      try {
+        events = await streamMessage({
+          model: "gemini,gemini-3.1-pro-preview",
+          max_tokens: 50,
+          messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+        });
+      } catch (err: any) {
+        if (err.message?.includes("503") || err.message?.includes("UNAVAILABLE") || err.message?.includes("404")) {
+          console.warn("gemini-3.1-pro-preview unavailable, skipping assertion");
+          return;
+        }
+        throw err;
+      }
+
+      const text = extractTextFromEvents(events);
+      expect(text.toLowerCase()).toContain("pong");
     },
     TEST_TIMEOUT
   );

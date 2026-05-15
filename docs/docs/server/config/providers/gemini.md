@@ -9,7 +9,7 @@ sidebar_position: 2
   "name": "gemini",
   "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
   "api_key": "$GEMINI_API_KEY",
-  "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
+  "models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-pro-preview"],
   "transformer": {
     "use": ["gemini"]
   }
@@ -20,12 +20,13 @@ sidebar_position: 2
 
 > The `api_base_url` must end with a trailing `/`. The transformer appends the model name and action automatically.
 
-## Available models (as of 2025)
+## Available models
 
-| Model            | Notes           |
-|------------------|-----------------|
-| gemini-2.5-flash | Fast, default   |
-| gemini-2.5-pro   | High capability |
+| Model                  | Notes                   |
+|------------------------|-------------------------|
+| gemini-3.1-pro-preview | Latest, high capability |
+| gemini-2.5-flash       | Fast, default           |
+| gemini-2.5-pro         | High capability         |
 
 Older models (`gemini-2.0-flash`, `gemini-1.5-pro`) may no longer be available for new API keys.
 

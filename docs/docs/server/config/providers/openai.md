@@ -47,7 +47,7 @@ Route through ChatGPT Plus subscription using credentials from the [Codex CLI](h
   "name": "codex",
   "api_base_url": "https://chatgpt.com/backend-api/codex/responses",
   "api_key": "placeholder",
-  "models": ["gpt-5.5"],
+  "models": ["gpt-5.5", "gpt-5.4", "gpt-5.3-codex"],
   "transformer": {
     "use": ["openai-responses", "codex-auth"]
   }
@@ -55,6 +55,14 @@ Route through ChatGPT Plus subscription using credentials from the [Codex CLI](h
 ```
 
 Requires `~/.codex/auth.json`. Run `codex` to authenticate. The `codex-auth` transformer reads the token and auto-refreshes it before expiry.
+
+### Available ChatGPT Plus models
+
+| Model         | Notes                |
+|---------------|----------------------|
+| gpt-5.5       | Latest, default      |
+| gpt-5.4       | High capability      |
+| gpt-5.3-codex | Coding-optimized     |
 
 ## Routing example
 
