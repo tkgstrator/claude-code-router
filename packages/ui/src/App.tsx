@@ -342,6 +342,13 @@ function App() {
                 >
                   中文
                 </Button>
+                <Button
+                  variant={i18n.language.startsWith('ja') ? 'default' : 'ghost'}
+                  className="w-full justify-start transition-all-ease hover:scale-[1.02]"
+                  onClick={() => i18n.changeLanguage('ja')}
+                >
+                  日本語
+                </Button>
               </div>
             </PopoverContent>
           </Popover>
