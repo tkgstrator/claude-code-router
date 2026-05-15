@@ -19,7 +19,8 @@
     "dev:ui": "bun run --filter @ccr/ui dev",
     "dev:core": "bun run --filter @musistudio/llms dev",
     "dev:docs": "bun run --filter claude-code-router-docs start",
-    "serve:docs": "bun run --filter claude-code-router-docs serve"
+    "serve:docs": "bun run --filter claude-code-router-docs serve",
+    "test:providers": "bun test __tests__/providers"
   },
   "bin": {
     "ccr": "dist/cli.js"
