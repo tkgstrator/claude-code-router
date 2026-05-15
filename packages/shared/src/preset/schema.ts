@@ -103,13 +103,18 @@ export function evaluateCondition(condition: Condition, values: UserInputValues)
     case 'ne':
       return actualValue !== condition.value
     case 'gt':
-      return actualValue > condition.value
     case 'lt':
-      return actualValue < condition.value
     case 'gte':
-      return actualValue >= condition.value
-    case 'lte':
+    case 'lte': {
+      // Relational operators only make sense for numeric values.
+      if (typeof actualValue !== 'number' || typeof condition.value !== 'number') {
+        return false
+      }
+      if (condition.operator === 'gt') return actualValue > condition.value
+      if (condition.operator === 'lt') return actualValue < condition.value
+      if (condition.operator === 'gte') return actualValue >= condition.value
       return actualValue <= condition.value
+    }
     default:
       // Default to eq
       return actualValue === condition.value
@@ -676,7 +681,7 @@ export function loadConfigFromManifest(manifest: ManifestFile, presetDir?: strin
 
   for (const [key, value] of Object.entries(manifest)) {
     if (!METADATA_FIELDS.includes(key) && !DYNAMIC_CONFIG_FIELDS.includes(key)) {
-      presetFile.config[key] = value
+      Object.assign(presetFile.config, { [key]: value })
     }
   }
 
