@@ -57,6 +57,20 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx tsc -b --noEmit
 
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      # __tests__/providers/* are live-API integration tests that need a
+      # running CCR server and provider keys. CI only runs the key-free
+      # unit tests under __tests__/preset/.
+      - run: bun test __tests__/preset/
+
   build:
     name: Build
     runs-on: ubuntu-latest
