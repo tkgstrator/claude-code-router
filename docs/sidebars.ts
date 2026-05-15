@@ -90,7 +90,20 @@ const sidebars: SidebarsConfig = {
           },
           items: [
             'server/config/basic',
-            'server/config/providers',
+            {
+              type: 'category',
+              label: 'Providers',
+              link: { type: 'doc', id: 'server/config/providers' },
+              items: [
+                'server/config/providers/openai',
+                'server/config/providers/gemini',
+                'server/config/providers/claude-code',
+                'server/config/providers/deepseek',
+                'server/config/providers/openrouter',
+                'server/config/providers/groq',
+                'server/config/providers/ollama',
+              ],
+            },
             'server/config/routing',
             'server/config/transformers',
           ],
