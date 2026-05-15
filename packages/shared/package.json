@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "node ../../scripts/build-shared.js"
+    "build": "bun run ../../scripts/build-shared.ts"
   },
   "keywords": [
     "claude",
@@ -23,8 +23,7 @@
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
     "@types/archiver": "^7.0.0",
-    "@types/node": "^24.0.15",
-    "esbuild": "^0.25.1",
+    "@types/bun": "^1.2.0",
     "typescript": "^5.8.2"
   }
 }

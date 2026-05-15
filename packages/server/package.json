@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "node ../../scripts/build-server.js",
-    "dev": "ts-node src/index.ts"
+    "build": "bun run ../../scripts/build-server.ts",
+    "dev": "bun run src/index.ts"
   },
   "keywords": [
     "claude",
@@ -32,10 +32,8 @@
   "devDependencies": {
     "@CCR/shared": "workspace:*",
     "@types/adm-zip": "^0.5.7",
-    "@types/node": "^24.0.15",
-    "esbuild": "^0.25.1",
+    "@types/bun": "^1.2.0",
     "fastify": "^5.4.0",
-    "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
   }
 }

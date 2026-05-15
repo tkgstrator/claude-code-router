@@ -14,13 +14,12 @@
     }
   },
   "scripts": {
-    "tsx": "tsx",
-    "build": "tsx scripts/build.ts",
-    "build:watch": "tsx scripts/build.ts --watch",
-    "dev": "nodemon",
-    "start": "node dist/cjs/server.cjs",
-    "start:esm": "node dist/esm/server.mjs",
-    "lint": "eslint src --ext .ts,.tsx"
+    "build": "bun run scripts/build.ts",
+    "build:watch": "bun run scripts/build.ts --watch",
+    "dev": "bun --watch src/server.ts",
+    "start": "bun dist/esm/server.mjs",
+    "start:cjs": "bun dist/cjs/server.cjs",
+    "lint": "bunx eslint src --ext .ts,.tsx"
   },
   "keywords": [
     "llm",
@@ -51,9 +50,8 @@
   },
   "devDependencies": {
     "@CCR/shared": "workspace:*",
-    "@types/node": "^24.0.15",
+    "@types/bun": "^1.2.0",
     "esbuild": "^0.25.1",
-    "tsx": "^4.20.3",
     "typescript": "^5.8.2"
   }
 }
