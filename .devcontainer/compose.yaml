@@ -6,7 +6,6 @@ services:
     volumes:
       - node_modules:/home/vscode/app/node_modules
       - ../:/home/vscode/app:cached
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       NODE_ENV: development
       NODE_OPTIONS: "--no-deprecation"
