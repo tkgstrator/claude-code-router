@@ -15,26 +15,26 @@ Claude Code Router is a tool that routes Claude Code requests to different LLM p
 
 ### Build all packages
 ```bash
-pnpm build
+bun run build
 ```
 
 ### Build individual packages
 ```bash
-pnpm build:cli      # Build CLI
-pnpm build:server   # Build Server
-pnpm build:ui       # Build UI
+bun run build:cli      # Build CLI
+bun run build:server   # Build Server
+bun run build:ui       # Build UI
 ```
 
 ### Development mode
 ```bash
-pnpm dev:cli        # Develop CLI (ts-node)
-pnpm dev:server     # Develop Server (ts-node)
-pnpm dev:ui         # Develop UI (Vite)
+bun run dev:cli        # Develop CLI (ts-node)
+bun run dev:server     # Develop Server (ts-node)
+bun run dev:ui         # Develop UI (Vite)
 ```
 
 ### Publish
 ```bash
-pnpm release        # Build and publish all packages
+bun run release        # Build and publish all packages
 ```
 
 ## Core Architecture
@@ -233,7 +233,7 @@ ui (standalone frontend application)
 ## Development Notes
 
 1. **Node.js version**: Requires >= 18.0.0
-2. **Package manager**: Uses pnpm (monorepo depends on workspace protocol)
+2. **Package manager**: Uses bun (monorepo workspace support via `workspaces` in package.json)
 3. **TypeScript**: All packages use TypeScript, but UI package is ESM module
 4. **Build tools**:
    - cli/server/shared: esbuild
@@ -241,6 +241,57 @@ ui (standalone frontend application)
 5. **@musistudio/llms**: This is an external dependency package providing the core server framework and transformer functionality, type definitions in `packages/server/src/types.d.ts`
 6. **Code comments**: All comments in code MUST be written in English
 7. **Documentation**: When implementing new features, add documentation to the docs project instead of creating standalone md files
+
+## Available Models
+
+Configuration file: `~/.claude-code-router/config.json`
+
+### Codex (ChatGPT Plus via Codex CLI credentials)
+Requires `~/.codex/auth.json` (run `codex` to authenticate).
+
+| Model   | Notes              |
+|---------|--------------------|
+| gpt-5.5 | Default / think / longContext routing |
+
+### OpenAI (API key: `$OPENAI_API_KEY`)
+
+| Model       | Notes            |
+|-------------|------------------|
+| gpt-4o      | High capability  |
+| gpt-4o-mini | Fast, economical |
+| o3-mini     | Reasoning model  |
+
+### Gemini (API key: `$GEMINI_API_KEY`)
+
+| Model                   | Notes              |
+|-------------------------|--------------------|
+| gemini-2.5-flash        | Fast, default      |
+| gemini-2.5-pro          | High capability    |
+
+### Claude (Claude Code OAuth credentials)
+Requires `~/.claude/.credentials.json` (sign in via Claude Code).
+
+| Model                      | Notes                    |
+|----------------------------|--------------------------|
+| claude-opus-4-7            | High capability          |
+| claude-sonnet-4-6          | Balanced                 |
+| claude-haiku-4-5-20251001  | Background tasks (fast)  |
+
+### Default Routing (Router config)
+
+| Scenario     | Provider,Model                    |
+|--------------|-----------------------------------|
+| default      | codex,gpt-5.5                     |
+| background   | claude,claude-haiku-4-5-20251001  |
+| think        | codex,gpt-5.5                     |
+| longContext  | codex,gpt-5.5                     |
+
+To route directly to a specific model, use the `provider,model` format:
+```
+model: "openai,gpt-4o-mini"
+model: "gemini,gemini-2.5-flash"
+model: "claude,claude-haiku-4-5-20251001"
+```
 
 ## Configuration Example Locations
 
