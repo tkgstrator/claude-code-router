@@ -13,6 +13,7 @@
     "includes": [
       "packages/shared/src/**/*.{ts,tsx}",
       "packages/cli/src/**/*.{ts,tsx}",
+      "packages/server/src/**/*.{ts,tsx}",
       "!**/node_modules",
       "!**/dist"
     ]
