@@ -88,6 +88,7 @@ export class ClaudeCodeCredentialsTransformer {
         headers: {
           "x-api-key": token,
           "anthropic-version": "2023-06-01",
+          Authorization: undefined,
           authorization: undefined,
         },
       },
