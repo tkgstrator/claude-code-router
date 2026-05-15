@@ -50,7 +50,7 @@ export class ImageAgent implements IAgent {
   }
 
   shouldHandle(req: any, config: any): boolean {
-    if (!config.Router.image || req.body.model === config.Router.image)
+    if (!config.Router?.image || req.body.model === config.Router.image)
       return false;
     const lastMessage = req.body.messages[req.body.messages.length - 1];
     if (
