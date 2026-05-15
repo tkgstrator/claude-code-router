@@ -63,23 +63,10 @@ cat > ~/.claude-code-router/config.json << 'EOF'
 EOF
 ```
 
-**Step 2 — Create a `compose.yaml` file:**
+**Step 2 — Download `compose.yaml`:**
 
 ```shell
-cat > compose.yaml << 'EOF'
-services:
-  ccr:
-    image: musistudio/claude-code-router:latest
-    ports:
-      - "127.0.0.1:3456:3456"
-    volumes:
-      - ${HOME}/.claude-code-router:/root/.claude-code-router
-      - ${HOME}/.claude:/root/.claude
-    env_file:
-      - path: .env
-        required: false
-    restart: unless-stopped
-EOF
+curl -fsSL https://raw.githubusercontent.com/musistudio/claude-code-router/main/compose.yaml -o compose.yaml
 ```
 
 **Step 3 — (Optional) Create a `.env` file for API keys:**
