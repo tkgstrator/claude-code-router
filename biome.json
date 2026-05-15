@@ -4,6 +4,7 @@
   "files": {
     "includes": [
       "packages/shared/src/**/*.{ts,tsx}",
+      "packages/cli/src/**/*.{ts,tsx}",
       "!**/node_modules",
       "!**/dist"
     ]

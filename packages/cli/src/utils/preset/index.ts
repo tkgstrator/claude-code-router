@@ -4,9 +4,8 @@
  */
 
 // 从 shared 包重新导出类型和核心功能
-export * from '@ccr/shared';
-
+export * from '@ccr/shared'
+export { handlePresetCommand } from './commands'
 // 导出 CLI 特定的功能（带交互）
-export { exportPresetCli } from './export';
-export { installPresetCli, applyPresetCli } from './install';
-export { handlePresetCommand } from './commands';
+export { exportPresetCli } from './export'
+export { applyPresetCli, installPresetCli } from './install'
