@@ -13,7 +13,8 @@ import {
   TEST_TIMEOUT,
 } from "./helpers";
 
-const hasApiKey = Boolean(process.env.OPENAI_API_KEY);
+const hasApiKey =
+  Boolean(process.env.OPENAI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS;
 
 describe.skipIf(!hasApiKey)("openai / gpt-4.1-mini", () => {
   test(

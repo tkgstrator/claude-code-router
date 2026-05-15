@@ -66,10 +66,13 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      # __tests__/providers/* are live-API integration tests that need a
-      # running CCR server and provider keys. CI only runs the key-free
-      # unit tests under __tests__/preset/.
-      - run: bun test __tests__/preset/
+      # __tests__/providers/* are live-API integration tests (need a
+      # running CCR server + provider keys/credentials). CCR_SKIP_LIVE_TESTS
+      # forces every provider describe to skip regardless of whether keys
+      # or ~/.claude / ~/.codex credentials happen to be present, so the
+      # whole __tests__ tree runs deterministically: providers skip,
+      # preset unit tests pass. This also guards the skipIf wiring itself.
+      - run: CCR_SKIP_LIVE_TESTS=1 bun test __tests__/
 
   build:
     name: Build
