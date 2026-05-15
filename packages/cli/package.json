@@ -23,11 +23,14 @@
     "@inquirer/prompts": "^5.0.0",
     "@types/archiver": "^7.0.0",
     "@types/bun": "^1.2.0",
+    "@types/shell-quote": "^1.7.1",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
     "find-process": "^2.0.0",
+    "json5": "^2.2.3",
     "minimist": "^1.2.8",
     "openurl": "^1.1.1",
+    "shell-quote": "^1.8.3",
     "typescript": "^5.8.2"
   }
 }

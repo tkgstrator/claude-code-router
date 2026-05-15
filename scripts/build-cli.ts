@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { join } from "path";
-import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync, rmSync, cpSync } from "fs";
+import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync, rmSync, cpSync, writeFileSync } from "fs";
 
 console.log("Building CLI package...");
 
@@ -52,21 +52,35 @@ const cliResult = await Bun.build({
   naming: "cli.js",
   minify: true,
   target: "bun",
+  external: ["tiktoken"],
 });
 if (!cliResult.success) {
   console.error("CLI build failed:", cliResult.logs);
   process.exit(1);
 }
 
-// Step 5: Copy tiktoken WASM
-console.log("Copying tiktoken_bg.wasm from server to CLI dist...");
-const tiktokenSource = join(serverDir, "dist/tiktoken_bg.wasm");
-const tiktokenDest = join(cliDistDir, "tiktoken_bg.wasm");
-if (existsSync(tiktokenSource)) {
-  copyFileSync(tiktokenSource, tiktokenDest);
-  console.log("tiktoken_bg.wasm copied successfully!");
+// Fix shebang for bun runtime
+const cliJsPath = join(cliDistDir, "cli.js");
+const cliContent = await Bun.file(cliJsPath).text();
+const fixedContent = cliContent.replace(/^#!.*\n/, "#!/usr/bin/env bun\n");
+await Bun.write(cliJsPath, fixedContent.startsWith("#!") ? fixedContent : `#!/usr/bin/env bun\n${fixedContent}`);
+
+// Step 5: Copy tiktoken package to dist/node_modules for external resolution
+console.log("Copying tiktoken package to dist/node_modules...");
+const tiktokenSrc = join(serverDir, "node_modules/tiktoken");
+const tiktokenNodeModulesDir = join(cliDistDir, "node_modules");
+if (existsSync(tiktokenSrc)) {
+  if (!existsSync(tiktokenNodeModulesDir)) mkdirSync(tiktokenNodeModulesDir, { recursive: true });
+  const r = Bun.spawnSync(["cp", "-rL", tiktokenSrc, tiktokenNodeModulesDir], {
+    stdout: "inherit", stderr: "inherit",
+  });
+  if (r.exitCode === 0) {
+    console.log("tiktoken package copied successfully!");
+  } else {
+    console.warn("Warning: failed to copy tiktoken package");
+  }
 } else {
-  console.warn("Warning: tiktoken_bg.wasm not found in server dist, skipping...");
+  console.warn("Warning: tiktoken not found in server node_modules, skipping...");
 }
 
 // Step 6: Copy UI index.html

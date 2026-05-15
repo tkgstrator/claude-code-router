@@ -42,11 +42,14 @@
         "@inquirer/prompts": "^5.0.0",
         "@types/archiver": "^7.0.0",
         "@types/bun": "^1.2.0",
+        "@types/shell-quote": "^1.7.1",
         "adm-zip": "^0.5.16",
         "archiver": "^7.0.1",
         "find-process": "^2.0.0",
+        "json5": "^2.2.3",
         "minimist": "^1.2.8",
         "openurl": "^1.1.1",
+        "shell-quote": "^1.8.3",
         "typescript": "^5.8.2",
       },
     },
@@ -1115,6 +1118,8 @@
     "@types/serve-index": ["@types/serve-index@1.9.4", "", { "dependencies": { "@types/express": "4.17.25" } }, "sha512-qLpGZ/c2fhSs5gnYsQxtDEq3Oy8SXPClIXkW5ghvAvsNuVSA8k+gCONcUCS/UjLEYvYps+e8uBtfgXgvhwfNug=="],
 
     "@types/serve-static": ["@types/serve-static@1.15.10", "", { "dependencies": { "@types/http-errors": "2.0.5", "@types/node": "24.7.0", "@types/send": "0.17.6" } }, "sha512-tRs1dB+g8Itk72rlSI2ZrW6vZg0YrLI81iQSTkMmOqnqCaNr/8Ek4VwWcN5vZgCYWbg/JJSGBlUaYGAOP73qBw=="],
+
+    "@types/shell-quote": ["@types/shell-quote@1.7.5", "", {}, "sha512-+UE8GAGRPbJVQDdxi16dgadcBfQ+KG2vgZhV1+3A1XmHbmwcdwhCUwIdy+d3pAGrbvgRoVSjeI9vOWyq376Yzw=="],
 
     "@types/sockjs": ["@types/sockjs@0.3.36", "", { "dependencies": { "@types/node": "24.7.0" } }, "sha512-MK9V6NzAS1+Ud7JV9lJLFqW85VbC9dq3LmwZCuBe4wBDgKC0Kj/jd8Xl+nSviU+Qc3+m7umHHyHg//2KSa0a0Q=="],
 
