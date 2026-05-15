@@ -30,7 +30,7 @@
 - **GitHub Actions Integration**: Trigger Claude Code tasks in your GitHub workflows.
 - **Plugin System**: Extend functionality with custom transformers.
 - **Claude Code Subscription**: Use your existing Claude Code OAuth token as a backend via the `claude-code-credentials` transformer — no separate API key needed.
-- **OpenAI Responses API**: Route to Codex and o-series models via OpenAI's Responses API with the `openai-responses` transformer.
+- **ChatGPT Codex Subscription**: Use your ChatGPT Plus/Pro subscription to access Codex (OpenAI's coding agent) inside Claude Code via the `openai-responses` transformer — no separate API key needed.
 
 ## 🚀 Getting Started
 

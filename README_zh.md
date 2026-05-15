@@ -28,7 +28,7 @@
 -   **GitHub Actions 集成**: 在您的 GitHub 工作流程中触发 Claude Code 任务。
 -   **插件系统**: 使用自定义转换器扩展功能。
 -   **Claude Code 订阅直连**: 通过 `claude-code-credentials` 转换器，直接使用本地 Claude Code OAuth Token 作为后端，无需单独申请 API Key。
--   **OpenAI Responses API**: 通过 `openai-responses` 转换器，将请求路由到 Codex 及 o 系列模型。
+-   **ChatGPT Codex 订阅直连**: 使用 ChatGPT Plus/Pro 订阅，通过 `openai-responses` 转换器在 Claude Code 内直接使用 OpenAI 的编程 Agent Codex，无需额外 API Key。
 
 ## 🚀 快速入门
 
