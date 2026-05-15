@@ -13,10 +13,10 @@ export function Router() {
   if (!config) {
     return (
       <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-        <CardHeader className='border-b p-4'>
+        <CardHeader className='border-b px-6 py-4'>
           <CardTitle className='text-lg'>{t('router.title')}</CardTitle>
         </CardHeader>
-        <CardContent className='flex-grow flex items-center justify-center p-4'>
+        <CardContent className='flex-grow flex items-center justify-center px-6 py-4'>
           <div className='text-gray-500'>Loading router configuration...</div>
         </CardContent>
       </Card>
@@ -66,10 +66,10 @@ export function Router() {
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-      <CardHeader className='border-b p-4'>
+      <CardHeader className='border-b px-6 py-4'>
         <CardTitle className='text-lg'>{t('router.title')}</CardTitle>
       </CardHeader>
-      <CardContent className='flex-grow space-y-5 overflow-y-auto p-4'>
+      <CardContent className='flex-grow space-y-5 overflow-y-auto px-6 py-4'>
         <div className='space-y-2'>
           <Label>{t('router.default')}</Label>
           <Combobox

@@ -121,7 +121,7 @@ export function ModelsDashboard() {
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-      <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
+      <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
         <CardTitle className='text-lg'>{t('nav.models')}</CardTitle>
         <Button
           onClick={handleTestAll}
@@ -141,20 +141,20 @@ export function ModelsDashboard() {
           <table className='w-full text-sm'>
             <thead className='sticky top-0 bg-gray-50 text-left text-gray-500'>
               <tr>
-                <th className='px-4 py-2 font-medium'>{t('models.provider')}</th>
-                <th className='px-4 py-2 font-medium'>{t('models.model')}</th>
-                <th className='px-4 py-2 font-medium'>{t('models.cost')}</th>
-                <th className='px-4 py-2 font-medium'>{t('models.status')}</th>
-                <th className='px-4 py-2 font-medium'>{t('models.routes')}</th>
-                <th className='px-4 py-2 font-medium text-right'>{t('models.test')}</th>
+                <th className='px-6 py-2 font-medium'>{t('models.provider')}</th>
+                <th className='px-6 py-2 font-medium'>{t('models.model')}</th>
+                <th className='px-6 py-2 font-medium'>{t('models.cost')}</th>
+                <th className='px-6 py-2 font-medium'>{t('models.status')}</th>
+                <th className='px-6 py-2 font-medium'>{t('models.routes')}</th>
+                <th className='px-6 py-2 font-medium text-right'>{t('models.test')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.key} className='border-t hover:bg-gray-50'>
-                  <td className='px-4 py-2 text-gray-700'>{row.provider}</td>
-                  <td className='px-4 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
-                  <td className='px-4 py-2 whitespace-nowrap text-xs text-gray-600'>
+                  <td className='px-6 py-2 text-gray-700'>{row.provider}</td>
+                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
+                  <td className='px-6 py-2 whitespace-nowrap text-xs text-gray-600'>
                     {MODEL_PRICING[row.model] ? (
                       <span title={t('models.cost_hint')}>
                         ${MODEL_PRICING[row.model].inputPer1M} / ${MODEL_PRICING[row.model].outputPer1M}
@@ -163,8 +163,8 @@ export function ModelsDashboard() {
                       <span className='text-gray-300'>—</span>
                     )}
                   </td>
-                  <td className='px-4 py-2'>{renderStatus(status[row.key] || 'unknown')}</td>
-                  <td className='px-4 py-2'>
+                  <td className='px-6 py-2'>{renderStatus(status[row.key] || 'unknown')}</td>
+                  <td className='px-6 py-2'>
                     <Popover>
                       <PopoverTrigger asChild>
                         <button
@@ -205,7 +205,7 @@ export function ModelsDashboard() {
                       </PopoverContent>
                     </Popover>
                   </td>
-                  <td className='px-4 py-2 text-right'>
+                  <td className='px-6 py-2 text-right'>
                     <Button
                       size='sm'
                       variant='ghost'

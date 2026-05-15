@@ -60,10 +60,10 @@ export function Providers() {
   if (!config) {
     return (
       <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-        <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
+        <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
           <CardTitle className='text-lg'>{t('providers.title')}</CardTitle>
         </CardHeader>
-        <CardContent className='flex-grow flex items-center justify-center p-4'>
+        <CardContent className='flex-grow flex items-center justify-center px-6 py-4'>
           <div className='text-gray-500'>Loading providers configuration...</div>
         </CardContent>
       </Card>
@@ -525,7 +525,7 @@ export function Providers() {
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-      <CardHeader className='flex flex-col border-b p-4 gap-3'>
+      <CardHeader className='flex flex-col border-b px-6 py-4 gap-3'>
         <div className='flex flex-row items-center justify-between'>
           <CardTitle className='text-lg'>
             {t('providers.title')}{' '}
@@ -552,7 +552,7 @@ export function Providers() {
           )}
         </div>
       </CardHeader>
-      <CardContent className='flex-grow overflow-y-auto p-4'>
+      <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
         <ProviderList
           providers={filteredProviders}
           onEdit={handleEditProvider}

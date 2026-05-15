@@ -23,7 +23,7 @@ export function Login() {
         // Verify the API key is still valid
         try {
           await api.getConfig()
-          navigate('/dashboard')
+          navigate('/models')
         } catch {
           // If verification fails, remove the API key
           localStorage.removeItem('apiKey')
@@ -68,7 +68,7 @@ export function Login() {
 
       // Navigate to dashboard
       // The ConfigProvider will handle fetching the config
-      navigate('/dashboard')
+      navigate('/models')
     } catch (error: any) {
       // Clear the API key on failure
       api.setApiKey('')
@@ -78,7 +78,7 @@ export function Login() {
         setError(t('login.invalidApiKey'))
       } else {
         // For other errors, still allow access (restricted mode)
-        navigate('/dashboard')
+        navigate('/models')
       }
     }
   }
