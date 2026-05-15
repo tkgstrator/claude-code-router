@@ -1,12 +1,17 @@
 # ===========================
 # Stage 1: Build UI
 # ===========================
-FROM oven/bun:1-alpine AS ui-builder
+FROM oven/bun:1 AS ui-builder
 
 WORKDIR /app
 
 COPY package.json bun.lock tsconfig.base.json ./
+COPY packages/cli/package.json ./packages/cli/
+COPY packages/core/package.json ./packages/core/
+COPY packages/server/package.json ./packages/server/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
+COPY docs/package.json ./docs/
 
 RUN bun install --frozen-lockfile
 
@@ -18,15 +23,18 @@ RUN bun run build
 # ===========================
 # Stage 2: Build server
 # ===========================
-FROM oven/bun:1-alpine AS server-builder
+FROM oven/bun:1 AS server-builder
 
 WORKDIR /app
 
 COPY package.json bun.lock tsconfig.base.json ./
 COPY scripts ./scripts
-COPY packages/shared/package.json ./packages/shared/
+COPY packages/cli/package.json ./packages/cli/
 COPY packages/core/package.json ./packages/core/
 COPY packages/server/package.json ./packages/server/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/ui/package.json ./packages/ui/
+COPY docs/package.json ./docs/
 
 RUN bun install --frozen-lockfile
 
@@ -54,6 +62,11 @@ WORKDIR /app
 
 COPY --from=server-builder /app/packages/server/dist ./packages/server/dist
 COPY --from=ui-builder /app/packages/ui/dist/. ./packages/server/dist/
+
+# Bun bundler inlines tiktoken's build-time __dirname, so place the WASM at one
+# of the runtime lookup candidates (/app/node_modules/tiktoken/).
+RUN mkdir -p /app/node_modules/tiktoken && \
+    ln -s /app/packages/server/dist/tiktoken_bg.wasm /app/node_modules/tiktoken/tiktoken_bg.wasm
 
 RUN mkdir -p /root/.claude-code-router/logs
 
