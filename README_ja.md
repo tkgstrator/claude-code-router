@@ -28,7 +28,7 @@
 - **GitHub Actions 連携**: GitHub ワークフローから Claude Code タスクをトリガー。
 - **プラグインシステム**: カスタムトランスフォーマーで機能を拡張。
 - **Claude Code サブスクリプション直結**: `claude-code-credentials` トランスフォーマーにより、ローカルの Claude Code OAuth トークンをそのまま利用。別途 API キー不要。
-- **ChatGPT Codex サブスクリプション直結**: ChatGPT Plus/Pro サブスクリプションで OpenAI のコーディングエージェント Codex を Claude Code 内から利用可能。`openai-responses` トランスフォーマーを使用、別途 API キー不要。
+- **OpenAI Codex 対応**: `openai-responses` トランスフォーマーと OpenAI API キーを使い、Claude Code のリクエストを OpenAI のコーディングエージェント Codex（`gpt-5-codex`、`gpt-5.1-codex-mini`）にルーティング。
 
 ## 🚀 クイックスタート
 
