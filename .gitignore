@@ -10,3 +10,6 @@ tsconfig.tsbuildinfo
 # Documentation build output
 docs/build
 docs/.docusaurus
+
+# Package manager caches
+.pnpm-store/
