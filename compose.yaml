@@ -1,0 +1,14 @@
+services:
+  ccr:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    ports:
+      - "127.0.0.1:3456:3456"
+    volumes:
+      - ${HOME}/.claude-code-router:/root/.claude-code-router
+      - ${HOME}/.claude:/root/.claude
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped

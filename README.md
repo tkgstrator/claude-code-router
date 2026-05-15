@@ -1,6 +1,7 @@
 ![](blog/images/claude-code-router-img.png)
 
 [![](https://img.shields.io/badge/%F0%9F%87%A8%F0%9F%87%B3-%E4%B8%AD%E6%96%87%E7%89%88-ff0000?style=flat)](README_zh.md)
+[![](https://img.shields.io/badge/%F0%9F%87%AF%F0%9F%87%B5-%E6%97%A5%E6%9C%AC%E8%AA%9E-white?style=flat)](README_ja.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
 [![](https://img.shields.io/github/license/musistudio/claude-code-router)](https://github.com/musistudio/claude-code-router/blob/main/LICENSE)
 
@@ -28,10 +29,92 @@
 - **CLI Model Management**: Manage models and providers directly from the terminal with `ccr model`.
 - **GitHub Actions Integration**: Trigger Claude Code tasks in your GitHub workflows.
 - **Plugin System**: Extend functionality with custom transformers.
+- **Claude Code Subscription**: Use your existing Claude Code OAuth token as a backend via the `claude-code-credentials` transformer — no separate API key needed.
+- **OpenAI Responses API**: Route to Codex and o-series models via OpenAI's Responses API with the `openai-responses` transformer.
 
 ## 🚀 Getting Started
 
-### 1. Installation
+### 1. Quick Start with Docker
+
+The recommended way to run Claude Code Router is via Docker Compose. This requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
+
+**Step 1 — Clone the repository and build:**
+
+```shell
+git clone https://github.com/musistudio/claude-code-router.git
+cd claude-code-router
+```
+
+**Step 2 — Create your config file:**
+
+```shell
+mkdir -p ~/.claude-code-router
+cat > ~/.claude-code-router/config.json << 'EOF'
+{
+  "APIKEY": "your-secret-key",
+  "Providers": [
+    {
+      "name": "openai",
+      "api_base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key": "$OPENAI_API_KEY",
+      "models": ["gpt-4o", "gpt-4o-mini"],
+      "transformer": { "use": ["OpenAI"] }
+    }
+  ],
+  "Router": {
+    "default": "openai,gpt-4o-mini"
+  }
+}
+EOF
+```
+
+**Step 3 — (Optional) Create a `.env` file for API keys:**
+
+```shell
+cat > .env << 'EOF'
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+EOF
+```
+
+**Step 4 — Start the service:**
+
+```shell
+docker compose up -d
+```
+
+The router is now available at `http://127.0.0.1:3456`.
+
+**Step 5 — Configure Claude Code to use the router:**
+
+```shell
+ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
+```
+
+Or set permanently in your shell profile:
+
+```shell
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
+export ANTHROPIC_AUTH_TOKEN=your-secret-key
+```
+
+> **Note**: After modifying `config.json`, restart the container for changes to take effect:
+>
+> ```shell
+> docker compose restart
+> ```
+
+**View logs:**
+
+```shell
+docker compose logs -f
+```
+
+---
+
+### Alternative: Global CLI Install
+
+If you prefer a non-Docker setup, install Claude Code Router as a global CLI tool.
 
 First, ensure you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code/quickstart) installed:
 
@@ -42,49 +125,73 @@ npm install -g @anthropic-ai/claude-code
 Then, install Claude Code Router:
 
 ```shell
+# Via Bun (recommended — the project runs on Bun internally)
+bun install -g @musistudio/claude-code-router
+
+# Via npm
 npm install -g @musistudio/claude-code-router
 ```
 
+Start Claude Code using the router:
+
+```shell
+ccr code
+```
+
+> **Note**: After modifying the configuration file, restart the service:
+>
+> ```shell
+> ccr restart
+> ```
+
+---
+
 ### 2. Configuration
 
-Create and configure your `~/.claude-code-router/config.json` file. For more details, you can refer to `config.example.json`.
+Create and configure `~/.claude-code-router/config.json`. For more details, refer to `config.example.json`.
 
 The `config.json` file has several key sections:
 
-- **`PROXY_URL`** (optional): You can set a proxy for API requests, for example: `"PROXY_URL": "http://127.0.0.1:7890"`.
-- **`LOG`** (optional): You can enable logging by setting it to `true`. When set to `false`, no log files will be created. Default is `true`.
-- **`LOG_LEVEL`** (optional): Set the logging level. Available options are: `"fatal"`, `"error"`, `"warn"`, `"info"`, `"debug"`, `"trace"`. Default is `"debug"`.
-- **Logging Systems**: The Claude Code Router uses two separate logging systems:
-  - **Server-level logs**: HTTP requests, API calls, and server events are logged using pino in the `~/.claude-code-router/logs/` directory with filenames like `ccr-*.log`
-  - **Application-level logs**: Routing decisions and business logic events are logged in `~/.claude-code-router/claude-code-router.log`
-- **`APIKEY`** (optional): You can set a secret key to authenticate requests. When set, clients must provide this key in the `Authorization` header (e.g., `Bearer your-secret-key`) or the `x-api-key` header. Example: `"APIKEY": "your-secret-key"`.
-- **`HOST`** (optional): You can set the host address for the server. If `APIKEY` is not set, the host will be forced to `127.0.0.1` for security reasons to prevent unauthorized access. Example: `"HOST": "0.0.0.0"`.
-- **`NON_INTERACTIVE_MODE`** (optional): When set to `true`, enables compatibility with non-interactive environments like GitHub Actions, Docker containers, or other CI/CD systems. This sets appropriate environment variables (`CI=true`, `FORCE_COLOR=0`, etc.) and configures stdin handling to prevent the process from hanging in automated environments. Example: `"NON_INTERACTIVE_MODE": true`.
-
-- **`Providers`**: Used to configure different model providers.
-- **`Router`**: Used to set up routing rules. `default` specifies the default model, which will be used for all requests if no other route is configured.
-- **`API_TIMEOUT_MS`**: Specifies the timeout for API calls in milliseconds.
+- **`PROXY_URL`** (optional): Proxy for API requests. Example: `"PROXY_URL": "http://127.0.0.1:7890"`.
+- **`LOG`** (optional): Enable logging by setting to `true`. Set to `false` to disable log files. Default is `true`.
+- **`LOG_LEVEL`** (optional): Logging level. Options: `"fatal"`, `"error"`, `"warn"`, `"info"`, `"debug"`, `"trace"`. Default is `"debug"`.
+- **Logging Systems**: Two separate logging systems:
+  - **Server-level logs**: HTTP requests, API calls, and server events logged via pino in `~/.claude-code-router/logs/` as `ccr-*.log`
+  - **Application-level logs**: Routing decisions and business logic in `~/.claude-code-router/claude-code-router.log`
+- **`APIKEY`** (optional): Secret key to authenticate requests. Clients must provide this in the `Authorization` header (`Bearer your-secret-key`) or `x-api-key` header.
+- **`HOST`** (optional): Host address for the server. If `APIKEY` is not set, host is forced to `127.0.0.1` for security. Example: `"HOST": "0.0.0.0"`.
+- **`NON_INTERACTIVE_MODE`** (optional): Set to `true` for non-interactive environments (GitHub Actions, Docker, CI/CD). Prevents process from hanging due to stdin handling.
+- **`Providers`**: Configure model providers.
+- **`Router`**: Routing rules. `default` is used for all requests unless a more specific route matches.
+- **`API_TIMEOUT_MS`**: Timeout for API calls in milliseconds.
 
 #### Environment Variable Interpolation
 
-Claude Code Router supports environment variable interpolation for secure API key management. You can reference environment variables in your `config.json` using either `$VAR_NAME` or `${VAR_NAME}` syntax:
+Claude Code Router supports environment variable interpolation for secure API key management. Reference environment variables in `config.json` using `$VAR_NAME` or `${VAR_NAME}` syntax:
 
 ```json
 {
-  "OPENAI_API_KEY": "$OPENAI_API_KEY",
-  "GEMINI_API_KEY": "${GEMINI_API_KEY}",
   "Providers": [
     {
       "name": "openai",
       "api_base_url": "https://api.openai.com/v1/chat/completions",
       "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-5", "gpt-5-mini"]
+      "models": ["gpt-4o"]
     }
   ]
 }
 ```
 
-This allows you to keep sensitive API keys in environment variables instead of hardcoding them in configuration files. The interpolation works recursively through nested objects and arrays.
+Variables are resolved from the process environment. With Docker Compose, place your keys in a `.env` file at the project root — they are automatically loaded into the container:
+
+```shell
+# .env
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The interpolation works recursively through nested objects and arrays.
 
 Here is a comprehensive example:
 
@@ -131,10 +238,37 @@ Here is a comprehensive example:
     {
       "name": "gemini",
       "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
-      "api_key": "sk-xxx",
+      "api_key": "$GEMINI_API_KEY",
       "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
       "transformer": {
         "use": ["gemini"]
+      }
+    },
+    {
+      "name": "openai",
+      "api_base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key": "$OPENAI_API_KEY",
+      "models": ["gpt-4o", "gpt-4o-mini", "o4-mini", "o3"],
+      "transformer": {
+        "use": ["OpenAI"]
+      }
+    },
+    {
+      "name": "codex",
+      "api_base_url": "https://api.openai.com/v1/responses",
+      "api_key": "$OPENAI_API_KEY",
+      "models": ["gpt-5.1-codex-mini", "gpt-5-codex"],
+      "transformer": {
+        "use": ["openai-responses"]
+      }
+    },
+    {
+      "name": "claude-code",
+      "api_base_url": "https://api.anthropic.com/v1/messages",
+      "api_key": "placeholder",
+      "models": ["claude-opus-4-5", "claude-sonnet-4-5"],
+      "transformer": {
+        "use": ["claude-code-credentials"]
       }
     },
     {
@@ -205,7 +339,7 @@ Here is a comprehensive example:
 }
 ```
 
-### 3. Running Claude Code with the Router
+### 3. Running Claude Code with the Router (CLI mode)
 
 Start Claude Code using the router:
 
@@ -386,7 +520,10 @@ Transformers allow you to modify the request and response payloads to ensure com
 
 **Available Built-in Transformers:**
 
-- `Anthropic`:If you use only the `Anthropic` transformer, it will preserve the original request and response parameters(you can use it to connect directly to an Anthropic endpoint).
+- `Anthropic`: Preserves the original Anthropic request/response format. Use this to connect directly to an Anthropic endpoint without modification.
+- `claude-code-credentials`: Uses your local Claude Code OAuth token (`~/.claude/.credentials.json`) as the API key, including automatic token refresh. No separate API key needed — requires an active Claude Code subscription. With Docker, mount `~/.claude` into the container (already done in `compose.yaml`).
+- `openai-responses`: Adapts requests/responses for the OpenAI Responses API (`/v1/responses`). Use this for Codex models (`gpt-5.1-codex-mini`, `gpt-5-codex`) and other models accessible via the Responses API.
+- `OpenAI`: Adapts requests/responses for the standard OpenAI Chat Completions API.
 - `deepseek`: Adapts requests/responses for DeepSeek API.
 - `gemini`: Adapts requests/responses for Gemini API.
 - `openrouter`: Adapts requests/responses for OpenRouter API. It can also accept a `provider` routing parameter to specify which underlying providers OpenRouter should use. For more details, refer to the [OpenRouter documentation](https://openrouter.ai/docs/features/provider-routing). See an example below:
@@ -556,7 +693,7 @@ jobs:
 
       - name: Start Claude Code Router
         run: |
-          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@1.0.8 start &
+          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
         shell: bash
 
       - name: Run Claude Code

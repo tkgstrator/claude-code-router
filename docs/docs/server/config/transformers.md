@@ -153,9 +153,69 @@ interface UnifiedMessage {
 
 ## Built-in Transformers
 
-### anthropic
+### Anthropic
 
-Transforms requests to be compatible with Anthropic-style APIs:
+Passes requests and responses through in Anthropic format without modification. Use this to connect directly to an Anthropic-compatible endpoint.
+
+```json
+{
+  "name": "anthropic-provider",
+  "api_base_url": "https://api.anthropic.com/v1/messages",
+  "api_key": "sk-ant-...",
+  "models": ["claude-opus-4-5"],
+  "transformer": { "use": ["Anthropic"] }
+}
+```
+
+### claude-code-credentials
+
+Uses the local Claude Code OAuth token as the API key. Reads from `~/.claude/.credentials.json` and automatically refreshes the token before it expires.
+
+**Requirements:**
+- Claude Code must be installed and authenticated (`claude` CLI)
+- With Docker: mount `~/.claude` into the container (done automatically by `compose.yaml`)
+
+```json
+{
+  "name": "claude-code",
+  "api_base_url": "https://api.anthropic.com/v1/messages",
+  "api_key": "placeholder",
+  "models": ["claude-opus-4-5", "claude-sonnet-4-5"],
+  "transformer": { "use": ["claude-code-credentials"] }
+}
+```
+
+### openai-responses
+
+Adapts requests for the OpenAI Responses API (`/v1/responses`). Use this for Codex models and other models accessible via the Responses API.
+
+```json
+{
+  "name": "codex",
+  "api_base_url": "https://api.openai.com/v1/responses",
+  "api_key": "$OPENAI_API_KEY",
+  "models": ["gpt-5.1-codex-mini", "gpt-5-codex"],
+  "transformer": { "use": ["openai-responses"] }
+}
+```
+
+### OpenAI
+
+Adapts requests for the standard OpenAI Chat Completions API.
+
+```json
+{
+  "name": "openai",
+  "api_base_url": "https://api.openai.com/v1/chat/completions",
+  "api_key": "$OPENAI_API_KEY",
+  "models": ["gpt-4o", "o4-mini"],
+  "transformer": { "use": ["OpenAI"] }
+}
+```
+
+### anthropic (legacy name)
+
+Same as `Anthropic` above. Transforms requests to be compatible with Anthropic-style APIs:
 
 ```json
 {

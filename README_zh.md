@@ -24,12 +24,95 @@
 -   **多提供商支持**: 支持 OpenRouter、DeepSeek、Ollama、Gemini、Volcengine 和 SiliconFlow 等各种模型提供商。
 -   **请求/响应转换**: 使用转换器为不同的提供商自定义请求和响应。
 -   **动态模型切换**: 在 Claude Code 中使用 `/model` 命令动态切换模型。
+-   **CLI 模型管理**: 使用 `ccr model` 直接从终端管理模型和提供商。
 -   **GitHub Actions 集成**: 在您的 GitHub 工作流程中触发 Claude Code 任务。
 -   **插件系统**: 使用自定义转换器扩展功能。
+-   **Claude Code 订阅直连**: 通过 `claude-code-credentials` 转换器，直接使用本地 Claude Code OAuth Token 作为后端，无需单独申请 API Key。
+-   **OpenAI Responses API**: 通过 `openai-responses` 转换器，将请求路由到 Codex 及 o 系列模型。
 
 ## 🚀 快速入门
 
-### 1. 安装
+### 1. Docker 快速启动（推荐）
+
+推荐使用 Docker Compose 运行 Claude Code Router。需要提前安装 [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/)。
+
+**第一步 — 克隆仓库：**
+
+```shell
+git clone https://github.com/musistudio/claude-code-router.git
+cd claude-code-router
+```
+
+**第二步 — 创建配置文件：**
+
+```shell
+mkdir -p ~/.claude-code-router
+cat > ~/.claude-code-router/config.json << 'EOF'
+{
+  "APIKEY": "your-secret-key",
+  "Providers": [
+    {
+      "name": "openai",
+      "api_base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key": "$OPENAI_API_KEY",
+      "models": ["gpt-4o", "gpt-4o-mini"],
+      "transformer": { "use": ["OpenAI"] }
+    }
+  ],
+  "Router": {
+    "default": "openai,gpt-4o-mini"
+  }
+}
+EOF
+```
+
+**第三步 — （可选）创建 `.env` 文件存放 API Key：**
+
+```shell
+cat > .env << 'EOF'
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+EOF
+```
+
+**第四步 — 启动服务：**
+
+```shell
+docker compose up -d
+```
+
+服务将在 `http://127.0.0.1:3456` 启动。
+
+**第五步 — 配置 Claude Code 使用路由器：**
+
+```shell
+ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
+```
+
+或在 Shell 配置文件中永久设置：
+
+```shell
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
+export ANTHROPIC_AUTH_TOKEN=your-secret-key
+```
+
+> **注意**: 修改 `config.json` 后，重启容器使配置生效：
+>
+> ```shell
+> docker compose restart
+> ```
+
+**查看日志：**
+
+```shell
+docker compose logs -f
+```
+
+---
+
+### 替代方案：全局 CLI 安装
+
+如果您偏好非 Docker 方式，也可以将 Claude Code Router 安装为全局 CLI 工具。
 
 首先，请确保您已安装 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/quickstart)：
 
@@ -40,26 +123,71 @@ npm install -g @anthropic-ai/claude-code
 然后，安装 Claude Code Router：
 
 ```shell
+# 通过 Bun 安装（推荐 — 项目内部基于 Bun 运行）
+bun install -g @musistudio/claude-code-router
+
+# 通过 npm 安装
 npm install -g @musistudio/claude-code-router
 ```
+
+使用 router 启动 Claude Code：
+
+```shell
+ccr code
+```
+
+> **注意**: 修改配置文件后，需要重启服务使配置生效：
+> ```shell
+> ccr restart
+> ```
+
+---
 
 ### 2. 配置
 
 创建并配置您的 `~/.claude-code-router/config.json` 文件。有关更多详细信息，您可以参考 `config.example.json`。
 
 `config.json` 文件有几个关键部分：
-- **`PROXY_URL`** (可选): 您可以为 API 请求设置代理，例如：`"PROXY_URL": "http://127.0.0.1:7890"`。
-- **`LOG`** (可选): 您可以通过将其设置为 `true` 来启用日志记录。当设置为 `false` 时，将不会创建日志文件。默认值为 `true`。
-- **`LOG_LEVEL`** (可选): 设置日志级别。可用选项包括：`"fatal"`、`"error"`、`"warn"`、`"info"`、`"debug"`、`"trace"`。默认值为 `"debug"`。
+- **`PROXY_URL`** (可选): 为 API 请求设置代理。例如：`"PROXY_URL": "http://127.0.0.1:7890"`。
+- **`LOG`** (可选): 设置为 `true` 启用日志记录，设置为 `false` 则不创建日志文件。默认值为 `true`。
+- **`LOG_LEVEL`** (可选): 日志级别。可选项：`"fatal"`、`"error"`、`"warn"`、`"info"`、`"debug"`、`"trace"`。默认值为 `"debug"`。
 - **日志系统**: Claude Code Router 使用两个独立的日志系统：
   - **服务器级别日志**: HTTP 请求、API 调用和服务器事件使用 pino 记录在 `~/.claude-code-router/logs/` 目录中，文件名类似于 `ccr-*.log`
   - **应用程序级别日志**: 路由决策和业务逻辑事件记录在 `~/.claude-code-router/claude-code-router.log` 文件中
-- **`APIKEY`** (可选): 您可以设置一个密钥来进行身份验证。设置后，客户端请求必须在 `Authorization` 请求头 (例如, `Bearer your-secret-key`) 或 `x-api-key` 请求头中提供此密钥。例如：`"APIKEY": "your-secret-key"`。
-- **`HOST`** (可选): 您可以设置服务的主机地址。如果未设置 `APIKEY`，出于安全考虑，主机地址将强制设置为 `127.0.0.1`，以防止未经授权的访问。例如：`"HOST": "0.0.0.0"`。
-- **`NON_INTERACTIVE_MODE`** (可选): 当设置为 `true` 时，启用与非交互式环境（如 GitHub Actions、Docker 容器或其他 CI/CD 系统）的兼容性。这会设置适当的环境变量（`CI=true`、`FORCE_COLOR=0` 等）并配置 stdin 处理，以防止进程在自动化环境中挂起。例如：`"NON_INTERACTIVE_MODE": true`。
-- **`Providers`**: 用于配置不同的模型提供商。
-- **`Router`**: 用于设置路由规则。`default` 指定默认模型，如果未配置其他路由，则该模型将用于所有请求。
-- **`API_TIMEOUT_MS`**: API 请求超时时间，单位为毫秒。
+- **`APIKEY`** (可选): 设置请求鉴权密钥。客户端需在 `Authorization` 请求头（如 `Bearer your-secret-key`）或 `x-api-key` 请求头中提供。
+- **`HOST`** (可选): 服务的监听地址。如果未设置 `APIKEY`，出于安全考虑会强制设为 `127.0.0.1`。例如：`"HOST": "0.0.0.0"`。
+- **`NON_INTERACTIVE_MODE`** (可选): 设置为 `true` 以兼容非交互式环境（GitHub Actions、Docker、CI/CD 等），防止进程因 stdin 挂起。
+- **`Providers`**: 配置不同的模型提供商。
+- **`Router`**: 路由规则。`default` 为未匹配其他路由时的默认模型。
+- **`API_TIMEOUT_MS`**: API 请求超时时间（毫秒）。
+
+#### 环境变量插值
+
+Claude Code Router 支持在 `config.json` 中使用 `$VAR_NAME` 或 `${VAR_NAME}` 语法引用环境变量，以避免将 API Key 明文写入配置文件：
+
+```json
+{
+  "Providers": [
+    {
+      "name": "openai",
+      "api_base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key": "$OPENAI_API_KEY",
+      "models": ["gpt-4o"]
+    }
+  ]
+}
+```
+
+使用 Docker Compose 时，将 API Key 写入项目根目录的 `.env` 文件即可自动注入容器：
+
+```shell
+# .env
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+插值在嵌套对象和数组中均递归生效。
 
 这是一个综合示例：
 
@@ -106,10 +234,37 @@ npm install -g @musistudio/claude-code-router
     {
       "name": "gemini",
       "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
-      "api_key": "sk-xxx",
+      "api_key": "$GEMINI_API_KEY",
       "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
       "transformer": {
         "use": ["gemini"]
+      }
+    },
+    {
+      "name": "openai",
+      "api_base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key": "$OPENAI_API_KEY",
+      "models": ["gpt-4o", "gpt-4o-mini", "o4-mini", "o3"],
+      "transformer": {
+        "use": ["OpenAI"]
+      }
+    },
+    {
+      "name": "codex",
+      "api_base_url": "https://api.openai.com/v1/responses",
+      "api_key": "$OPENAI_API_KEY",
+      "models": ["gpt-5.1-codex-mini", "gpt-5-codex"],
+      "transformer": {
+        "use": ["openai-responses"]
+      }
+    },
+    {
+      "name": "claude-code",
+      "api_base_url": "https://api.anthropic.com/v1/messages",
+      "api_key": "placeholder",
+      "models": ["claude-opus-4-5", "claude-sonnet-4-5"],
+      "transformer": {
+        "use": ["claude-code-credentials"]
       }
     },
     {
@@ -180,8 +335,7 @@ npm install -g @musistudio/claude-code-router
 }
 ```
 
-
-### 3. 使用 Router 运行 Claude Code
+### 3. 使用 Router 运行 Claude Code（CLI 模式）
 
 使用 router 启动 Claude Code：
 
@@ -359,7 +513,10 @@ Transformers 允许您修改请求和响应负载，以确保与不同提供商 
 
 **可用的内置 Transformer：**
 
--   `Anthropic`: 如果你只使用这一个转换器，则会直接透传请求和响应(你可以用它来接入其他支持Anthropic端点的服务商)。
+-   `Anthropic`: 直接透传 Anthropic 格式的请求和响应，不做任何修改（可用于接入原生 Anthropic 端点或其他兼容端点）。
+-   `claude-code-credentials`: 使用本地 Claude Code 的 OAuth Token（`~/.claude/.credentials.json`）作为 API Key，支持自动刷新。无需单独申请 API Key，但需要有效的 Claude Code 订阅。使用 Docker 时，`~/.claude` 目录已通过 `compose.yaml` 挂载到容器中。
+-   `openai-responses`: 适配 OpenAI Responses API（`/v1/responses`）。用于 Codex 模型（`gpt-5.1-codex-mini`、`gpt-5-codex`）等通过 Responses API 访问的模型。
+-   `OpenAI`: 适配标准 OpenAI Chat Completions API 的请求/响应。
 -   `deepseek`: 适配 DeepSeek API 的请求/响应。
 -   `gemini`: 适配 Gemini API 的请求/响应。
 -   `openrouter`: 适配 OpenRouter API 的请求/响应。它还可以接受一个 `provider` 路由参数，以指定 OpenRouter 应使用哪些底层提供商。有关更多详细信息，请参阅 [OpenRouter 文档](https://openrouter.ai/docs/features/provider-routing)。请参阅下面的示例：
@@ -528,7 +685,7 @@ jobs:
 
       - name: Start Claude Code Router
         run: |
-          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@1.0.8 start &
+          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
         shell: bash
 
       - name: Run Claude Code
