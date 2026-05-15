@@ -255,6 +255,7 @@ class Server {
       process.on("SIGINT", () => shutdown("SIGINT"));
       process.on("SIGTERM", () => shutdown("SIGTERM"));
     } catch (error) {
+      console.error(`Error starting server: ${error}`);
       this.app.log.error(`Error starting server: ${error}`);
       process.exit(1);
     }

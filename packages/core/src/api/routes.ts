@@ -477,15 +477,35 @@ export const registerApiRoutes = async (
   const transformersWithEndpoint =
     fastify.transformerService.getTransformersWithEndpoint();
 
-  for (const { transformer } of transformersWithEndpoint) {
-    if (transformer.endPoint) {
-      fastify.post(
-        transformer.endPoint,
-        async (req: FastifyRequest, reply: FastifyReply) => {
-          return handleTransformerEndpoint(req, reply, fastify, transformer);
+  // Group by endpoint path so duplicate endpoints register only one route
+  const endpointTransformerMap = new Map<string, Map<string, any>>();
+  for (const { name, transformer } of transformersWithEndpoint) {
+    if (!transformer.endPoint) continue;
+    const ep = transformer.endPoint as string;
+    if (!endpointTransformerMap.has(ep)) endpointTransformerMap.set(ep, new Map());
+    endpointTransformerMap.get(ep)!.set(name, transformer);
+  }
+
+  for (const [endPoint, transformersByName] of endpointTransformerMap) {
+    const defaultTransformer = transformersByName.values().next().value;
+    fastify.post(
+      endPoint,
+      async (req: FastifyRequest, reply: FastifyReply) => {
+        // Select transformer that matches provider's sole transformer, enabling bypass+auth
+        let transformer = defaultTransformer;
+        const providerName = (req as any).provider;
+        if (providerName) {
+          const provider = fastify.providerService.getProvider(providerName);
+          if (provider?.transformer?.use?.length === 1) {
+            const useName = provider.transformer.use[0]?.name;
+            if (useName && transformersByName.has(useName)) {
+              transformer = transformersByName.get(useName);
+            }
+          }
         }
-      );
-    }
+        return handleTransformerEndpoint(req, reply, fastify, transformer);
+      }
+    );
   }
 
   fastify.post(
