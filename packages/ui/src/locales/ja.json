@@ -39,7 +39,17 @@
     "transformers": "Transformer"
   },
   "models": {
-    "placeholder": "モデル単位の疎通確認とルート割り当ては今後のリリースで提供します。"
+    "provider": "プロバイダー",
+    "model": "モデル",
+    "status": "疎通状態",
+    "routes": "ルート",
+    "test": "テスト",
+    "test_all": "すべてテスト",
+    "status_ok": "疎通OK",
+    "status_fail": "失敗",
+    "status_unknown": "未確認",
+    "status_testing": "確認中…",
+    "no_models": "モデルがありません。先にプロバイダーを追加してください。"
   },
   "login": {
     "title": "アカウントにサインイン",

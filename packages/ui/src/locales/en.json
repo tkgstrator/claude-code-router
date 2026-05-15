@@ -39,7 +39,17 @@
     "transformers": "Transformers"
   },
   "models": {
-    "placeholder": "Per-model reachability checks and route assignment land in an upcoming release."
+    "provider": "Provider",
+    "model": "Model",
+    "status": "Status",
+    "routes": "Routes",
+    "test": "Test",
+    "test_all": "Test all",
+    "status_ok": "Reachable",
+    "status_fail": "Failed",
+    "status_unknown": "Not checked",
+    "status_testing": "Testing…",
+    "no_models": "No models. Add a provider first."
   },
   "login": {
     "title": "Sign in to your account",
