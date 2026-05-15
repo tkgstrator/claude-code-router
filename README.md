@@ -32,6 +32,58 @@
 - **Claude Code Subscription**: Use your existing Claude Code OAuth token as a backend via the `claude-code-credentials` transformer — no separate API key needed.
 - **OpenAI Codex Support**: Route Claude Code requests to OpenAI's Codex coding agent (`gpt-5-codex`, `gpt-5.1-codex-mini`) via the `openai-responses` transformer using your OpenAI API key.
 
+## 🤖 Available Models
+
+The following providers and models are configured by default. Edit `~/.claude-code-router/config.json` to add or change providers.
+
+### Codex — ChatGPT Plus via Codex CLI credentials
+Requires `~/.codex/auth.json`. Run `codex` to authenticate.
+
+| Model   | Used for                            |
+|---------|-------------------------------------|
+| gpt-5.5 | default / think / longContext       |
+
+### OpenAI — `$OPENAI_API_KEY`
+
+| Model       | Notes            |
+|-------------|------------------|
+| gpt-4o      | High capability  |
+| gpt-4o-mini | Fast, economical |
+| o3-mini     | Reasoning model  |
+
+### Gemini — `$GEMINI_API_KEY`
+
+| Model            | Notes           |
+|------------------|-----------------|
+| gemini-2.5-flash | Fast, default   |
+| gemini-2.5-pro   | High capability |
+
+### Claude — Claude Code OAuth credentials
+Requires `~/.claude/.credentials.json`. Sign in via Claude Code.
+
+| Model                     | Used for        |
+|---------------------------|-----------------|
+| claude-opus-4-7           | High capability |
+| claude-sonnet-4-6         | Balanced        |
+| claude-haiku-4-5-20251001 | background tasks |
+
+### Default Routing
+
+| Scenario    | Provider, Model                  |
+|-------------|----------------------------------|
+| default     | codex, gpt-5.5                   |
+| background  | claude, claude-haiku-4-5-20251001 |
+| think       | codex, gpt-5.5                   |
+| longContext | codex, gpt-5.5                   |
+
+To route to a specific model, use the `provider,model` format in the `/model` command or request body:
+
+```
+/model openai,gpt-4o-mini
+/model gemini,gemini-2.5-flash
+/model claude,claude-haiku-4-5-20251001
+```
+
 ## 🚀 Getting Started
 
 ### 1. Quick Start with Docker

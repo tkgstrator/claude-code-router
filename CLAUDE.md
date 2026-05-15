@@ -242,57 +242,6 @@ ui (standalone frontend application)
 6. **Code comments**: All comments in code MUST be written in English
 7. **Documentation**: When implementing new features, add documentation to the docs project instead of creating standalone md files
 
-## Available Models
-
-Configuration file: `~/.claude-code-router/config.json`
-
-### Codex (ChatGPT Plus via Codex CLI credentials)
-Requires `~/.codex/auth.json` (run `codex` to authenticate).
-
-| Model   | Notes              |
-|---------|--------------------|
-| gpt-5.5 | Default / think / longContext routing |
-
-### OpenAI (API key: `$OPENAI_API_KEY`)
-
-| Model       | Notes            |
-|-------------|------------------|
-| gpt-4o      | High capability  |
-| gpt-4o-mini | Fast, economical |
-| o3-mini     | Reasoning model  |
-
-### Gemini (API key: `$GEMINI_API_KEY`)
-
-| Model                   | Notes              |
-|-------------------------|--------------------|
-| gemini-2.5-flash        | Fast, default      |
-| gemini-2.5-pro          | High capability    |
-
-### Claude (Claude Code OAuth credentials)
-Requires `~/.claude/.credentials.json` (sign in via Claude Code).
-
-| Model                      | Notes                    |
-|----------------------------|--------------------------|
-| claude-opus-4-7            | High capability          |
-| claude-sonnet-4-6          | Balanced                 |
-| claude-haiku-4-5-20251001  | Background tasks (fast)  |
-
-### Default Routing (Router config)
-
-| Scenario     | Provider,Model                    |
-|--------------|-----------------------------------|
-| default      | codex,gpt-5.5                     |
-| background   | claude,claude-haiku-4-5-20251001  |
-| think        | codex,gpt-5.5                     |
-| longContext  | codex,gpt-5.5                     |
-
-To route directly to a specific model, use the `provider,model` format:
-```
-model: "openai,gpt-4o-mini"
-model: "gemini,gemini-2.5-flash"
-model: "claude,claude-haiku-4-5-20251001"
-```
-
 ## Configuration Example Locations
 
 - Main configuration example: Complete example in README.md
