@@ -1,0 +1,9 @@
+language js
+
+`z.string().uuid()` as $match where {
+  register_diagnostic(
+    span=$match,
+    message="Use `z.uuid()` instead of `z.string().uuid()` (Zod v4 has a native builder).",
+    severity="warn"
+  )
+}

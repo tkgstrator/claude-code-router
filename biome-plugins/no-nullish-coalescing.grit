@@ -1,0 +1,9 @@
+language js
+
+`$_ ?? $_` as $match where {
+  register_diagnostic(
+    span=$match,
+    message="Avoid `??` fallback. Fix the root cause in API response shape or types instead of papering over missing data on the frontend.",
+    severity="warn"
+  )
+}

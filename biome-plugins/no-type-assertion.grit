@@ -1,0 +1,10 @@
+language js
+
+`$expr as $type` as $match where {
+  $type <: not "const",
+  register_diagnostic(
+    span=$match,
+    message="Avoid `as` type assertion. Use a type guard, narrow with a discriminator, or fix the source type. `as const` is allowed.",
+    severity="warn"
+  )
+}

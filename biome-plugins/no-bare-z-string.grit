@@ -1,0 +1,10 @@
+language js
+
+`z.string()` as $match where {
+  $match <: not within `$_.string().$_`,
+  register_diagnostic(
+    span=$match,
+    message="Bare `z.string()` accepts any string including empty. Add `.nonempty()` (or `.optional()` / `.nullable()` / `.uuid()` / `.url()` etc.) to make intent explicit.",
+    severity="warn"
+  )
+}
