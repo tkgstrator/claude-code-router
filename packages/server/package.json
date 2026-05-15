@@ -4,6 +4,13 @@
   "description": "Server for Claude Code Router",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "bun run ../../scripts/build-server.ts",
     "dev": "bun run src/index.ts"
