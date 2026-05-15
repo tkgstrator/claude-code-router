@@ -50,7 +50,9 @@
     "status_unknown": "未確認",
     "status_testing": "確認中…",
     "no_models": "モデルがありません。先にプロバイダーを追加してください。",
-    "assign_routes": "ルートに割り当て"
+    "assign_routes": "ルートに割り当て",
+    "cost": "費用 / 1M",
+    "cost_hint": "100万トークンあたりの USD (入力 / 出力)、ベース価格・目安"
   },
   "login": {
     "title": "アカウントにサインイン",
