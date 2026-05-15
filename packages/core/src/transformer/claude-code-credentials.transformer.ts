@@ -4,8 +4,8 @@ import { readFileSync, writeFileSync } from "fs";
 
 const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
 
-// Anthropic OAuth token refresh endpoint
-const REFRESH_URL = "https://claude.ai/oauth/token";
+const REFRESH_URL = "https://platform.claude.com/v1/oauth/token";
+const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 
 interface ClaudeCredentials {
   claudeAiOauth: {
@@ -37,6 +37,7 @@ async function refreshToken(refreshTokenValue: string): Promise<string> {
     body: JSON.stringify({
       grant_type: "refresh_token",
       refresh_token: refreshTokenValue,
+      client_id: CLIENT_ID,
     }),
   });
 
