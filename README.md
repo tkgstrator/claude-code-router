@@ -45,11 +45,12 @@ Requires `~/.codex/auth.json`. Run `codex` to authenticate.
 
 ### OpenAI — `$OPENAI_API_KEY`
 
-| Model       | Notes            |
-|-------------|------------------|
-| gpt-4o      | High capability  |
-| gpt-4o-mini | Fast, economical |
-| o3-mini     | Reasoning model  |
+| Model        | Notes            |
+|--------------|------------------|
+| gpt-4.1      | High capability  |
+| gpt-4.1-mini | Fast, economical |
+| gpt-4o       | High capability  |
+| gpt-4o-mini  | Fast, economical |
 
 ### Gemini — `$GEMINI_API_KEY`
 

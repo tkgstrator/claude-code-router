@@ -15,12 +15,12 @@ import {
 
 const hasApiKey = Boolean(process.env.OPENAI_API_KEY);
 
-describe.skipIf(!hasApiKey)("openai / gpt-4o-mini", () => {
+describe.skipIf(!hasApiKey)("openai / gpt-4.1-mini", () => {
   test(
     "streaming response has correct Anthropic SSE shape",
     async () => {
       const events = await streamMessage({
-        model: "openai,gpt-4o-mini",
+        model: "openai,gpt-4.1-mini",
         max_tokens: 100,
         messages: [{ role: "user", content: "Say exactly: hello" }],
       });
@@ -36,7 +36,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-4o-mini", () => {
     "response contains expected text",
     async () => {
       const events = await streamMessage({
-        model: "openai,gpt-4o-mini",
+        model: "openai,gpt-4.1-mini",
         max_tokens: 50,
         messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
       });
@@ -51,7 +51,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-4o-mini", () => {
     "non-streaming response returns Anthropic message format",
     async () => {
       const res = await sendMessage({
-        model: "openai,gpt-4o-mini",
+        model: "openai,gpt-4.1-mini",
         max_tokens: 50,
         messages: [{ role: "user", content: "Reply with only the number 42." }],
         stream: false,
@@ -69,12 +69,12 @@ describe.skipIf(!hasApiKey)("openai / gpt-4o-mini", () => {
   );
 });
 
-describe.skipIf(!hasApiKey)("openai / gpt-4o", () => {
+describe.skipIf(!hasApiKey)("openai / gpt-4.1", () => {
   test(
     "streaming response has correct Anthropic SSE shape",
     async () => {
       const events = await streamMessage({
-        model: "openai,gpt-4o",
+        model: "openai,gpt-4.1",
         max_tokens: 100,
         messages: [{ role: "user", content: "Say exactly: hello" }],
       });
