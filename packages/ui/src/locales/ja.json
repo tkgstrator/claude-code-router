@@ -32,6 +32,15 @@
     "language": "言語",
     "check_updates": "更新を確認"
   },
+  "nav": {
+    "models": "モデル",
+    "providers": "プロバイダー",
+    "router": "ルーター",
+    "transformers": "Transformer"
+  },
+  "models": {
+    "placeholder": "モデル単位の疎通確認とルート割り当ては今後のリリースで提供します。"
+  },
   "login": {
     "title": "アカウントにサインイン",
     "description": "API キーを入力して設定パネルにアクセスしてください",

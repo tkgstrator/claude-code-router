@@ -32,6 +32,15 @@
     "language": "语言",
     "check_updates": "检查更新"
   },
+  "nav": {
+    "models": "模型",
+    "providers": "供应商",
+    "router": "路由",
+    "transformers": "转换器"
+  },
+  "models": {
+    "placeholder": "按模型的连通性检查与路由分配将在后续版本中提供。"
+  },
   "login": {
     "title": "登录到您的账户",
     "description": "请输入您的API密钥以访问配置面板",

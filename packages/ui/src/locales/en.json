@@ -32,6 +32,15 @@
     "language": "Language",
     "check_updates": "Check for Updates"
   },
+  "nav": {
+    "models": "Models",
+    "providers": "Providers",
+    "router": "Router",
+    "transformers": "Transformers"
+  },
+  "models": {
+    "placeholder": "Per-model reachability checks and route assignment land in an upcoming release."
+  },
   "login": {
     "title": "Sign in to your account",
     "description": "Enter your API key to access the configuration panel",
