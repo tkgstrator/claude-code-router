@@ -1,10 +1,12 @@
-import { CheckCircle2, Circle, LoaderCircle, XCircle } from 'lucide-react'
+import { CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 type Reachability = 'unknown' | 'testing' | 'ok' | 'fail'
 
@@ -19,9 +21,15 @@ interface ModelRow {
 
 export function ModelsDashboard() {
   const { t } = useTranslation()
-  const { config } = useConfig()
+  const { config, setConfig } = useConfig()
   const [status, setStatus] = useState<Record<string, Reachability>>({})
   const [isTestingAll, setIsTestingAll] = useState(false)
+
+  const assignToRoute = (route: (typeof ROUTE_KEYS)[number], key: string, checked: boolean) => {
+    if (!config) return
+    const currentRouter = config.Router || {}
+    setConfig({ ...config, Router: { ...currentRouter, [route]: checked ? key : '' } })
+  }
 
   const rows = useMemo<ModelRow[]>(() => {
     const providers = Array.isArray(config?.Providers) ? config.Providers : []
@@ -146,17 +154,45 @@ export function ModelsDashboard() {
                   <td className='px-4 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
                   <td className='px-4 py-2'>{renderStatus(status[row.key] || 'unknown')}</td>
                   <td className='px-4 py-2'>
-                    <div className='flex flex-wrap gap-1'>
-                      {row.routes.length === 0 ? (
-                        <span className='text-gray-300'>—</span>
-                      ) : (
-                        row.routes.map((route) => (
-                          <Badge key={route} variant='secondary'>
-                            {t(`router.${route}`)}
-                          </Badge>
-                        ))
-                      )}
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type='button'
+                          className='flex flex-wrap items-center gap-1 rounded-md px-2 py-1 transition-all-ease hover:bg-gray-100'
+                          title={t('models.assign_routes')}
+                        >
+                          {row.routes.length === 0 ? (
+                            <span className='text-gray-300'>—</span>
+                          ) : (
+                            row.routes.map((route) => (
+                              <Badge key={route} variant='secondary'>
+                                {t(`router.${route}`)}
+                              </Badge>
+                            ))
+                          )}
+                          <Pencil className='h-3 w-3 text-gray-400' />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className='w-56 p-2'>
+                        <p className='px-1 pb-2 text-xs font-medium text-gray-500'>{t('models.assign_routes')}</p>
+                        <div className='space-y-1'>
+                          {ROUTE_KEYS.map((routeKey) => (
+                            <label
+                              key={routeKey}
+                              htmlFor={`${row.key}-${routeKey}`}
+                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all-ease hover:bg-gray-100'
+                            >
+                              <Checkbox
+                                id={`${row.key}-${routeKey}`}
+                                checked={config?.Router?.[routeKey] === row.key}
+                                onCheckedChange={(checked) => assignToRoute(routeKey, row.key, checked === true)}
+                              />
+                              {t(`router.${routeKey}`)}
+                            </label>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </td>
                   <td className='px-4 py-2 text-right'>
                     <Button

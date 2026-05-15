@@ -49,7 +49,8 @@
     "status_fail": "失敗",
     "status_unknown": "未確認",
     "status_testing": "確認中…",
-    "no_models": "モデルがありません。先にプロバイダーを追加してください。"
+    "no_models": "モデルがありません。先にプロバイダーを追加してください。",
+    "assign_routes": "ルートに割り当て"
   },
   "login": {
     "title": "アカウントにサインイン",
