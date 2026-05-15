@@ -8,6 +8,7 @@
   "type": "module",
   "exports": {
     ".": {
+      "bun": "./src/server.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/esm/server.mjs",
       "require": "./dist/cjs/server.cjs"
