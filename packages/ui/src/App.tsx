@@ -7,6 +7,7 @@ import { Providers } from "@/components/Providers";
 import { Router } from "@/components/Router";
 import { JsonEditor } from "@/components/JsonEditor";
 import { LogViewer } from "@/components/LogViewer";
+import { SetupDialog } from "@/components/SetupDialog";
 import { Button } from "@/components/ui/button";
 import { useConfig } from "@/components/ConfigProvider";
 import { api } from "@/lib/api";
@@ -270,8 +271,11 @@ function App() {
     );
   }
 
+  const needsSetup = !config.APIKEY;
+
   return (
     <TooltipProvider>
+      <SetupDialog open={needsSetup} />
       <div className="h-screen bg-gray-50 font-sans">
       <header className="flex h-16 items-center justify-between border-b bg-white px-6">
         <h1 className="text-xl font-semibold text-gray-800">{t('app.title')}</h1>
@@ -337,6 +341,13 @@ function App() {
                   onClick={() => i18n.changeLanguage('zh')}
                 >
                   中文
+                </Button>
+                <Button
+                  variant={i18n.language.startsWith('ja') ? 'default' : 'ghost'}
+                  className="w-full justify-start transition-all-ease hover:scale-[1.02]"
+                  onClick={() => i18n.changeLanguage('ja')}
+                >
+                  日本語
                 </Button>
               </div>
             </PopoverContent>

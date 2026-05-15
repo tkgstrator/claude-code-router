@@ -1,5 +1,23 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 
+// Paths reachable while running in "setup-only" mode (APIKEY not yet
+// configured). Everything else returns 503 so the service cannot be used
+// as an open proxy until the operator finishes the setup flow.
+const SETUP_ALLOWED_EXACT = new Set<string>([
+  "/",
+  "/health",
+  "/api/config",
+  "/api/restart",
+]);
+
+const SETUP_ALLOWED_PREFIXES = ["/ui"];
+
+const isSetupAllowed = (url: string): boolean => {
+  const path = url.split("?")[0];
+  if (SETUP_ALLOWED_EXACT.has(path)) return true;
+  return SETUP_ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
+};
+
 export const apiKeyAuth =
   (config: any) =>
   async (req: FastifyRequest, reply: FastifyReply, done: () => void) => {
@@ -18,17 +36,16 @@ export const apiKeyAuth =
 
     const apiKey = config.APIKEY;
     if (!apiKey) {
-      // If no API key is set, enable CORS for local
-      const allowedOrigins = [
-        `http://127.0.0.1:${config.PORT || 3456}`,
-        `http://localhost:${config.PORT || 3456}`,
-      ];
-      if (req.headers.origin && !allowedOrigins.includes(req.headers.origin)) {
-        reply.status(403).send("CORS not allowed for this origin");
+      // Setup-only mode: allow the UI to read/write config and trigger a
+      // restart, but block every other API surface to avoid exposing an
+      // unauthenticated proxy on a public HOST (e.g. via Cloudflared).
+      if (!isSetupAllowed(req.url)) {
+        reply.status(503).send({
+          error: "APIKEY not configured",
+          message:
+            "Service is in setup-only mode. Open the web UI to configure an APIKEY, then restart.",
+        });
         return;
-      } else {
-        reply.header('Access-Control-Allow-Origin', `http://127.0.0.1:${config.PORT || 3456}`);
-        reply.header('Access-Control-Allow-Origin', `http://localhost:${config.PORT || 3456}`);
       }
       return done();
     }
@@ -42,12 +59,9 @@ export const apiKeyAuth =
       reply.status(401).send("APIKEY is missing");
       return;
     }
-    let token = "";
-    if (authKey.startsWith("Bearer")) {
-      token = authKey.split(" ")[1];
-    } else {
-      token = authKey;
-    }
+    const token = authKey.startsWith("Bearer")
+      ? authKey.split(" ")[1]
+      : authKey;
 
     if (token !== apiKey) {
       reply.status(401).send("Invalid API key");
