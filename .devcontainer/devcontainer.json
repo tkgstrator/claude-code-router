@@ -35,7 +35,8 @@
     "ghcr.io/stu-bell/devcontainer-features/claude-code:0": {
       "version": "latest"
     },
-    "ghcr.io/dhoeric/features/act:1": {}
+    "ghcr.io/dhoeric/features/act:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "postAttachCommand": "/bin/sh .devcontainer/postAttachCommand.sh",
   "postCreateCommand": "/bin/sh .devcontainer/postCreateCommand.sh",
