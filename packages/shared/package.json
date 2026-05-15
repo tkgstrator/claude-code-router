@@ -25,7 +25,8 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
-    "json5": "^2.2.3"
+    "json5": "^2.2.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",

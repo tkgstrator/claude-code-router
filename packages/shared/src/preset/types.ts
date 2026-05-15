@@ -1,267 +1,256 @@
 /**
  * Type definitions for preset functionality
+ *
+ * Shapes are declared as Zod schemas; the TypeScript types are derived
+ * via `z.infer`. Free-form JSON values use the recursive `JsonValue`
+ * schema instead of `z.any()` / `z.unknown()` so every value still has
+ * a real, validatable type.
  */
 
-// Collection of user input values
-export interface UserInputValues {
-  [inputId: string]: any
-}
+import { z } from 'zod'
 
-// Input type enumeration
+// --- JSON value (recursive) -------------------------------------------------
+
+export const JsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
+export type JsonPrimitive = z.infer<typeof JsonPrimitiveSchema>
+
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
+
+export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([JsonPrimitiveSchema, z.array(JsonValueSchema), z.record(z.string(), JsonValueSchema)])
+)
+
+export const JsonObjectSchema = z.record(z.string(), JsonValueSchema)
+export type JsonObject = z.infer<typeof JsonObjectSchema>
+
+// --- Enums ------------------------------------------------------------------
+
 export enum InputType {
-  PASSWORD = 'password', // Password input (hidden)
-  INPUT = 'input', // Text input
-  SELECT = 'select', // Single selection
-  MULTISELECT = 'multiselect', // Multiple selection
-  CONFIRM = 'confirm', // Confirmation checkbox
-  EDITOR = 'editor', // Multi-line text editor
-  NUMBER = 'number' // Number input
+  PASSWORD = 'password',
+  INPUT = 'input',
+  SELECT = 'select',
+  MULTISELECT = 'multiselect',
+  CONFIRM = 'confirm',
+  EDITOR = 'editor',
+  NUMBER = 'number'
 }
 
-// Option definition
-export interface InputOption {
-  label: string // Display text
-  value: string | number | boolean // Actual value
-  description?: string // Option description
-  disabled?: boolean // Whether disabled
-  icon?: string // Icon
+export enum MergeStrategy {
+  ASK = 'ask',
+  OVERWRITE = 'overwrite',
+  MERGE = 'merge',
+  SKIP = 'skip'
 }
 
-// Dynamic option source
-export interface DynamicOptions {
-  type: 'static' | 'providers' | 'models' | 'custom'
-  // static: Use fixed options array
-  // providers: Dynamically retrieve from Providers configuration
-  // models: Retrieve from specified provider's models
-  // custom: Custom function (reserved, not implemented yet)
+const InputTypeSchema = z.nativeEnum(InputType)
 
-  // Used when type is 'static'
-  options?: InputOption[]
+// --- Dynamic configuration --------------------------------------------------
 
-  // Used when type is 'providers'
-  // Automatically extract name and related configuration from preset's Providers
+export const UserInputValuesSchema = z.record(z.string(), JsonValueSchema)
+export type UserInputValues = z.infer<typeof UserInputValuesSchema>
 
-  // Used when type is 'models'
-  providerField?: string // Point to provider selector field path (e.g. "#{selectedProvider}")
+export const InputOptionSchema = z.object({
+  label: z.string(),
+  value: z.union([z.string(), z.number(), z.boolean()]),
+  description: z.string().optional(),
+  disabled: z.boolean().optional(),
+  icon: z.string().optional()
+})
+export type InputOption = z.infer<typeof InputOptionSchema>
 
-  // Used when type is 'custom' (reserved)
-  source?: string // Custom data source
+export const DynamicOptionsSchema = z.object({
+  type: z.enum(['static', 'providers', 'models', 'custom']),
+  options: z.array(InputOptionSchema).optional(),
+  providerField: z.string().optional(),
+  source: z.string().optional()
+})
+export type DynamicOptions = z.infer<typeof DynamicOptionsSchema>
+
+export const ConditionSchema = z.object({
+  field: z.string(),
+  operator: z.enum(['eq', 'ne', 'in', 'nin', 'gt', 'lt', 'gte', 'lte', 'exists']).optional(),
+  value: JsonValueSchema.optional()
+})
+export type Condition = z.infer<typeof ConditionSchema>
+
+// `validator` cannot be represented in a JSON schema (it may be a
+// function), so it is a TS-only union layered on top of the Zod shape.
+export type Validator = RegExp | string | ((value: JsonValue) => boolean | string)
+
+const RequiredInputBaseSchema = z.object({
+  id: z.string(),
+  type: InputTypeSchema.optional(),
+  label: z.string().optional(),
+  prompt: z.string().optional(),
+  placeholder: z.string().optional(),
+  options: z.union([z.array(InputOptionSchema), DynamicOptionsSchema]).optional(),
+  when: z.union([ConditionSchema, z.array(ConditionSchema)]).optional(),
+  defaultValue: JsonValueSchema.optional(),
+  required: z.boolean().optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  rows: z.number().optional(),
+  dependsOn: z.array(z.string()).optional()
+})
+export const RequiredInputSchema = RequiredInputBaseSchema
+export type RequiredInput = z.infer<typeof RequiredInputBaseSchema> & {
+  validator?: Validator
 }
 
-// Conditional expression
-export interface Condition {
-  field: string // Dependent field path
-  operator?: 'eq' | 'ne' | 'in' | 'nin' | 'gt' | 'lt' | 'gte' | 'lte' | 'exists'
-  value?: any // Comparison value
-  // eq: equals
-  // ne: not equals
-  // in: included in (array)
-  // nin: not included in (array)
-  // gt: greater than
-  // lt: less than
-  // gte: greater than or equal to
-  // lte: less than or equal to
-  // exists: field exists (doesn't check value)
-}
+// --- Provider / Router / Transformer ----------------------------------------
 
-// Complex field input configuration
-export interface RequiredInput {
-  id: string // Unique identifier (for variable reference)
-  type?: InputType // Input type, defaults to password
-  label?: string // Display label
-  prompt?: string // Prompt information/description
-  placeholder?: string // Placeholder
+export const ProviderConfigSchema = z
+  .object({
+    name: z.string(),
+    api_base_url: z.string(),
+    api_key: z.string(),
+    models: z.array(z.string()),
+    transformer: JsonValueSchema.optional()
+  })
+  .catchall(JsonValueSchema)
+export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 
-  // Option configuration (for select/multiselect)
-  options?: InputOption[] | DynamicOptions
+export const RouterConfigSchema = z
+  .object({
+    default: z.string().optional(),
+    background: z.string().optional(),
+    think: z.string().optional(),
+    longContext: z.string().optional(),
+    longContextThreshold: z.number().optional(),
+    webSearch: z.string().optional(),
+    image: z.string().optional()
+  })
+  .catchall(z.union([z.string(), z.number()]))
+export type RouterConfig = z.infer<typeof RouterConfigSchema>
 
-  // Conditional display
-  when?: Condition | Condition[] // Show this field only when conditions are met (supports AND/OR logic)
+export const TransformerConfigSchema = z
+  .object({
+    path: z.string().optional(),
+    use: z.array(z.union([z.string(), z.tuple([z.string(), JsonValueSchema])])),
+    options: JsonValueSchema.optional()
+  })
+  .catchall(JsonValueSchema)
+export type TransformerConfig = z.infer<typeof TransformerConfigSchema>
 
-  // Default value
-  defaultValue?: any
+// --- Preset metadata / sections ---------------------------------------------
 
-  // Validation rules
-  required?: boolean // Whether required, defaults to true
-  validator?: RegExp | string | ((value: any) => boolean | string)
+export const PresetMetadataSchema = z.object({
+  name: z.string(),
+  version: z.string(),
+  description: z.string().optional(),
+  author: z.string().optional(),
+  homepage: z.string().optional(),
+  repository: z.string().optional(),
+  license: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  ccrVersion: z.string().optional(),
+  source: z.string().optional(),
+  sourceType: z.enum(['local', 'gist', 'registry']).optional(),
+  checksum: z.string().optional()
+})
+export type PresetMetadata = z.infer<typeof PresetMetadataSchema>
 
-  // UI configuration
-  min?: number // Minimum value (for number)
-  max?: number // Maximum value (for number)
-  rows?: number // Number of rows (for editor)
+export const PresetConfigSectionSchema = z
+  .object({
+    Providers: z.array(ProviderConfigSchema).optional(),
+    Router: RouterConfigSchema.optional(),
+    transformers: z.array(TransformerConfigSchema).optional(),
+    StatusLine: JsonValueSchema.optional(),
+    NON_INTERACTIVE_MODE: z.boolean().optional(),
+    noServer: z.boolean().optional(),
+    claudeCodeSettings: z
+      .object({
+        env: z.record(z.string(), JsonValueSchema).optional(),
+        statusLine: JsonValueSchema.optional()
+      })
+      .catchall(JsonValueSchema)
+      .optional()
+  })
+  .catchall(JsonValueSchema)
+export type PresetConfigSection = z.infer<typeof PresetConfigSectionSchema>
 
-  // Advanced configuration
-  dependsOn?: string[] // Explicitly declare dependent fields (for optimizing update order)
-}
+export const TemplateConfigSchema = z.record(z.string(), JsonValueSchema)
+export type TemplateConfig = z.infer<typeof TemplateConfigSchema>
 
-// Provider configuration
-export interface ProviderConfig {
-  name: string
-  api_base_url: string
-  api_key: string
-  models: string[]
-  transformer?: any
-  [key: string]: any
-}
+export const ConfigMappingSchema = z.object({
+  target: z.string(),
+  value: JsonValueSchema,
+  when: z.union([ConditionSchema, z.array(ConditionSchema)]).optional()
+})
+export type ConfigMapping = z.infer<typeof ConfigMappingSchema>
 
-// Router configuration
-export interface RouterConfig {
-  default?: string
-  background?: string
-  think?: string
-  longContext?: string
-  longContextThreshold?: number
-  webSearch?: string
-  image?: string
-  [key: string]: string | number | undefined
-}
-
-// Transformer configuration
-export interface TransformerConfig {
-  path?: string
-  use: Array<string | [string, any]>
-  options?: any
-  [key: string]: any
-}
-
-// Preset metadata (flattened structure, for manifest.json)
-export interface PresetMetadata {
-  name: string // Preset name
-  version: string // Version number (semver)
-  description?: string // Description
-  author?: string // Author
-  homepage?: string // Homepage
-  repository?: string // Source repository
-  license?: string // License
-  keywords?: string[] // Keywords
-  ccrVersion?: string // Compatible CCR version
-  source?: string // Preset source URL
-  sourceType?: 'local' | 'gist' | 'registry'
-  checksum?: string // Preset content checksum
-}
-
-// Preset configuration section
-export interface PresetConfigSection {
-  Providers?: ProviderConfig[]
-  Router?: RouterConfig
-  transformers?: TransformerConfig[]
-  StatusLine?: any
-  NON_INTERACTIVE_MODE?: boolean
-
-  // CLI-only fields (not used by server)
-  noServer?: boolean // CLI: Whether to skip local server startup and use provider's API directly
-  claudeCodeSettings?: {
-    // CLI: Claude Code specific settings
-    env?: Record<string, any> // CLI: Environment variables to pass to Claude Code
-    statusLine?: any // CLI: Status line configuration
-    [key: string]: any
-  }
-
-  [key: string]: any
-}
-
-// Template configuration (for dynamically generating configuration based on user input)
-export interface TemplateConfig {
-  // Template configuration using #{variable} syntax (different from statusline's {{variable}} format)
-  // Example: { "Providers": [{ "name": "#{providerName}", "api_key": "#{apiKey}" }] }
-  [key: string]: any
-}
-
-// Configuration mapping (maps user input values to specific configuration locations)
-export interface ConfigMapping {
-  // Field path (supports array syntax, e.g. "Providers[0].api_key")
-  target: string
-
-  // Value source (references user input id, or uses fixed value)
-  value: string | any // If string and starts with #, treated as variable reference (e.g. #{fieldId})
-
-  // Condition (optional, apply this mapping only when condition is met)
-  when?: Condition | Condition[]
-}
-
-// Complete preset file format
-export interface PresetFile {
+export const PresetFileSchema = z.object({
+  metadata: PresetMetadataSchema.optional(),
+  config: PresetConfigSectionSchema,
+  secrets: z.record(z.string(), z.string()).optional(),
+  schema: z.array(RequiredInputBaseSchema).optional(),
+  template: TemplateConfigSchema.optional(),
+  configMappings: z.array(ConfigMappingSchema).optional()
+})
+export type PresetFile = {
   metadata?: PresetMetadata
   config: PresetConfigSection
-  secrets?: {
-    // Sensitive information storage, format: field path -> value
-    // Example: { "Providers[0].api_key": "sk-xxx", "APIKEY": "my-secret" }
-    [fieldPath: string]: string
+  secrets?: Record<string, string>
+  schema?: RequiredInput[]
+  template?: TemplateConfig
+  configMappings?: ConfigMapping[]
+}
+
+export const ManifestFileSchema = PresetMetadataSchema.merge(PresetConfigSectionSchema).extend({
+  schema: z.array(RequiredInputBaseSchema).optional(),
+  template: TemplateConfigSchema.optional(),
+  configMappings: z.array(ConfigMappingSchema).optional(),
+  userValues: UserInputValuesSchema.optional()
+})
+export type ManifestFile = PresetMetadata &
+  PresetConfigSection & {
+    schema?: RequiredInput[]
+    template?: TemplateConfig
+    configMappings?: ConfigMapping[]
+    userValues?: UserInputValues
   }
 
-  // === Dynamic configuration system ===
-  // Configuration input schema
-  schema?: RequiredInput[]
+export const PresetIndexEntrySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  version: z.string(),
+  author: z.string().optional(),
+  downloads: z.number().optional(),
+  stars: z.number().optional(),
+  tags: z.array(z.string()).optional(),
+  url: z.string(),
+  repo: z.string().optional(),
+  checksum: z.string().optional(),
+  ccrVersion: z.string().optional()
+})
+export type PresetIndexEntry = z.infer<typeof PresetIndexEntrySchema>
 
-  // Configuration template (uses variable replacement)
-  template?: TemplateConfig
+export const PresetRegistrySchema = z.object({
+  version: z.string(),
+  lastUpdated: z.string(),
+  presets: z.array(PresetIndexEntrySchema)
+})
+export type PresetRegistry = z.infer<typeof PresetRegistrySchema>
 
-  // Configuration mappings (maps user input to configuration)
-  configMappings?: ConfigMapping[]
-}
+export const ValidationResultSchema = z.object({
+  valid: z.boolean(),
+  errors: z.array(z.string()),
+  warnings: z.array(z.string())
+})
+export type ValidationResult = z.infer<typeof ValidationResultSchema>
 
-// manifest.json format (file inside ZIP archive)
-export interface ManifestFile extends PresetMetadata, PresetConfigSection {
-  // === Dynamic configuration system ===
-  schema?: RequiredInput[]
-  template?: TemplateConfig
-  configMappings?: ConfigMapping[]
+export const SanitizeResultSchema = z.object({
+  sanitizedConfig: JsonObjectSchema,
+  sanitizedCount: z.number()
+})
+export type SanitizeResult = z.infer<typeof SanitizeResultSchema>
 
-  // === User configuration value storage ===
-  // User-filled configuration values are stored separately from original configuration
-  // Values collected during installation are stored here, applied at runtime
-  userValues?: UserInputValues
-}
-
-// Online preset index entry
-export interface PresetIndexEntry {
-  id: string // Unique identifier
-  name: string // Display name
-  description?: string // Short description
-  version: string // Latest version
-  author?: string // Author
-  downloads?: number // Download count
-  stars?: number // Star count
-  tags?: string[] // Tags
-  url: string // Download address
-  repo?: string // Repository (e.g., 'owner/repo')
-  checksum?: string // SHA256 checksum
-  ccrVersion?: string // Compatible version
-}
-
-// Online preset repository index
-export interface PresetRegistry {
-  version: string // Index format version
-  lastUpdated: string // Last update time
-  presets: PresetIndexEntry[]
-}
-
-// Configuration validation result
-export interface ValidationResult {
-  valid: boolean
-  errors: string[]
-  warnings: string[]
-}
-
-// Merge strategy enumeration
-export enum MergeStrategy {
-  ASK = 'ask', // Interactive prompt
-  OVERWRITE = 'overwrite', // Overwrite existing
-  MERGE = 'merge', // Intelligent merge
-  SKIP = 'skip' // Skip conflicting items
-}
-
-// Sanitization result
-export interface SanitizeResult {
-  sanitizedConfig: any
-  sanitizedCount: number
-}
-
-// Preset information (for list display)
-export interface PresetInfo {
-  name: string // Preset name
-  version?: string // Version number
-  description?: string // Description
-  author?: string // Author
-  config: PresetConfigSection
-}
+export const PresetInfoSchema = z.object({
+  name: z.string(),
+  version: z.string().optional(),
+  description: z.string().optional(),
+  author: z.string().optional(),
+  config: PresetConfigSectionSchema
+})
+export type PresetInfo = z.infer<typeof PresetInfoSchema>
