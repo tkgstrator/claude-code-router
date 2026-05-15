@@ -42,6 +42,19 @@
     "configError": "配置未加载",
     "validating": "正在验证API密钥..."
   },
+  "setup": {
+    "title": "配置 API Key",
+    "description": "路由器接受请求前需要先设置 API Key。可以生成一个或粘贴自己的密钥以继续。",
+    "apiKey": "API Key",
+    "placeholder": "粘贴或生成一个 API Key",
+    "generate": "生成",
+    "save_and_restart": "保存并重启",
+    "saving": "保存中…",
+    "waiting_restart": "服务正在重启 — 页面稍后会自动刷新。",
+    "error_required": "API Key 不能为空",
+    "error_too_short": "API Key 至少需要 16 个字符",
+    "error_save_failed": "保存 API Key 失败"
+  },
   "toplevel": {
     "title": "通用设置",
     "log": "启用日志",

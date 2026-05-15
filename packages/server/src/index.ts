@@ -97,17 +97,19 @@ async function getServer(options: RunOptions = {}) {
   const providers = config.Providers || config.providers || [];
   const hasProviders = providers && providers.length > 0;
 
+  // Always honour the configured HOST. When APIKEY is missing we still allow
+  // the configured HOST (e.g. 0.0.0.0 for tunnels like Cloudflared) so the
+  // initial setup flow in the UI is reachable; the auth middleware blocks
+  // every non-setup API path in that bootstrap mode.
   let HOST = config.HOST || "127.0.0.1";
 
-  if (hasProviders) {
-    HOST = config.HOST;
-    if (!config.APIKEY) {
-      HOST = "127.0.0.1";
-    }
-  } else {
-    // When no providers are configured, listen on 0.0.0.0 without authentication
+  if (!hasProviders) {
     HOST = "0.0.0.0";
     console.log("ℹ️  No providers configured. Listening on 0.0.0.0 without authentication.");
+  } else if (!config.APIKEY) {
+    console.warn(
+      `⚠️  APIKEY is not set. Listening on ${HOST} in setup-only mode — open the UI to configure an APIKEY before exposing the service.`,
+    );
   }
 
   const port = config.PORT || 3456;

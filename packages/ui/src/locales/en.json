@@ -42,6 +42,19 @@
     "configError": "Configuration not loaded",
     "validating": "Validating API key..."
   },
+  "setup": {
+    "title": "Configure API Key",
+    "description": "An API key is required before the router can accept requests. Generate one or paste your own to continue.",
+    "apiKey": "API Key",
+    "placeholder": "Paste or generate an API key",
+    "generate": "Generate",
+    "save_and_restart": "Save and Restart",
+    "saving": "Saving…",
+    "waiting_restart": "Service is restarting — the page will reload shortly.",
+    "error_required": "API key cannot be empty",
+    "error_too_short": "API key must be at least 16 characters",
+    "error_save_failed": "Failed to save API key"
+  },
   "toplevel": {
     "title": "General Settings",
     "log": "Enable Logging",
