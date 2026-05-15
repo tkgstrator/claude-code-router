@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { MODEL_PRICING } from '@/lib/providerTemplates'
 
 type Reachability = 'unknown' | 'testing' | 'ok' | 'fail'
 
@@ -142,6 +143,7 @@ export function ModelsDashboard() {
               <tr>
                 <th className='px-4 py-2 font-medium'>{t('models.provider')}</th>
                 <th className='px-4 py-2 font-medium'>{t('models.model')}</th>
+                <th className='px-4 py-2 font-medium'>{t('models.cost')}</th>
                 <th className='px-4 py-2 font-medium'>{t('models.status')}</th>
                 <th className='px-4 py-2 font-medium'>{t('models.routes')}</th>
                 <th className='px-4 py-2 font-medium text-right'>{t('models.test')}</th>
@@ -152,6 +154,15 @@ export function ModelsDashboard() {
                 <tr key={row.key} className='border-t hover:bg-gray-50'>
                   <td className='px-4 py-2 text-gray-700'>{row.provider}</td>
                   <td className='px-4 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
+                  <td className='px-4 py-2 whitespace-nowrap text-xs text-gray-600'>
+                    {MODEL_PRICING[row.model] ? (
+                      <span title={t('models.cost_hint')}>
+                        ${MODEL_PRICING[row.model].inputPer1M} / ${MODEL_PRICING[row.model].outputPer1M}
+                      </span>
+                    ) : (
+                      <span className='text-gray-300'>—</span>
+                    )}
+                  </td>
                   <td className='px-4 py-2'>{renderStatus(status[row.key] || 'unknown')}</td>
                   <td className='px-4 py-2'>
                     <Popover>
