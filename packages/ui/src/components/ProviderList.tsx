@@ -1,4 +1,4 @@
-import { Check, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProviderIcon } from '@/lib/providerIcons'
 import type { Provider } from '@/types'
@@ -70,19 +70,11 @@ export function ProviderList({ providers, onEdit, onRemove }: ProviderListProps)
           }
         })()
 
-        const isSubscription = provider.auth_mode === 'subscription'
-        const isConfigured = isSubscription || (provider.api_key?.trim().length ?? 0) > 0
-
         return (
           <div
             key={index}
-            className='relative flex items-center justify-between rounded-md border bg-white p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
+            className='flex items-center justify-between rounded-md border bg-white p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
           >
-            {isConfigured && (
-              <span className='absolute right-2 top-2 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white'>
-                <Check className='h-3 w-3' strokeWidth={3} />
-              </span>
-            )}
             <div className='flex flex-1 items-center gap-3'>
               <ProviderIcon name={providerName} size={28} className='flex-shrink-0' />
               <div className='flex-1 space-y-1'>

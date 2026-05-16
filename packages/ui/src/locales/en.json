@@ -110,6 +110,8 @@
     "api_key": "API Key",
     "auth_api": "API",
     "auth_subscription": "Subscription",
+    "available": "Available",
+    "unavailable": "Unavailable",
     "subscription_intro": "Use the {{vendor}} subscription you logged into with the {{cli}} CLI.",
     "subscription_hint": "The server reads {{credentialsPath}} at request time — the token is never stored in this database.",
     "models": "Models",

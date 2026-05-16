@@ -110,6 +110,8 @@
     "api_key": "API 密钥",
     "auth_api": "API",
     "auth_subscription": "订阅",
+    "available": "可用",
+    "unavailable": "未配置",
     "subscription_intro": "使用 {{cli}} CLI 登录的 {{vendor}} 订阅。",
     "subscription_hint": "服务器在请求时读取 {{credentialsPath}} — token 不会保存到数据库。",
     "models": "模型",

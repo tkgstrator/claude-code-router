@@ -110,6 +110,8 @@
     "api_key": "API Key",
     "auth_api": "API",
     "auth_subscription": "サブスク",
+    "available": "利用可能",
+    "unavailable": "未設定",
     "subscription_intro": "{{cli}} CLI でログイン済みの {{vendor}} サブスクを利用します。",
     "subscription_hint": "サーバーはリクエスト時に {{credentialsPath}} を読み取ります。トークンは DB には保存されません。",
     "models": "モデル",

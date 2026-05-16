@@ -317,6 +317,28 @@ export function Providers() {
     setEditingProviderData(updatedProvider)
   }
 
+  const setApiModelDisabled = (model: string, disabled: boolean) => {
+    if (!editingProviderData) return
+    const updatedProvider = { ...editingProviderData }
+    const transformer = { ...(updatedProvider.transformer ?? { use: [] }) }
+    const current = Array.isArray((transformer as Record<string, unknown>)._disabledModels)
+      ? ([...(transformer as Record<string, string[]>)._disabledModels])
+      : []
+    const next = (() => {
+      if (disabled) {
+        return current.includes(model) ? current : [...current, model]
+      }
+      return current.filter((m) => m !== model)
+    })()
+    if (next.length === 0) {
+      delete (transformer as Record<string, unknown>)._disabledModels
+    } else {
+      ;(transformer as Record<string, unknown>)._disabledModels = next
+    }
+    updatedProvider.transformer = transformer
+    setEditingProviderData(updatedProvider)
+  }
+
   const toggleSubscriptionModel = (model: string, enabled: boolean) => {
     if (!editingProviderData) return
     const updatedProvider = { ...editingProviderData }
@@ -629,6 +651,9 @@ export function Providers() {
     subscription: filteredProviders.filter((p) => p.auth_mode === 'subscription')
   }
   const visibleProviders = providersByAuth[activeAuthMode]
+  const isAvailable = (p: Provider) => p.auth_mode === 'subscription' || (p.api_key?.trim().length ?? 0) > 0
+  const availableProviders = visibleProviders.filter(isAvailable)
+  const unavailableProviders = visibleProviders.filter((p) => !isAvailable(p))
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
@@ -701,11 +726,44 @@ export function Providers() {
         </div>
       </CardHeader>
       <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
-        <ProviderList
-          providers={visibleProviders}
-          onEdit={handleEditProvider}
-          onRemove={handleSetDeletingProviderIndex}
-        />
+        {visibleProviders.length === 0 ? (
+          <ProviderList
+            providers={visibleProviders}
+            onEdit={handleEditProvider}
+            onRemove={handleSetDeletingProviderIndex}
+          />
+        ) : (
+          <div className='space-y-6'>
+            {availableProviders.length > 0 && (
+              <div className='space-y-2'>
+                <h3 className='text-xs font-medium uppercase tracking-wider text-gray-500'>
+                  {t('providers.available')} ({availableProviders.length})
+                </h3>
+                <ProviderList
+                  providers={availableProviders}
+                  onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
+                  onRemove={(idx) =>
+                    handleSetDeletingProviderIndex(filteredProviders.indexOf(availableProviders[idx]))
+                  }
+                />
+              </div>
+            )}
+            {unavailableProviders.length > 0 && (
+              <div className='space-y-2'>
+                <h3 className='text-xs font-medium uppercase tracking-wider text-gray-500'>
+                  {t('providers.unavailable')} ({unavailableProviders.length})
+                </h3>
+                <ProviderList
+                  providers={unavailableProviders}
+                  onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
+                  onRemove={(idx) =>
+                    handleSetDeletingProviderIndex(filteredProviders.indexOf(unavailableProviders[idx]))
+                  }
+                />
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
 
       {/* Edit Dialog */}
@@ -890,19 +948,18 @@ export function Providers() {
                           (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
                         ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
                         const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
+                        const disabledList = Array.isArray(
+                          (editingProvider.transformer as Record<string, unknown> | undefined)?._disabledModels
+                        )
+                          ? ((editingProvider.transformer as Record<string, string[]>)._disabledModels)
+                          : []
+                        const modelDisabled = disabledList.includes(model)
                         return (
                           <div key={model} className='flex items-center gap-3 px-3 py-2'>
                             <Switch
-                              checked={!apiKeyMissing}
+                              checked={!apiKeyMissing && !modelDisabled}
                               disabled={apiKeyMissing}
-                              onCheckedChange={(checked) => {
-                                if (!checked) {
-                                  const idx = (editingProvider.models ?? []).indexOf(model)
-                                  if (idx >= 0 && editingProviderIndex !== null) {
-                                    handleRemoveModel(editingProviderIndex, idx)
-                                  }
-                                }
-                              }}
+                              onCheckedChange={(checked) => setApiModelDisabled(model, !checked)}
                             />
                             <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
                             <div className='w-64'>
