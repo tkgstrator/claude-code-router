@@ -86,14 +86,22 @@ export function ModelsDashboard() {
     })
   }, [config, sortKey, sortDir])
 
-  const SortHeader = ({ label, sortKey: key }: { label: string; sortKey: SortKey }) => {
+  const SortHeader = ({
+    label,
+    sortKey: key,
+    align = 'left'
+  }: {
+    label: string
+    sortKey: SortKey
+    align?: 'left' | 'right'
+  }) => {
     const active = sortKey === key
     const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
     return (
       <button
         type='button'
         onClick={() => toggleSort(key)}
-        className={`inline-flex items-center gap-1 ${active ? 'text-gray-900' : 'text-gray-500'} hover:text-gray-900`}
+        className={`inline-flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse' : ''} ${active ? 'text-gray-900' : 'text-gray-500'} hover:text-gray-900`}
       >
         {label}
         <Icon className='h-3 w-3' />
@@ -182,10 +190,10 @@ export function ModelsDashboard() {
                   <SortHeader label={t('models.model')} sortKey='model' />
                 </th>
                 <th className='px-6 py-2 font-medium text-right'>
-                  <SortHeader label={t('models.input')} sortKey='input' />
+                  <SortHeader label={t('models.input')} sortKey='input' align='right' />
                 </th>
                 <th className='px-6 py-2 font-medium text-right'>
-                  <SortHeader label={t('models.output')} sortKey='output' />
+                  <SortHeader label={t('models.output')} sortKey='output' align='right' />
                 </th>
                 <th className='px-2 py-2 font-medium text-center'>{t('models.status')}</th>
                 <th className='px-6 py-2 font-medium'>{t('models.routes')}</th>
