@@ -30,6 +30,10 @@
       "bun": "./src/services/providerTestService.ts",
       "import": "./src/services/providerTestService.ts"
     },
+    "./bootstrap": {
+      "bun": "./src/services/bootstrap.ts",
+      "import": "./src/services/bootstrap.ts"
+    },
     "./package": {
       "import": "./package.json"
     }
