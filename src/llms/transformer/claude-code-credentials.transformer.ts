@@ -77,20 +77,54 @@ async function getValidToken(): Promise<string> {
   return accessToken;
 }
 
+// A Claude subscription OAuth token only gets the subscription's
+// model allotment (incl. premium models like Opus/Sonnet) when the
+// request is identified as official Claude Code. Without this, premium
+// models are routed to the API "overage" path instead — which is
+// org-disabled on subscriptions — and 429 with rate_limit_error while
+// Haiku (served from the base allotment) still 200s.
+//
+// The official client is identified by three things, all required:
+//  1. OAuth bearer auth (not x-api-key),
+//  2. the oauth anthropic-beta header (added on the subscription path
+//     by the /v1 adapter, which owns the beta header so the client's
+//     other betas are preserved), and
+//  3. a system prompt whose FIRST block is exactly the Claude Code
+//     identity string (Anthropic checks the first block only).
+const CLAUDE_CODE_IDENTITY =
+  "You are Claude Code, Anthropic's official CLI for Claude.";
+
+// Anthropic system is a string or an array of text blocks. Normalise
+// to an array and guarantee the first block is the Claude Code
+// identity, without duplicating it if the caller already sent it.
+function withClaudeCodeIdentity(system: unknown): { type: "text"; text: string }[] {
+  const blocks: { type: "text"; text: string }[] = [];
+  if (typeof system === "string" && system.length > 0) {
+    blocks.push({ type: "text", text: system });
+  } else if (Array.isArray(system)) {
+    for (const b of system) {
+      if (typeof b === "string") blocks.push({ type: "text", text: b });
+      else if (b && typeof b.text === "string") blocks.push({ type: "text", text: b.text });
+    }
+  }
+  if (blocks[0]?.text === CLAUDE_CODE_IDENTITY) return blocks;
+  return [{ type: "text", text: CLAUDE_CODE_IDENTITY }, ...blocks];
+}
+
 export class ClaudeCodeCredentialsTransformer {
   name = "claude-code-credentials";
   endPoint = "/v1/messages";
 
   async auth(request: any, _provider: any) {
     const token = await getValidToken();
+    request.system = withClaudeCodeIdentity(request.system);
     return {
       body: request,
       config: {
         headers: {
-          "x-api-key": token,
+          Authorization: `Bearer ${token}`,
           "anthropic-version": "2023-06-01",
-          Authorization: undefined,
-          authorization: undefined,
+          "x-api-key": undefined,
         },
       },
     };
