@@ -160,10 +160,11 @@ export function ModelsDashboard() {
 
   const handleTestAll = async () => {
     setIsTestingAll(true)
-    setStatus(Object.fromEntries(rows.map((row) => [row.key, 'testing' as Reachability])))
+    const enabledRows = rows.filter((row) => row.enabled)
+    setStatus(Object.fromEntries(enabledRows.map((row) => [row.key, 'testing' as Reachability])))
     // Sequential to avoid hammering provider rate limits and to keep
     // the (billed) probe traffic minimal.
-    for (const row of rows) {
+    for (const row of enabledRows) {
       const result = await testModel(row)
       setStatus((prev) => ({ ...prev, [row.key]: result }))
     }
