@@ -276,3 +276,15 @@ export { TokenizerService } from "./services/tokenizer";
 export { pluginManager, tokenSpeedPlugin } from "./plugins";
 export type { CCRPlugin, CCRPluginOptions, PluginMetadata } from "./plugins";
 export { SSEParserTransform, SSESerializerTransform, rewriteStream } from "./utils/sse";
+// POJO request shapes for framework-agnostic call sites (router, agents).
+// See docs/server/advanced/hono-vite-migration.md — Phase 0.
+export type {
+  IncomingRequest,
+  RouterRequest,
+  AgentRequest,
+  HttpHeaders,
+  QueryParams,
+  RequestLogger,
+  RouterRequestBody,
+} from "./types/http";
+export { toIncomingRequest, toRouterRequest } from "./utils/http";

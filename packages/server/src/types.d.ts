@@ -42,7 +42,59 @@ declare module '@musistudio/llms' {
     event?: any
   }
 
-  export const router: (req: any, res: any, context: RouterContext) => Promise<void>
+  // POJO request shapes for framework-agnostic call sites (router, agents).
+  // See docs/server/advanced/hono-vite-migration.md — Phase 0.
+  export type HttpHeaders = Map<string, string>
+  export type QueryParams = Map<string, string>
+
+  export interface RequestLogger {
+    info: (...args: unknown[]) => void
+    warn: (...args: unknown[]) => void
+    error: (...args: unknown[]) => void
+    debug?: (...args: unknown[]) => void
+    trace?: (...args: unknown[]) => void
+    fatal?: (...args: unknown[]) => void
+  }
+
+  export interface IncomingRequest {
+    method: string
+    url: string
+    headers: HttpHeaders
+    body: unknown
+    query: QueryParams
+    id?: string
+    log?: RequestLogger
+  }
+
+  export interface RouterRequestBody {
+    model: string
+    messages?: unknown[]
+    system?: unknown
+    tools?: unknown[]
+    thinking?: unknown
+    stream?: boolean
+    metadata?: { user_id?: string }
+    [key: string]: unknown
+  }
+
+  export interface RouterRequest extends IncomingRequest {
+    body: RouterRequestBody
+    sessionId?: string
+    scenarioType?: string
+    tokenCount?: number
+    provider?: string
+    model?: string | string[]
+    preset?: string
+    agents?: string[]
+    pathname?: string
+  }
+
+  export type AgentRequest = RouterRequest
+
+  export const toIncomingRequest: (raw: unknown) => IncomingRequest
+  export const toRouterRequest: (raw: unknown) => RouterRequest
+
+  export const router: (req: RouterRequest, res: unknown, context: RouterContext) => Promise<void>
 
   // Export utilities
   export const calculateTokenCount: (messages: any[], system: any, tools: any[]) => number
