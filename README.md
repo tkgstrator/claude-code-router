@@ -209,14 +209,32 @@ ccr code
 
 ### 2. Configuration
 
-Create and configure `~/.claude-code-router/config.json`. See `config.example.json` for a full reference.
+Claude Code Router now uses a hybrid store:
 
-Key top-level fields:
+- `Providers`, `Router`, and model bindings live in **Postgres** (via Prisma).
+- Boot-time envelope keys (HOST/PORT/APIKEY/LOG_LEVEL/etc.) stay in `~/.claude-code-router/config.json`.
+- On the first start after upgrading, the server lifts any `Providers` / `Router` it finds on disk into the database and rewrites the file as envelope-only. The pre-migration copy is kept as `config.json.<timestamp>.bak`. If the database already holds rows AND `config.json` still carries the legacy keys (e.g. after a manual restore), the migration refuses to run and asks you to resolve the conflict manually.
+
+Set `DATABASE_URL` in `.env` (the `.devcontainer/compose.yaml` brings up a local `postgres` service):
+
+```bash
+DATABASE_URL=postgres://postgres:password@postgres:5432/ccr
+```
+
+For the schema and migration tooling, run inside `packages/server`:
+
+```bash
+bun run db:generate         # regenerate the Prisma client
+bun run db:migrate           # create + apply a new migration (dev)
+bun run db:migrate:deploy    # apply existing migrations (prod / CI)
+bun run db:reset             # drop and recreate the schema (destructive)
+bun run db:studio            # open Prisma Studio
+```
+
+See `config.example.json` for envelope reference fields:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `Providers` | — | List of LLM backend configurations |
-| `Router` | — | Routing rules (default, background, think, longContext…) |
 | `LOG` | `true` | Enable/disable log files |
 | `LOG_LEVEL` | `"debug"` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |
 | `PROXY_URL` | — | HTTP proxy for all API requests |
@@ -224,6 +242,8 @@ Key top-level fields:
 | `HOST` | `127.0.0.1` | Listen address. Forced to `127.0.0.1` when `APIKEY` is unset |
 | `NON_INTERACTIVE_MODE` | `false` | Set `true` for Docker / CI / GitHub Actions |
 | `API_TIMEOUT_MS` | — | Timeout for upstream API calls (ms) |
+
+> Providers and Router are managed via the Web UI (`ccr ui`) or `/api/config`; they no longer belong in `config.json` after the first boot.
 
 API keys support environment variable interpolation (`$VAR_NAME` or `${VAR_NAME}`). With Docker Compose, place keys in a `.env` file at the project root:
 
