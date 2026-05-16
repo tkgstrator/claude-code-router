@@ -115,6 +115,7 @@
     "remove": "Remove",
     "add": "Add Provider",
     "edit": "Edit Provider",
+    "edit_description": "Configure the API base URL, key, and models for this provider.",
     "delete": "Delete",
     "cancel": "Cancel",
     "delete_provider_confirm": "Are you sure you want to delete this provider?",

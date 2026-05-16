@@ -115,6 +115,7 @@
     "remove": "削除",
     "add": "プロバイダーを追加",
     "edit": "プロバイダーを編集",
+    "edit_description": "API のベース URL・キー・モデルを設定します。",
     "delete": "削除",
     "cancel": "キャンセル",
     "delete_provider_confirm": "このプロバイダーを削除しますか?",

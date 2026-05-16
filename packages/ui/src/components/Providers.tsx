@@ -608,6 +608,7 @@ export function Providers() {
         <DialogContent className='max-h-[80vh] flex flex-col sm:max-w-2xl'>
           <DialogHeader>
             <DialogTitle>{t('providers.edit')}</DialogTitle>
+            <DialogDescription>{t('providers.edit_description')}</DialogDescription>
           </DialogHeader>
           {editingProvider && editingProviderIndex !== null && (
             <div className='space-y-4 p-4 overflow-y-auto flex-grow'>

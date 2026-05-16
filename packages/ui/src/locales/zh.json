@@ -115,6 +115,7 @@
     "remove": "移除",
     "add": "添加供应商",
     "edit": "编辑供应商",
+    "edit_description": "配置该供应商的 API 基础地址、密钥与模型。",
     "delete": "删除",
     "cancel": "取消",
     "delete_provider_confirm": "您确定要删除此供应商吗？",
