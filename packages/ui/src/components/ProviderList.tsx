@@ -22,7 +22,7 @@ export function ProviderList({ providers, onEdit, onRemove }: ProviderListProps)
   }
 
   return (
-    <div className='space-y-3'>
+    <div className='grid gap-3 lg:grid-cols-2'>
       {providers.map((provider, index) => {
         // Handle case where individual provider might be null or undefined
         if (!provider) {
