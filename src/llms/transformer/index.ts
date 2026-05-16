@@ -20,6 +20,7 @@ import { VercelTransformer } from "./vercel.transformer";
 import { OpenAIResponsesTransformer } from "./openai.responses.transformer";
 import { ForceReasoningTransformer } from "./forcereasoning.transformer"
 import { ClaudeCodeCredentialsTransformer } from "./claude-code-credentials.transformer";
+import { CodexCredentialsTransformer } from "./codex-credentials.transformer";
 
 export default {
   AnthropicTransformer,
@@ -44,4 +45,5 @@ export default {
   OpenAIResponsesTransformer,
   ForceReasoningTransformer,
   ClaudeCodeCredentialsTransformer,
+  CodexCredentialsTransformer,
 };

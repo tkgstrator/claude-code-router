@@ -48,22 +48,30 @@ export interface LlmsContext {
 let ctxPromise: Promise<LlmsContext> | null = null
 
 // Subscription providers store no api_key (the OAuth token lives in a
-// credentials file). llms ProviderService skips any provider with a
-// falsy api_key, and the real token is injected at request time by a
-// credentials transformer. So for the /v1 pipeline view we give such
-// providers a placeholder key (never sent — the transformer's auth()
-// overrides the header) plus the matching credentials transformer.
-const CREDENTIALS_TRANSFORMER: Record<string, string> = {
-  'claude-code': 'claude-code-credentials'
-  // codex needs a dedicated codex-credentials transformer in src/llms
-  // before it can route via /v1 — tracked as a follow-up.
+// credentials file); the real token is injected at request time by a
+// credentials transformer. llms ProviderService skips any provider
+// with a falsy api_key, so we give such providers a placeholder key
+// plus the right transformer chain.
+//
+// claude-code is Anthropic in / Anthropic out — a single credentials
+// transformer makes it the sole `use`, which the llms pipeline runs in
+// passthrough/bypass mode (its auth() hook injects the bearer token).
+//
+// codex is OpenAI Responses-API style talking to the ChatGPT backend,
+// so it CAN'T bypass: it needs the full transform chain (the anthropic
+// endpoint transformer -> openai-responses) plus codex-credentials
+// LAST to add the subscription auth + backend requirements. Two `use`
+// entries means non-bypass, so the chain actually runs.
+const SUBSCRIPTION_TRANSFORMER_CHAIN: Record<string, string[]> = {
+  'claude-code': ['claude-code-credentials'],
+  codex: ['openai-responses', 'codex-credentials']
 }
 const withSubscriptionAuth = (providers: any[]): any[] =>
   providers.map((p) => {
     if (p?.auth_mode !== 'subscription') return p
-    const cred = CREDENTIALS_TRANSFORMER[p.name]
-    if (!cred) return p
-    return { ...p, api_key: 'oauth', transformer: { ...(p.transformer ?? {}), use: [cred] } }
+    const use = SUBSCRIPTION_TRANSFORMER_CHAIN[p.name]
+    if (!use) return p
+    return { ...p, api_key: 'oauth', transformer: { ...(p.transformer ?? {}), use } }
   })
 
 async function build(): Promise<LlmsContext> {
