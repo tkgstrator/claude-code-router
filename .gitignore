@@ -13,3 +13,6 @@ docs/.docusaurus
 # Package manager caches
 .pnpm-store/
 packages/server/.env
+
+# Prisma client is generated locally via `bun run db:generate`
+packages/server/src/generated

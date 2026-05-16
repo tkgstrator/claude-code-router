@@ -7,15 +7,17 @@
 //   - RouterSlot: 6 rows keyed by scenario, each pointing at a Model (or null)
 // Transformer-level config (Provider.transformer, top-level transformers[])
 // stays JSONB / on-disk respectively for PR #1 — PR #2 normalizes them.
+//
+// Prisma 7: the datasource URL lives in prisma.config.ts (passed via a
+// driver adapter), not in this file.
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // The six built-in routing scenarios consumed by router.ts.

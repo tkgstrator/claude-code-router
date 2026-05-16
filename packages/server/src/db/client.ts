@@ -1,14 +1,13 @@
 /**
- * Prisma client singleton.
+ * Prisma client singleton (Prisma 7, driver-adapter style).
  *
- * The client is created lazily on first call so an unset DATABASE_URL
- * does not crash module load — callers that don't touch the DB (e.g.
- * the CLI workspace re-importing server utilities) stay unaffected.
- * Once instantiated, the same client is reused for the lifetime of the
- * process so the connection pool is not torn down per request.
+ * Lazy: an unset DATABASE_URL only blows up when something actually
+ * touches the DB. Once instantiated, the same client is reused for the
+ * process lifetime so the pg pool isn't torn down per request.
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '../generated/prisma/client'
 
 let client: PrismaClient | null = null
 
@@ -20,7 +19,8 @@ export function getPrismaClient(): PrismaClient {
           'start the postgres service via .devcontainer/compose.yaml and copy .env.example to .env.'
       )
     }
-    client = new PrismaClient()
+    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+    client = new PrismaClient({ adapter })
   }
   return client
 }
