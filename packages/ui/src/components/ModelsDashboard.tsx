@@ -130,12 +130,6 @@ export function ModelsDashboard() {
     }
   }
 
-  const handleTest = async (row: ModelRow) => {
-    setStatus((prev) => ({ ...prev, [row.key]: 'testing' }))
-    const result = await testModel(row)
-    setStatus((prev) => ({ ...prev, [row.key]: result }))
-  }
-
   const handleTestAll = async () => {
     setIsTestingAll(true)
     setStatus(Object.fromEntries(rows.map((row) => [row.key, 'testing' as Reachability])))
@@ -197,7 +191,6 @@ export function ModelsDashboard() {
                 </th>
                 <th className='px-2 py-2 font-medium text-center'>{t('models.status')}</th>
                 <th className='px-6 py-2 font-medium'>{t('models.routes')}</th>
-                <th className='px-6 py-2 font-medium text-right'>{t('models.test')}</th>
               </tr>
             </thead>
             <tbody>
@@ -224,7 +217,9 @@ export function ModelsDashboard() {
                       <span className='text-gray-300'>—</span>
                     )}
                   </td>
-                  <td className='px-2 py-2 text-center'>{renderStatus(status[row.key] || 'unknown')}</td>
+                  <td className='px-2 py-2'>
+                    <div className='flex justify-center'>{renderStatus(status[row.key] || 'unknown')}</div>
+                  </td>
                   <td className='px-6 py-2'>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -265,17 +260,6 @@ export function ModelsDashboard() {
                         </div>
                       </PopoverContent>
                     </Popover>
-                  </td>
-                  <td className='px-6 py-2 text-right'>
-                    <Button
-                      size='sm'
-                      variant='ghost'
-                      onClick={() => handleTest(row)}
-                      disabled={status[row.key] === 'testing' || isTestingAll}
-                      className='transition-all-ease hover:scale-[1.05]'
-                    >
-                      {t('models.test')}
-                    </Button>
                   </td>
                 </tr>
               ))}
