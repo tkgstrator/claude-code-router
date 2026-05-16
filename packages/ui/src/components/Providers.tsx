@@ -1,6 +1,7 @@
 import { Eye, EyeOff, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -973,10 +974,22 @@ export function Providers() {
               {editingProvider.models && editingProvider.models.length > 0 && (
                 <div className='space-y-2'>
                   <Label>{t('providers.model_transformers')}</Label>
-                  <div className='space-y-3'>
-                    {(editingProvider.models || []).map((model: string, modelIndex: number) => (
-                      <div key={modelIndex} className='border rounded-md p-3'>
-                        <div className='font-medium text-sm mb-2'>{model}</div>
+                  <Accordion type='multiple' className='space-y-2'>
+                    {(editingProvider.models || []).map((model: string, modelIndex: number) => {
+                      const overrideCount = editingProvider.transformer?.[model]?.use?.length ?? 0
+                      return (
+                      <AccordionItem key={modelIndex} value={`${modelIndex}-${model}`} className='border rounded-md px-3'>
+                        <AccordionTrigger className='py-2 hover:no-underline'>
+                          <div className='flex items-center gap-2'>
+                            <span className='font-medium text-sm'>{model}</span>
+                            {overrideCount > 0 && (
+                              <Badge variant='secondary' className='text-xs'>
+                                {overrideCount}
+                              </Badge>
+                            )}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className='pt-2'>
                         {/* Add new transformer */}
                         <div className='flex gap-2'>
                           <div className='flex-1 flex gap-2'>
@@ -1162,9 +1175,11 @@ export function Providers() {
                               )}
                             </div>
                           )}
-                      </div>
-                    ))}
-                  </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )
+                  })}
+                  </Accordion>
                 </div>
               )}
             </div>
