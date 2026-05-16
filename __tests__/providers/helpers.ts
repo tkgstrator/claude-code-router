@@ -52,68 +52,37 @@ export async function fetchSubscriptionModels(
 }
 
 const LONG_CONTEXT_GATE = /extra usage is required for long context|long context request/i;
-const GENERIC_RATE_LIMIT = /\b429\b|rate_limit|rate limit/i;
-const QUOTA_RETRY_DELAY_MS = 8_000;
-
-export type SmokeOutcome =
-  | { kind: "ok"; text: string }
-  | { kind: "skipped-quota"; message: string };
 
 /**
- * Smoke one subscription model end-to-end. Returns "ok" with the
- * streamed text, or "skipped-quota" when the provider is genuinely
- * throttling.
- *
- * A long-context 429 ("Extra usage is required for long context
- * requests") is NEVER tolerated — it's rethrown so the test fails. That
- * is the regression guard for the context-1m beta strip on
- * subscription routing.
- *
- * A generic quota 429 is retried once after a short cooldown (rapid
- * back-to-back model probes briefly trip the subscription's
- * throughput limit even though each call is tiny); only a *sustained*
- * quota 429 downgrades to skip, so the matrix actually verifies models
- * instead of skipping them on transient throttle.
+ * Smoke one subscription model end-to-end and return the streamed
+ * text. ANY non-200 — including a 429 — is a hard failure: a
+ * subscription model that 429s is not usable, and skipping that would
+ * hide a real routing/auth bug (the same plan demonstrably serves
+ * these models to the live Claude Code, so a 429 here is never a
+ * genuine quota limit). A long-context 429 ("Extra usage is required
+ * for long context requests") gets a sharper message — it's the
+ * regression guard for the context-1m beta strip on subscription
+ * routing — but it still fails like every other 429.
  */
-export async function smokeSubscriptionModel(model: string): Promise<SmokeOutcome> {
-  const attempt = async (): Promise<string> => {
-    const res = await sendMessage({
-      model,
-      max_tokens: 64,
-      messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
-      stream: true,
-    });
-    // A healthy streamed Anthropic completion is exactly HTTP 200.
-    // Assert it explicitly (stricter than res.ok, which would accept
-    // any 2xx) and surface the status + body so the 429 classifier
-    // below can tell a long-context gate from a generic quota limit.
-    if (res.status !== 200) {
-      throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+export async function smokeSubscriptionModel(model: string): Promise<string> {
+  const res = await sendMessage({
+    model,
+    max_tokens: 64,
+    messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+    stream: true,
+  });
+  if (res.status !== 200) {
+    const body = await res.text();
+    if (LONG_CONTEXT_GATE.test(body)) {
+      throw new Error(
+        `${model}: long-context 429 regressed — context-1m beta is reaching Anthropic again. HTTP ${res.status}: ${body}`
+      );
     }
-    const events = await parseSSEStream(res);
-    assertAnthropicSSEShape(events);
-    return extractTextFromEvents(events);
-  };
-
-  for (let i = 0; i < 2; i++) {
-    try {
-      return { kind: "ok", text: await attempt() };
-    } catch (err) {
-      const message = (err as Error).message ?? "";
-      if (LONG_CONTEXT_GATE.test(message)) {
-        throw new Error(
-          `${model}: long-context 429 regressed — context-1m beta is reaching Anthropic again. ${message}`
-        );
-      }
-      if (!GENERIC_RATE_LIMIT.test(message)) throw err;
-      if (i === 0) {
-        await new Promise((r) => setTimeout(r, QUOTA_RETRY_DELAY_MS));
-        continue;
-      }
-      return { kind: "skipped-quota", message };
-    }
+    throw new Error(`${model}: HTTP ${res.status}: ${body}`);
   }
-  return { kind: "skipped-quota", message: `${model}: exhausted quota retries` };
+  const events = await parseSSEStream(res);
+  assertAnthropicSSEShape(events);
+  return extractTextFromEvents(events);
 }
 
 export interface AnthropicMessage {

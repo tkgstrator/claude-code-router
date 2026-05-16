@@ -63,12 +63,8 @@ describe.skipIf(!hasCredentials)("claude-code subscription / all enabled models"
       test(
         "HTTP 200 + valid Anthropic SSE with text",
         async () => {
-          const outcome = await smokeSubscriptionModel(`${provider},${model}`);
-          if (outcome.kind === "skipped-quota") {
-            console.warn(`${provider},${model} sustained quota limit, skipping assertion: ${outcome.message}`);
-            return;
-          }
-          expect(outcome.text.length).toBeGreaterThan(0);
+          const text = await smokeSubscriptionModel(`${provider},${model}`);
+          expect(text.length).toBeGreaterThan(0);
         },
         TEST_TIMEOUT
       );
