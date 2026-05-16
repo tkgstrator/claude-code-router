@@ -5,13 +5,10 @@
  * Requires ~/.codex/auth.json with valid tokens and the CCR server
  * running (default http://127.0.0.1:16173, override with CCR_TEST_URL).
  *
- * NOTE: codex subscription routing through /v1 is not wired yet — it
- * needs a dedicated `codex-credentials` transformer in src/llms plus a
- * CREDENTIALS_TRANSFORMER entry in src/llmsContext.ts (only claude-code
- * is mapped today). Until that lands these would fail at the proxy, so
- * the suite skips by default. Set CCR_CODEX_V1_READY=1 once the
- * transformer exists; the enumeration then covers every enabled codex
- * model automatically, no edits needed.
+ * Every enabled codex subscription model from /api/config is smoke
+ * tested through /v1 (codex routes via the openai-responses +
+ * codex-credentials chain to the ChatGPT backend). Any non-200 — incl.
+ * a 429 — is a hard failure, same policy as the claude-code matrix.
  */
 
 import { describe, test, expect } from "bun:test";
@@ -26,22 +23,13 @@ import { join } from "path";
 import { homedir } from "os";
 
 const AUTH_PATH = join(homedir(), ".codex", "auth.json");
-const codexV1Ready = process.env.CCR_CODEX_V1_READY === "1";
 const hasCredentials =
   existsSync(AUTH_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
-const enabled = hasCredentials && codexV1Ready;
-
-if (hasCredentials && !codexV1Ready) {
-  console.warn(
-    "Skipping codex /v1 tests: codex-credentials transformer not wired yet. " +
-      "Set CCR_CODEX_V1_READY=1 after implementing it to enable the matrix."
-  );
-}
 
 const result = await (async (): Promise<
   { models: SubscriptionModel[] } | { error: string }
 > => {
-  if (!enabled) return { models: [] };
+  if (!hasCredentials) return { models: [] };
   try {
     return { models: await fetchSubscriptionModels(/codex/i) };
   } catch (e) {
@@ -49,7 +37,7 @@ const result = await (async (): Promise<
   }
 })();
 
-describe.skipIf(!enabled)("codex subscription / all enabled models", () => {
+describe.skipIf(!hasCredentials)("codex subscription / all enabled models", () => {
   if ("error" in result) {
     test("CCR server reachable for /api/config", () => {
       throw new Error(
