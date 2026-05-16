@@ -25,7 +25,8 @@ import {
 } from '@/components/ui/popover'
 import { api } from '@/lib/api'
 import { buildTemplates, LLM_PRICES_URL, PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
-import { SUBSCRIPTION_PRESETS } from '@/lib/subscriptionPresets'
+import { buildSubscriptionProvider, findSubscriptionPreset, SUBSCRIPTION_PRESETS } from '@/lib/subscriptionPresets'
+import { Switch } from '@/components/ui/switch'
 import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
@@ -129,18 +130,15 @@ export function Providers() {
     setSubscriptionPickerOpen(false)
     const existingNames = new Set(validProviders.map((p) => p.name.toLowerCase()))
     const uniqueName = (() => {
-      const base = preset.provider.name
+      const base = preset.id
       if (!existingNames.has(base.toLowerCase())) return base
-      const next = (() => {
-        for (let i = 2; i < 100; i++) {
-          const candidate = `${base}-${i}`
-          if (!existingNames.has(candidate.toLowerCase())) return candidate
-        }
-        return `${base}-${Date.now()}`
-      })()
-      return next
+      for (let i = 2; i < 100; i++) {
+        const candidate = `${base}-${i}`
+        if (!existingNames.has(candidate.toLowerCase())) return candidate
+      }
+      return `${base}-${Date.now()}`
     })()
-    const newProvider: ProviderType = { ...preset.provider, name: uniqueName }
+    const newProvider: ProviderType = buildSubscriptionProvider(preset, uniqueName)
     const newConfig = { ...config, Providers: [...config.Providers, newProvider] }
     setConfig(newConfig)
     await api.updateConfig(newConfig)
@@ -316,6 +314,25 @@ export function Providers() {
 
     // Add transformer to the use array
     updatedProvider.transformer[model].use = [...updatedProvider.transformer[model].use, transformerPath]
+    setEditingProviderData(updatedProvider)
+  }
+
+  const toggleSubscriptionModel = (model: string, enabled: boolean) => {
+    if (!editingProviderData) return
+    const updatedProvider = { ...editingProviderData }
+    const current = Array.isArray(updatedProvider.models) ? [...updatedProvider.models] : []
+    if (enabled) {
+      if (!current.includes(model)) current.push(model)
+    } else {
+      const idx = current.indexOf(model)
+      if (idx >= 0) current.splice(idx, 1)
+    }
+    updatedProvider.models = current
+    if (!enabled && updatedProvider.transformer && updatedProvider.transformer[model]) {
+      const nextTransformer = { ...updatedProvider.transformer }
+      delete nextTransformer[model]
+      updatedProvider.transformer = nextTransformer
+    }
     setEditingProviderData(updatedProvider)
   }
 
@@ -785,6 +802,8 @@ export function Providers() {
                   <p className='text-gray-500'>{t('providers.subscription_hint')}</p>
                 </div>
               )}
+              {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
+                <div className='space-y-4'>
               <div className='space-y-2'>
                 <Label htmlFor='models'>{t('providers.models')}</Label>
                 <div className='space-y-2'>
@@ -856,20 +875,25 @@ export function Providers() {
                     </Button> */}
                   </div>
                   <div className='flex flex-wrap gap-2 pt-2'>
-                    {(editingProvider.models || []).map((model: string, modelIndex: number) => (
-                      <Badge key={modelIndex} variant='outline' className='font-normal flex items-center gap-1'>
-                        {model}
-                        <button
-                          type='button'
-                          className='ml-1 rounded-full hover:bg-gray-200'
-                          onClick={() =>
-                            editingProviderIndex !== null && handleRemoveModel(editingProviderIndex, modelIndex)
-                          }
-                        >
-                          <X className='h-3 w-3' />
-                        </button>
-                      </Badge>
-                    ))}
+                    {[...(editingProvider.models || [])]
+                      .sort((a: string, b: string) => b.localeCompare(a))
+                      .map((model: string) => {
+                        const modelIndex = (editingProvider.models ?? []).indexOf(model)
+                        return (
+                          <Badge key={model} variant='outline' className='font-normal flex items-center gap-1'>
+                            {model}
+                            <button
+                              type='button'
+                              className='ml-1 rounded-full hover:bg-gray-200'
+                              onClick={() =>
+                                editingProviderIndex !== null && handleRemoveModel(editingProviderIndex, modelIndex)
+                              }
+                            >
+                              <X className='h-3 w-3' />
+                            </button>
+                          </Badge>
+                        )
+                      })}
                   </div>
                 </div>
               </div>
@@ -1059,12 +1083,12 @@ export function Providers() {
                 <div className='space-y-2'>
                   <Label>{t('providers.model_transformers')}</Label>
                   <div className='divide-y rounded-md border'>
-                    {(editingProvider.models || []).map((model: string, modelIndex: number) => {
+                    {[...(editingProvider.models || [])].sort((a: string, b: string) => b.localeCompare(a)).map((model: string) => {
                       const currentNames = ((editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>).map(
                         (entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0]))
                       )
                       return (
-                        <div key={modelIndex} className='flex items-center gap-3 px-3 py-2'>
+                        <div key={model} className='flex items-center gap-3 px-3 py-2'>
                           <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
                           <div className='w-64'>
                             <MultiCombobox
@@ -1080,6 +1104,45 @@ export function Providers() {
                     })}
                   </div>
                 </div>
+              )}
+                </div>
+              ) : (
+                (() => {
+                  const preset = findSubscriptionPreset(editingProvider)
+                  if (!preset) return null
+                  const enabledModels = new Set(editingProvider.models ?? [])
+                  return (
+                    <div className='space-y-2'>
+                      <Label>{t('providers.models')}</Label>
+                      <div className='divide-y rounded-md border'>
+                        {[...preset.availableModels].sort((a, b) => b.localeCompare(a)).map((model) => {
+                          const enabled = enabledModels.has(model)
+                          const currentNames = (
+                            (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
+                          ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
+                          return (
+                            <div key={model} className='flex items-center gap-3 px-3 py-2'>
+                              <Switch
+                                checked={enabled}
+                                onCheckedChange={(checked) => toggleSubscriptionModel(model, checked)}
+                              />
+                              <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
+                              <div className='w-64'>
+                                <MultiCombobox
+                                  options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
+                                  value={currentNames}
+                                  onChange={(names) => setModelTransformers(model, names)}
+                                  placeholder={t('providers.select_transformer')}
+                                  emptyPlaceholder={t('providers.no_transformers')}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()
               )}
             </div>
           )}
