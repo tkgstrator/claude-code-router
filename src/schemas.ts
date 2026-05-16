@@ -152,6 +152,21 @@ export const UpdatePerformResponseSchema = z
   })
   .openapi('UpdatePerformResponse')
 
+// --- Transformers ----------------------------------------------------------
+
+export const TransformerEntrySchema = z
+  .object({
+    name: z.string(),
+    endpoint: z.string().nullable()
+  })
+  .openapi('TransformerEntry')
+
+export const TransformersResponseSchema = z
+  .object({
+    transformers: z.array(TransformerEntrySchema)
+  })
+  .openapi('TransformersResponse')
+
 // --- Validation errors -----------------------------------------------------
 
 export const ValidationErrorSchema = z

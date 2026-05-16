@@ -6,6 +6,7 @@ import { testProvider } from '@ccr/server/providers'
 import { getSubscriptionsInfo } from '@ccr/server/subscriptions'
 import { checkForUpdates, performUpdate } from '@ccr/server/update'
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
+import { BUILTIN_TRANSFORMERS } from './lib/builtinTransformers'
 import {
   ApplyConfigPayloadSchema,
   ApplyConfigResponseSchema,
@@ -13,6 +14,7 @@ import {
   ProviderTestResponseSchema,
   RefreshModelsResponseSchema,
   SubscriptionsResponseSchema,
+  TransformersResponseSchema,
   UpdateCheckResponseSchema,
   UpdatePerformResponseSchema,
   ValidationErrorSchema
@@ -67,6 +69,22 @@ app.openapi(postConfigRoute, async (c) => {
     },
     200
   )
+})
+
+const getTransformersRoute = createRoute({
+  method: 'get',
+  path: '/api/transformers',
+  responses: {
+    200: {
+      description: 'Built-in transformers registered on the server',
+      content: { 'application/json': { schema: TransformersResponseSchema } }
+    }
+  }
+})
+app.openapi(getTransformersRoute, (c) => {
+  // Mirrors the list @musistudio/llms registers at boot. Once we
+  // bootstrap TransformerService from Hono we can read it directly.
+  return c.json({ transformers: BUILTIN_TRANSFORMERS }, 200)
 })
 
 const getSubscriptionsRoute = createRoute({
