@@ -26,6 +26,7 @@ import { join } from 'path'
 import { version as serverVersion } from '../package.json'
 import { applyUiConfig, composeUiConfig } from './services/configService'
 import { refreshModelsForAllProviders } from './services/modelSyncService'
+import { testProvider } from './services/providerTestService'
 import { getSubscriptionsInfo } from './services/subscriptionInfoService'
 import { backupConfigFile, readConfigFile, writeConfigFile } from './utils'
 import { checkForUpdates, performUpdate } from './utils/update'
@@ -122,6 +123,16 @@ export const createServer = async (config: any): Promise<any> => {
 
   app.get('/api/subscriptions', async () => {
     return { subscriptions: await getSubscriptionsInfo() }
+  })
+
+  app.post('/api/providers/test', async (req: any, reply: any) => {
+    const body = (req.body ?? {}) as { name?: unknown }
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!name) {
+      reply.code(400)
+      return { success: false, error: 'name is required' }
+    }
+    return await testProvider(name)
   })
 
   app.get('/api/update/check', async () => {

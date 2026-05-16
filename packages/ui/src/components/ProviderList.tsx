@@ -1,8 +1,12 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { CheckCircle2, LoaderCircle, Pencil, Trash2, Wifi, XCircle } from 'lucide-react'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { api } from '@/lib/api'
 import { ProviderIcon } from '@/lib/providerIcons'
 import type { Provider } from '@/types'
+
+type TestState = 'idle' | 'testing' | 'ok' | 'fail'
 
 interface ProviderListProps {
   providers: Provider[]
@@ -12,6 +16,37 @@ interface ProviderListProps {
 }
 
 export function ProviderList({ providers, onEdit, onRemove, planByProvider }: ProviderListProps) {
+  const [testState, setTestState] = useState<Record<string, TestState>>({})
+  const [testError, setTestError] = useState<Record<string, string>>({})
+
+  const handleTest = async (providerName: string) => {
+    setTestState((prev) => ({ ...prev, [providerName]: 'testing' }))
+    setTestError((prev) => {
+      const next = { ...prev }
+      delete next[providerName]
+      return next
+    })
+    try {
+      const result = await api.post<{ success: boolean; error?: string; latencyMs?: number }>(
+        '/providers/test',
+        { name: providerName }
+      )
+      setTestState((prev) => ({ ...prev, [providerName]: result.success ? 'ok' : 'fail' }))
+      if (!result.success && result.error) {
+        setTestError((prev) => ({ ...prev, [providerName]: result.error as string }))
+      }
+    } catch (err) {
+      setTestState((prev) => ({ ...prev, [providerName]: 'fail' }))
+      setTestError((prev) => ({ ...prev, [providerName]: err instanceof Error ? err.message : 'request failed' }))
+    }
+  }
+
+  const renderTestIcon = (state: TestState | undefined) => {
+    if (state === 'testing') return <LoaderCircle className='h-4 w-4 animate-spin' />
+    if (state === 'ok') return <CheckCircle2 className='h-4 w-4 text-emerald-600' />
+    if (state === 'fail') return <XCircle className='h-4 w-4 text-red-600' />
+    return <Wifi className='h-4 w-4' />
+  }
   // Handle case where providers might be null or undefined
   if (!providers || !Array.isArray(providers)) {
     return (
@@ -92,6 +127,16 @@ export function ProviderList({ providers, onEdit, onRemove, planByProvider }: Pr
               </div>
             </div>
             <div className='ml-4 flex flex-shrink-0 items-center gap-2'>
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={() => handleTest(providerName)}
+                disabled={testState[providerName] === 'testing'}
+                className='transition-all-ease hover:scale-110'
+                title={testError[providerName] ?? 'Test connection'}
+              >
+                {renderTestIcon(testState[providerName])}
+              </Button>
               <Button
                 variant='ghost'
                 size='icon'
