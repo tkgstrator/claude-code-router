@@ -103,7 +103,7 @@ export function Providers() {
     setNameError(null)
   }
 
-  const handleSaveProvider = () => {
+  const handleSaveProvider = async () => {
     if (!editingProviderData) return
 
     // Validate name
@@ -144,7 +144,9 @@ export function Providers() {
       } else {
         newProviders[editingProviderIndex] = editingProviderData
       }
-      setConfig({ ...config, Providers: newProviders })
+      const newConfig = { ...config, Providers: newProviders }
+      setConfig(newConfig)
+      await api.updateConfig(newConfig)
     }
     // Reset API key visibility for this provider
     if (editingProviderIndex !== null) {
@@ -187,13 +189,15 @@ export function Providers() {
   }
 
   // Handle deletion by passing the filtered index to get the actual index in the original array
-  const handleRemoveProvider = (filteredIndex: number) => {
+  const handleRemoveProvider = async (filteredIndex: number) => {
     // Find the actual index in the original providers array
     const actualIndex = validProviders.indexOf(filteredProviders[filteredIndex])
     const newProviders = [...config.Providers]
     newProviders.splice(actualIndex, 1)
-    setConfig({ ...config, Providers: newProviders })
+    const newConfig = { ...config, Providers: newProviders }
+    setConfig(newConfig)
     setDeletingProviderIndex(null)
+    await api.updateConfig(newConfig)
   }
 
   const handleProviderChange = (_index: number, field: string, value: string) => {
