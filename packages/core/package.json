@@ -2,7 +2,6 @@
   "name": "@musistudio/llms",
   "version": "1.0.51",
   "description": "A universal LLM API transformation server",
-  "main": "dist/cjs/server.cjs",
   "module": "dist/esm/server.mjs",
   "types": "./dist/index.d.ts",
   "type": "module",
@@ -10,17 +9,14 @@
     ".": {
       "bun": "./src/server.ts",
       "types": "./dist/index.d.ts",
-      "import": "./dist/esm/server.mjs",
-      "require": "./dist/cjs/server.cjs"
+      "import": "./dist/esm/server.mjs"
     }
   },
   "scripts": {
     "build": "bun run scripts/build.ts",
     "build:watch": "bun run scripts/build.ts --watch",
     "dev": "bun --watch src/server.ts",
-    "start": "bun dist/esm/server.mjs",
-    "start:cjs": "bun dist/cjs/server.cjs",
-    "lint": "bunx eslint src --ext .ts,.tsx"
+    "start": "bun dist/esm/server.mjs"
   },
   "keywords": [
     "llm",
