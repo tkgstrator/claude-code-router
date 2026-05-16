@@ -24,6 +24,13 @@ const CUSTOM_ICONS: Record<string, { hex: string; title: string; path: string }>
   }
 }
 
+// Provider names that should reuse another vendor's mark — primarily
+// subscription presets that wrap an upstream API.
+const NAME_ALIASES: Record<string, string> = {
+  'claude-code': 'anthropic',
+  codex: 'openai'
+}
+
 interface ProviderIconProps {
   name: string
   size?: number
@@ -31,11 +38,12 @@ interface ProviderIconProps {
 }
 
 export function ProviderIcon({ name, size = 20, className }: ProviderIconProps) {
-  const slug = VENDOR_ICON_SLUG[name]
+  const resolvedName = NAME_ALIASES[name] ?? name
+  const slug = VENDOR_ICON_SLUG[resolvedName]
   const fromSi = slug ? (si[slug] as SimpleIcon | undefined) : undefined
   const icon = fromSi
     ? { hex: fromSi.hex, title: fromSi.title, path: fromSi.path }
-    : CUSTOM_ICONS[name]
+    : CUSTOM_ICONS[resolvedName]
   if (icon) {
     return (
       <svg
