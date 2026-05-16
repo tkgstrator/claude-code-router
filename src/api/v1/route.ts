@@ -62,23 +62,30 @@ const normalizeEffort = (body: unknown, model: string): void => {
   }
 }
 
-// Claude Code opts into the 1M context window via a `context-1m-*`
-// anthropic-beta token. On a subscription (OAuth) that beta trips
-// Anthropic's long-context billing gate — every request 429s with
-// "Extra usage is required for long context requests", even a tiny
-// "say pong". The proxy can't grant 1M on a non-1M subscription, so
-// drop just that token: the request degrades to the standard 200K
-// window and the subscription serves it normally. Every other beta
-// (prompt-caching, interleaved-thinking, effort, …) is preserved.
-const stripOneMContextBeta = (headers: Record<string, string>): void => {
-  const v = headers['anthropic-beta']
-  if (typeof v !== 'string' || !v.includes('context-1m')) return
-  const kept = v
-    .split(',')
-    .map((s) => s.trim())
-    .filter((t) => t.length > 0 && !t.startsWith('context-1m'))
-  if (kept.length > 0) headers['anthropic-beta'] = kept.join(',')
-  else delete headers['anthropic-beta']
+// The anthropic-beta header that identifies a request as official
+// Claude Code OAuth. Without it a subscription serves premium models
+// (Opus/Sonnet) from the API "overage" path, which is org-disabled on
+// subscriptions → 429 rate_limit_error, while Haiku (base allotment)
+// still 200s. With it, premium models route to the subscription
+// allotment like the real Claude Code client.
+const OAUTH_BETA = 'oauth-2025-04-20'
+
+// Reshape the anthropic-beta header for the subscription (OAuth) path,
+// preserving every beta the client sent:
+//  - drop `context-1m-*`: on a subscription that opts into the 1M
+//    window, every request 429s "Extra usage is required for long
+//    context requests" even a tiny "say pong"; the proxy can't grant
+//    1M on a non-1M subscription, so degrade to the standard 200K
+//    window.
+//  - ensure OAUTH_BETA is present so premium models route to the
+//    subscription allotment instead of org-disabled overage.
+// prompt-caching / interleaved-thinking / effort / … are untouched.
+const prepareSubscriptionBetas = (headers: Record<string, string>): void => {
+  const raw = headers['anthropic-beta']
+  const tokens = typeof raw === 'string' ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []
+  const kept = tokens.filter((t) => !t.startsWith('context-1m'))
+  if (!kept.includes(OAUTH_BETA)) kept.push(OAUTH_BETA)
+  headers['anthropic-beta'] = kept.join(',')
 }
 
 // Highest supported level from a 400's "Supported levels: a, b, c".
@@ -215,9 +222,10 @@ v1Route.post('/v1/*', async (c) => {
 
   // Subscription providers route through a `*-credentials` sole
   // transformer (claude-code-credentials, codex-credentials, …).
-  // On that path the 1M-context beta only gets us a 429, never 1M.
+  // Reshape the beta header for the OAuth path (drop context-1m, add
+  // the oauth beta) so premium models aren't 429'd by the overage gate.
   if (typeof soleUse === 'string' && soleUse.endsWith('-credentials')) {
-    stripOneMContextBeta(headers)
+    prepareSubscriptionBetas(headers)
   }
 
   const fastifyShim = {
