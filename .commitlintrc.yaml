@@ -10,6 +10,13 @@ rules:
     - 2
     - always
     - 200
+  # The Co-Authored-By trailer trips this rule when the commit body
+  # contains content that commitlint mis-parses as a footer (e.g.
+  # `host.docker.internal:5432`). The trailer itself is intentional and
+  # adding extra blank lines doesn't reliably fix the parse, so demote
+  # the warning to disabled.
+  footer-leading-blank:
+    - 0
   type-enum:
     - 2
     - always
