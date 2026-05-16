@@ -612,7 +612,7 @@ export function Providers() {
           </DialogHeader>
           {editingProvider && editingProviderIndex !== null && (
             <div className='space-y-4 p-4 overflow-y-auto flex-grow'>
-              {providerTemplates.length > 0 && (
+              {isNewProvider && providerTemplates.length > 0 && (
                 <div className='space-y-2'>
                   <Label>{t('providers.import_from_template')}</Label>
                   <Combobox
@@ -624,22 +624,23 @@ export function Providers() {
                   />
                 </div>
               )}
-              <div className='space-y-2'>
-                <Label htmlFor='name'>{t('providers.name')}</Label>
-                <Input
-                  id='name'
-                  value={editingProvider.name || ''}
-                  onChange={(e) => {
-                    handleProviderChange(editingProviderIndex, 'name', e.target.value)
-                    // Clear name error when user starts typing
-                    if (nameError) {
-                      setNameError(null)
-                    }
-                  }}
-                  className={nameError ? 'border-red-500' : ''}
-                />
-                {nameError && <p className='text-sm text-red-500'>{nameError}</p>}
-              </div>
+              {isNewProvider && (
+                <div className='space-y-2'>
+                  <Label htmlFor='name'>{t('providers.name')}</Label>
+                  <Input
+                    id='name'
+                    value={editingProvider.name || ''}
+                    onChange={(e) => {
+                      handleProviderChange(editingProviderIndex, 'name', e.target.value)
+                      if (nameError) {
+                        setNameError(null)
+                      }
+                    }}
+                    className={nameError ? 'border-red-500' : ''}
+                  />
+                  {nameError && <p className='text-sm text-red-500'>{nameError}</p>}
+                </div>
+              )}
               <div className='space-y-2'>
                 <Label htmlFor='api_base_url'>{t('providers.api_base_url')}</Label>
                 <Input
