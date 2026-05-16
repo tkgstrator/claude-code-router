@@ -1,11 +1,89 @@
 /**
  * Shared helpers for provider integration tests.
- * Tests call CCR at http://127.0.0.1:3456/v1/messages with Anthropic-format bodies.
+ * Tests call the running CCR server with Anthropic-format bodies.
  * Using "provider,model" in the model field routes directly to that provider.
+ *
+ * Base URL defaults to the consolidated Vite+Hono dev server
+ * (http://127.0.0.1:16173); override with CCR_TEST_URL for a different
+ * host/port.
  */
 
-export const CCR_URL = "http://127.0.0.1:3456/v1/messages";
+const CCR_BASE = process.env.CCR_TEST_URL ?? "http://127.0.0.1:16173";
+export const CCR_URL = `${CCR_BASE}/v1/messages`;
+export const CCR_CONFIG_URL = `${CCR_BASE}/api/config`;
 export const TEST_TIMEOUT = 60_000;
+
+export interface SubscriptionModel {
+  provider: string;
+  model: string;
+}
+
+/**
+ * Pull the live subscription-provider model matrix from the running
+ * server's /api/config (the DB-backed source of truth), so the suite
+ * exercises *every* enabled model of a subscription provider instead
+ * of a hardcoded handful. `enabled` = listed in the provider's models
+ * and not in its transformer._disabledModels. `nameMatch` narrows to a
+ * specific subscription provider (e.g. /claude/ or /codex/).
+ */
+export async function fetchSubscriptionModels(
+  nameMatch: RegExp
+): Promise<SubscriptionModel[]> {
+  const res = await fetch(CCR_CONFIG_URL);
+  if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`);
+  const cfg = (await res.json()) as {
+    Providers?: {
+      name: string;
+      auth_mode?: string;
+      models?: string[];
+      transformer?: { _disabledModels?: string[] };
+    }[];
+  };
+  const out: SubscriptionModel[] = [];
+  for (const p of cfg.Providers ?? []) {
+    if (p.auth_mode !== "subscription") continue;
+    if (!nameMatch.test(p.name)) continue;
+    const disabled = new Set(p.transformer?._disabledModels ?? []);
+    for (const m of p.models ?? []) {
+      if (!disabled.has(m)) out.push({ provider: p.name, model: m });
+    }
+  }
+  return out;
+}
+
+const LONG_CONTEXT_GATE = /extra usage is required for long context|long context request/i;
+
+/**
+ * Smoke one subscription model end-to-end and return the streamed
+ * text. ANY non-200 — including a 429 — is a hard failure: a
+ * subscription model that 429s is not usable, and skipping that would
+ * hide a real routing/auth bug (the same plan demonstrably serves
+ * these models to the live Claude Code, so a 429 here is never a
+ * genuine quota limit). A long-context 429 ("Extra usage is required
+ * for long context requests") gets a sharper message — it's the
+ * regression guard for the context-1m beta strip on subscription
+ * routing — but it still fails like every other 429.
+ */
+export async function smokeSubscriptionModel(model: string): Promise<string> {
+  const res = await sendMessage({
+    model,
+    max_tokens: 64,
+    messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+    stream: true,
+  });
+  if (res.status !== 200) {
+    const body = await res.text();
+    if (LONG_CONTEXT_GATE.test(body)) {
+      throw new Error(
+        `${model}: long-context 429 regressed — context-1m beta is reaching Anthropic again. HTTP ${res.status}: ${body}`
+      );
+    }
+    throw new Error(`${model}: HTTP ${res.status}: ${body}`);
+  }
+  const events = await parseSSEStream(res);
+  assertAnthropicSSEShape(events);
+  return extractTextFromEvents(events);
+}
 
 export interface AnthropicMessage {
   role: "user" | "assistant";

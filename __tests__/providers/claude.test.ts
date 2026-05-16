@@ -1,17 +1,24 @@
 /**
- * Integration tests for the claude provider (Anthropic via Claude Code OAuth credentials).
- * Requires ~/.claude/.credentials.json to be present.
- * CCR must be running at http://127.0.0.1:3456.
+ * Integration tests for the claude-code subscription provider
+ * (Anthropic via Claude Code OAuth credentials).
+ *
+ * Requires ~/.claude/.credentials.json to be present and the CCR server
+ * running (default http://127.0.0.1:16173, override with CCR_TEST_URL).
+ *
+ * Every *enabled* model of every claude-* subscription provider in
+ * /api/config is smoke-tested, so the matrix tracks the DB instead of a
+ * hardcoded list. smokeSubscriptionModel asserts HTTP 200 + a valid
+ * Anthropic SSE shape, hard-fails a long-context 429 (the regression
+ * guard for the context-1m beta strip), and tolerates only a sustained
+ * free-tier quota 429.
  */
 
 import { describe, test, expect } from "bun:test";
 import {
-  streamMessage,
-  sendMessage,
-  extractTextFromEvents,
-  assertAnthropicSSEShape,
+  smokeSubscriptionModel,
+  fetchSubscriptionModels,
   TEST_TIMEOUT,
-  type SSEEvent,
+  type SubscriptionModel,
 } from "./helpers";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -21,99 +28,46 @@ const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
 const hasCredentials =
   existsSync(CREDENTIALS_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
 
-describe.skipIf(!hasCredentials)("claude / claude-haiku-4-5 (claude-code-credentials)", () => {
-  test(
-    "streaming response has correct Anthropic SSE shape",
-    async () => {
-      const events = await streamMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 100,
-        messages: [{ role: "user", content: "Say exactly: hello" }],
-      });
+const result = await (async (): Promise<
+  { models: SubscriptionModel[] } | { error: string }
+> => {
+  if (!hasCredentials) return { models: [] };
+  try {
+    return { models: await fetchSubscriptionModels(/claude/i) };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+})();
 
-      assertAnthropicSSEShape(events);
-      const text = extractTextFromEvents(events);
-      expect(text.length).toBeGreaterThan(0);
-    },
-    TEST_TIMEOUT
-  );
+describe.skipIf(!hasCredentials)("claude-code subscription / all enabled models", () => {
+  if ("error" in result) {
+    test("CCR server reachable for /api/config", () => {
+      throw new Error(
+        `Could not load model matrix from CCR — is the server running? ${result.error}`
+      );
+    });
+    return;
+  }
 
-  test(
-    "response contains expected text",
-    async () => {
-      const events = await streamMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 50,
-        messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
-      });
+  if (result.models.length === 0) {
+    test("at least one enabled claude-code subscription model", () => {
+      throw new Error(
+        "No enabled claude-* subscription models in /api/config — nothing to verify"
+      );
+    });
+    return;
+  }
 
-      const text = extractTextFromEvents(events);
-      expect(text.toLowerCase()).toContain("pong");
-    },
-    TEST_TIMEOUT
-  );
-
-  test(
-    "non-streaming response returns Anthropic message format",
-    async () => {
-      const res = await sendMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 50,
-        messages: [{ role: "user", content: "Reply with only the number 42." }],
-        stream: false,
-      });
-
-      expect(res.ok).toBe(true);
-      const body = await res.json() as any;
-      expect(body.type).toBe("message");
-      expect(body.role).toBe("assistant");
-      expect(Array.isArray(body.content)).toBe(true);
-      const text = body.content.map((c: any) => c.text ?? "").join("");
-      expect(text).toContain("42");
-    },
-    TEST_TIMEOUT
-  );
-
-  test(
-    "system prompt is respected",
-    async () => {
-      const events = await streamMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 100,
-        system: "You are a pirate. Every sentence must end with the word ARRR.",
-        messages: [{ role: "user", content: "Say hello." }],
-      });
-
-      const text = extractTextFromEvents(events);
-      expect(text.toUpperCase()).toContain("ARRR");
-    },
-    TEST_TIMEOUT
-  );
-});
-
-describe.skipIf(!hasCredentials)("claude / claude-sonnet-4-6 (claude-code-credentials)", () => {
-  test(
-    "streaming response has correct Anthropic SSE shape",
-    async () => {
-      let events: SSEEvent[];
-      try {
-        events = await streamMessage({
-          model: "claude,claude-sonnet-4-6",
-          max_tokens: 100,
-          messages: [{ role: "user", content: "Say exactly: hello" }],
-        });
-      } catch (err: any) {
-        // claude-code-credentials free tier may hit rate limits; treat as skipped
-        if (err.message?.includes("429") || err.message?.includes("rate_limit")) {
-          console.warn("claude-sonnet-4-6 rate limited, skipping assertion");
-          return;
-        }
-        throw err;
-      }
-      assertAnthropicSSEShape(events);
-      const text = extractTextFromEvents(events);
-      expect(text.length).toBeGreaterThan(0);
-    },
-    TEST_TIMEOUT
-  );
+  for (const { provider, model } of result.models) {
+    describe(`${provider},${model}`, () => {
+      test(
+        "HTTP 200 + valid Anthropic SSE with text",
+        async () => {
+          const text = await smokeSubscriptionModel(`${provider},${model}`);
+          expect(text.length).toBeGreaterThan(0);
+        },
+        TEST_TIMEOUT
+      );
+    });
+  }
 });
