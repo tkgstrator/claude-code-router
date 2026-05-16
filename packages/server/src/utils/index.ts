@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline'
-import { CONFIG_FILE, DEFAULT_CONFIG, HOME_DIR, PLUGINS_DIR } from '@ccr/shared'
+import { CONFIG_FILE, DEFAULT_CONFIG, ENVELOPE_ENV_KEYS, HOME_DIR, PLUGINS_DIR } from '@ccr/shared'
 import JSON5 from 'json5'
 
 // Function to interpolate environment variables in config values
@@ -157,8 +157,29 @@ export const writeConfigFile = async (config: any) => {
   await fs.writeFile(CONFIG_FILE, configWithComment)
 }
 
+/**
+ * Mirror the envelope's scalar keys onto process.env so downstream
+ * consumers that still read `process.env.PORT` etc. keep working.
+ *
+ * The legacy implementation did `Object.assign(process.env, config)` —
+ * fine for strings but it stringified nested Providers/Router objects
+ * to `[object Object]` (and we no longer want those on disk anyway).
+ * Whitelisting the keys here lets us tighten the contract without
+ * breaking any caller that legitimately reads e.g. process.env.PROXY_URL.
+ */
+export const applyEnvelopeToEnv = (config: Record<string, unknown>) => {
+  for (const key of ENVELOPE_ENV_KEYS) {
+    const value = config[key]
+    if (value === undefined || value === null) continue
+    if (typeof value === 'string') process.env[key] = value
+    else if (typeof value === 'number' || typeof value === 'boolean') process.env[key] = String(value)
+    // Anything else (object/array) is silently skipped — those keys
+    // don't belong on process.env in the first place.
+  }
+}
+
 export const initConfig = async () => {
   const config = await readConfigFile()
-  Object.assign(process.env, config)
+  applyEnvelopeToEnv(config)
   return config
 }
