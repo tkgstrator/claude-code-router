@@ -130,10 +130,11 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.default).toBe('openai,gpt-5')
     expect(ui.Router.background).toBe('')
 
-    // FK shouldn't leak orphan rows.
+    // Cascade should have removed gemini and gemini's models. Only the
+    // single openai model remains, attached to openai.
     const prisma = getPrismaClient()
-    const orphanModels = await prisma.model.count({ where: { provider: { is: { id: undefined } } } })
-    expect(orphanModels).toBe(0)
+    const allModels = await prisma.model.findMany({ include: { provider: true } })
+    expect(allModels.map((m) => m.provider.name)).toEqual(['openai'])
   })
 
   test('unknown router scenarios are dropped with a warning', async () => {
