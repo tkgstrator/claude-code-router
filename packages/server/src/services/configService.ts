@@ -8,7 +8,7 @@
  * incoming UI payload against DB state in a single transaction.
  */
 
-import { type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKey } from '@ccr/shared'
+import { buildSeedProviders, type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKey } from '@ccr/shared'
 import { getPrismaClient } from '../db/client'
 import {
   type Model as DbModel,
@@ -303,4 +303,32 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
       })
     )
   )
+}
+
+// First-run convenience: when the Provider table is empty, populate it
+// from the llm-prices snapshot so the UI's Add-Provider dropdown and
+// the catalog of available models are non-empty out of the box.
+// api_key is left blank — the user fills it in from the UI. Skipped
+// entirely once any Provider exists, so a deliberately empty DB
+// (e.g. a user who wiped everything) is not re-seeded on restart.
+export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient()): Promise<void> {
+  const count = await prisma.provider.count()
+  if (count > 0) return
+  await prisma.$transaction(async (tx) => {
+    for (const seed of buildSeedProviders()) {
+      const provider = await tx.provider.create({
+        data: {
+          name: seed.name,
+          apiBaseUrl: seed.apiBaseUrl,
+          apiKey: '',
+          transformer: seed.transformer ?? Prisma.DbNull
+        }
+      })
+      if (seed.models.length > 0) {
+        await tx.model.createMany({
+          data: seed.models.map((name) => ({ providerId: provider.id, name }))
+        })
+      }
+    }
+  })
 }

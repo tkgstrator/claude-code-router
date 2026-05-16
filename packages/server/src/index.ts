@@ -12,7 +12,7 @@ import { type IAgent, ITool } from './agents/type'
 import { runJsonToDbMigration } from './db/migrateFromJson'
 import { apiKeyAuth } from './middleware/auth'
 import { createServer } from './server'
-import { loadFullConfig } from './services/configService'
+import { ensureSeedProviders, loadFullConfig } from './services/configService'
 import { initConfig, initDir } from './utils'
 import { rewriteStream } from './utils/rewriteStream'
 import { SSEParserTransform } from './utils/SSEParser.transform'
@@ -96,6 +96,7 @@ async function getServer(options: RunOptions = {}) {
   // then returns the composed legacy-shaped object the rest of getServer
   // expects.
   await runJsonToDbMigration()
+  await ensureSeedProviders()
   await initConfig()
   const config = await loadFullConfig()
 
