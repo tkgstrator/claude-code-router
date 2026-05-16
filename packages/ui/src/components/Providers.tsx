@@ -889,10 +889,12 @@ export function Providers() {
                         const currentNames = (
                           (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
                         ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
+                        const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
                         return (
                           <div key={model} className='flex items-center gap-3 px-3 py-2'>
                             <Switch
-                              checked
+                              checked={!apiKeyMissing}
+                              disabled={apiKeyMissing}
                               onCheckedChange={(checked) => {
                                 if (!checked) {
                                   const idx = (editingProvider.models ?? []).indexOf(model)
