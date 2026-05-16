@@ -22,6 +22,7 @@ interface ModelRow {
   routes: string[]
   enabled: boolean
   isSubscription: boolean
+  deprecated: boolean
 }
 
 type SortKey = 'provider' | 'model' | 'input' | 'output'
@@ -88,29 +89,37 @@ export function ModelsDashboard() {
         ? (provider.transformer as Record<string, string[]>)._disabledModels
         : []
       const isSubscription = provider.auth_mode === 'subscription'
+      const deprecatedSet = new Set(provider.deprecatedModels ?? [])
       return models.map((model) => {
         const key = `${providerName},${model}`
         const routes = ROUTE_KEYS.filter((routeKey) => routerConfig && routerConfig[routeKey] === key)
         const enabled = !disabledList.includes(model)
-        return { provider: providerName, model, key, routes, enabled, isSubscription }
+        const deprecated = deprecatedSet.has(model)
+        return { provider: providerName, model, key, routes, enabled, isSubscription, deprecated }
       })
     })
+    // No active sort: keep the natural order — providers in config order,
+    // models in their per-provider order. We used to fall through to an
+    // alphabetical model tiebreak here, which surfaced "openai
+    // chatgpt-4o-latest" at the top because 'cha' < 'cla'.
+    if (!sortKey) return raw
     const sign = sortDir === 'asc' ? 1 : -1
     const priceOf = (model: string, which: 'inputPer1M' | 'outputPer1M') =>
       MODEL_PRICING[model]?.[which] ?? Number.POSITIVE_INFINITY
     const primary = (row: ModelRow) => {
-      if (!sortKey) return 0
       if (sortKey === 'input') return priceOf(row.model, 'inputPer1M')
       if (sortKey === 'output') return priceOf(row.model, 'outputPer1M')
       return row[sortKey]
     }
+    // Stable sort on primary only — ties preserve raw (provider-grouped,
+    // config-ordered) order, so sorting by Provider doesn't reorder the
+    // models inside each group.
     return [...raw].sort((a, b) => {
       const av = primary(a)
       const bv = primary(b)
       if (av < bv) return -1 * sign
       if (av > bv) return 1 * sign
-      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
-      return a.model.localeCompare(b.model)
+      return 0
     })
   }, [config, sortKey, sortDir, planByProvider])
 
@@ -231,7 +240,16 @@ export function ModelsDashboard() {
                       {row.provider}
                     </span>
                   </td>
-                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
+                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>
+                    <span className='inline-flex items-center gap-2'>
+                      {row.model}
+                      {row.deprecated && (
+                        <Badge variant='outline' className='border-amber-300 bg-amber-50 text-[10px] text-amber-700'>
+                          {t('models.deprecated')}
+                        </Badge>
+                      )}
+                    </span>
+                  </td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
                     {row.isSubscription ? (
                       <span className='text-gray-300'>—</span>

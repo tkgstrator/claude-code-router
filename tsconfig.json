@@ -17,5 +17,10 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "vite.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  // src/llms is the absorbed @musistudio/llms vendor subsystem. It was
+  // always built via esbuild bundling (never tsc-typechecked) and
+  // carries its own latent loose typings; keep it out of the strict
+  // root typecheck so `tsc --noEmit` stays meaningful for our code.
+  // src/generated/prisma is machine-generated.
+  "exclude": ["node_modules", "dist", "src/llms", "src/generated"]
 }

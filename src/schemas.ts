@@ -17,6 +17,7 @@ export const ProviderSchema = z
     api_key: z.string(),
     auth_mode: AuthModeSchema,
     models: z.array(z.string()),
+    deprecatedModels: z.array(z.string()).optional(),
     transformer: z.record(z.string(), JsonValueSchema).optional()
   })
   .openapi('Provider')
@@ -166,6 +167,12 @@ export const TransformersResponseSchema = z
     transformers: z.array(TransformerEntrySchema)
   })
   .openapi('TransformersResponse')
+
+// --- Price scraper ---------------------------------------------------------
+
+export const ScrapePricesVendorSchema = z
+  .enum(['openai', 'anthropic', 'google', 'all'])
+  .openapi('ScrapePricesVendor')
 
 // --- Validation errors -----------------------------------------------------
 

@@ -13,10 +13,9 @@ docs/.docusaurus
 
 # Package manager caches
 .pnpm-store/
-packages/server/.env
 
 # Prisma client is generated locally via `bun run db:generate`
-packages/server/src/generated
+src/generated
 
 # tsc emits next to the .ts source when scripts/tsconfig is invoked directly
 scripts/*.js

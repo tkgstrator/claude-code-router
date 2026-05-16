@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Model" ADD COLUMN     "inputPer1M" DOUBLE PRECISION,
+ADD COLUMN     "legacy" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "outputPer1M" DOUBLE PRECISION;

@@ -11,6 +11,9 @@ export interface Provider {
   api_key: string
   auth_mode?: ProviderAuthMode
   models: string[]
+  // Subset of `models` flagged deprecated server-side. Read-only from
+  // the UI — the server derives it from a vendor-specific registry.
+  deprecatedModels?: string[]
   transformer?: ProviderTransformer
 }
 

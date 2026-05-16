@@ -54,7 +54,8 @@
     "cost": "费用 / 1M",
     "input": "输入 / 1M",
     "output": "输出 / 1M",
-    "cost_hint": "每 100 万 token 的美元价格,基础档,仅供参考"
+    "cost_hint": "每 100 万 token 的美元价格,基础档,仅供参考",
+    "deprecated": "已弃用"
   },
   "login": {
     "title": "登录到您的账户",
