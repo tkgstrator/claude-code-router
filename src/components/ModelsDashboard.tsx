@@ -6,6 +6,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { api } from '@/lib/api'
 import { ProviderIcon } from '@/lib/providerIcons'
@@ -31,7 +39,9 @@ export function ModelsDashboard() {
   const { t } = useTranslation()
   const { config, setConfig } = useConfig()
   const [status, setStatus] = useState<Record<string, Reachability>>({})
+  const [passedAt, setPassedAt] = useState<Record<string, string | null>>({})
   const [isTestingAll, setIsTestingAll] = useState(false)
+  const [scopeDialogOpen, setScopeDialogOpen] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
@@ -146,38 +156,68 @@ export function ModelsDashboard() {
     )
   }
 
-  const testModel = async (row: ModelRow): Promise<Reachability> => {
-    try {
-      const res = await fetch('/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config?.APIKEY || '',
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: row.key,
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'ping' }]
-        })
-      })
-      return res.ok ? 'ok' : 'fail'
-    } catch {
-      return 'fail'
+  // Seed status + last-passed date from the DB-backed config so the
+  // dashboard reflects persisted test results across reloads.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-seed when config changes
+  useEffect(() => {
+    const providers = Array.isArray(config?.Providers) ? config.Providers : []
+    const nextStatus: Record<string, Reachability> = {}
+    const nextPassed: Record<string, string | null> = {}
+    for (const p of providers) {
+      const map = p?.modelTestStatus
+      if (!map) continue
+      for (const [model, info] of Object.entries(map)) {
+        const key = `${p.name},${model}`
+        nextStatus[key] = info.status
+        nextPassed[key] = info.passedAt
+      }
+    }
+    setStatus(nextStatus)
+    setPassedAt(nextPassed)
+  }, [config])
+
+  const applyResult = (key: string, result: { status: 'ok' | 'fail' }) => {
+    setStatus((prev) => ({ ...prev, [key]: result.status }))
+    if (result.status === 'ok') {
+      setPassedAt((prev) => ({ ...prev, [key]: new Date().toISOString() }))
     }
   }
 
-  const handleTestAll = async () => {
-    setIsTestingAll(true)
-    const enabledRows = rows.filter((row) => row.enabled)
-    setStatus(Object.fromEntries(enabledRows.map((row) => [row.key, 'testing' as Reachability])))
-    // Sequential to avoid hammering provider rate limits and to keep
-    // the (billed) probe traffic minimal.
-    for (const row of enabledRows) {
-      const result = await testModel(row)
-      setStatus((prev) => ({ ...prev, [row.key]: result }))
+  // Real-inference test of one model (max_tokens=1 ping to the vendor).
+  const testOne = async (row: ModelRow) => {
+    setStatus((prev) => ({ ...prev, [row.key]: 'testing' }))
+    try {
+      const res = await api.post<{ status: 'ok' | 'fail'; error?: string }>('/models/test', {
+        provider: row.provider,
+        model: row.model
+      })
+      applyResult(row.key, res)
+    } catch {
+      setStatus((prev) => ({ ...prev, [row.key]: 'fail' }))
     }
-    setIsTestingAll(false)
+  }
+
+  const runTestAll = async (scope: 'all' | 'failing') => {
+    setScopeDialogOpen(false)
+    setIsTestingAll(true)
+    // Optimistically mark the in-scope rows as testing.
+    setStatus((prev) => {
+      const next = { ...prev }
+      for (const row of rows) {
+        if (scope === 'all' || next[row.key] !== 'ok') next[row.key] = 'testing'
+      }
+      return next
+    })
+    try {
+      const res = await api.post<{
+        results: { provider: string; model: string; status: 'ok' | 'fail' }[]
+      }>('/models/test-all', { scope })
+      for (const r of res.results) applyResult(`${r.provider},${r.model}`, r)
+    } catch {
+      // Leave rows as-is; individual retries are available.
+    } finally {
+      setIsTestingAll(false)
+    }
   }
 
   const renderStatus = (state: Reachability) => {
@@ -198,7 +238,7 @@ export function ModelsDashboard() {
       <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
         <CardTitle className='text-lg'>{t('nav.models')}</CardTitle>
         <Button
-          onClick={handleTestAll}
+          onClick={() => setScopeDialogOpen(true)}
           disabled={isTestingAll || rows.length === 0}
           variant='outline'
           className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
@@ -206,6 +246,22 @@ export function ModelsDashboard() {
           {isTestingAll ? t('models.status_testing') : t('models.test_all')}
         </Button>
       </CardHeader>
+
+      <Dialog open={scopeDialogOpen} onOpenChange={setScopeDialogOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('models.test_all_title')}</DialogTitle>
+            <DialogDescription>{t('models.test_all_desc')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className='flex-col gap-2 sm:flex-row sm:justify-end'>
+            <Button variant='outline' onClick={() => runTestAll('failing')}>
+              {t('models.test_all_failing')}
+            </Button>
+            <Button onClick={() => runTestAll('all')}>{t('models.test_all_all')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CardContent className='flex-grow overflow-auto p-0'>
         {rows.length === 0 ? (
           <div className='flex h-full flex-col items-center justify-center gap-2 p-6 text-center'>
@@ -269,7 +325,21 @@ export function ModelsDashboard() {
                     )}
                   </td>
                   <td className='px-2 py-2'>
-                    <div className='flex justify-center'>{renderStatus(status[row.key] || 'unknown')}</div>
+                    <div className='flex justify-center'>
+                      <button
+                        type='button'
+                        onClick={() => testOne(row)}
+                        disabled={isTestingAll || status[row.key] === 'testing'}
+                        title={
+                          passedAt[row.key]
+                            ? `${t('models.last_passed')}: ${new Date(passedAt[row.key] as string).toLocaleString()}`
+                            : t('models.test')
+                        }
+                        className='rounded-md p-1 transition-all-ease hover:bg-gray-100 disabled:cursor-not-allowed disabled:hover:bg-transparent'
+                      >
+                        {renderStatus(status[row.key] || 'unknown')}
+                      </button>
+                    </div>
                   </td>
                   <td className='px-6 py-2'>
                     <Popover>

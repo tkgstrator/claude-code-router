@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { configRoute } from './api/config/route'
+import { modelTestRoute } from './api/models/test/route'
+import { modelTestAllRoute } from './api/models/test-all/route'
 import { providersTestRoute } from './api/providers/test/route'
 import { refreshModelsRoute } from './api/refresh-models/route'
 import { scrapePricesRoute } from './api/scrape-prices/[vendor]/route'
@@ -38,6 +40,8 @@ app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
 app.route('/', refreshModelsRoute)
 app.route('/', providersTestRoute)
+app.route('/', modelTestRoute)
+app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)
 
 // OpenAPI spec endpoint — useful for tooling and the generated docs.

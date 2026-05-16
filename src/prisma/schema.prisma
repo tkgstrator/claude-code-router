@@ -31,6 +31,16 @@ enum ScenarioKey {
   image
 }
 
+// Outcome of the last real-inference connectivity test for a Model.
+//   - unknown: never tested (or test reset)
+//   - ok:      the vendor returned a successful minimal completion
+//   - fail:    the vendor rejected the request / errored
+enum ModelTestStatus {
+  unknown
+  ok
+  fail
+}
+
 // How a Provider authenticates against its upstream API.
 //   - api_key:      legacy mode; the stored apiKey is sent via Bearer / x-api-key.
 //   - subscription: reuses Claude CLI's OAuth credentials at
@@ -76,6 +86,15 @@ model Model {
   // didn't cover.
   inputPer1M  Float?
   outputPer1M Float?
+  // Last real-inference connectivity test outcome + timestamps.
+  // testCheckedAt is set on every attempt; testPassedAt only on the
+  // most recent success (kept even after a later failure so the UI can
+  // show "last passed on ..."). testError holds the latest failure
+  // reason for display.
+  testStatus    ModelTestStatus @default(unknown)
+  testCheckedAt DateTime?
+  testPassedAt  DateTime?
+  testError     String?
   routerSlots RouterSlot[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt

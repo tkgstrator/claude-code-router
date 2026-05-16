@@ -34,6 +34,10 @@ type UiProvider = {
   // string[] — UI callers that don't care about deprecation keep
   // working untouched.
   deprecatedModels?: string[]
+  // Per-model last real-inference test outcome, keyed by model name.
+  // Parallel map so `models` stays a plain string[]; absent when no
+  // model has been tested.
+  modelTestStatus?: Record<string, { status: 'unknown' | 'ok' | 'fail'; passedAt: string | null }>
   transformer?: Record<string, unknown>
 }
 
@@ -91,6 +95,16 @@ type ProviderWithModels = DbProvider & { models: DbModel[] }
 
 const toUiProvider = (p: ProviderWithModels): UiProvider => {
   const deprecatedModels = p.models.filter((m) => m.deprecated).map((m) => m.name)
+  const tested = p.models.filter((m) => m.testStatus !== 'unknown')
+  const modelTestStatus = Object.fromEntries(
+    tested.map((m) => [
+      m.name,
+      {
+        status: m.testStatus as 'unknown' | 'ok' | 'fail',
+        passedAt: m.testPassedAt ? m.testPassedAt.toISOString() : null
+      }
+    ])
+  )
   return {
     name: p.name,
     api_base_url: p.apiBaseUrl,
@@ -98,6 +112,7 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
     auth_mode: p.authMode,
     models: p.models.map((m) => m.name),
     ...(deprecatedModels.length > 0 ? { deprecatedModels } : {}),
+    ...(tested.length > 0 ? { modelTestStatus } : {}),
     // transformer is stored as JSONB; Prisma returns JsonValue which we
     // surface as a free-form record to the UI (legacy shape is unchanged).
     ...(p.transformer ? { transformer: p.transformer as Record<string, unknown> } : {})

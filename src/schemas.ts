@@ -18,6 +18,12 @@ export const ProviderSchema = z
     auth_mode: AuthModeSchema,
     models: z.array(z.string()),
     deprecatedModels: z.array(z.string()).optional(),
+    modelTestStatus: z
+      .record(
+        z.string(),
+        z.object({ status: z.enum(['unknown', 'ok', 'fail']), passedAt: z.string().nullable() })
+      )
+      .optional(),
     transformer: z.record(z.string(), JsonValueSchema).optional()
   })
   .openapi('Provider')
@@ -173,6 +179,40 @@ export const TransformersResponseSchema = z
 export const ScrapePricesVendorSchema = z
   .enum(['openai', 'anthropic', 'google', 'all'])
   .openapi('ScrapePricesVendor')
+
+// --- Model inference test --------------------------------------------------
+
+export const ModelTestRequestSchema = z
+  .object({
+    provider: z.string().min(1),
+    model: z.string().min(1)
+  })
+  .openapi('ModelTestRequest')
+
+export const ModelTestResultSchema = z
+  .object({
+    provider: z.string(),
+    model: z.string(),
+    status: z.enum(['ok', 'fail']),
+    error: z.string().optional(),
+    latencyMs: z.number()
+  })
+  .openapi('ModelTestResult')
+
+export const ModelTestAllRequestSchema = z
+  .object({
+    scope: z.enum(['all', 'failing'])
+  })
+  .openapi('ModelTestAllRequest')
+
+export const ModelTestAllResponseSchema = z
+  .object({
+    total: z.number(),
+    ok: z.number(),
+    fail: z.number(),
+    results: z.array(ModelTestResultSchema)
+  })
+  .openapi('ModelTestAllResponse')
 
 // --- Validation errors -----------------------------------------------------
 
