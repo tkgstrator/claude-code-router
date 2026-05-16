@@ -7,18 +7,15 @@
  *
  * Every *enabled* model of every claude-* subscription provider in
  * /api/config is smoke-tested, so the matrix tracks the DB instead of a
- * hardcoded list. A long-context 429 ("Extra usage is required for long
- * context requests") is a HARD failure — that's the regression guard
- * for the context-1m beta strip (subscription routing). A generic quota
- * 429 is tolerated as a skip, since the claude-code free tier genuinely
- * rate-limits and that is not our bug.
+ * hardcoded list. smokeSubscriptionModel asserts HTTP 200 + a valid
+ * Anthropic SSE shape, hard-fails a long-context 429 (the regression
+ * guard for the context-1m beta strip), and tolerates only a sustained
+ * free-tier quota 429.
  */
 
 import { describe, test, expect } from "bun:test";
 import {
-  streamMessage,
-  extractTextFromEvents,
-  assertAnthropicSSEShape,
+  smokeSubscriptionModel,
   fetchSubscriptionModels,
   TEST_TIMEOUT,
   type SubscriptionModel,
@@ -30,11 +27,6 @@ import { homedir } from "os";
 const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
 const hasCredentials =
   existsSync(CREDENTIALS_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
-
-const isLongContextGate = (msg: string): boolean =>
-  /extra usage is required for long context|long context request/i.test(msg);
-const isGenericRateLimit = (msg: string): boolean =>
-  /\b429\b|rate_limit|rate limit/i.test(msg);
 
 const result = await (async (): Promise<
   { models: SubscriptionModel[] } | { error: string }
@@ -69,37 +61,14 @@ describe.skipIf(!hasCredentials)("claude-code subscription / all enabled models"
   for (const { provider, model } of result.models) {
     describe(`${provider},${model}`, () => {
       test(
-        "streaming returns valid Anthropic SSE with text",
+        "HTTP 200 + valid Anthropic SSE with text",
         async () => {
-          let events: Awaited<ReturnType<typeof streamMessage>>;
-          try {
-            events = await streamMessage({
-              model: `${provider},${model}`,
-              max_tokens: 64,
-              messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
-            });
-          } catch (err) {
-            const msg = (err as Error).message ?? "";
-            // Regression guard: the context-1m beta strip must keep
-            // subscription routing off Anthropic's long-context billing
-            // gate. If this 429 ever comes back, fail loudly.
-            if (isLongContextGate(msg)) {
-              throw new Error(
-                `${provider},${model}: long-context 429 regressed — context-1m beta is reaching Anthropic again. ${msg}`
-              );
-            }
-            // Genuine transient quota limit on the free tier — not our
-            // bug; skip rather than flake the suite.
-            if (isGenericRateLimit(msg)) {
-              console.warn(`${provider},${model} rate limited (quota), skipping assertion: ${msg}`);
-              return;
-            }
-            throw err;
+          const outcome = await smokeSubscriptionModel(`${provider},${model}`);
+          if (outcome.kind === "skipped-quota") {
+            console.warn(`${provider},${model} sustained quota limit, skipping assertion: ${outcome.message}`);
+            return;
           }
-
-          assertAnthropicSSEShape(events);
-          const text = extractTextFromEvents(events);
-          expect(text.length).toBeGreaterThan(0);
+          expect(outcome.text.length).toBeGreaterThan(0);
         },
         TEST_TIMEOUT
       );

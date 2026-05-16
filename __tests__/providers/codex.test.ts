@@ -16,9 +16,7 @@
 
 import { describe, test, expect } from "bun:test";
 import {
-  streamMessage,
-  extractTextFromEvents,
-  assertAnthropicSSEShape,
+  smokeSubscriptionModel,
   fetchSubscriptionModels,
   TEST_TIMEOUT,
   type SubscriptionModel,
@@ -39,9 +37,6 @@ if (hasCredentials && !codexV1Ready) {
       "Set CCR_CODEX_V1_READY=1 after implementing it to enable the matrix."
   );
 }
-
-const isGenericRateLimit = (msg: string): boolean =>
-  /\b429\b|rate_limit|rate limit/i.test(msg);
 
 const result = await (async (): Promise<
   { models: SubscriptionModel[] } | { error: string }
@@ -76,27 +71,14 @@ describe.skipIf(!enabled)("codex subscription / all enabled models", () => {
   for (const { provider, model } of result.models) {
     describe(`${provider},${model}`, () => {
       test(
-        "streaming returns valid Anthropic SSE with text",
+        "HTTP 200 + valid Anthropic SSE with text",
         async () => {
-          let events: Awaited<ReturnType<typeof streamMessage>>;
-          try {
-            events = await streamMessage({
-              model: `${provider},${model}`,
-              max_tokens: 64,
-              messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
-            });
-          } catch (err) {
-            const msg = (err as Error).message ?? "";
-            if (isGenericRateLimit(msg)) {
-              console.warn(`${provider},${model} rate limited (quota), skipping assertion: ${msg}`);
-              return;
-            }
-            throw err;
+          const outcome = await smokeSubscriptionModel(`${provider},${model}`);
+          if (outcome.kind === "skipped-quota") {
+            console.warn(`${provider},${model} sustained quota limit, skipping assertion: ${outcome.message}`);
+            return;
           }
-
-          assertAnthropicSSEShape(events);
-          const text = extractTextFromEvents(events);
-          expect(text.length).toBeGreaterThan(0);
+          expect(outcome.text.length).toBeGreaterThan(0);
         },
         TEST_TIMEOUT
       );
