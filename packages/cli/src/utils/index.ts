@@ -8,9 +8,7 @@ import readline from 'node:readline'
 import { getServer } from '@ccr/server'
 import { CONFIG_FILE, HOME_DIR, PID_FILE, PLUGINS_DIR, PRESETS_DIR, REFERENCE_COUNT_FILE } from '@ccr/shared'
 import JSON5 from 'json5'
-import { version } from '../../package.json'
 import { cleanupPidFile, isServiceRunning } from './processCheck'
-import { checkForUpdates, performUpdate } from './update'
 
 // Function to interpolate environment variables in config values
 const interpolateEnvVars = (obj: any): any => {
@@ -198,14 +196,6 @@ export const run = async (_args: string[] = []) => {
   const app = server.app
   // Save the PID of the background process
   writeFileSync(PID_FILE, process.pid.toString())
-
-  app.post('/api/update/perform', async () => {
-    return await performUpdate()
-  })
-
-  app.get('/api/update/check', async () => {
-    return await checkForUpdates(version)
-  })
 
   app.post('/api/restart', async () => {
     setTimeout(async () => {

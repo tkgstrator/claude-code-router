@@ -23,9 +23,11 @@ import AdmZip from 'adm-zip'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import { version as serverVersion } from '../package.json'
 import { applyUiConfig, composeUiConfig } from './services/configService'
 import { refreshModelsForAllProviders } from './services/modelSyncService'
 import { backupConfigFile, readConfigFile, writeConfigFile } from './utils'
+import { checkForUpdates, performUpdate } from './utils/update'
 
 export const createServer = async (config: any): Promise<any> => {
   const server = new Server(config)
@@ -115,6 +117,14 @@ export const createServer = async (config: any): Promise<any> => {
   app.post('/api/refresh-models', async (_req: any, _reply: any) => {
     const outcomes = await refreshModelsForAllProviders()
     return { outcomes }
+  })
+
+  app.get('/api/update/check', async () => {
+    return await checkForUpdates(serverVersion)
+  })
+
+  app.post('/api/update/perform', async () => {
+    return await performUpdate()
   })
 
   // Register static file serving with caching
