@@ -4,7 +4,7 @@ import {
   LLM_PRICES_URL,
   type PriceEntry,
   type SeedProvider
-} from '@ccr/shared'
+} from '@ccr/shared/data'
 import type { Provider } from '@/types'
 
 /**
