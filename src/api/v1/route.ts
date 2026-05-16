@@ -62,6 +62,25 @@ const normalizeEffort = (body: unknown, model: string): void => {
   }
 }
 
+// Claude Code opts into the 1M context window via a `context-1m-*`
+// anthropic-beta token. On a subscription (OAuth) that beta trips
+// Anthropic's long-context billing gate — every request 429s with
+// "Extra usage is required for long context requests", even a tiny
+// "say pong". The proxy can't grant 1M on a non-1M subscription, so
+// drop just that token: the request degrades to the standard 200K
+// window and the subscription serves it normally. Every other beta
+// (prompt-caching, interleaved-thinking, effort, …) is preserved.
+const stripOneMContextBeta = (headers: Record<string, string>): void => {
+  const v = headers['anthropic-beta']
+  if (typeof v !== 'string' || !v.includes('context-1m')) return
+  const kept = v
+    .split(',')
+    .map((s) => s.trim())
+    .filter((t) => t.length > 0 && !t.startsWith('context-1m'))
+  if (kept.length > 0) headers['anthropic-beta'] = kept.join(',')
+  else delete headers['anthropic-beta']
+}
+
 // Highest supported level from a 400's "Supported levels: a, b, c".
 const bestSupportedLevel = (message: string | undefined): { bad: string; level: string } | null => {
   const m = message?.match(/does not support effort level '([^']+)'\.\s*Supported levels:\s*([^"}\n]+)/i)
@@ -193,6 +212,13 @@ v1Route.post('/v1/*', async (c) => {
   const provider = prov ? ctx.providerService.getProvider(prov) : undefined
   const soleUse = provider?.transformer?.use?.length === 1 ? provider.transformer.use[0]?.name : undefined
   if (soleUse && transformersByName.has(soleUse)) transformer = transformersByName.get(soleUse)
+
+  // Subscription providers route through a `*-credentials` sole
+  // transformer (claude-code-credentials, codex-credentials, …).
+  // On that path the 1M-context beta only gets us a 429, never 1M.
+  if (typeof soleUse === 'string' && soleUse.endsWith('-credentials')) {
+    stripOneMContextBeta(headers)
+  }
 
   const fastifyShim = {
     providerService: ctx.providerService,
