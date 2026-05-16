@@ -20,7 +20,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src')
+      '@': resolve(__dirname, './src'),
+      // Pull workspace shared code from TS source so Vite's SSR module
+      // runner doesn't try to evaluate the bun-target minified bundle
+      // in packages/shared/dist.
+      '@ccr/shared/data': resolve(__dirname, './packages/shared/src/data/index.ts'),
+      '@ccr/shared': resolve(__dirname, './packages/shared/src/index.ts')
     }
   },
   plugins: [
@@ -29,15 +34,12 @@ export default defineConfig({
     viteSingleFile(),
     devServer({
       entry: './src/index.ts',
-      // Default exclude misses /api/* — widen it so the Vite client +
-      // module asset paths bypass Hono, everything else flows through.
-      exclude: [
-        /^\/@.+$/,
-        /\/favicon\.ico$/,
-        /^\/(?:src|node_modules)\/.+/,
-        /\?import$/,
-        /\.(?:css|less|sass|scss|stylus|wasm|html|svg|png|jpg|jpeg|gif|webp|ico)$/
-      ]
+      // Hono only owns /api/* and /v1/* — every other path (the SPA at
+      // /, Vite's /@... module shims, /src/..., favicons, static
+      // assets) goes through Vite. The negative lookahead is the
+      // simplest way to express "exclude from Hono unless the path is
+      // an API surface".
+      exclude: [/^(?!\/api\/|\/v1\/).*$/]
     })
   ]
 })

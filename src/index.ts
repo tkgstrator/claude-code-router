@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { applyUiConfig, composeUiConfig } from '@ccr/server/config'
 import { refreshModelsForAllProviders } from '@ccr/server/models'
 import serverPackage from '@ccr/server/package'
