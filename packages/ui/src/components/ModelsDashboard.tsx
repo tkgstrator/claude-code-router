@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
@@ -21,11 +21,28 @@ interface ModelRow {
   routes: string[]
 }
 
+type SortKey = 'provider' | 'model' | 'cost'
+
 export function ModelsDashboard() {
   const { t } = useTranslation()
   const { config, setConfig } = useConfig()
   const [status, setStatus] = useState<Record<string, Reachability>>({})
   const [isTestingAll, setIsTestingAll] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key)
+      setSortDir('asc')
+      return
+    }
+    if (sortDir === 'asc') {
+      setSortDir('desc')
+      return
+    }
+    setSortKey(null)
+  }
 
   const assignToRoute = (route: (typeof ROUTE_KEYS)[number], key: string, checked: boolean) => {
     if (!config) return
@@ -36,7 +53,7 @@ export function ModelsDashboard() {
   const rows = useMemo<ModelRow[]>(() => {
     const providers = Array.isArray(config?.Providers) ? config.Providers : []
     const routerConfig = config?.Router
-    return providers.flatMap((provider) => {
+    const raw = providers.flatMap((provider) => {
       if (!provider) return []
       const providerName = provider.name || 'unknown'
       const models = Array.isArray(provider.models) ? provider.models : []
@@ -46,7 +63,37 @@ export function ModelsDashboard() {
         return { provider: providerName, model, key, routes }
       })
     })
-  }, [config])
+    if (!sortKey) return raw
+    const sign = sortDir === 'asc' ? 1 : -1
+    return [...raw].sort((a, b) => {
+      const av =
+        sortKey === 'cost'
+          ? (MODEL_PRICING[a.model]?.inputPer1M ?? Number.POSITIVE_INFINITY)
+          : a[sortKey]
+      const bv =
+        sortKey === 'cost'
+          ? (MODEL_PRICING[b.model]?.inputPer1M ?? Number.POSITIVE_INFINITY)
+          : b[sortKey]
+      if (av < bv) return -1 * sign
+      if (av > bv) return 1 * sign
+      return 0
+    })
+  }, [config, sortKey, sortDir])
+
+  const SortHeader = ({ label, sortKey: key }: { label: string; sortKey: SortKey }) => {
+    const active = sortKey === key
+    const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+    return (
+      <button
+        type='button'
+        onClick={() => toggleSort(key)}
+        className={`inline-flex items-center gap-1 ${active ? 'text-gray-900' : 'text-gray-500'} hover:text-gray-900`}
+      >
+        {label}
+        <Icon className='h-3 w-3' />
+      </button>
+    )
+  }
 
   const testModel = async (row: ModelRow): Promise<Reachability> => {
     try {
@@ -142,9 +189,15 @@ export function ModelsDashboard() {
           <table className='w-full text-sm'>
             <thead className='sticky top-0 bg-gray-50 text-left text-gray-500'>
               <tr>
-                <th className='px-6 py-2 font-medium'>{t('models.provider')}</th>
-                <th className='px-6 py-2 font-medium'>{t('models.model')}</th>
-                <th className='px-6 py-2 font-medium'>{t('models.cost')}</th>
+                <th className='px-6 py-2 font-medium'>
+                  <SortHeader label={t('models.provider')} sortKey='provider' />
+                </th>
+                <th className='px-6 py-2 font-medium'>
+                  <SortHeader label={t('models.model')} sortKey='model' />
+                </th>
+                <th className='px-6 py-2 font-medium'>
+                  <SortHeader label={t('models.cost')} sortKey='cost' />
+                </th>
                 <th className='px-6 py-2 font-medium'>{t('models.status')}</th>
                 <th className='px-6 py-2 font-medium'>{t('models.routes')}</th>
                 <th className='px-6 py-2 font-medium text-right'>{t('models.test')}</th>
