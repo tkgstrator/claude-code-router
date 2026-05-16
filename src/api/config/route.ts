@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { resetLlmsContext } from '../../llmsContext'
 import { ApplyConfigPayloadSchema } from '../../schemas'
 import { applyUiConfig, composeUiConfig } from '../../services/configService'
 
@@ -23,6 +24,10 @@ configRoute.post('/api/config', async (c) => {
     return c.json({ success: false as const, error: 'invalid config payload' }, 400)
   }
   const result = await applyUiConfig(parsed.data)
+  // The /v1 proxy caches the llms services (incl. Router/providers)
+  // built from this config — drop it so edits take effect without a
+  // restart.
+  resetLlmsContext()
   return c.json({
     success: true,
     message: 'Config saved successfully',
