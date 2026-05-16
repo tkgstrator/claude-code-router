@@ -15,6 +15,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import { ProviderIcon } from '@/lib/providerIcons'
 import { MODEL_PRICING } from '@/lib/providerTemplates'
@@ -45,6 +46,8 @@ export function ModelsDashboard() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled'>('all')
+  const [providerFilter, setProviderFilter] = useState<string>('all')
 
   useEffect(() => {
     const fetchSubscriptions = async () => {
@@ -133,6 +136,21 @@ export function ModelsDashboard() {
     })
   }, [config, sortKey, sortDir, planByProvider])
 
+  const providerNames = useMemo(() => {
+    const names = new Set(rows.map((r) => r.provider))
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [rows])
+
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        if (statusFilter === 'enabled' && !row.enabled) return false
+        if (providerFilter !== 'all' && row.provider !== providerFilter) return false
+        return true
+      }),
+    [rows, statusFilter, providerFilter]
+  )
+
   const SortHeader = ({
     label,
     sortKey: key,
@@ -200,10 +218,13 @@ export function ModelsDashboard() {
   const runTestAll = async (scope: 'all' | 'failing') => {
     setScopeDialogOpen(false)
     setIsTestingAll(true)
-    // Optimistically mark the in-scope rows as testing.
+    // Optimistically mark only the in-scope ENABLED rows as testing —
+    // the server skips disabled models, so marking them would leave
+    // their spinner stuck forever.
     setStatus((prev) => {
       const next = { ...prev }
       for (const row of rows) {
+        if (!row.enabled) continue
         if (scope === 'all' || next[row.key] !== 'ok') next[row.key] = 'testing'
       }
       return next
@@ -237,14 +258,38 @@ export function ModelsDashboard() {
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
       <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
         <CardTitle className='text-lg'>{t('nav.models')}</CardTitle>
-        <Button
-          onClick={() => setScopeDialogOpen(true)}
-          disabled={isTestingAll || rows.length === 0}
-          variant='outline'
-          className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
-        >
-          {isTestingAll ? t('models.status_testing') : t('models.test_all')}
-        </Button>
+        <div className='flex items-center gap-2'>
+          <Select value={providerFilter} onValueChange={setProviderFilter}>
+            <SelectTrigger className='h-9 w-44'>
+              <SelectValue placeholder={t('models.filter_provider')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>{t('models.filter_all_providers')}</SelectItem>
+              {providerNames.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === 'enabled' ? 'enabled' : 'all')}>
+            <SelectTrigger className='h-9 w-36'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>{t('models.filter_show_all')}</SelectItem>
+              <SelectItem value='enabled'>{t('models.filter_enabled_only')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={() => setScopeDialogOpen(true)}
+            disabled={isTestingAll || visibleRows.length === 0}
+            variant='outline'
+            className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
+          >
+            {isTestingAll ? t('models.status_testing') : t('models.test_all')}
+          </Button>
+        </div>
       </CardHeader>
 
       <Dialog open={scopeDialogOpen} onOpenChange={setScopeDialogOpen}>
@@ -263,7 +308,7 @@ export function ModelsDashboard() {
       </Dialog>
 
       <CardContent className='flex-grow overflow-auto p-0'>
-        {rows.length === 0 ? (
+        {visibleRows.length === 0 ? (
           <div className='flex h-full flex-col items-center justify-center gap-2 p-6 text-center'>
             <p className='text-sm text-gray-500'>{t('models.no_models')}</p>
           </div>
@@ -288,7 +333,7 @@ export function ModelsDashboard() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.key} className={`border-t hover:bg-gray-50 ${row.enabled ? '' : 'opacity-50'}`}>
                   <td className='px-6 py-2 text-gray-700'>
                     <span className='inline-flex items-center gap-2'>
@@ -329,7 +374,7 @@ export function ModelsDashboard() {
                       <button
                         type='button'
                         onClick={() => testOne(row)}
-                        disabled={isTestingAll || status[row.key] === 'testing'}
+                        disabled={isTestingAll || !row.enabled || status[row.key] === 'testing'}
                         title={
                           passedAt[row.key]
                             ? `${t('models.last_passed')}: ${new Date(passedAt[row.key] as string).toLocaleString()}`
