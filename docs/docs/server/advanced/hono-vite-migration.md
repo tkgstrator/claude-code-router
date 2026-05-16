@@ -52,65 +52,97 @@ Key Fastify points of contact (everything that has to be ported):
 
 ## Target architecture
 
+We follow the layout from
+[qtmleap/Hono-Vite-Workers](https://github.com/qtmleap/Hono-Vite-Workers)
+(minus the Cloudflare Workers piece). Vite is the single dev / build tool;
+Hono runs inside the same Vite process via `@hono/vite-dev-server` in dev and
+as the production handler in prod.
+
 ```
-packages/
-  core/        @musistudio/llms — keep transformer/tokenizer/router exports,
-               deprecate the default Server class (or split into
-               core-library + core-fastify subpath exports).
-  server/      Hono app on Bun, owns ALL routes — /api/*, /v1/*, /ui/*.
-               Calls into core's services directly inside its handlers.
-  ui/          unchanged source; the build artifact is served by the Hono
-               static handler.
-  cli/         unchanged; the CLI spawns the same server entrypoint and
-               registers /api/restart, /api/update/* as Hono routes.
-  shared/      unchanged.
+ccr/
+  src/
+    index.ts          # Hono entry — registers /api/*, /v1/*, falls through
+                      # to the SPA. Becomes the prod handler.
+    app/              # React entry + routes — replaces packages/ui/src.
+      main.tsx
+      routes/
+    server/           # API + provider services — replaces packages/server/src.
+    shared.ts         # cross-cutting glue (env loading, prisma client, etc.)
+  packages/
+    cli/              # unchanged
+    core/             # @musistudio/llms — POJO-friendly exports
+                      # (Phase 0)
+    shared/           # unchanged
+  vite.config.ts      # @hono/vite-dev-server + @vitejs/plugin-react.
+  package.json        # "dev": "vite", "build": "vite build",
+                      # "start": "bun src/index.ts"
 ```
+
+Dev / build / start become single commands:
+
+| Command | Effect |
+|---|---|
+| `bun run dev` | one Vite dev server. UI HMR + Hono API on the same port. No `wait-on`, no concurrent process orchestration. |
+| `bun run build` | `vite build` emits both the SPA bundle and the Hono worker bundle. |
+| `bun run start` | `bun src/index.ts` runs the built Hono entry against the static dist. |
+
+The current monorepo split between `packages/server` and `packages/ui` goes
+away — both fold into the root `src/`. `packages/cli`, `packages/core`, and
+`packages/shared` stay as workspace libraries; the CLI keeps shelling out to
+the Bun runtime to spawn the server.
 
 ## Phased rollout
 
 Each phase is one PR. CI must stay green at every step.
 
-### Phase 0 — Inventory and library export hardening
+### Phase 0 — Library export hardening (in progress)
 
-- Audit `@musistudio/llms`'s public exports (already done; results captured in
-  the [Library exports](#library-exports-from-musistudiollms) section below).
-- Where the existing exports lean on Fastify request/reply types, add narrow
-  POJO adapters so the same services can be called from Hono context. Most
-  likely candidates: `router(req)`, `agent.shouldHandle(req)`.
-- Document the shape each service expects so the Hono handlers can build it.
+- Audit `@musistudio/llms`'s public exports (done; see
+  [Library exports](#library-exports-from-musistudiollms)).
+- Refactor Fastify-typed entry points to receive POJO request shapes so the
+  same services can be called from Hono handlers. Candidates: `router(req)`,
+  agent `shouldHandle` / `reqHandler`, plugin manager hook surface.
+- Leave the existing Fastify wrapper in place; adapter functions translate
+  Fastify Request → POJO at the call site so the current server keeps
+  working.
 
-### Phase 1 — Hono mounts alongside Fastify
+### Phase 1 — Stand up the new root with `@hono/vite-dev-server`
 
-- Spin up Hono in the same process but on a separate internal port.
-- Move the lowest-risk management routes (`GET /api/config`, `GET /api/transformers`,
-  `GET /api/subscriptions`, `GET /api/update/check`) to Hono first.
-- Fastify keeps everything else. A thin reverse-proxy in Hono forwards
-  unmatched paths to Fastify; alternatively, Fastify forwards `/api/*` it
-  doesn't recognise to Hono. Either direction works; pick the one with fewer
-  hook-order surprises.
-- Vite dev proxy in `packages/ui/vite.config.ts` keeps pointing at the same
-  external port; the in-process router decides who answers.
+- Add `vite.config.ts` at the repo root with `@hono/vite-dev-server` and
+  `@vitejs/plugin-react`. Hono entry at `src/index.ts`, React entry at
+  `src/app/main.tsx` (mirror the [qtmleap reference](https://github.com/qtmleap/Hono-Vite-Workers)).
+- Move the simplest API routes (`GET /api/config`, `GET /api/subscriptions`,
+  `GET /api/transformers`, `GET /api/update/check`) into `src/index.ts`.
+  These already work as POJO-friendly handlers (the PoC in
+  `packages/server-hono-poc` proved `composeUiConfig` is framework-clean).
+- Old Fastify server in `packages/server` keeps running on 3456 for routes
+  not yet ported. The new root server proxies them through during the
+  transition.
+- `bun run dev` now points at `vite` only. The two-process orchestration
+  (`bun run --filter @ccr/server dev & wait-on tcp:3456 && ...`) disappears
+  for the routes already ported.
 
-### Phase 2 — Move the rest of /api to Hono
+### Phase 2 — Migrate /api/* and UI source
 
-- `POST /api/config` (calls `applyUiConfig`), `POST /api/refresh-models`,
-  `POST /api/providers/test`, `POST /api/update/perform`, `POST /api/restart`.
-- Multipart uploads: switch `fastifyMultipart` for Hono's built-in
-  `c.req.parseBody()` / `c.req.formData()`.
-- Static UI: switch `fastifyStatic` for `serveStatic` from `hono/bun`. Inline
-  the SPA fallback (`/ui` → `/ui/index.html`).
-- Log line shape: swap pino for the Bun logger or keep pino directly through
-  a small wrapper.
+- Move the rest of `/api/*` into `src/index.ts` (config save, refresh-models,
+  providers/test, update/perform, restart). Replace `@fastify/multipart`
+  with `c.req.parseBody()` for preset zip uploads.
+- Move `packages/ui/src/*` into `src/app/*`. The Vite root is now the repo
+  root, so the UI imports go through `@/...` aliases pointing at `src/`.
+- Delete `packages/server` and `packages/ui` workspace entries once all
+  routes / files have moved. `vite.config.ts` now sees one source tree.
+- Static asset serving in prod: `vite build` emits `dist/`; the Hono
+  production handler in `src/index.ts` uses `serveStatic({ root: './dist' })`.
 
 ### Phase 3 — Move /v1/messages off Fastify
 
-- The hot path. Build a Hono handler that:
-  1. Reads the request, picks scenario via `router`.
+- Build a Hono handler that:
+  1. Reads the request, picks scenario via `router(req)` (POJO from Phase 0).
   2. Applies request transformers via `TransformerService`.
-  3. `fetch()` upstream (or hands off to the existing provider service).
+  3. `fetch()` upstream.
   4. Streams the response back through `SSEParserTransform` /
-     `SSESerializerTransform`, with `rewriteStream` wrapped around agent tool
-     calls.
+     `SSESerializerTransform`, with `rewriteStream` wrapped around agent
+     tool calls.
 - Re-implement the `preHandler` / `onSend` hook semantics using Hono
   middleware. Agent tool detection runs as a `before` middleware on the
   handler.
@@ -119,13 +151,13 @@ Each phase is one PR. CI must stay green at every step.
 
 ### Phase 4 — Decommission Fastify
 
-- Remove the Fastify wrapper from `@musistudio/llms`. Either delete the default
-  `Server` export or move it behind a `@musistudio/llms/fastify` subpath so
-  consumers who still rely on it can opt-in.
-- Drop Fastify-related dependencies from `packages/server/package.json`
-  (`fastify`, `@fastify/multipart`, `@fastify/static`, `@fastify/cors`).
-- Final dev-server simplification: a single `bun --watch src/index.ts` that
-  serves both API and UI, Vite middleware-mode imported into Hono for HMR.
+- Remove the Fastify wrapper from `@musistudio/llms`. Either delete the
+  default `Server` export or move it behind a `@musistudio/llms/fastify`
+  subpath so consumers who still rely on it can opt-in.
+- Drop Fastify-related dependencies (`fastify`, `@fastify/multipart`,
+  `@fastify/static`, `@fastify/cors`).
+- The dev command is just `bun run dev` (= `vite`); the prod command is
+  `bun src/index.ts`; nothing routes through Fastify any more.
 
 ## Library exports from @musistudio/llms
 
@@ -159,9 +191,15 @@ Watchlist — these may need POJO adapters before Hono can call them:
   and relies on the bun `while` loop to respawn. The handler ports cleanly,
   but the dev script may need adjusting if Hono's request lifecycle is
   different.
-- **Vite middleware-mode integration**: Bun is faster at module resolution
-  than Node, and Vite's middleware mode is built around Connect. We may need
-  to keep Vite as a separate dev process and proxy from Hono.
+- **`@hono/vite-dev-server` adapter**: the PoC in `packages/vite-hono-poc`
+  bridged Vite middlewares to Hono by hand-rolling a Node IncomingMessage
+  shim. `@hono/vite-dev-server` removes that — it ships a Vite plugin that
+  hands Hono the request before falling through to the SPA. Verify the
+  plugin's `injectClientScript` / `adapter` options match what we need.
+- **Workspace dependency wiring**: once `src/` is the Vite root, the imports
+  that currently reach into `@ccr/server` or `@ccr/ui` need to resolve to
+  the local source. `packages/server-hono-poc`'s `./config` subpath export
+  on `@ccr/server` is the right precedent — narrow exports per consumer.
 - **Logging**: pino is currently the source of structured logs. Hono ships
   with a much thinner logger. Decide whether to keep pino (just instantiate
   it manually) or move to console-style structured logs.
@@ -169,7 +207,7 @@ Watchlist — these may need POJO adapters before Hono can call them:
 ## Open question for kickoff
 
 Once Phase 0 lands and the library exports are confirmed Hono-friendly, do we
-land Phase 1's mixed-framework PR (Hono + Fastify side by side) or jump
-straight to a "Hono-only" PR that ports every route at once? The former is
-safer but ships a longer tail of glue code; the latter is cleaner but a much
-larger diff to review.
+ship Phase 1 as a mixed-source PR (root `src/` + `packages/server` Fastify
+still running for un-ported routes) or jump straight to a "delete
+`packages/server` and `packages/ui`" PR? The former is safer but ships glue
+code; the latter is cleaner but a much larger diff to review.
