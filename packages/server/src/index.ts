@@ -9,8 +9,10 @@ import { join } from 'path'
 import { createStream } from 'rotating-file-stream'
 import agentsManager from './agents'
 import { type IAgent, ITool } from './agents/type'
+import { runJsonToDbMigration } from './db/migrateFromJson'
 import { apiKeyAuth } from './middleware/auth'
 import { createServer } from './server'
+import { loadFullConfig } from './services/configService'
 import { initConfig, initDir } from './utils'
 import { rewriteStream } from './utils/rewriteStream'
 import { SSEParserTransform } from './utils/SSEParser.transform'
@@ -87,7 +89,15 @@ async function registerPluginsFromConfig(serverInstance: any, config: any): Prom
 async function getServer(options: RunOptions = {}) {
   await initializeClaudeConfig()
   await initDir()
-  const config = await initConfig()
+  // Lift Providers / Router out of config.json into Postgres on first
+  // run after upgrade; idempotent and a no-op when the DB and disk are
+  // already in sync. initConfig still runs to mirror envelope scalars
+  // onto process.env (task #8 will tighten what it copies); loadFullConfig
+  // then returns the composed legacy-shaped object the rest of getServer
+  // expects.
+  await runJsonToDbMigration()
+  await initConfig()
+  const config = await loadFullConfig()
 
   // Check if Providers is configured
   const providers = config.Providers || config.providers || []
@@ -326,7 +336,10 @@ async function getServer(options: RunOptions = {}) {
                   const response = await fetch(`http://127.0.0.1:${config.PORT || 3456}/v1/messages`, {
                     method: 'POST',
                     headers: {
-                      'x-api-key': config.APIKEY,
+                      // APIKEY is optional in setup-only mode; loop the
+                      // self-fetch around it when unset so headers are
+                      // a valid HeadersInit.
+                      ...(config.APIKEY ? { 'x-api-key': config.APIKEY } : {}),
                       'content-type': 'application/json'
                     },
                     body: JSON.stringify(req.body)

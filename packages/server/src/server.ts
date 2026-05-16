@@ -23,6 +23,7 @@ import AdmZip from 'adm-zip'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import { applyUiConfig, composeUiConfig } from './services/configService'
 import { backupConfigFile, readConfigFile, writeConfigFile } from './utils'
 
 export const createServer = async (config: any): Promise<any> => {
@@ -79,9 +80,11 @@ export const createServer = async (config: any): Promise<any> => {
     return { input_tokens: tokenCount }
   })
 
-  // Add endpoint to read config.json with access control
+  // Add endpoint to read config with access control. Providers / Router
+  // come from Postgres via configService; envelope keys still come from
+  // disk so we surface them in the same response shape the UI expects.
   app.get('/api/config', async (req: any, reply: any) => {
-    return await readConfigFile()
+    return await composeUiConfig()
   })
 
   app.get('/api/transformers', async (req: any, reply: any) => {
@@ -93,18 +96,16 @@ export const createServer = async (config: any): Promise<any> => {
     return { transformers: transformerList }
   })
 
-  // Add endpoint to save config.json with access control
+  // Add endpoint to save config with access control. The payload is the
+  // full Config object the UI loaded — applyUiConfig diffs it against
+  // the DB inside a transaction and rewrites the envelope on disk.
   app.post('/api/config', async (req: any, reply: any) => {
-    const newConfig = req.body
-
-    // Backup existing config file if it exists
-    const backupPath = await backupConfigFile()
-    if (backupPath) {
-      console.log(`Backed up existing configuration file to ${backupPath}`)
+    const result = await applyUiConfig(req.body ?? {})
+    return {
+      success: true,
+      message: 'Config saved successfully',
+      ...(result.warnings.length > 0 ? { warnings: result.warnings } : {})
     }
-
-    await writeConfigFile(newConfig)
-    return { success: true, message: 'Config saved successfully' }
   })
 
   // Register static file serving with caching

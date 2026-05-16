@@ -41,14 +41,27 @@ type UiRouter = {
   image: string
 } & Record<string, string | number>
 
-// The legacy response shape: typed envelope keys plus Providers/Router,
-// with an unknown-typed catchall so user-authored extras survive. We
-// can't extend ConfigEnvelope here because its zod-derived index
-// signature constrains every property to JsonValue, and UiProvider
-// (with its open-ended transformer field) deliberately is not one.
+// The legacy response shape. Typed envelope scalars (so call sites like
+// `config.APIKEY` keep working) + Providers/Router. We can't extend
+// ConfigEnvelope here because its zod-derived index signature
+// constrains every property to JsonValue, and UiProvider (with its
+// open-ended transformer field) deliberately is not one.
 export type LegacyConfig = {
   Providers: UiProvider[]
   Router: UiRouter
+  HOST?: string
+  PORT?: number
+  APIKEY?: string
+  LOG?: boolean
+  LOG_LEVEL?: string
+  PROXY_URL?: string
+  API_TIMEOUT_MS?: number | string
+  CLAUDE_PATH?: string
+  NON_INTERACTIVE_MODE?: boolean
+  StatusLine?: unknown
+  transformers?: unknown[]
+  plugins?: unknown[]
+  Plugins?: unknown[]
   [key: string]: unknown
 }
 
