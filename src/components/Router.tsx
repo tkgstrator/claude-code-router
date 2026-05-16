@@ -58,10 +58,18 @@ export function Router() {
     // Handle case where provider.name might be null or undefined
     const providerName = provider.name || 'Unknown Provider'
 
-    return models.map((model) => ({
-      value: `${providerName},${model || 'Unknown Model'}`,
-      label: `${providerName}, ${model || 'Unknown Model'}`
-    }))
+    // Only offer enabled models. Model.enabled is the source of truth;
+    // the server surfaces the disabled subset as
+    // transformer._disabledModels (see configService.toUiProvider).
+    const rawDisabled = provider.transformer?._disabledModels
+    const disabled: string[] = Array.isArray(rawDisabled) ? rawDisabled : []
+
+    return models
+      .filter((model) => !disabled.includes(model))
+      .map((model) => ({
+        value: `${providerName},${model || 'Unknown Model'}`,
+        label: `${providerName}, ${model || 'Unknown Model'}`
+      }))
   })
 
   return (
