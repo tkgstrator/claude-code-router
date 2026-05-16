@@ -19,6 +19,7 @@ interface ModelRow {
   model: string
   key: string
   routes: string[]
+  enabled: boolean
 }
 
 type SortKey = 'provider' | 'model' | 'input' | 'output'
@@ -57,10 +58,18 @@ export function ModelsDashboard() {
       if (!provider) return []
       const providerName = provider.name || 'unknown'
       const models = Array.isArray(provider.models) ? provider.models : []
+      const disabledList = Array.isArray(
+        (provider.transformer as Record<string, unknown> | undefined)?._disabledModels
+      )
+        ? ((provider.transformer as Record<string, string[]>)._disabledModels)
+        : []
+      const apiKeyMissing =
+        provider.auth_mode !== 'subscription' && (provider.api_key?.trim().length ?? 0) === 0
       return models.map((model) => {
         const key = `${providerName},${model}`
         const routes = ROUTE_KEYS.filter((routeKey) => routerConfig && routerConfig[routeKey] === key)
-        return { provider: providerName, model, key, routes }
+        const enabled = !apiKeyMissing && !disabledList.includes(model)
+        return { provider: providerName, model, key, routes, enabled }
       })
     })
     if (!sortKey) return raw
@@ -195,14 +204,26 @@ export function ModelsDashboard() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className='border-t hover:bg-gray-50'>
+                <tr
+                  key={row.key}
+                  className={`border-t hover:bg-gray-50 ${row.enabled ? '' : 'opacity-50'}`}
+                >
                   <td className='px-6 py-2 text-gray-700'>
                     <span className='inline-flex items-center gap-2'>
                       <ProviderIcon name={row.provider} size={16} />
                       {row.provider}
                     </span>
                   </td>
-                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
+                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>
+                    <span className='inline-flex items-center gap-2'>
+                      {row.model}
+                      {!row.enabled && (
+                        <Badge variant='outline' className='text-[10px] uppercase tracking-wide text-gray-500'>
+                          {t('models.disabled')}
+                        </Badge>
+                      )}
+                    </span>
+                  </td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
                     {MODEL_PRICING[row.model] ? (
                       <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].inputPer1M}</span>
