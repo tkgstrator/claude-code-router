@@ -23,7 +23,13 @@ import AdmZip from 'adm-zip'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import { version as serverVersion } from '../package.json'
+import { applyUiConfig, composeUiConfig } from './services/configService'
+import { refreshModelsForAllProviders } from './services/modelSyncService'
+import { testProvider } from './services/providerTestService'
+import { getSubscriptionsInfo } from './services/subscriptionInfoService'
 import { backupConfigFile, readConfigFile, writeConfigFile } from './utils'
+import { checkForUpdates, performUpdate } from './utils/update'
 
 export const createServer = async (config: any): Promise<any> => {
   const server = new Server(config)
@@ -79,9 +85,11 @@ export const createServer = async (config: any): Promise<any> => {
     return { input_tokens: tokenCount }
   })
 
-  // Add endpoint to read config.json with access control
+  // Add endpoint to read config with access control. Providers / Router
+  // come from Postgres via configService; envelope keys still come from
+  // disk so we surface them in the same response shape the UI expects.
   app.get('/api/config', async (req: any, reply: any) => {
-    return await readConfigFile()
+    return await composeUiConfig()
   })
 
   app.get('/api/transformers', async (req: any, reply: any) => {
@@ -93,18 +101,46 @@ export const createServer = async (config: any): Promise<any> => {
     return { transformers: transformerList }
   })
 
-  // Add endpoint to save config.json with access control
+  // Add endpoint to save config with access control. The payload is the
+  // full Config object the UI loaded — applyUiConfig diffs it against
+  // the DB inside a transaction and rewrites the envelope on disk.
   app.post('/api/config', async (req: any, reply: any) => {
-    const newConfig = req.body
-
-    // Backup existing config file if it exists
-    const backupPath = await backupConfigFile()
-    if (backupPath) {
-      console.log(`Backed up existing configuration file to ${backupPath}`)
+    const result = await applyUiConfig(req.body ?? {})
+    return {
+      success: true,
+      message: 'Config saved successfully',
+      ...(result.warnings.length > 0 ? { warnings: result.warnings } : {})
     }
+  })
 
-    await writeConfigFile(newConfig)
-    return { success: true, message: 'Config saved successfully' }
+  // Top up each Provider's Models list from the vendor's /v1/models
+  // endpoint. Only adds — see modelSyncService. Outcomes are per-
+  // provider so the UI can show which ones failed (e.g. wrong api key).
+  app.post('/api/refresh-models', async (_req: any, _reply: any) => {
+    const outcomes = await refreshModelsForAllProviders()
+    return { outcomes }
+  })
+
+  app.get('/api/subscriptions', async () => {
+    return { subscriptions: await getSubscriptionsInfo() }
+  })
+
+  app.post('/api/providers/test', async (req: any, reply: any) => {
+    const body = (req.body ?? {}) as { name?: unknown }
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!name) {
+      reply.code(400)
+      return { success: false, error: 'name is required' }
+    }
+    return await testProvider(name)
+  })
+
+  app.get('/api/update/check', async () => {
+    return await checkForUpdates(serverVersion)
+  })
+
+  app.post('/api/update/perform', async () => {
+    return await performUpdate()
   })
 
   // Register static file serving with caching

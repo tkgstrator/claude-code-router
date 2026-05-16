@@ -550,7 +550,7 @@ export function Presets() {
 
       {/* Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className='max-w-2xl max-h-[80vh] overflow-hidden flex flex-col'>
+        <DialogContent className='max-w-2xl max-h-[80vh] overflow-hidden flex flex-col' aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
               {selectedPreset?.name}

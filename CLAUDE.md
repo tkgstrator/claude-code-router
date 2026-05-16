@@ -93,10 +93,33 @@ The server uses custom Transform streams to handle Server-Sent Events:
 
 ### 5. Configuration Management
 
-Configuration file location: `~/.claude-code-router/config.json`
+Configuration is split across two stores:
 
-Key features:
-- Supports environment variable interpolation (`$VAR_NAME` or `${VAR_NAME}`)
+- **Disk envelope**: `~/.claude-code-router/config.json` holds boot-time scalars (HOST/PORT/APIKEY/LOG/LOG_LEVEL/PROXY_URL/API_TIMEOUT_MS/CLAUDE_PATH/NON_INTERACTIVE_MODE) plus disk-resident objects (StatusLine, transformers, plugins).
+- **PostgreSQL** (via Prisma, `packages/server/prisma/schema.prisma`): holds Providers, Models, and the six RouterSlot rows. `DATABASE_URL` is loaded from `.env` (`.devcontainer/compose.yaml` provides a local `postgres` service).
+
+Schema (PR #1):
+
+| Table | Notes |
+|-------|-------|
+| `Provider` | unique `name`, `apiBaseUrl`, `apiKey`, optional `transformer` JSONB |
+| `Model` | FK to Provider with `onDelete: Cascade`, composite unique `(providerId, name)` |
+| `RouterSlot` | one row per `ScenarioKey` enum value, nullable `modelId` FK with `onDelete: Restrict`, optional `params` JSONB (e.g. `{ "threshold": 60000 }` on longContext) |
+
+Boot sequence (`packages/server/src/index.ts:getServer`):
+
+1. `initDir()` — ensure home directories.
+2. `runJsonToDbMigration()` — one-shot, idempotent lift of legacy `Providers`/`Router` from disk into the DB; refuses to run when both stores are populated.
+3. `initConfig()` — read envelope from disk, mirror scalar keys onto `process.env` via `applyEnvelopeToEnv`.
+4. `loadFullConfig()` — compose the legacy-shaped config object (envelope + DB) and hand it to the rest of the bootstrap.
+
+API routes (`packages/server/src/server.ts`):
+
+- `GET /api/config` returns `composeUiConfig()` (envelope on disk + Providers/Router from DB).
+- `POST /api/config` calls `applyUiConfig(body)`: diffs the incoming UI payload inside a single Prisma transaction (`prisma.$transaction`), nulls any RouterSlot bound to a removed model, and returns `{ success, warnings[] }`. Envelope keys land on disk via `writeConfigFile` after the DB transaction commits.
+
+Key features (disk envelope):
+- Environment variable interpolation (`$VAR_NAME` or `${VAR_NAME}`)
 - JSON5 format (supports comments)
 - Automatic backups (keeps last 3 backups)
 - Hot reload requires service restart (`ccr restart`)
@@ -104,6 +127,16 @@ Key features:
 Configuration validation:
 - If `Providers` are configured, both `HOST` and `APIKEY` must be set
 - Otherwise listens on `0.0.0.0` without authentication
+
+Database tooling (`bun run` from `packages/server`):
+
+- `db:generate` — regenerate the Prisma client into `src/generated/prisma/`. Also wired as `postinstall` so a fresh `bun install` materialises it.
+- `db:migrate` — create + apply a new migration (development).
+- `db:migrate:deploy` — apply existing migrations (production / CI).
+- `db:reset` — drop and recreate the schema (destructive).
+- `db:studio` — open Prisma Studio.
+
+Never edit DDL directly; always go through Prisma migrations.
 
 ### 6. Logging System
 

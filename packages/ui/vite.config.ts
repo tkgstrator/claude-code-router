@@ -14,6 +14,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: true,
     proxy: {
       '/api': 'http://localhost:3456',
       '/v1': 'http://localhost:3456',

@@ -31,6 +31,24 @@
   }
 }
 
+@keyframes accordionDown {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordionUp {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+.animate-accordion-down {
+  animation: accordionDown 0.2s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordionUp 0.2s ease-out;
+}
+
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out forwards;
 }

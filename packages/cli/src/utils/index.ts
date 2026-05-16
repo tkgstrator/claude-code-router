@@ -8,9 +8,7 @@ import readline from 'node:readline'
 import { getServer } from '@ccr/server'
 import { CONFIG_FILE, HOME_DIR, PID_FILE, PLUGINS_DIR, PRESETS_DIR, REFERENCE_COUNT_FILE } from '@ccr/shared'
 import JSON5 from 'json5'
-import { version } from '../../package.json'
 import { cleanupPidFile, isServiceRunning } from './processCheck'
-import { checkForUpdates, performUpdate } from './update'
 
 // Function to interpolate environment variables in config values
 const interpolateEnvVars = (obj: any): any => {
@@ -69,14 +67,30 @@ const _confirm = async (query: string): Promise<boolean> => {
   return answer.toLowerCase() !== 'n'
 }
 
+// Warn once per process so commands like `ccr code` / `ccr status` don't
+// spam the screen on every call. The server moved Providers / Router
+// into Postgres; the CLI doesn't speak DB yet (slated for a follow-up
+// PR), so any caller that grabs them off the parsed config will see
+// empty values and we want them to know why.
+let warnedAboutMigratedKeys = false
+
 export const readConfigFile = async () => {
   try {
     const config = await fs.readFile(CONFIG_FILE, 'utf-8')
     try {
       // Try to parse with JSON5 first (which also supports standard JSON)
       const parsedConfig = JSON5.parse(config)
-      // Interpolate environment variables in the parsed config
-      return interpolateEnvVars(parsedConfig)
+      const interpolated = interpolateEnvVars(parsedConfig)
+      const hasProviders = Array.isArray(interpolated?.Providers) || Array.isArray(interpolated?.providers)
+      const hasRouter = interpolated?.Router && Object.keys(interpolated.Router).length > 0
+      if (!warnedAboutMigratedKeys && !hasProviders && !hasRouter) {
+        warnedAboutMigratedKeys = true
+        console.warn(
+          '[ccr] Providers / Router are not in config.json — the server now stores them in Postgres. ' +
+            'CLI commands that depend on them (e.g. `ccr code`, `ccr status`) will see empty values until the CLI DB cutover lands.'
+        )
+      }
+      return interpolated
     } catch (parseError) {
       console.error(`Failed to parse config file at ${CONFIG_FILE}`)
       console.error('Error details:', (parseError as Error).message)
@@ -182,14 +196,6 @@ export const run = async (_args: string[] = []) => {
   const app = server.app
   // Save the PID of the background process
   writeFileSync(PID_FILE, process.pid.toString())
-
-  app.post('/api/update/perform', async () => {
-    return await performUpdate()
-  })
-
-  app.get('/api/update/check', async () => {
-    return await checkForUpdates(version)
-  })
 
   app.post('/api/restart', async () => {
     setTimeout(async () => {

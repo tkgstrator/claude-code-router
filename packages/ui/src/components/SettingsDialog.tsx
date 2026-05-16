@@ -53,7 +53,11 @@ export function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent data-testid='settings-dialog' className='max-h-[80vh] flex flex-col p-0'>
+      <DialogContent
+        data-testid='settings-dialog'
+        className='max-h-[80vh] flex flex-col p-0'
+        aria-describedby={undefined}
+      >
         <DialogHeader className='p-4 pb-0'>
           <DialogTitle>{t('toplevel.title')}</DialogTitle>
         </DialogHeader>

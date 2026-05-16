@@ -24,9 +24,9 @@ if (tscResult.exitCode !== 0) {
 
 console.log("Building shared package...");
 const result = await Bun.build({
-  entrypoints: [join(sharedDir, "src/index.ts")],
+  entrypoints: [join(sharedDir, "src/index.ts"), join(sharedDir, "src/data/index.ts")],
   outdir: distDir,
-  naming: "index.js",
+  root: join(sharedDir, "src"),
   minify: true,
   target: "bun",
 });

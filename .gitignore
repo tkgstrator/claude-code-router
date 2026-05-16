@@ -13,3 +13,15 @@ docs/.docusaurus
 # Package manager caches
 .pnpm-store/
 packages/server/.env
+
+# Prisma client is generated locally via `bun run db:generate`
+packages/server/src/generated
+
+# tsc emits next to the .ts source when scripts/tsconfig is invoked directly
+scripts/*.js
+scripts/*.js.map
+scripts/*.d.ts
+
+# Personal Claude Code overrides — settings.local.json lives outside the team
+# settings.json so individual permission tweaks stay out of git.
+.claude/settings.local.json

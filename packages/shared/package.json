@@ -9,6 +9,12 @@
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.js"
+    },
+    "./data": {
+      "bun": "./src/data/index.ts",
+      "types": "./dist/data/index.d.ts",
+      "import": "./dist/data/index.js",
+      "require": "./dist/data/index.js"
     }
   },
   "scripts": {

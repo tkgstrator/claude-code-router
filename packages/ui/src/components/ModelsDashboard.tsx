@@ -1,5 +1,5 @@
-import { CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { api } from '@/lib/api'
+import { ProviderIcon } from '@/lib/providerIcons'
 import { MODEL_PRICING } from '@/lib/providerTemplates'
 
 type Reachability = 'unknown' | 'testing' | 'ok' | 'fail'
@@ -18,13 +20,51 @@ interface ModelRow {
   model: string
   key: string
   routes: string[]
+  enabled: boolean
+  isSubscription: boolean
 }
+
+type SortKey = 'provider' | 'model' | 'input' | 'output'
 
 export function ModelsDashboard() {
   const { t } = useTranslation()
   const { config, setConfig } = useConfig()
   const [status, setStatus] = useState<Record<string, Reachability>>({})
   const [isTestingAll, setIsTestingAll] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
+
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        const response = await api.get<{ subscriptions: { providerName: string; plan: string | null }[] }>(
+          '/subscriptions'
+        )
+        const map: Record<string, string | null> = {}
+        for (const entry of response.subscriptions) {
+          map[entry.providerName] = entry.plan
+        }
+        setPlanByProvider(map)
+      } catch (error) {
+        console.error('Failed to fetch subscriptions:', error)
+      }
+    }
+    fetchSubscriptions()
+  }, [config])
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key)
+      setSortDir('asc')
+      return
+    }
+    if (sortDir === 'asc') {
+      setSortDir('desc')
+      return
+    }
+    setSortKey(null)
+  }
 
   const assignToRoute = (route: (typeof ROUTE_KEYS)[number], key: string, checked: boolean) => {
     if (!config) return
@@ -35,17 +75,67 @@ export function ModelsDashboard() {
   const rows = useMemo<ModelRow[]>(() => {
     const providers = Array.isArray(config?.Providers) ? config.Providers : []
     const routerConfig = config?.Router
-    return providers.flatMap((provider) => {
+    const raw = providers.flatMap((provider) => {
       if (!provider) return []
       const providerName = provider.name || 'unknown'
+      const providerAvailable =
+        provider.auth_mode === 'subscription'
+          ? Boolean(planByProvider[providerName])
+          : (provider.api_key?.trim().length ?? 0) > 0
+      if (!providerAvailable) return []
       const models = Array.isArray(provider.models) ? provider.models : []
+      const disabledList = Array.isArray((provider.transformer as Record<string, unknown> | undefined)?._disabledModels)
+        ? (provider.transformer as Record<string, string[]>)._disabledModels
+        : []
+      const isSubscription = provider.auth_mode === 'subscription'
       return models.map((model) => {
         const key = `${providerName},${model}`
         const routes = ROUTE_KEYS.filter((routeKey) => routerConfig && routerConfig[routeKey] === key)
-        return { provider: providerName, model, key, routes }
+        const enabled = !disabledList.includes(model)
+        return { provider: providerName, model, key, routes, enabled, isSubscription }
       })
     })
-  }, [config])
+    const sign = sortDir === 'asc' ? 1 : -1
+    const priceOf = (model: string, which: 'inputPer1M' | 'outputPer1M') =>
+      MODEL_PRICING[model]?.[which] ?? Number.POSITIVE_INFINITY
+    const primary = (row: ModelRow) => {
+      if (!sortKey) return 0
+      if (sortKey === 'input') return priceOf(row.model, 'inputPer1M')
+      if (sortKey === 'output') return priceOf(row.model, 'outputPer1M')
+      return row[sortKey]
+    }
+    return [...raw].sort((a, b) => {
+      const av = primary(a)
+      const bv = primary(b)
+      if (av < bv) return -1 * sign
+      if (av > bv) return 1 * sign
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
+      return a.model.localeCompare(b.model)
+    })
+  }, [config, sortKey, sortDir, planByProvider])
+
+  const SortHeader = ({
+    label,
+    sortKey: key,
+    align = 'left'
+  }: {
+    label: string
+    sortKey: SortKey
+    align?: 'left' | 'right'
+  }) => {
+    const active = sortKey === key
+    const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+    return (
+      <button
+        type='button'
+        onClick={() => toggleSort(key)}
+        className={`inline-flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse' : ''} ${active ? 'text-gray-900' : 'text-gray-500'} hover:text-gray-900`}
+      >
+        {label}
+        <Icon className='h-3 w-3' />
+      </button>
+    )
+  }
 
   const testModel = async (row: ModelRow): Promise<Reachability> => {
     try {
@@ -68,18 +158,13 @@ export function ModelsDashboard() {
     }
   }
 
-  const handleTest = async (row: ModelRow) => {
-    setStatus((prev) => ({ ...prev, [row.key]: 'testing' }))
-    const result = await testModel(row)
-    setStatus((prev) => ({ ...prev, [row.key]: result }))
-  }
-
   const handleTestAll = async () => {
     setIsTestingAll(true)
-    setStatus(Object.fromEntries(rows.map((row) => [row.key, 'testing' as Reachability])))
+    const enabledRows = rows.filter((row) => row.enabled)
+    setStatus(Object.fromEntries(enabledRows.map((row) => [row.key, 'testing' as Reachability])))
     // Sequential to avoid hammering provider rate limits and to keep
     // the (billed) probe traffic minimal.
-    for (const row of rows) {
+    for (const row of enabledRows) {
       const result = await testModel(row)
       setStatus((prev) => ({ ...prev, [row.key]: result }))
     }
@@ -88,35 +173,15 @@ export function ModelsDashboard() {
 
   const renderStatus = (state: Reachability) => {
     if (state === 'testing') {
-      return (
-        <span className='flex items-center gap-1 text-gray-500'>
-          <LoaderCircle className='h-4 w-4 animate-spin' />
-          {t('models.status_testing')}
-        </span>
-      )
+      return <LoaderCircle className='h-4 w-4 animate-spin text-gray-500' aria-label={t('models.status_testing')} />
     }
     if (state === 'ok') {
-      return (
-        <span className='flex items-center gap-1 text-green-600'>
-          <CheckCircle2 className='h-4 w-4' />
-          {t('models.status_ok')}
-        </span>
-      )
+      return <CheckCircle2 className='h-4 w-4 text-green-600' aria-label={t('models.status_ok')} />
     }
     if (state === 'fail') {
-      return (
-        <span className='flex items-center gap-1 text-red-600'>
-          <XCircle className='h-4 w-4' />
-          {t('models.status_fail')}
-        </span>
-      )
+      return <XCircle className='h-4 w-4 text-red-600' aria-label={t('models.status_fail')} />
     }
-    return (
-      <span className='flex items-center gap-1 text-gray-400'>
-        <Circle className='h-4 w-4' />
-        {t('models.status_unknown')}
-      </span>
-    )
+    return <Circle className='h-4 w-4 text-gray-300' aria-label={t('models.status_unknown')} />
   }
 
   return (
@@ -141,29 +206,53 @@ export function ModelsDashboard() {
           <table className='w-full text-sm'>
             <thead className='sticky top-0 bg-gray-50 text-left text-gray-500'>
               <tr>
-                <th className='px-6 py-2 font-medium'>{t('models.provider')}</th>
-                <th className='px-6 py-2 font-medium'>{t('models.model')}</th>
-                <th className='px-6 py-2 font-medium'>{t('models.cost')}</th>
-                <th className='px-6 py-2 font-medium'>{t('models.status')}</th>
+                <th className='px-6 py-2 font-medium'>
+                  <SortHeader label={t('models.provider')} sortKey='provider' />
+                </th>
+                <th className='px-6 py-2 font-medium'>
+                  <SortHeader label={t('models.model')} sortKey='model' />
+                </th>
+                <th className='px-6 py-2 font-medium text-right'>
+                  <SortHeader label={t('models.input')} sortKey='input' align='right' />
+                </th>
+                <th className='px-6 py-2 font-medium text-right'>
+                  <SortHeader label={t('models.output')} sortKey='output' align='right' />
+                </th>
+                <th className='px-2 py-2 font-medium text-center'>{t('models.status')}</th>
                 <th className='px-6 py-2 font-medium'>{t('models.routes')}</th>
-                <th className='px-6 py-2 font-medium text-right'>{t('models.test')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className='border-t hover:bg-gray-50'>
-                  <td className='px-6 py-2 text-gray-700'>{row.provider}</td>
+                <tr key={row.key} className={`border-t hover:bg-gray-50 ${row.enabled ? '' : 'opacity-50'}`}>
+                  <td className='px-6 py-2 text-gray-700'>
+                    <span className='inline-flex items-center gap-2'>
+                      <ProviderIcon name={row.provider} size={16} />
+                      {row.provider}
+                    </span>
+                  </td>
                   <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
-                  <td className='px-6 py-2 whitespace-nowrap text-xs text-gray-600'>
-                    {MODEL_PRICING[row.model] ? (
-                      <span title={t('models.cost_hint')}>
-                        ${MODEL_PRICING[row.model].inputPer1M} / ${MODEL_PRICING[row.model].outputPer1M}
-                      </span>
+                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
+                    {row.isSubscription ? (
+                      <span className='text-gray-300'>—</span>
+                    ) : MODEL_PRICING[row.model] ? (
+                      <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].inputPer1M}</span>
                     ) : (
                       <span className='text-gray-300'>—</span>
                     )}
                   </td>
-                  <td className='px-6 py-2'>{renderStatus(status[row.key] || 'unknown')}</td>
+                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
+                    {row.isSubscription ? (
+                      <span className='text-gray-300'>—</span>
+                    ) : MODEL_PRICING[row.model] ? (
+                      <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].outputPer1M}</span>
+                    ) : (
+                      <span className='text-gray-300'>—</span>
+                    )}
+                  </td>
+                  <td className='px-2 py-2'>
+                    <div className='flex justify-center'>{renderStatus(status[row.key] || 'unknown')}</div>
+                  </td>
                   <td className='px-6 py-2'>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -204,17 +293,6 @@ export function ModelsDashboard() {
                         </div>
                       </PopoverContent>
                     </Popover>
-                  </td>
-                  <td className='px-6 py-2 text-right'>
-                    <Button
-                      size='sm'
-                      variant='ghost'
-                      onClick={() => handleTest(row)}
-                      disabled={status[row.key] === 'testing' || isTestingAll}
-                      className='transition-all-ease hover:scale-[1.05]'
-                    >
-                      {t('models.test')}
-                    </Button>
                   </td>
                 </tr>
               ))}

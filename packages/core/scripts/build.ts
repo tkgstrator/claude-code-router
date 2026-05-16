@@ -87,13 +87,6 @@ function copyDtsFiles(sourceDir: string, targetDir: string) {
   }
 }
 
-const cjsConfig: esbuild.BuildOptions = {
-  ...baseConfig,
-  outdir: "dist/cjs",
-  format: "cjs",
-  outExtension: { ".js": ".cjs" },
-};
-
 const esmConfig: esbuild.BuildOptions = {
   ...baseConfig,
   outdir: "dist/esm",
@@ -102,33 +95,20 @@ const esmConfig: esbuild.BuildOptions = {
 };
 
 async function build() {
-  console.log("Building CJS and ESM versions...");
+  console.log("Building ESM version...");
 
-  // First, generate type declarations
   generateTypeDeclarations();
 
-  const cjsCtx = await esbuild.context(cjsConfig);
   const esmCtx = await esbuild.context(esmConfig);
 
   if (watch) {
     console.log("Watching for changes...");
-    await Promise.all([
-      cjsCtx.watch(),
-      esmCtx.watch(),
-    ]);
+    await esmCtx.watch();
   } else {
-    await Promise.all([
-      cjsCtx.rebuild(),
-      esmCtx.rebuild(),
-    ]);
+    await esmCtx.rebuild();
+    await esmCtx.dispose();
 
-    await Promise.all([
-      cjsCtx.dispose(),
-      esmCtx.dispose(),
-    ]);
-
-    console.log("✅ Build completed successfully!");
-    console.log("  - CJS: dist/cjs/server.cjs");
+    console.log("Build completed successfully!");
     console.log("  - ESM: dist/esm/server.mjs");
     console.log("  - Types: dist/*.d.ts");
   }
