@@ -107,6 +107,19 @@ export const SubscriptionsResponseSchema = z
   })
   .openapi('SubscriptionsResponse')
 
+export const EnabledModelSchema = z
+  .object({
+    provider: z.string().nonempty(),
+    model: z.string().nonempty()
+  })
+  .openapi('EnabledModel')
+
+export const EnabledModelsResponseSchema = z
+  .object({
+    models: z.array(EnabledModelSchema)
+  })
+  .openapi('EnabledModelsResponse')
+
 // --- Providers test --------------------------------------------------------
 
 export const ProviderTestRequestSchema = z

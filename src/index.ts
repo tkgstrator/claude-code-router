@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { configRoute } from './api/config/route'
+import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
 import { modelTestAllRoute } from './api/models/test-all/route'
 import { providersTestRoute } from './api/providers/test/route'
@@ -36,6 +37,7 @@ app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
 app.route('/', refreshModelsRoute)
 app.route('/', providersTestRoute)
+app.route('/', modelsRoute)
 app.route('/', modelTestRoute)
 app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)

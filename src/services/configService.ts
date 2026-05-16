@@ -444,6 +444,22 @@ export async function loadFullConfig(): Promise<LegacyConfig> {
   return composeUiConfig()
 }
 
+// Every routable model, straight from the DB (Model.enabled is the
+// source of truth). Powers the Router selects — they render this list
+// verbatim, so disabled models never reach that UI and the frontend
+// does zero filtering. Separate from /api/config, which intentionally
+// returns the full catalog (ModelsDashboard needs the disabled ones).
+export async function getEnabledModels(
+  prisma: PrismaClient = getPrismaClient()
+): Promise<{ provider: string; model: string }[]> {
+  const rows = await prisma.model.findMany({
+    where: { enabled: true },
+    select: { name: true, provider: { select: { name: true } } },
+    orderBy: [{ provider: { name: 'asc' } }, { name: 'asc' }]
+  })
+  return rows.map((r) => ({ provider: r.provider.name, model: r.name }))
+}
+
 // Seed the 6 RouterSlot rows with null modelId if they're missing. Used
 // by the JSON-to-DB migration and as a safety net for fresh databases.
 export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()): Promise<void> {
