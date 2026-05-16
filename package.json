@@ -4,6 +4,7 @@
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
     "dev": "bun run --filter @ccr/server dev & bunx wait-on tcp:3456 && bun run --filter @ccr/ui dev & wait",
+    "dev:next": "bun run --filter @ccr/server dev & bunx wait-on tcp:3456 && vite & wait",
     "build": "bun run build:shared && bun run build:core && bun run build:server && bun run build:cli && bun run build:ui",
     "build:core": "bun run --filter @musistudio/llms build",
     "build:shared": "bun run --filter @ccr/shared build",
@@ -36,7 +37,12 @@
   "license": "MIT",
   "devDependencies": {
     "@types/bun": "^1.2.0",
-    "typescript": "^5.8.2"
+    "@types/node": "^25.8.0",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^5.8.2",
+    "vite": "^8.0.13"
   },
   "engines": {
     "bun": ">=1.1.0"
@@ -47,5 +53,12 @@
   "workspaces": [
     "packages/*",
     "docs"
-  ]
+  ],
+  "dependencies": {
+    "@ccr/server": "workspace:*",
+    "@hono/vite-dev-server": "^0.25.3",
+    "hono": "^4.12.18",
+    "react": "19",
+    "react-dom": "19"
+  }
 }
