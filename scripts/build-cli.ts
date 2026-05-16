@@ -9,7 +9,10 @@ const rootDir = join(import.meta.dir, "..");
 const sharedDir = join(rootDir, "packages/shared");
 const cliDir = join(rootDir, "packages/cli");
 const serverDir = join(rootDir, "packages/server");
-const uiDir = join(rootDir, "packages/ui");
+// UI now lives at the repo root after Phase 1b of the Hono+Vite
+// migration. `vite build` runs against the root, dropping its output
+// in ./dist, and the CLI bundler picks that up below.
+const uiDir = rootDir;
 
 // Step 0: Ensure shared package is built first
 const sharedDistDir = join(sharedDir, "dist");
@@ -32,7 +35,7 @@ if (serverResult.exitCode !== 0) process.exit(1);
 
 // Step 2: Build UI package
 console.log("Building UI package...");
-const uiResult = Bun.spawnSync(["bun", "run", "build"], {
+const uiResult = Bun.spawnSync(["bun", "run", "build:ui"], {
   stdout: "inherit", stderr: "inherit", stdin: "inherit",
   cwd: uiDir,
 });

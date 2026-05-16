@@ -1,18 +1,22 @@
 import { resolve } from 'node:path'
 import devServer from '@hono/vite-dev-server'
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { viteSingleFile } from 'vite-plugin-singlefile'
 
-// Phase 1a of the Hono+Vite migration. The new root combines a Hono
-// server (src/index.ts) with the existing React/Vite UI. During the
-// transition the old Fastify server at packages/server still owns
-// every route that hasn't been ported yet — src/index.ts proxies any
-// /api/* or /v1/* request it doesn't handle to localhost:3456 so the
-// app stays usable from this dev server alone.
+// Phase 1b of the Hono+Vite migration. The root combines:
+//   - the React UI (was packages/ui/src — now lives under src/ and
+//     src/app)
+//   - the Hono server (src/index.ts)
+// The legacy Fastify server still answers any /api or /v1 path that
+// hasn't been ported yet; src/index.ts proxies those through.
 export default defineConfig({
+  base: './',
   server: {
     port: 3457,
-    host: true
+    host: true,
+    allowedHosts: true
   },
   resolve: {
     alias: {
@@ -21,11 +25,12 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    tailwindcss(),
+    viteSingleFile(),
     devServer({
       entry: './src/index.ts',
-      // Default exclude misses things like /api/config, so widen it to
-      // skip dev-server interception for Vite client + module assets
-      // only. Everything else flows through Hono.
+      // Default exclude misses /api/* — widen it so the Vite client +
+      // module asset paths bypass Hono, everything else flows through.
       exclude: [
         /^\/@.+$/,
         /\/favicon\.ico$/,
