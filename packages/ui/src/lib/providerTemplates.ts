@@ -1,68 +1,16 @@
 import type { Provider } from '@/types'
+import seed from '@/data/llm-prices.json'
 
 /**
- * Built-in provider templates.
+ * Built-in provider templates and pricing.
  *
- * Replaces the former remote fetch of a musistudio-managed Cloudflare R2
- * bucket (pub-*.r2.dev/providers.json) which shipped dozens of unused
- * third-party aggregator entries and was an uncontrolled external
- * dependency for this fork.
- *
- * Model lists are taken from each vendor's official documentation
- * (captured 2026-05-15). Newest models are listed first; legacy but
- * still-served models are kept so existing configs keep working.
+ * Sourced from a snapshot of https://www.llm-prices.com/current-v1.json
+ * stored at src/data/llm-prices.json. Generating templates from that
+ * snapshot keeps the model list aligned with the price table and avoids
+ * the uncontrolled external dependency the upstream fork used (a
+ * musistudio-managed Cloudflare R2 bucket). A "refresh" UI action can
+ * later override these values at runtime from the same source.
  */
-export const PROVIDER_TEMPLATES: Provider[] = [
-  {
-    name: 'openai',
-    api_base_url: 'https://api.openai.com/v1/chat/completions',
-    api_key: '',
-    models: [
-      'gpt-5.5',
-      'gpt-5.5-pro',
-      'gpt-5.4',
-      'gpt-5.4-pro',
-      'gpt-5.4-mini',
-      'gpt-5.4-nano',
-      'gpt-5.3-codex',
-      'gpt-5',
-      'gpt-5-mini',
-      'gpt-5-nano',
-      'o3',
-      'gpt-4.1',
-      'gpt-4.1-mini',
-      'gpt-4o',
-      'gpt-4o-mini'
-    ]
-  },
-  {
-    name: 'anthropic',
-    api_base_url: 'https://api.anthropic.com/v1/messages',
-    api_key: '',
-    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5', 'claude-opus-4-6', 'claude-sonnet-4-5']
-  },
-  {
-    name: 'gemini',
-    api_base_url: 'https://generativelanguage.googleapis.com/v1beta/models/',
-    api_key: '',
-    models: [
-      'gemini-3.1-pro-preview',
-      'gemini-3-flash-preview',
-      'gemini-3.1-flash-lite',
-      'gemini-2.5-pro',
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite'
-    ],
-    transformer: { use: ['gemini'] }
-  },
-  {
-    name: 'deepseek',
-    api_base_url: 'https://api.deepseek.com/chat/completions',
-    api_key: '',
-    models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'],
-    transformer: { use: ['deepseek'] }
-  }
-]
 
 export interface ModelPricing {
   /** USD per 1M input tokens */
@@ -71,46 +19,75 @@ export interface ModelPricing {
   outputPer1M: number
 }
 
-/**
- * Base USD price per 1M tokens for the template models.
- *
- * Snapshot from a user-provided price list (2026-05-15) rather than a
- * runtime fetch — keeping it in-repo is consistent with dropping the
- * remote R2 dependency. Prices vary by context tier (e.g. GPT-5.4 at
- * 272k+ is more expensive); the base tier is used here. Treat as a
- * rough guide and refresh periodically. Models absent from the source
- * list (e.g. gpt-5.3-codex) have no entry and render as "—".
- */
-export const MODEL_PRICING: Record<string, ModelPricing> = {
-  // OpenAI
-  'gpt-5.5': { inputPer1M: 5.0, outputPer1M: 30.0 },
-  'gpt-5.5-pro': { inputPer1M: 30.0, outputPer1M: 180.0 },
-  'gpt-5.4': { inputPer1M: 2.5, outputPer1M: 15.0 },
-  'gpt-5.4-pro': { inputPer1M: 30.0, outputPer1M: 180.0 },
-  'gpt-5.4-mini': { inputPer1M: 0.75, outputPer1M: 4.5 },
-  'gpt-5.4-nano': { inputPer1M: 0.2, outputPer1M: 1.25 },
-  'gpt-5-mini': { inputPer1M: 0.25, outputPer1M: 2.0 },
-  o3: { inputPer1M: 2.0, outputPer1M: 8.0 },
-  'gpt-4.1': { inputPer1M: 2.0, outputPer1M: 8.0 },
-  'gpt-4.1-mini': { inputPer1M: 0.4, outputPer1M: 1.6 },
-  'gpt-4o': { inputPer1M: 2.5, outputPer1M: 10.0 },
-  'gpt-4o-mini': { inputPer1M: 0.15, outputPer1M: 0.6 },
-  // Anthropic
-  'claude-opus-4-7': { inputPer1M: 5.0, outputPer1M: 25.0 },
-  'claude-opus-4-6': { inputPer1M: 5.0, outputPer1M: 25.0 },
-  'claude-sonnet-4-6': { inputPer1M: 3.0, outputPer1M: 15.0 },
-  'claude-sonnet-4-5': { inputPer1M: 3.0, outputPer1M: 15.0 },
-  'claude-haiku-4-5': { inputPer1M: 1.0, outputPer1M: 5.0 },
-  // Google Gemini
-  'gemini-3.1-pro-preview': { inputPer1M: 2.0, outputPer1M: 12.0 },
-  'gemini-3-flash-preview': { inputPer1M: 0.5, outputPer1M: 3.0 },
-  'gemini-3.1-flash-lite': { inputPer1M: 0.25, outputPer1M: 1.5 },
-  'gemini-2.5-pro': { inputPer1M: 1.25, outputPer1M: 10.0 },
-  'gemini-2.5-flash': { inputPer1M: 0.3, outputPer1M: 2.5 },
-  'gemini-2.5-flash-lite': { inputPer1M: 0.1, outputPer1M: 0.4 },
-  // DeepSeek (chat/reasoner map to v4-flash non-thinking/thinking)
-  'deepseek-v4-pro': { inputPer1M: 1.74, outputPer1M: 3.5 },
-  'deepseek-v4-flash': { inputPer1M: 0.14, outputPer1M: 0.28 },
-  'deepseek-chat': { inputPer1M: 0.14, outputPer1M: 0.28 },
-  'deepseek-reasoner': { inputPer1M: 0.14, outputPer1M: 0.28 }
+interface PriceEntry {
+  id: string
+  vendor: string
+  name: string
+  input: number
+  output: number
+  input_cached: number | null
 }
+
+interface PriceSnapshot {
+  updated_at: string
+  prices: PriceEntry[]
+}
+
+const snapshot = seed as PriceSnapshot
+
+interface VendorDefaults {
+  baseUrl: string
+  transformer?: Provider['transformer']
+}
+
+// Vendor → API base URL / transformer. Vendors absent here are skipped
+// because we can't reasonably default their endpoint (e.g. amazon
+// requires per-region Bedrock signing). Add an entry when a sane public
+// default exists.
+const VENDOR_DEFAULTS: Record<string, VendorDefaults> = {
+  anthropic: { baseUrl: 'https://api.anthropic.com/v1/messages' },
+  deepseek: { baseUrl: 'https://api.deepseek.com/chat/completions', transformer: { use: ['deepseek'] } },
+  google: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/', transformer: { use: ['gemini'] } },
+  minimax: { baseUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2' },
+  mistral: { baseUrl: 'https://api.mistral.ai/v1/chat/completions' },
+  'moonshot-ai': { baseUrl: 'https://api.moonshot.cn/v1/chat/completions' },
+  openai: { baseUrl: 'https://api.openai.com/v1/chat/completions' },
+  qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions' },
+  xai: { baseUrl: 'https://api.x.ai/v1/chat/completions' }
+}
+
+export function buildTemplates(prices: PriceEntry[]): Provider[] {
+  const byVendor = new Map<string, string[]>()
+  for (const p of prices) {
+    const list = byVendor.get(p.vendor) ?? []
+    list.push(p.id)
+    byVendor.set(p.vendor, list)
+  }
+  const result: Provider[] = []
+  for (const [vendor, models] of byVendor) {
+    const defaults = VENDOR_DEFAULTS[vendor]
+    if (!defaults) continue
+    result.push({
+      name: vendor,
+      api_base_url: defaults.baseUrl,
+      api_key: '',
+      models,
+      ...(defaults.transformer ? { transformer: defaults.transformer } : {})
+    })
+  }
+  return result
+}
+
+export function buildPricing(prices: PriceEntry[]): Record<string, ModelPricing> {
+  const result: Record<string, ModelPricing> = {}
+  for (const p of prices) {
+    result[p.id] = { inputPer1M: p.input, outputPer1M: p.output }
+  }
+  return result
+}
+
+export const PRICES_UPDATED_AT: string = snapshot.updated_at
+export const PROVIDER_TEMPLATES: Provider[] = buildTemplates(snapshot.prices)
+export const MODEL_PRICING: Record<string, ModelPricing> = buildPricing(snapshot.prices)
+
+export const LLM_PRICES_URL = 'https://www.llm-prices.com/current-v1.json'

@@ -135,6 +135,7 @@
     "parameter_value": "Parameter Value",
     "selected_transformers": "Selected Transformers",
     "import_from_template": "Import from template",
+    "refresh_templates": "Refresh",
     "no_templates_found": "No templates found",
     "select_template": "Select a template...",
     "api_key_required": "API Key is required",

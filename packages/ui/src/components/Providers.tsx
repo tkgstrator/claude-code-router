@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Plus, Search, Trash2, X, XCircle } from 'lucide-react'
+import { Eye, EyeOff, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
-import { PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
+import { buildTemplates, LLM_PRICES_URL, PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
 import type { Provider } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
@@ -35,7 +35,22 @@ export function Providers() {
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [isNewProvider, setIsNewProvider] = useState<boolean>(false)
-  const [providerTemplates] = useState<ProviderType[]>(PROVIDER_TEMPLATES)
+  const [providerTemplates, setProviderTemplates] = useState<ProviderType[]>(PROVIDER_TEMPLATES)
+  const [refreshingTemplates, setRefreshingTemplates] = useState(false)
+
+  const refreshTemplates = async () => {
+    setRefreshingTemplates(true)
+    try {
+      const res = await fetch(LLM_PRICES_URL)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as { prices: { id: string; vendor: string; name: string; input: number; output: number; input_cached: number | null }[] }
+      setProviderTemplates(buildTemplates(data.prices))
+    } catch (err) {
+      console.error('Failed to refresh templates:', err)
+    } finally {
+      setRefreshingTemplates(false)
+    }
+  }
   const [showApiKey, setShowApiKey] = useState<Record<number, boolean>>({})
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -581,7 +596,19 @@ export function Providers() {
             <div className='space-y-4 p-4 overflow-y-auto flex-grow'>
               {providerTemplates.length > 0 && (
                 <div className='space-y-2'>
-                  <Label>{t('providers.import_from_template')}</Label>
+                  <div className='flex items-center justify-between'>
+                    <Label>{t('providers.import_from_template')}</Label>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      onClick={refreshTemplates}
+                      disabled={refreshingTemplates}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
+                      {t('providers.refresh_templates')}
+                    </Button>
+                  </div>
                   <Combobox
                     options={providerTemplates.map((p) => ({ label: p.name, value: JSON.stringify(p) }))}
                     value=''

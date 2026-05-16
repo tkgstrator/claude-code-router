@@ -135,6 +135,7 @@
     "parameter_value": "参数值",
     "selected_transformers": "已选转换器",
     "import_from_template": "从模板导入",
+    "refresh_templates": "刷新模板",
     "no_templates_found": "未找到模板",
     "select_template": "选择一个模板...",
     "api_key_required": "API 密钥为必填项",
