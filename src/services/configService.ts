@@ -15,6 +15,7 @@ import {
   ApiStyle,
   AuthMode,
   type Model as DbModel,
+  ModelTestStatus,
   type Provider as DbProvider,
   Prisma,
   type PrismaClient
@@ -37,6 +38,15 @@ export const apiStyleForVendor = (name: string): ApiStyle => {
 // Returns null when the model should inherit the provider's apiStyle.
 export const modelApiStyleOverride = (modelName: string): ApiStyle | null =>
   /codex/i.test(modelName) ? ApiStyle.openai_responses : null
+
+// Model names in a provider transformer's `_disabledModels` list.
+const disabledSet = (transformer: unknown): Set<string> => {
+  const raw =
+    transformer && typeof transformer === 'object'
+      ? (transformer as Record<string, unknown>)._disabledModels
+      : undefined
+  return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [])
+}
 
 // --- Shapes the UI sees -----------------------------------------------------
 
@@ -113,6 +123,19 @@ type ProviderWithModels = DbProvider & { models: DbModel[] }
 
 const toUiProvider = (p: ProviderWithModels): UiProvider => {
   const deprecatedModels = p.models.filter((m) => m.deprecated).map((m) => m.name)
+  // Model.enabled is the source of truth. Reconstruct the legacy
+  // transformer._disabledModels view so the existing provider editor
+  // and ModelsDashboard (both read that list) reflect the DB without
+  // any UI change.
+  const disabledModels = p.models.filter((m) => !m.enabled).map((m) => m.name)
+  const baseTransformer =
+    p.transformer && typeof p.transformer === 'object'
+      ? (p.transformer as Record<string, unknown>)
+      : undefined
+  const transformerOut =
+    baseTransformer || disabledModels.length > 0
+      ? { ...(baseTransformer ?? {}), ...(disabledModels.length > 0 ? { _disabledModels: disabledModels } : {}) }
+      : undefined
   const tested = p.models.filter((m) => m.testStatus !== 'unknown')
   const modelTestStatus = Object.fromEntries(
     tested.map((m) => [
@@ -131,9 +154,10 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
     models: p.models.map((m) => m.name),
     ...(deprecatedModels.length > 0 ? { deprecatedModels } : {}),
     ...(tested.length > 0 ? { modelTestStatus } : {}),
-    // transformer is stored as JSONB; Prisma returns JsonValue which we
-    // surface as a free-form record to the UI (legacy shape is unchanged).
-    ...(p.transformer ? { transformer: p.transformer as Record<string, unknown> } : {})
+    // transformer is stored as JSONB; we re-derive _disabledModels from
+    // Model.enabled so the UI sees the DB truth (the column on disk no
+    // longer carries _disabledModels — see applyProviders).
+    ...(transformerOut ? { transformer: transformerOut } : {})
   }
 }
 
@@ -249,22 +273,37 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
 
   // Upsert what remains.
   for (const inc of incoming) {
-    const transformer = inc.transformer as Prisma.InputJsonValue | undefined
     const authMode: AuthMode = inc.auth_mode === 'subscription' ? AuthMode.subscription : AuthMode.api_key
+    // The UI still expresses enable/disable via transformer
+    // ._disabledModels; that's translated into the authoritative
+    // Model.enabled column below and stripped from the stored
+    // transformer so we never keep a stale duplicate on disk.
+    const nextDisabled = disabledSet(inc.transformer)
+    const prevProvider = existing.find((e) => e.name === inc.name)
+    const prevEnabledByName = new Map(prevProvider?.models.map((m) => [m.name, m.enabled]) ?? [])
+    const incTransformer =
+      inc.transformer && typeof inc.transformer === 'object'
+        ? (inc.transformer as Record<string, unknown>)
+        : undefined
+    const storedTransformer = (() => {
+      if (!incTransformer) return undefined
+      const { _disabledModels: _omit, ...rest } = incTransformer
+      return Object.keys(rest).length > 0 ? (rest as Prisma.InputJsonValue) : undefined
+    })()
     const provider = await tx.provider.upsert({
       where: { name: inc.name },
       update: {
         apiBaseUrl: inc.api_base_url,
         apiKey: inc.api_key,
         authMode,
-        transformer: transformer ?? Prisma.DbNull
+        transformer: storedTransformer ?? Prisma.DbNull
       },
       create: {
         name: inc.name,
         apiBaseUrl: inc.api_base_url,
         apiKey: inc.api_key,
         authMode,
-        transformer: transformer ?? Prisma.DbNull
+        transformer: storedTransformer ?? Prisma.DbNull
       },
       include: { models: true }
     })
@@ -294,8 +333,45 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
           providerId: provider.id,
           name,
           deprecated: isDeprecatedModel(name),
+          enabled: !isDeprecatedModel(name),
           apiStyle: modelApiStyleOverride(name)
         }))
+      })
+    }
+
+    // Write the authoritative Model.enabled column from the UI's
+    // _disabledModels selection, and reset the persisted test status
+    // for any model whose enabled state actually flipped (a
+    // re-enabled model shouldn't show a stale pass/fail; a disabled
+    // one shouldn't keep a result).
+    const desiredNames = [...desired]
+    const toEnable = desiredNames.filter((n) => !nextDisabled.has(n))
+    const toDisable = desiredNames.filter((n) => nextDisabled.has(n))
+    const flipped = desiredNames.filter((n) => {
+      const prev = prevEnabledByName.get(n)
+      return prev !== undefined && prev !== !nextDisabled.has(n)
+    })
+    if (toEnable.length > 0) {
+      await tx.model.updateMany({
+        where: { providerId: provider.id, name: { in: toEnable }, enabled: false },
+        data: { enabled: true }
+      })
+    }
+    if (toDisable.length > 0) {
+      await tx.model.updateMany({
+        where: { providerId: provider.id, name: { in: toDisable }, enabled: true },
+        data: { enabled: false }
+      })
+    }
+    if (flipped.length > 0) {
+      await tx.model.updateMany({
+        where: { providerId: provider.id, name: { in: flipped } },
+        data: {
+          testStatus: ModelTestStatus.unknown,
+          testCheckedAt: null,
+          testPassedAt: null,
+          testError: null
+        }
       })
     }
     // Resync the deprecation flag on rows we kept — the registry may
@@ -441,6 +517,7 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
               providerId: provider.id,
               name,
               deprecated: isDeprecatedModel(name),
+              enabled: !isDeprecatedModel(name),
               apiStyle: modelApiStyleOverride(name)
             }))
           })
@@ -458,6 +535,7 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
             providerId: current.id,
             name,
             deprecated: isDeprecatedModel(name),
+            enabled: !isDeprecatedModel(name),
             apiStyle: modelApiStyleOverride(name)
           }))
         })

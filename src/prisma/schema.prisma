@@ -87,6 +87,11 @@ model Model {
   providerId  String
   provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name        String
+  // Whether this model is offered for routing / tested. Authoritative
+  // (replaces the old provider.transformer._disabledModels list).
+  // Seeded false for deprecated/legacy models, true otherwise; the
+  // user toggles it from the UI.
+  enabled     Boolean      @default(true)
   // Per-model request-shape override. A single api_key provider (e.g.
   // openai) hosts both chat models and Responses-only models (codex
   // family), so the provider-level apiStyle isn't granular enough.

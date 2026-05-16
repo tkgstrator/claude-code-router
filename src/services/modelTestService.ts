@@ -16,9 +16,57 @@
  * they fall back to the credential reachability check.
  */
 
+import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { getPrismaClient } from '../db/client'
 import { ApiStyle, AuthMode, ModelTestStatus, type PrismaClient } from '../generated/prisma/client'
 import { getSubscriptionsInfo } from './subscriptionInfoService'
+
+// Read the OAuth access token a subscription provider authenticates
+// with, so the test makes a *real* authed call (not just a
+// file-presence check). Mirrors how the llms claude-code-credentials
+// transformer / subscriptionInfoService read the same files.
+interface SubAuth {
+  token: string
+  extraHeaders?: Record<string, string>
+}
+const readSubscriptionAuth = async (
+  apiBaseUrl: string
+): Promise<SubAuth | { error: string }> => {
+  const readJson = async <T>(path: string): Promise<T | null> => {
+    try {
+      return JSON.parse(await readFile(path, 'utf-8')) as T
+    } catch {
+      return null
+    }
+  }
+  if (apiBaseUrl.includes('anthropic.com')) {
+    const data = await readJson<{ claudeAiOauth?: { accessToken?: string; expiresAt?: number } }>(
+      join(homedir(), '.claude', '.credentials.json')
+    )
+    const oauth = data?.claudeAiOauth
+    if (!oauth?.accessToken) return { error: 'no Claude subscription credentials on disk' }
+    if (typeof oauth.expiresAt === 'number' && oauth.expiresAt < Date.now()) {
+      return { error: 'Claude subscription token expired — re-login with the Claude CLI' }
+    }
+    // Claude Code sends the OAuth token as x-api-key (see the llms
+    // claude-code-credentials transformer).
+    return { token: oauth.accessToken }
+  }
+  if (apiBaseUrl.includes('chatgpt.com') || apiBaseUrl.includes('openai.com')) {
+    const data = await readJson<{ tokens?: { access_token?: string; account_id?: string } }>(
+      join(homedir(), '.codex', 'auth.json')
+    )
+    const tok = data?.tokens
+    if (!tok?.access_token) return { error: 'no Codex subscription credentials on disk' }
+    return {
+      token: tok.access_token,
+      extraHeaders: tok.account_id ? { 'chatgpt-account-id': tok.account_id } : {}
+    }
+  }
+  return { error: `no subscription credential reader for ${apiBaseUrl}` }
+}
 
 export interface ModelTestResult {
   provider: string
@@ -44,7 +92,10 @@ const probeInference = async (
   style: ApiStyle,
   baseUrl: string,
   apiKey: string,
-  model: string
+  model: string,
+  // Extra headers for subscription auth (e.g. codex's
+  // chatgpt-account-id). Merged into every variant's request.
+  extraHeaders: Record<string, string> = {}
 ): Promise<{ ok: boolean; error?: string }> => {
   // A 400 saying the output budget was exhausted means the model
   // actually ran (auth ok, model exists) — it just couldn't finish
@@ -54,6 +105,10 @@ const probeInference = async (
   const budgetExhausted = (s: number, b: string) =>
     s === 400 &&
     /could not finish the message because max_tokens|model output limit was reached|max_output_tokens/i.test(b)
+  // A 429 means the credential authenticated and the endpoint is
+  // reachable — we're just throttled. For a connectivity/auth test
+  // that's a pass (same intent as budgetExhausted).
+  const reachable = (s: number, b: string) => s === 429 || budgetExhausted(s, b)
   try {
     if (style === ApiStyle.anthropic) {
       const res = await fetchWithTimeout(baseUrl, {
@@ -61,7 +116,8 @@ const probeInference = async (
         headers: {
           'content-type': 'application/json',
           'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01'
+          'anthropic-version': '2023-06-01',
+          ...extraHeaders
         },
         body: JSON.stringify({
           model,
@@ -70,7 +126,9 @@ const probeInference = async (
         })
       })
       if (res.ok) return { ok: true }
-      return { ok: false, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` }
+      const ab = (await res.text()).slice(0, 300)
+      if (reachable(res.status, ab)) return { ok: true }
+      return { ok: false, error: `HTTP ${res.status}: ${ab.slice(0, 200)}` }
     }
 
     if (style === ApiStyle.gemini) {
@@ -79,7 +137,7 @@ const probeInference = async (
       url.searchParams.set('key', apiKey)
       const res = await fetchWithTimeout(url.href, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...extraHeaders },
         body: JSON.stringify({
           contents: [{ parts: [{ text: 'ping' }] }],
           generationConfig: { maxOutputTokens: 1 }
@@ -94,18 +152,40 @@ const probeInference = async (
     // openai provider via a per-model apiStyle override), so normalise
     // it to /responses; if it's already /responses it's unchanged.
     const probeResponses = async (chatOrResponsesUrl: string): Promise<{ ok: boolean; error?: string }> => {
-      const responsesUrl = chatOrResponsesUrl.replace(/\/chat\/completions(\/?)$/, '/responses$1')
+      // Normalise to the /responses endpoint: replace a trailing
+      // /chat/completions, otherwise append /responses if absent.
+      const responsesUrl = /\/responses\/?$/.test(chatOrResponsesUrl)
+        ? chatOrResponsesUrl
+        : /\/chat\/completions\/?$/.test(chatOrResponsesUrl)
+          ? chatOrResponsesUrl.replace(/\/chat\/completions(\/?)$/, '/responses$1')
+          : `${chatOrResponsesUrl.replace(/\/$/, '')}/responses`
       const res = await fetchWithTimeout(responsesUrl, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${apiKey}`
+          authorization: `Bearer ${apiKey}`,
+          ...extraHeaders
         },
-        body: JSON.stringify({ model, input: 'ping', max_output_tokens: 1 })
+        // chatgpt.com/backend-api/codex requires: `instructions`,
+        // `input` as a list, store=false, stream=true. All are valid
+        // on the public Responses API too, so one body serves both.
+        body: JSON.stringify({
+          model,
+          instructions: 'ping',
+          input: [{ role: 'user', content: 'ping' }],
+          max_output_tokens: 1,
+          store: false,
+          stream: true
+        })
       })
-      if (res.ok) return { ok: true }
+      if (res.ok) {
+        // Streaming response — a 200 means auth + reachability are
+        // proven; don't consume the stream, just release it.
+        await res.body?.cancel().catch(() => {})
+        return { ok: true }
+      }
       const rbody = (await res.text()).slice(0, 300)
-      if (budgetExhausted(res.status, rbody)) return { ok: true }
+      if (reachable(res.status, rbody)) return { ok: true }
       return { ok: false, error: `HTTP ${res.status}: ${rbody.slice(0, 200)}` }
     }
 
@@ -137,14 +217,14 @@ const probeInference = async (
     const res = await callChat('max_tokens')
     if (res.ok) return { ok: true }
     const body = (await res.text()).slice(0, 300)
-    if (budgetExhausted(res.status, body)) return { ok: true }
+    if (reachable(res.status, body)) return { ok: true }
     const wantsCompletionTokens =
       res.status === 400 && /max_tokens/.test(body) && /max_completion_tokens/.test(body)
     if (wantsCompletionTokens) {
       const retry = await callChat('max_completion_tokens')
       if (retry.ok) return { ok: true }
       const retryBody = (await retry.text()).slice(0, 300)
-      if (budgetExhausted(retry.status, retryBody)) return { ok: true }
+      if (reachable(retry.status, retryBody)) return { ok: true }
       return { ok: false, error: `HTTP ${retry.status}: ${retryBody.slice(0, 200)}` }
     }
     return { ok: false, error: `HTTP ${res.status}: ${body.slice(0, 200)}` }
@@ -195,23 +275,48 @@ export async function testModel(
     }
   }
 
-  // Subscription providers: no API key to do a real keyless call —
-  // fall back to credential reachability.
-  if (provider.authMode === AuthMode.subscription) {
-    const subs = await getSubscriptionsInfo()
-    const match = subs.find((s) => s.providerName === providerName)
-    const okSub = Boolean(match?.plan) && !(match?.expiresAt && match.expiresAt < Date.now())
-    const subErr = !match?.plan
-      ? 'no subscription credentials on disk'
-      : match?.expiresAt && match.expiresAt < Date.now()
-        ? 'subscription token expired'
-        : undefined
-    await persist(prisma, modelRow.id, okSub, subErr)
+  // Authoritative enabled check from the DB — never trust the caller.
+  // A disabled model is not tested or billed; its stored status is
+  // left untouched.
+  if (!modelRow.enabled) {
     return {
       provider: providerName,
       model: modelName,
-      status: okSub ? 'ok' : 'fail',
-      error: okSub ? undefined : subErr,
+      status: 'fail',
+      error: 'model is disabled',
+      latencyMs: Date.now() - start
+    }
+  }
+
+  // Subscription providers (claude-code / codex): make a *real* authed
+  // call with the OAuth token from the credential file — not just a
+  // file-presence check.
+  if (provider.authMode === AuthMode.subscription) {
+    const auth = await readSubscriptionAuth(provider.apiBaseUrl)
+    if ('error' in auth) {
+      await persist(prisma, modelRow.id, false, auth.error)
+      return {
+        provider: providerName,
+        model: modelName,
+        status: 'fail',
+        error: auth.error,
+        latencyMs: Date.now() - start
+      }
+    }
+    const subStyle = modelRow.apiStyle ?? provider.apiStyle
+    const subProbe = await probeInference(
+      subStyle,
+      provider.apiBaseUrl,
+      auth.token,
+      modelName,
+      auth.extraHeaders
+    )
+    await persist(prisma, modelRow.id, subProbe.ok, subProbe.error)
+    return {
+      provider: providerName,
+      model: modelName,
+      status: subProbe.ok ? 'ok' : 'fail',
+      error: subProbe.ok ? undefined : subProbe.error,
       latencyMs: Date.now() - start
     }
   }
@@ -248,36 +353,41 @@ export interface TestAllOutcome {
   results: ModelTestResult[]
 }
 
-const disabledModelNames = (transformer: unknown): Set<string> => {
-  const raw =
-    transformer && typeof transformer === 'object'
-      ? (transformer as Record<string, unknown>)._disabledModels
-      : undefined
-  return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [])
-}
-
 // scope 'all' tests every enabled Model; 'failing' only enabled models
 // whose current testStatus !== ok (never-tested + previously-failed).
-// Models the user turned off (provider.transformer._disabledModels)
-// are skipped entirely. Sequential to avoid rate-limit/billed bursts.
+// Models on providers with no usable credentials (api_key blank, or
+// subscription without valid creds) are skipped entirely — there's no
+// point spending a request to get "no api key on file". enabled is the
+// authoritative DB column. Sequential to avoid rate-limit/billed
+// bursts.
 export async function testAllModels(
   scope: 'all' | 'failing',
   prisma: PrismaClient = getPrismaClient()
 ): Promise<TestAllOutcome> {
   const models = await prisma.model.findMany({
-    where: scope === 'failing' ? { testStatus: { not: ModelTestStatus.ok } } : {},
-    include: { provider: { select: { name: true, transformer: true } } },
+    where: {
+      enabled: true,
+      ...(scope === 'failing' ? { testStatus: { not: ModelTestStatus.ok } } : {})
+    },
+    include: { provider: { select: { name: true, apiKey: true, authMode: true } } },
     orderBy: [{ provider: { name: 'asc' } }, { name: 'asc' }]
   })
-  const disabledByProvider = new Map<string, Set<string>>()
+
+  // Which subscription providers actually have valid, unexpired creds.
+  const subs = await getSubscriptionsInfo()
+  const validSubscription = new Set(
+    subs
+      .filter((s) => s.plan && !(s.expiresAt && s.expiresAt < Date.now()))
+      .map((s) => s.providerName)
+  )
+  const hasCredentials = (p: { name: string; apiKey: string; authMode: AuthMode }): boolean =>
+    p.authMode === AuthMode.subscription
+      ? validSubscription.has(p.name)
+      : p.apiKey.trim().length > 0
+
   const results: ModelTestResult[] = []
   for (const m of models) {
-    let disabled = disabledByProvider.get(m.provider.name)
-    if (!disabled) {
-      disabled = disabledModelNames(m.provider.transformer)
-      disabledByProvider.set(m.provider.name, disabled)
-    }
-    if (disabled.has(m.name)) continue
+    if (!hasCredentials(m.provider)) continue
     results.push(await testModel(m.provider.name, m.name, prisma))
   }
   return {

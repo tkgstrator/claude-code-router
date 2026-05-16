@@ -102,6 +102,8 @@ export async function seedScrapedPricesIntoDb(
           apiStyle: modelApiStyleOverride(id)
         }
         if (existingNames.has(id)) {
+          // Never overwrite `enabled` on an existing row — that's the
+          // user's toggle to own.
           await tx.model.update({
             where: { providerId_name: { providerId: provider.id, name: id } },
             data
@@ -109,7 +111,12 @@ export async function seedScrapedPricesIntoDb(
           updated++
         } else {
           await tx.model.create({
-            data: { providerId: provider.id, name: id, ...data }
+            data: {
+              providerId: provider.id,
+              name: id,
+              ...data,
+              enabled: !(data.deprecated || data.legacy)
+            }
           })
           created++
         }
