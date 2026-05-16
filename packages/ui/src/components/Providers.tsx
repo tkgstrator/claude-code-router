@@ -41,12 +41,23 @@ export function Providers() {
   const refreshTemplates = async () => {
     setRefreshingTemplates(true)
     try {
+      // (1) refresh the template combobox from the upstream llm-prices snapshot
       const res = await fetch(LLM_PRICES_URL)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = (await res.json()) as { prices: { id: string; vendor: string; name: string; input: number; output: number; input_cached: number | null }[] }
-      setProviderTemplates(buildTemplates(data.prices))
+      if (res.ok) {
+        const data = (await res.json()) as {
+          prices: { id: string; vendor: string; name: string; input: number; output: number; input_cached: number | null }[]
+        }
+        setProviderTemplates(buildTemplates(data.prices))
+      }
+      // (2) ask the server to top each configured provider up from its
+      // /v1/models so e.g. claude-opus-4-7 shows up without waiting for
+      // llm-prices to catch up
+      await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
+      // (3) reload config so the new models show up in the UI
+      const fresh = await api.getConfig()
+      setConfig(fresh)
     } catch (err) {
-      console.error('Failed to refresh templates:', err)
+      console.error('Failed to refresh:', err)
     } finally {
       setRefreshingTemplates(false)
     }

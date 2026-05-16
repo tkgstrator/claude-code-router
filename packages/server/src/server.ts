@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unl
 import { homedir } from 'os'
 import { join } from 'path'
 import { applyUiConfig, composeUiConfig } from './services/configService'
+import { refreshModelsForAllProviders } from './services/modelSyncService'
 import { backupConfigFile, readConfigFile, writeConfigFile } from './utils'
 
 export const createServer = async (config: any): Promise<any> => {
@@ -106,6 +107,14 @@ export const createServer = async (config: any): Promise<any> => {
       message: 'Config saved successfully',
       ...(result.warnings.length > 0 ? { warnings: result.warnings } : {})
     }
+  })
+
+  // Top up each Provider's Models list from the vendor's /v1/models
+  // endpoint. Only adds — see modelSyncService. Outcomes are per-
+  // provider so the UI can show which ones failed (e.g. wrong api key).
+  app.post('/api/refresh-models', async (_req: any, _reply: any) => {
+    const outcomes = await refreshModelsForAllProviders()
+    return { outcomes }
   })
 
   // Register static file serving with caching
