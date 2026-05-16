@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
 import { buildTemplates, LLM_PRICES_URL, PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
 import type { Provider } from '@/types'
@@ -100,7 +101,7 @@ export function Providers() {
   const validProviders = Array.isArray(config.Providers) ? config.Providers : []
 
   const handleAddProvider = () => {
-    const newProvider: ProviderType = { name: '', api_base_url: '', api_key: '', models: [] }
+    const newProvider: ProviderType = { name: '', api_base_url: '', api_key: '', auth_mode: 'api_key', models: [] }
     setEditingProviderIndex(config.Providers.length)
     setEditingProviderData(newProvider)
     setIsNewProvider(true)
@@ -153,8 +154,9 @@ export function Providers() {
       return
     }
 
-    // Validate API key
-    if (!editingProviderData.api_key || editingProviderData.api_key.trim() === '') {
+    // Validate API key (only when this provider uses an api key auth)
+    const authMode = editingProviderData.auth_mode ?? 'api_key'
+    if (authMode === 'api_key' && (!editingProviderData.api_key || editingProviderData.api_key.trim() === '')) {
       setApiKeyError(t('providers.api_key_required'))
       return
     }
@@ -641,46 +643,63 @@ export function Providers() {
                   {nameError && <p className='text-sm text-red-500'>{nameError}</p>}
                 </div>
               )}
-              <div className='space-y-2'>
-                <Label htmlFor='api_base_url'>{t('providers.api_base_url')}</Label>
-                <Input
-                  id='api_base_url'
-                  value={editingProvider.api_base_url || ''}
-                  onChange={(e) => handleProviderChange(editingProviderIndex, 'api_base_url', e.target.value)}
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='api_key'>{t('providers.api_key')}</Label>
-                <div className='relative'>
-                  <Input
-                    id='api_key'
-                    type={showApiKey[editingProviderIndex || 0] ? 'text' : 'password'}
-                    value={editingProvider.api_key || ''}
-                    onChange={(e) => handleProviderChange(editingProviderIndex, 'api_key', e.target.value)}
-                    className={apiKeyError ? 'border-red-500' : ''}
-                  />
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    className='absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8'
-                    onClick={() => {
-                      const index = editingProviderIndex || 0
-                      setShowApiKey((prev) => ({
-                        ...prev,
-                        [index]: !prev[index]
-                      }))
-                    }}
-                  >
-                    {showApiKey[editingProviderIndex || 0] ? (
-                      <EyeOff className='h-4 w-4' />
-                    ) : (
-                      <Eye className='h-4 w-4' />
-                    )}
-                  </Button>
-                </div>
-                {apiKeyError && <p className='text-sm text-red-500'>{apiKeyError}</p>}
-              </div>
+              <Tabs
+                value={editingProvider.auth_mode ?? 'api_key'}
+                onValueChange={(v) => handleProviderChange(editingProviderIndex, 'auth_mode', v)}
+              >
+                <TabsList>
+                  <TabsTrigger value='api_key'>{t('providers.auth_api')}</TabsTrigger>
+                  <TabsTrigger value='subscription'>{t('providers.auth_subscription')}</TabsTrigger>
+                </TabsList>
+                <TabsContent value='api_key' className='space-y-4 pt-4'>
+                  <div className='space-y-2'>
+                    <Label htmlFor='api_base_url'>{t('providers.api_base_url')}</Label>
+                    <Input
+                      id='api_base_url'
+                      value={editingProvider.api_base_url || ''}
+                      onChange={(e) => handleProviderChange(editingProviderIndex, 'api_base_url', e.target.value)}
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='api_key'>{t('providers.api_key')}</Label>
+                    <div className='relative'>
+                      <Input
+                        id='api_key'
+                        type={showApiKey[editingProviderIndex || 0] ? 'text' : 'password'}
+                        value={editingProvider.api_key || ''}
+                        onChange={(e) => handleProviderChange(editingProviderIndex, 'api_key', e.target.value)}
+                        className={apiKeyError ? 'border-red-500' : ''}
+                      />
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        className='absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8'
+                        onClick={() => {
+                          const index = editingProviderIndex || 0
+                          setShowApiKey((prev) => ({
+                            ...prev,
+                            [index]: !prev[index]
+                          }))
+                        }}
+                      >
+                        {showApiKey[editingProviderIndex || 0] ? (
+                          <EyeOff className='h-4 w-4' />
+                        ) : (
+                          <Eye className='h-4 w-4' />
+                        )}
+                      </Button>
+                    </div>
+                    {apiKeyError && <p className='text-sm text-red-500'>{apiKeyError}</p>}
+                  </div>
+                </TabsContent>
+                <TabsContent value='subscription' className='space-y-4 pt-4'>
+                  <div className='rounded-md border bg-muted/40 p-4 text-sm text-gray-700 space-y-2'>
+                    <p className='font-medium'>{t('providers.subscription_intro')}</p>
+                    <p className='text-gray-500'>{t('providers.subscription_hint')}</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
               <div className='space-y-2'>
                 <Label htmlFor='models'>{t('providers.models')}</Label>
                 <div className='space-y-2'>

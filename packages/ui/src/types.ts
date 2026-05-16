@@ -3,10 +3,13 @@ export interface ProviderTransformer {
   [key: string]: any // Allow for model-specific transformers
 }
 
+export type ProviderAuthMode = 'api_key' | 'subscription'
+
 export interface Provider {
   name: string
   api_base_url: string
   api_key: string
+  auth_mode?: ProviderAuthMode
   models: string[]
   transformer?: ProviderTransformer
 }

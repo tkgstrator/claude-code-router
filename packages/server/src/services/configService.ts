@@ -11,6 +11,7 @@
 import { buildSeedProviders, type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKey } from '@ccr/shared'
 import { getPrismaClient } from '../db/client'
 import {
+  AuthMode,
   type Model as DbModel,
   type Provider as DbProvider,
   Prisma,
@@ -25,6 +26,7 @@ type UiProvider = {
   name: string
   api_base_url: string
   api_key: string
+  auth_mode: 'api_key' | 'subscription'
   models: string[]
   transformer?: Record<string, unknown>
 }
@@ -85,6 +87,7 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => ({
   name: p.name,
   api_base_url: p.apiBaseUrl,
   api_key: p.apiKey,
+  auth_mode: p.authMode,
   models: p.models.map((m) => m.name),
   // transformer is stored as JSONB; Prisma returns JsonValue which we
   // surface as a free-form record to the UI (legacy shape is unchanged).
@@ -204,17 +207,20 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
   // Upsert what remains.
   for (const inc of incoming) {
     const transformer = inc.transformer as Prisma.InputJsonValue | undefined
+    const authMode: AuthMode = inc.auth_mode === 'subscription' ? AuthMode.subscription : AuthMode.api_key
     const provider = await tx.provider.upsert({
       where: { name: inc.name },
       update: {
         apiBaseUrl: inc.api_base_url,
         apiKey: inc.api_key,
+        authMode,
         transformer: transformer ?? Prisma.DbNull
       },
       create: {
         name: inc.name,
         apiBaseUrl: inc.api_base_url,
         apiKey: inc.api_key,
+        authMode,
         transformer: transformer ?? Prisma.DbNull
       },
       include: { models: true }
