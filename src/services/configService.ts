@@ -325,11 +325,12 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
     }
     if (toCreate.length > 0) {
       await tx.model.createMany({
+        // enabled omitted -> DB default (false). The authoritative
+        // enabled state is written just below from the UI's selection.
         data: toCreate.map((name) => ({
           providerId: provider.id,
           name,
           deprecated: isDeprecatedModel(name),
-          enabled: !isDeprecatedModel(name),
           apiStyle: modelApiStyleOverride(name)
         }))
       })
@@ -517,7 +518,10 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
               providerId: provider.id,
               name,
               deprecated: isDeprecatedModel(name),
-              enabled: !isDeprecatedModel(name),
+              // Registered != routable. Only subscription presets seed
+              // their curated default set as enabled; api_key vendor
+              // catalogs stay off (DB default) until the user enables.
+              enabled: seed.authMode === AuthMode.subscription && !isDeprecatedModel(name),
               apiStyle: modelApiStyleOverride(name)
             }))
           })
