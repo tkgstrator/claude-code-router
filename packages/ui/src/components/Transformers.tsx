@@ -124,7 +124,7 @@ export function Transformers() {
 
       {/* Edit Dialog */}
       <Dialog open={editingTransformerIndex !== null} onOpenChange={handleCancelTransformer}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{t('transformers.edit')}</DialogTitle>
           </DialogHeader>
