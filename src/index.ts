@@ -10,18 +10,14 @@ import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
 import { updateCheckRoute } from './api/update/check/route'
 import { updatePerformRoute } from './api/update/perform/route'
+import { v1Route } from './api/v1/route'
 import { APP_VERSION } from './lib/version'
 import { bootstrapServer } from './services/bootstrap'
 
 // Hono root. Backend routes live under src/api/<path>/route.ts (one
-// Hono sub-app per file, Next.js-style) and are mounted here. Anything
-// under /api or /v1 that no route handles falls through to the legacy
-// Fastify server at FASTIFY_FALLBACK_URL (dev-only; currently unused).
-const FASTIFY_FALLBACK_URL = (() => {
-  const fromEnv = process.env.CCR_FASTIFY_URL
-  if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv
-  return 'http://localhost:3456'
-})()
+// Hono sub-app per file, Next.js-style) and are mounted here. The
+// /v1/* LLM proxy is served natively by v1Route, which drives the
+// absorbed llms router + transformer pipeline directly (no Fastify).
 
 // Mirror what the legacy Fastify server did at boot: lift any
 // pre-existing config.json into Postgres, seed default Providers + the
@@ -44,32 +40,13 @@ app.route('/', modelTestRoute)
 app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)
 
+// Native /v1/* LLM proxy — drives the llms pipeline without Fastify.
+app.route('/', v1Route)
+
 // OpenAPI spec endpoint — useful for tooling and the generated docs.
 app.doc('/api/openapi.json', {
   openapi: '3.1.0',
   info: { title: 'CCR API', version: APP_VERSION }
 })
-
-const proxyToFastify = async (c: { req: { raw: Request } }) => {
-  const incoming = c.req.raw
-  const incomingUrl = new URL(incoming.url)
-  const target = new URL(FASTIFY_FALLBACK_URL)
-  target.pathname = incomingUrl.pathname
-  target.search = incomingUrl.search
-  const body = incoming.method === 'GET' || incoming.method === 'HEAD' ? undefined : await incoming.arrayBuffer()
-  const upstream = await fetch(target, {
-    method: incoming.method,
-    headers: incoming.headers,
-    body
-  })
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: upstream.headers
-  })
-}
-
-app.all('/api/*', proxyToFastify)
-app.all('/v1/*', proxyToFastify)
 
 export default app

@@ -7,7 +7,7 @@ import {
 import { RegisterProviderRequest, LLMProvider } from "@/llms/types/llm";
 import { sendUnifiedRequest } from "@/llms/utils/request";
 import { createApiError } from "./middleware";
-import { version } from "../../package.json";
+import { version } from "../../../package.json";
 import { ConfigService } from "@/llms/services/config";
 import { ProviderService } from "@/llms/services/provider";
 import { TransformerService } from "@/llms/services/transformer";
@@ -31,7 +31,7 @@ declare module "fastify" {
  * Coordinates the entire request processing flow: validate provider, handle request transformers,
  * send request, handle response transformers, format response
  */
-async function handleTransformerEndpoint(
+export async function handleTransformerEndpoint(
   req: FastifyRequest,
   reply: FastifyReply,
   fastify: FastifyInstance,
