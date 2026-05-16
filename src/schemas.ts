@@ -1,0 +1,162 @@
+import { JsonValueSchema } from '@ccr/shared'
+import { z } from '@hono/zod-openapi'
+
+// Zod schemas for the @hono/zod-openapi routes in src/index.ts. These
+// mirror the shapes returned by @ccr/server/{config,subscriptions,
+// providers,models,update} so the Hono root validates the same wire
+// shape the legacy Fastify server emitted.
+
+// --- Provider --------------------------------------------------------------
+
+export const AuthModeSchema = z.enum(['api_key', 'subscription']).openapi('AuthMode')
+
+export const ProviderSchema = z
+  .object({
+    name: z.string().min(1),
+    api_base_url: z.string(),
+    api_key: z.string(),
+    auth_mode: AuthModeSchema,
+    models: z.array(z.string()),
+    transformer: z.record(z.string(), JsonValueSchema).optional()
+  })
+  .openapi('Provider')
+export type Provider = z.infer<typeof ProviderSchema>
+
+// --- Router ----------------------------------------------------------------
+
+export const RouterSchema = z
+  .object({
+    // Values are "providerName,modelName" or "" when the slot is unset.
+    // Kept in literal form (not derived from SCENARIO_KEYS) so the
+    // generated OpenAPI schema lists each slot explicitly.
+    default: z.string(),
+    background: z.string(),
+    think: z.string(),
+    longContext: z.string(),
+    webSearch: z.string(),
+    image: z.string(),
+    longContextThreshold: z.number().int().positive().optional()
+  })
+  .catchall(z.union([z.string(), z.number()]))
+  .openapi('Router')
+export type Router = z.infer<typeof RouterSchema>
+
+// --- Config (envelope + providers + router) -------------------------------
+
+// Mirrors LegacyConfig from packages/server/src/services/configService.ts.
+// Envelope fields are deliberately loose (LOG_LEVEL as string,
+// API_TIMEOUT_MS as number|string) to match what composeUiConfig
+// returns; tightening them here would force casts at the boundary.
+// StatusLine / transformers / plugins are kept on the response via
+// .passthrough() — their internal shape is free-form JSON.
+export const ConfigSchema = z
+  .object({
+    Providers: z.array(ProviderSchema),
+    Router: RouterSchema,
+    HOST: z.string().optional(),
+    PORT: z.number().optional(),
+    APIKEY: z.string().optional(),
+    LOG: z.boolean().optional(),
+    LOG_LEVEL: z.string().optional(),
+    PROXY_URL: z.string().optional(),
+    API_TIMEOUT_MS: z.union([z.number(), z.string()]).optional(),
+    CLAUDE_PATH: z.string().optional(),
+    NON_INTERACTIVE_MODE: z.boolean().optional()
+  })
+  .openapi('Config')
+export type Config = z.infer<typeof ConfigSchema>
+
+// applyUiConfig accepts a Partial-ish shape — Providers/Router optional,
+// envelope keys free-form. Mirror that without dropping into z.any.
+export const ApplyConfigPayloadSchema = z
+  .object({
+    Providers: z.array(ProviderSchema).optional(),
+    providers: z.array(ProviderSchema).optional(),
+    Router: RouterSchema.partial().optional()
+  })
+  .catchall(JsonValueSchema)
+  .openapi('ApplyConfigPayload')
+
+export const ApplyConfigResponseSchema = z
+  .object({
+    success: z.boolean(),
+    message: z.string(),
+    warnings: z.array(z.string()).optional()
+  })
+  .openapi('ApplyConfigResponse')
+
+// --- Subscriptions ---------------------------------------------------------
+
+export const SubscriptionInfoSchema = z
+  .object({
+    providerName: z.string(),
+    plan: z.string().nullable(),
+    rateLimitTier: z.string().nullable(),
+    expiresAt: z.number().nullable(),
+    scopes: z.array(z.string()).nullable()
+  })
+  .openapi('SubscriptionInfo')
+
+export const SubscriptionsResponseSchema = z
+  .object({
+    subscriptions: z.array(SubscriptionInfoSchema)
+  })
+  .openapi('SubscriptionsResponse')
+
+// --- Providers test --------------------------------------------------------
+
+export const ProviderTestRequestSchema = z
+  .object({
+    name: z.string().min(1)
+  })
+  .openapi('ProviderTestRequest')
+
+export const ProviderTestResponseSchema = z
+  .object({
+    success: z.boolean(),
+    latencyMs: z.number().optional(),
+    error: z.string().optional()
+  })
+  .openapi('ProviderTestResponse')
+
+// --- Refresh models --------------------------------------------------------
+
+export const RefreshOutcomeSchema = z
+  .object({
+    provider: z.string(),
+    added: z.array(z.string()),
+    error: z.string().optional()
+  })
+  .openapi('RefreshOutcome')
+
+export const RefreshModelsResponseSchema = z
+  .object({
+    outcomes: z.array(RefreshOutcomeSchema)
+  })
+  .openapi('RefreshModelsResponse')
+
+// --- Update check / perform ------------------------------------------------
+
+export const UpdateCheckResponseSchema = z
+  .object({
+    hasUpdate: z.boolean(),
+    latestVersion: z.string().optional(),
+    changelog: z.string().optional()
+  })
+  .openapi('UpdateCheckResponse')
+
+export const UpdatePerformResponseSchema = z
+  .object({
+    success: z.boolean(),
+    message: z.string()
+  })
+  .openapi('UpdatePerformResponse')
+
+// --- Validation errors -----------------------------------------------------
+
+export const ValidationErrorSchema = z
+  .object({
+    success: z.literal(false),
+    error: z.string()
+  })
+  .openapi('ValidationError')

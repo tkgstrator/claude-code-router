@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
-    "dev": "bun run --filter @ccr/server dev & bunx wait-on tcp:3456 && vite & wait",
+    "dev": "vite",
     "build": "bun run build:shared && bun run build:core && bun run build:server && bun run build:ui && bun run build:cli",
     "build:core": "bun run --filter @musistudio/llms build",
     "build:shared": "bun run --filter @ccr/shared build",
@@ -63,6 +63,7 @@
     "@ccr/server": "workspace:*",
     "@ccr/shared": "workspace:*",
     "@hono/vite-dev-server": "^0.25.3",
+    "@hono/zod-openapi": "^1.4.0",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -92,6 +93,7 @@
     "remixicon": "^4.9.1",
     "simple-icons": "^16.19.0",
     "tailwind-merge": "^3.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^4.4.3"
   }
 }

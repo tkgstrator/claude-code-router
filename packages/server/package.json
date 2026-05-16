@@ -22,6 +22,14 @@
       "bun": "./src/utils/update.ts",
       "import": "./src/utils/update.ts"
     },
+    "./models": {
+      "bun": "./src/services/modelSyncService.ts",
+      "import": "./src/services/modelSyncService.ts"
+    },
+    "./providers": {
+      "bun": "./src/services/providerTestService.ts",
+      "import": "./src/services/providerTestService.ts"
+    },
     "./package": {
       "import": "./package.json"
     }
