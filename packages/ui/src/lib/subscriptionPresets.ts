@@ -32,8 +32,8 @@ export const SUBSCRIPTION_PRESETS: SubscriptionPreset[] = [
     label: 'Codex',
     description: 'ChatGPT subscription via Codex CLI OAuth',
     apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
-    availableModels: ['gpt-5-codex'],
-    defaultEnabledModels: ['gpt-5-codex'],
+    availableModels: ['gpt-5.1-codex', 'gpt-5.1-codex-mini'],
+    defaultEnabledModels: ['gpt-5.1-codex', 'gpt-5.1-codex-mini'],
     vendor: 'OpenAI',
     cli: 'Codex',
     credentialsPath: '~/.codex/auth.json'
