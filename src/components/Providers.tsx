@@ -1,6 +1,8 @@
-import { Eye, EyeOff, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react'
+import { Eye, EyeOff, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useOutletContext } from 'react-router-dom'
+import type { ShellOutletContext } from '@/components/AppShell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +33,7 @@ interface ProviderType extends Provider {}
 
 export function Providers() {
   const { t } = useTranslation()
+  const { showToast } = useOutletContext<ShellOutletContext>()
   const { config, setConfig } = useConfig()
   const [editingProviderIndex, setEditingProviderIndex] = useState<number | null>(null)
   const [deletingProviderIndex, setDeletingProviderIndex] = useState<number | null>(null)
@@ -77,7 +80,6 @@ export function Providers() {
   const [showApiKey, setShowApiKey] = useState<Record<number, boolean>>({})
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState<string>('')
   const [activeAuthMode, setActiveAuthMode] = useState<ProviderAuthMode>('api_key')
   const [subscriptionPickerOpen, setSubscriptionPickerOpen] = useState(false)
   const comboInputRef = useRef<HTMLInputElement>(null)
@@ -228,6 +230,27 @@ export function Providers() {
       const newConfig = { ...config, Providers: newProviders }
       setConfig(newConfig)
       await api.updateConfig(newConfig)
+      // Post-save probe: hits the vendor's /v1/models (or for
+      // subscription providers re-reads the credentials file). No
+      // token spend. Shown via the outlet's toast.
+      try {
+        const probe = await api.post<{ success: boolean; error?: string; latencyMs?: number }>('/providers/test', {
+          name: trimmedName
+        })
+        if (probe.success) {
+          showToast(t('providers.connection_successful', { name: trimmedName }), 'success')
+        } else {
+          showToast(
+            `${t('providers.connection_failed', { name: trimmedName })}: ${probe.error ?? 'unknown error'}`,
+            'warning'
+          )
+        }
+      } catch (err) {
+        showToast(
+          `${t('providers.connection_failed', { name: trimmedName })}: ${err instanceof Error ? err.message : 'request failed'}`,
+          'warning'
+        )
+      }
     }
     // Reset API key visibility for this provider
     if (editingProviderIndex !== null) {
@@ -264,17 +287,13 @@ export function Providers() {
     setNameError(null)
   }
 
-  // Handle deletion by setting the correct index in the state
-  const handleSetDeletingProviderIndex = (filteredIndex: number) => {
-    setDeletingProviderIndex(filteredIndex)
+  const handleSetDeletingProviderIndex = (index: number) => {
+    setDeletingProviderIndex(index)
   }
 
-  // Handle deletion by passing the filtered index to get the actual index in the original array
-  const handleRemoveProvider = async (filteredIndex: number) => {
-    // Find the actual index in the original providers array
-    const actualIndex = validProviders.indexOf(filteredProviders[filteredIndex])
+  const handleRemoveProvider = async (index: number) => {
     const newProviders = [...config.Providers]
-    newProviders.splice(actualIndex, 1)
+    newProviders.splice(index, 1)
     const newConfig = { ...config, Providers: newProviders }
     setConfig(newConfig)
     setDeletingProviderIndex(null)
@@ -652,26 +671,9 @@ export function Providers() {
   const editingProvider =
     editingProviderData || (editingProviderIndex !== null ? validProviders[editingProviderIndex] : null)
 
-  // Filter providers based on search term
-  const filteredProviders = validProviders.filter((provider) => {
-    if (!searchTerm) return true
-    const term = searchTerm.toLowerCase()
-    // Check provider name and URL
-    if (
-      (provider.name && provider.name.toLowerCase().includes(term)) ||
-      (provider.api_base_url && provider.api_base_url.toLowerCase().includes(term))
-    ) {
-      return true
-    }
-    // Check models
-    if (provider.models && Array.isArray(provider.models)) {
-      return provider.models.some((model) => model && model.toLowerCase().includes(term))
-    }
-    return false
-  })
   const providersByAuth = {
-    api_key: filteredProviders.filter((p) => (p.auth_mode ?? 'api_key') === 'api_key'),
-    subscription: filteredProviders.filter((p) => p.auth_mode === 'subscription')
+    api_key: validProviders.filter((p) => (p.auth_mode ?? 'api_key') === 'api_key'),
+    subscription: validProviders.filter((p) => p.auth_mode === 'subscription')
   }
   const visibleProviders = providersByAuth[activeAuthMode]
   const isAvailable = (p: Provider) => {
@@ -685,12 +687,7 @@ export function Providers() {
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
       <CardHeader className='flex flex-col border-b px-6 py-4 gap-3'>
         <div className='flex flex-row items-center justify-between'>
-          <CardTitle className='text-lg'>
-            {t('providers.title')}{' '}
-            <span className='text-sm font-normal text-gray-500'>
-              ({visibleProviders.length}/{providersByAuth[activeAuthMode].length})
-            </span>
-          </CardTitle>
+          <CardTitle className='text-lg'>{t('providers.title')}</CardTitle>
           <div className='flex items-center gap-2'>
             <Button variant='outline' onClick={refreshTemplates} disabled={refreshingTemplates}>
               <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
@@ -734,22 +731,6 @@ export function Providers() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className='flex items-center gap-2'>
-          <div className='relative flex-1'>
-            <Search className='absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500' />
-            <Input
-              placeholder={t('providers.search')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='pl-8'
-            />
-          </div>
-          {searchTerm && (
-            <Button variant='ghost' size='icon' onClick={() => setSearchTerm('')}>
-              <XCircle className='h-4 w-4' />
-            </Button>
-          )}
-        </div>
       </CardHeader>
       <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
         {visibleProviders.length === 0 ? (
@@ -769,7 +750,7 @@ export function Providers() {
                   providers={availableProviders}
                   planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
-                  onRemove={(idx) => handleSetDeletingProviderIndex(filteredProviders.indexOf(availableProviders[idx]))}
+                  onRemove={(idx) => handleSetDeletingProviderIndex(validProviders.indexOf(availableProviders[idx]))}
                 />
               </div>
             )}
@@ -782,9 +763,7 @@ export function Providers() {
                   providers={unavailableProviders}
                   planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
-                  onRemove={(idx) =>
-                    handleSetDeletingProviderIndex(filteredProviders.indexOf(unavailableProviders[idx]))
-                  }
+                  onRemove={(idx) => handleSetDeletingProviderIndex(validProviders.indexOf(unavailableProviders[idx]))}
                 />
               </div>
             )}
@@ -896,118 +875,6 @@ export function Providers() {
               )}
               {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
                 <div className='space-y-4'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='models'>{t('providers.models')}</Label>
-                    <div className='space-y-2'>
-                      <div className='flex gap-2'>
-                        <div className='flex-1'>
-                          {hasFetchedModels[editingProviderIndex] ? (
-                            <ComboInput
-                              ref={comboInputRef}
-                              options={(editingProvider.models || []).map((model: string) => ({
-                                label: model,
-                                value: model
-                              }))}
-                              value=''
-                              onChange={() => {
-                                // 只更新输入值，不添加模型
-                              }}
-                              onEnter={(value) => {
-                                if (editingProviderIndex !== null) {
-                                  handleAddModel(editingProviderIndex, value)
-                                }
-                              }}
-                              inputPlaceholder={t('providers.models_placeholder')}
-                            />
-                          ) : (
-                            <Input
-                              id='models'
-                              placeholder={t('providers.models_placeholder')}
-                              onKeyDown={(e) => {
-                                if (
-                                  e.key === 'Enter' &&
-                                  e.currentTarget.value.trim() &&
-                                  editingProviderIndex !== null
-                                ) {
-                                  handleAddModel(editingProviderIndex, e.currentTarget.value)
-                                  e.currentTarget.value = ''
-                                }
-                              }}
-                            />
-                          )}
-                        </div>
-                        <Button
-                          onClick={() => {
-                            if (hasFetchedModels[editingProviderIndex] && comboInputRef.current) {
-                              // 使用ComboInput的逻辑
-                              const comboInput = comboInputRef.current as unknown as {
-                                getCurrentValue(): string
-                                clearInput(): void
-                              }
-                              const currentValue = comboInput.getCurrentValue()
-                              if (currentValue && currentValue.trim() && editingProviderIndex !== null) {
-                                handleAddModel(editingProviderIndex, currentValue.trim())
-                                // 清空ComboInput
-                                comboInput.clearInput()
-                              }
-                            } else {
-                              // 使用普通Input的逻辑
-                              const input = document.getElementById('models') as HTMLInputElement
-                              if (input && input.value.trim() && editingProviderIndex !== null) {
-                                handleAddModel(editingProviderIndex, input.value)
-                                input.value = ''
-                              }
-                            }
-                          }}
-                        >
-                          {t('providers.add_model')}
-                        </Button>
-                        {/* <Button 
-                      onClick={() => editingProvider && fetchAvailableModels(editingProvider)}
-                      disabled={isFetchingModels}
-                      variant="outline"
-                    >
-                      {isFetchingModels ? t("providers.fetching_models") : t("providers.fetch_available_models")}
-                    </Button> */}
-                      </div>
-                      <div className='divide-y rounded-md border'>
-                        {[...(editingProvider.models || [])]
-                          .sort((a: string, b: string) => b.localeCompare(a))
-                          .map((model: string) => {
-                            const currentNames = (
-                              (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
-                            ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
-                            const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
-                            const disabledList = Array.isArray(
-                              (editingProvider.transformer as Record<string, unknown> | undefined)?._disabledModels
-                            )
-                              ? (editingProvider.transformer as Record<string, string[]>)._disabledModels
-                              : []
-                            const modelDisabled = disabledList.includes(model)
-                            return (
-                              <div key={model} className='flex items-center gap-3 px-3 py-2'>
-                                <Switch
-                                  checked={!apiKeyMissing && !modelDisabled}
-                                  disabled={apiKeyMissing}
-                                  onCheckedChange={(checked) => setApiModelDisabled(model, !checked)}
-                                />
-                                <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
-                                <div className='w-64'>
-                                  <MultiCombobox
-                                    options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
-                                    value={currentNames}
-                                    onChange={(names) => setModelTransformers(model, names)}
-                                    placeholder={t('providers.select_transformer')}
-                                    emptyPlaceholder={t('providers.no_transformers')}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          })}
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Provider Transformer Selection */}
                   <div className='space-y-2'>
                     <Label>{t('providers.provider_transformer')}</Label>
@@ -1186,6 +1053,118 @@ export function Providers() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  <div className='space-y-2'>
+                    <Label htmlFor='models'>{t('providers.models')}</Label>
+                    <div className='space-y-2'>
+                      <div className='flex gap-2'>
+                        <div className='flex-1'>
+                          {hasFetchedModels[editingProviderIndex] ? (
+                            <ComboInput
+                              ref={comboInputRef}
+                              options={(editingProvider.models || []).map((model: string) => ({
+                                label: model,
+                                value: model
+                              }))}
+                              value=''
+                              onChange={() => {
+                                // 只更新输入值，不添加模型
+                              }}
+                              onEnter={(value) => {
+                                if (editingProviderIndex !== null) {
+                                  handleAddModel(editingProviderIndex, value)
+                                }
+                              }}
+                              inputPlaceholder={t('providers.models_placeholder')}
+                            />
+                          ) : (
+                            <Input
+                              id='models'
+                              placeholder={t('providers.models_placeholder')}
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === 'Enter' &&
+                                  e.currentTarget.value.trim() &&
+                                  editingProviderIndex !== null
+                                ) {
+                                  handleAddModel(editingProviderIndex, e.currentTarget.value)
+                                  e.currentTarget.value = ''
+                                }
+                              }}
+                            />
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => {
+                            if (hasFetchedModels[editingProviderIndex] && comboInputRef.current) {
+                              // 使用ComboInput的逻辑
+                              const comboInput = comboInputRef.current as unknown as {
+                                getCurrentValue(): string
+                                clearInput(): void
+                              }
+                              const currentValue = comboInput.getCurrentValue()
+                              if (currentValue && currentValue.trim() && editingProviderIndex !== null) {
+                                handleAddModel(editingProviderIndex, currentValue.trim())
+                                // 清空ComboInput
+                                comboInput.clearInput()
+                              }
+                            } else {
+                              // 使用普通Input的逻辑
+                              const input = document.getElementById('models') as HTMLInputElement
+                              if (input && input.value.trim() && editingProviderIndex !== null) {
+                                handleAddModel(editingProviderIndex, input.value)
+                                input.value = ''
+                              }
+                            }
+                          }}
+                        >
+                          {t('providers.add_model')}
+                        </Button>
+                        {/* <Button 
+                      onClick={() => editingProvider && fetchAvailableModels(editingProvider)}
+                      disabled={isFetchingModels}
+                      variant="outline"
+                    >
+                      {isFetchingModels ? t("providers.fetching_models") : t("providers.fetch_available_models")}
+                    </Button> */}
+                      </div>
+                      <div className='divide-y rounded-md border'>
+                        {[...(editingProvider.models || [])]
+                          .sort((a: string, b: string) => b.localeCompare(a))
+                          .map((model: string) => {
+                            const currentNames = (
+                              (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
+                            ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
+                            const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
+                            const disabledList = Array.isArray(
+                              (editingProvider.transformer as Record<string, unknown> | undefined)?._disabledModels
+                            )
+                              ? (editingProvider.transformer as Record<string, string[]>)._disabledModels
+                              : []
+                            const modelDisabled = disabledList.includes(model)
+                            return (
+                              <div key={model} className='flex items-center gap-3 px-3 py-2'>
+                                <Switch
+                                  checked={!apiKeyMissing && !modelDisabled}
+                                  disabled={apiKeyMissing}
+                                  onCheckedChange={(checked) => setApiModelDisabled(model, !checked)}
+                                />
+                                <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
+                                <div className='w-64'>
+                                  <MultiCombobox
+                                    options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
+                                    value={currentNames}
+                                    onChange={(names) => setModelTransformers(model, names)}
+                                    placeholder={t('providers.select_transformer')}
+                                    emptyPlaceholder={t('providers.no_transformers')}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (

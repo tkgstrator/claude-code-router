@@ -1,26 +1,19 @@
 import type { StatusLineConfig, StatusLineModuleConfig } from '@/types'
 
-// 验证结果（保留接口但不使用）
+// Stub kept for callers that still import this surface. Validation
+// was removed; the result type is preserved but the array is always
+// empty.
 export interface ValidationResult {
   isValid: boolean
-  errors: any[]
+  errors: string[]
 }
 
-/**
- * 验证StatusLine配置 - 已移除所有验证
- * @param config 要验证的配置对象
- * @returns 始终返回验证通过
- */
-export function validateStatusLineConfig(config: unknown): ValidationResult {
-  // 不再执行任何验证
+export function validateStatusLineConfig(_config: unknown): ValidationResult {
   return { isValid: true, errors: [] }
 }
 
-/**
- * 格式化错误信息（支持国际化）- 不再使用
- */
 export function formatValidationError(
-  error: unknown,
+  _error: unknown,
   t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   return t('statusline.validation.unknown_error')

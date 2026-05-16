@@ -127,8 +127,8 @@
     "delete_provider_confirm": "このプロバイダーを削除しますか?",
     "test_connectivity": "接続テスト",
     "testing": "テスト中...",
-    "connection_successful": "接続に成功しました",
-    "connection_failed": "接続に失敗しました",
+    "connection_successful": "{{name}}: 接続成功",
+    "connection_failed": "{{name}}: 接続失敗",
     "missing_credentials": "API ベース URL か API キーが未入力です",
     "fetch_available_models": "利用可能なモデルを取得",
     "fetching_models": "モデルを取得中...",
@@ -149,8 +149,7 @@
     "select_template": "テンプレートを選択...",
     "api_key_required": "API Key は必須です",
     "name_required": "名前は必須です",
-    "name_duplicate": "同じ名前のプロバイダーが既に存在します",
-    "search": "プロバイダーを検索..."
+    "name_duplicate": "同じ名前のプロバイダーが既に存在します"
   },
   "router": {
     "title": "Router",
