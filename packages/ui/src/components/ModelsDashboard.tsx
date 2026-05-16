@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { api } from '@/lib/api'
 import { ProviderIcon } from '@/lib/providerIcons'
 import { MODEL_PRICING } from '@/lib/providerTemplates'
 
@@ -31,6 +32,25 @@ export function ModelsDashboard() {
   const [isTestingAll, setIsTestingAll] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
+
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        const response = await api.get<{ subscriptions: { providerName: string; plan: string | null }[] }>(
+          '/subscriptions'
+        )
+        const map: Record<string, string | null> = {}
+        for (const entry of response.subscriptions) {
+          map[entry.providerName] = entry.plan
+        }
+        setPlanByProvider(map)
+      } catch (error) {
+        console.error('Failed to fetch subscriptions:', error)
+      }
+    }
+    fetchSubscriptions()
+  }, [config])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey !== key) {
@@ -57,18 +77,21 @@ export function ModelsDashboard() {
     const raw = providers.flatMap((provider) => {
       if (!provider) return []
       const providerName = provider.name || 'unknown'
+      const providerAvailable =
+        provider.auth_mode === 'subscription'
+          ? Boolean(planByProvider[providerName])
+          : (provider.api_key?.trim().length ?? 0) > 0
+      if (!providerAvailable) return []
       const models = Array.isArray(provider.models) ? provider.models : []
       const disabledList = Array.isArray(
         (provider.transformer as Record<string, unknown> | undefined)?._disabledModels
       )
         ? ((provider.transformer as Record<string, string[]>)._disabledModels)
         : []
-      const apiKeyMissing =
-        provider.auth_mode !== 'subscription' && (provider.api_key?.trim().length ?? 0) === 0
       return models.map((model) => {
         const key = `${providerName},${model}`
         const routes = ROUTE_KEYS.filter((routeKey) => routerConfig && routerConfig[routeKey] === key)
-        const enabled = !apiKeyMissing && !disabledList.includes(model)
+        const enabled = !disabledList.includes(model)
         return { provider: providerName, model, key, routes, enabled }
       })
     })
@@ -93,7 +116,7 @@ export function ModelsDashboard() {
       if (av > bv) return 1 * sign
       return 0
     })
-  }, [config, sortKey, sortDir])
+  }, [config, sortKey, sortDir, planByProvider])
 
   const SortHeader = ({
     label,
