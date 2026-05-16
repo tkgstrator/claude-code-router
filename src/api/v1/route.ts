@@ -82,7 +82,13 @@ const OAUTH_BETA = 'oauth-2025-04-20'
 // prompt-caching / interleaved-thinking / effort / … are untouched.
 const prepareSubscriptionBetas = (headers: Record<string, string>): void => {
   const raw = headers['anthropic-beta']
-  const tokens = typeof raw === 'string' ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []
+  const tokens =
+    typeof raw === 'string'
+      ? raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : []
   const kept = tokens.filter((t) => !t.startsWith('context-1m'))
   if (!kept.includes(OAUTH_BETA)) kept.push(OAUTH_BETA)
   headers['anthropic-beta'] = kept.join(',')
@@ -171,12 +177,25 @@ const makeReplyShim = (replyHeaders: Record<string, string>) => ({
   }
 })
 
-// Catch every /v1/* POST, match it against the transformer endpoints
-// the llms TransformerService exposes (mirrors registerApiRoutes), and
-// run the pipeline directly. Anthropic's transformer registers
-// `/v1/messages` — the surface official ccr / Claude Code talk to.
-v1Route.post('/v1/*', async (c) => {
-  const ctx = await getLlmsContext()
+interface Invocation {
+  reqShim: Record<string, unknown>
+  replyShim: ReturnType<typeof makeReplyShim>
+  replyHeaders: Record<string, string>
+  fastifyShim: Record<string, unknown>
+  transformer: unknown
+  body: Record<string, unknown>
+}
+
+// Resolve the request to a concrete pipeline invocation: match the
+// endpoint transformer, run the router + provider/model split, clamp
+// effort and reshape subscription betas. Returns a Response for a
+// client/setup error (no handler / missing model) so the caller can
+// just forward it. Extracted from the POST handler to keep each
+// function's cognitive complexity in check.
+const buildInvocation = async (
+  c: Context,
+  ctx: Awaited<ReturnType<typeof getLlmsContext>>
+): Promise<Response | Invocation> => {
   const url = new URL(c.req.url)
   const path = url.pathname
 
@@ -235,6 +254,18 @@ v1Route.post('/v1/*', async (c) => {
     tokenizerService: ctx.tokenizerService,
     log: ctx.log
   }
+  return { reqShim, replyShim, replyHeaders, fastifyShim, transformer, body }
+}
+
+// Catch every /v1/* POST, match it against the transformer endpoints
+// the llms TransformerService exposes (mirrors registerApiRoutes), and
+// run the pipeline directly. Anthropic's transformer registers
+// `/v1/messages` — the surface official ccr / Claude Code talk to.
+v1Route.post('/v1/*', async (c) => {
+  const ctx = await getLlmsContext()
+  const built = await buildInvocation(c, ctx)
+  if (built instanceof Response) return built
+  const { reqShim, replyShim, replyHeaders, fastifyShim, transformer, body } = built
 
   const toResponse = (result: unknown) => {
     const status = (replyShim.statusCode || 200) as 200
