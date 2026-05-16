@@ -21,6 +21,7 @@ interface ModelRow {
   key: string
   routes: string[]
   enabled: boolean
+  isSubscription: boolean
 }
 
 type SortKey = 'provider' | 'model' | 'input' | 'output'
@@ -88,11 +89,12 @@ export function ModelsDashboard() {
       )
         ? ((provider.transformer as Record<string, string[]>)._disabledModels)
         : []
+      const isSubscription = provider.auth_mode === 'subscription'
       return models.map((model) => {
         const key = `${providerName},${model}`
         const routes = ROUTE_KEYS.filter((routeKey) => routerConfig && routerConfig[routeKey] === key)
         const enabled = !disabledList.includes(model)
-        return { provider: providerName, model, key, routes, enabled }
+        return { provider: providerName, model, key, routes, enabled, isSubscription }
       })
     })
     const sign = sortDir === 'asc' ? 1 : -1
@@ -236,14 +238,18 @@ export function ModelsDashboard() {
                   </td>
                   <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
-                    {MODEL_PRICING[row.model] ? (
+                    {row.isSubscription ? (
+                      <span className='text-gray-300'>—</span>
+                    ) : MODEL_PRICING[row.model] ? (
                       <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].inputPer1M}</span>
                     ) : (
                       <span className='text-gray-300'>—</span>
                     )}
                   </td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
-                    {MODEL_PRICING[row.model] ? (
+                    {row.isSubscription ? (
+                      <span className='text-gray-300'>—</span>
+                    ) : MODEL_PRICING[row.model] ? (
                       <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].outputPer1M}</span>
                     ) : (
                       <span className='text-gray-300'>—</span>
