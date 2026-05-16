@@ -21,7 +21,7 @@ interface ModelRow {
   routes: string[]
 }
 
-type SortKey = 'provider' | 'model' | 'cost'
+type SortKey = 'provider' | 'model' | 'input' | 'output'
 
 export function ModelsDashboard() {
   const { t } = useTranslation()
@@ -65,15 +65,21 @@ export function ModelsDashboard() {
     })
     if (!sortKey) return raw
     const sign = sortDir === 'asc' ? 1 : -1
+    const priceOf = (model: string, which: 'inputPer1M' | 'outputPer1M') =>
+      MODEL_PRICING[model]?.[which] ?? Number.POSITIVE_INFINITY
     return [...raw].sort((a, b) => {
       const av =
-        sortKey === 'cost'
-          ? (MODEL_PRICING[a.model]?.inputPer1M ?? Number.POSITIVE_INFINITY)
-          : a[sortKey]
+        sortKey === 'input'
+          ? priceOf(a.model, 'inputPer1M')
+          : sortKey === 'output'
+            ? priceOf(a.model, 'outputPer1M')
+            : a[sortKey]
       const bv =
-        sortKey === 'cost'
-          ? (MODEL_PRICING[b.model]?.inputPer1M ?? Number.POSITIVE_INFINITY)
-          : b[sortKey]
+        sortKey === 'input'
+          ? priceOf(b.model, 'inputPer1M')
+          : sortKey === 'output'
+            ? priceOf(b.model, 'outputPer1M')
+            : b[sortKey]
       if (av < bv) return -1 * sign
       if (av > bv) return 1 * sign
       return 0
@@ -136,35 +142,15 @@ export function ModelsDashboard() {
 
   const renderStatus = (state: Reachability) => {
     if (state === 'testing') {
-      return (
-        <span className='flex items-center gap-1 text-gray-500'>
-          <LoaderCircle className='h-4 w-4 animate-spin' />
-          {t('models.status_testing')}
-        </span>
-      )
+      return <LoaderCircle className='h-4 w-4 animate-spin text-gray-500' aria-label={t('models.status_testing')} />
     }
     if (state === 'ok') {
-      return (
-        <span className='flex items-center gap-1 text-green-600'>
-          <CheckCircle2 className='h-4 w-4' />
-          {t('models.status_ok')}
-        </span>
-      )
+      return <CheckCircle2 className='h-4 w-4 text-green-600' aria-label={t('models.status_ok')} />
     }
     if (state === 'fail') {
-      return (
-        <span className='flex items-center gap-1 text-red-600'>
-          <XCircle className='h-4 w-4' />
-          {t('models.status_fail')}
-        </span>
-      )
+      return <XCircle className='h-4 w-4 text-red-600' aria-label={t('models.status_fail')} />
     }
-    return (
-      <span className='flex items-center gap-1 text-gray-400'>
-        <Circle className='h-4 w-4' />
-        {t('models.status_unknown')}
-      </span>
-    )
+    return <Circle className='h-4 w-4 text-gray-300' aria-label={t('models.status_unknown')} />
   }
 
   return (
@@ -195,10 +181,13 @@ export function ModelsDashboard() {
                 <th className='px-6 py-2 font-medium'>
                   <SortHeader label={t('models.model')} sortKey='model' />
                 </th>
-                <th className='px-6 py-2 font-medium'>
-                  <SortHeader label={t('models.cost')} sortKey='cost' />
+                <th className='px-6 py-2 font-medium text-right'>
+                  <SortHeader label={t('models.input')} sortKey='input' />
                 </th>
-                <th className='px-6 py-2 font-medium'>{t('models.status')}</th>
+                <th className='px-6 py-2 font-medium text-right'>
+                  <SortHeader label={t('models.output')} sortKey='output' />
+                </th>
+                <th className='px-2 py-2 font-medium text-center'>{t('models.status')}</th>
                 <th className='px-6 py-2 font-medium'>{t('models.routes')}</th>
                 <th className='px-6 py-2 font-medium text-right'>{t('models.test')}</th>
               </tr>
@@ -213,16 +202,21 @@ export function ModelsDashboard() {
                     </span>
                   </td>
                   <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
-                  <td className='px-6 py-2 whitespace-nowrap text-xs text-gray-600'>
+                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
                     {MODEL_PRICING[row.model] ? (
-                      <span title={t('models.cost_hint')}>
-                        ${MODEL_PRICING[row.model].inputPer1M} / ${MODEL_PRICING[row.model].outputPer1M}
-                      </span>
+                      <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].inputPer1M}</span>
                     ) : (
                       <span className='text-gray-300'>—</span>
                     )}
                   </td>
-                  <td className='px-6 py-2'>{renderStatus(status[row.key] || 'unknown')}</td>
+                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
+                    {MODEL_PRICING[row.model] ? (
+                      <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].outputPer1M}</span>
+                    ) : (
+                      <span className='text-gray-300'>—</span>
+                    )}
+                  </td>
+                  <td className='px-2 py-2 text-center'>{renderStatus(status[row.key] || 'unknown')}</td>
                   <td className='px-6 py-2'>
                     <Popover>
                       <PopoverTrigger asChild>

@@ -52,7 +52,9 @@
     "no_models": "No models. Add a provider first.",
     "assign_routes": "Assign to routes",
     "cost": "Cost / 1M",
-    "cost_hint": "USD per 1M tokens (input / output), base tier — rough guide"
+    "input": "Input / 1M",
+    "output": "Output / 1M",
+    "cost_hint": "USD per 1M tokens, base tier — rough guide"
   },
   "login": {
     "title": "Sign in to your account",

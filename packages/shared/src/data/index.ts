@@ -18,25 +18,65 @@ export interface PriceSnapshot {
 
 export const LLM_PRICES_SEED = seed as PriceSnapshot
 
+export type VendorAuth = 'bearer' | 'x-api-key' | 'google-key-param'
+
 export interface VendorDefaults {
   /** Provider.apiBaseUrl */
   baseUrl: string
   /** Provider.transformer JSONB; absent for openai-compatible vendors */
   transformer?: { use: string[] }
+  /** GET endpoint returning the vendor's live model catalog */
+  modelsEndpoint?: string
+  /** How to attach the apiKey when calling modelsEndpoint */
+  modelsAuth?: VendorAuth
 }
 
 // Vendors absent from this map are skipped: we can't infer a safe public
 // endpoint for them (e.g. amazon needs per-region Bedrock signing).
 export const VENDOR_DEFAULTS: Record<string, VendorDefaults> = {
-  anthropic: { baseUrl: 'https://api.anthropic.com/v1/messages' },
-  deepseek: { baseUrl: 'https://api.deepseek.com/chat/completions', transformer: { use: ['deepseek'] } },
-  google: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/', transformer: { use: ['gemini'] } },
+  anthropic: {
+    baseUrl: 'https://api.anthropic.com/v1/messages',
+    modelsEndpoint: 'https://api.anthropic.com/v1/models',
+    modelsAuth: 'x-api-key'
+  },
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com/chat/completions',
+    transformer: { use: ['deepseek'] },
+    modelsEndpoint: 'https://api.deepseek.com/v1/models',
+    modelsAuth: 'bearer'
+  },
+  google: {
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
+    transformer: { use: ['gemini'] },
+    modelsEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
+    modelsAuth: 'google-key-param'
+  },
   minimax: { baseUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2' },
-  mistral: { baseUrl: 'https://api.mistral.ai/v1/chat/completions' },
-  'moonshot-ai': { baseUrl: 'https://api.moonshot.cn/v1/chat/completions' },
-  openai: { baseUrl: 'https://api.openai.com/v1/chat/completions' },
-  qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions' },
-  xai: { baseUrl: 'https://api.x.ai/v1/chat/completions' }
+  mistral: {
+    baseUrl: 'https://api.mistral.ai/v1/chat/completions',
+    modelsEndpoint: 'https://api.mistral.ai/v1/models',
+    modelsAuth: 'bearer'
+  },
+  'moonshot-ai': {
+    baseUrl: 'https://api.moonshot.cn/v1/chat/completions',
+    modelsEndpoint: 'https://api.moonshot.cn/v1/models',
+    modelsAuth: 'bearer'
+  },
+  openai: {
+    baseUrl: 'https://api.openai.com/v1/chat/completions',
+    modelsEndpoint: 'https://api.openai.com/v1/models',
+    modelsAuth: 'bearer'
+  },
+  qwen: {
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    modelsEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/models',
+    modelsAuth: 'bearer'
+  },
+  xai: {
+    baseUrl: 'https://api.x.ai/v1/chat/completions',
+    modelsEndpoint: 'https://api.x.ai/v1/models',
+    modelsAuth: 'bearer'
+  }
 }
 
 /**

@@ -52,7 +52,9 @@
     "no_models": "暂无模型，请先添加供应商。",
     "assign_routes": "分配到路由",
     "cost": "费用 / 1M",
-    "cost_hint": "每 100 万 token 的美元价格(输入 / 输出),基础档,仅供参考"
+    "input": "输入 / 1M",
+    "output": "输出 / 1M",
+    "cost_hint": "每 100 万 token 的美元价格,基础档,仅供参考"
   },
   "login": {
     "title": "登录到您的账户",
