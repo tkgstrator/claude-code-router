@@ -552,7 +552,13 @@ export function Providers() {
               ({filteredProviders.length}/{validProviders.length})
             </span>
           </CardTitle>
-          <Button onClick={handleAddProvider}>{t('providers.add')}</Button>
+          <div className='flex items-center gap-2'>
+            <Button variant='outline' size='sm' onClick={refreshTemplates} disabled={refreshingTemplates}>
+              <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
+              {t('providers.refresh_templates')}
+            </Button>
+            <Button onClick={handleAddProvider}>{t('providers.add')}</Button>
+          </div>
         </div>
         <div className='flex items-center gap-2'>
           <div className='relative flex-1'>
@@ -596,19 +602,7 @@ export function Providers() {
             <div className='space-y-4 p-4 overflow-y-auto flex-grow'>
               {providerTemplates.length > 0 && (
                 <div className='space-y-2'>
-                  <div className='flex items-center justify-between'>
-                    <Label>{t('providers.import_from_template')}</Label>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={refreshTemplates}
-                      disabled={refreshingTemplates}
-                    >
-                      <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
-                      {t('providers.refresh_templates')}
-                    </Button>
-                  </div>
+                  <Label>{t('providers.import_from_template')}</Label>
                   <Combobox
                     options={providerTemplates.map((p) => ({ label: p.name, value: JSON.stringify(p) }))}
                     value=''
