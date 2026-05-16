@@ -13,7 +13,12 @@
   },
   "scripts": {
     "build": "bun run ../../scripts/build-server.ts",
-    "dev": "while bun run src/index.ts; do echo 'Restarting server...'; done"
+    "dev": "while bun run src/index.ts; do echo 'Restarting server...'; done",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio"
   },
   "keywords": [
     "claude",
@@ -27,6 +32,7 @@
     "@fastify/multipart": "^9.0.0",
     "@fastify/static": "^8.2.0",
     "@musistudio/llms": "workspace:*",
+    "@prisma/client": "^6",
     "adm-zip": "^0.5.16",
     "dotenv": "^16.4.7",
     "json5": "^2.2.3",
@@ -41,6 +47,7 @@
     "@types/adm-zip": "^0.5.7",
     "@types/bun": "^1.2.0",
     "fastify": "^5.4.0",
+    "prisma": "^6",
     "typescript": "^5.8.2"
   }
 }

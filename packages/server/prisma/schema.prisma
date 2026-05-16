@@ -1,0 +1,70 @@
+// CCR's Postgres-backed config store.
+//
+// Three normalized tables hold what used to live as `Providers` and
+// `Router` in ~/.claude-code-router/config.json:
+//   - Provider:   one row per LLM provider account (api_base_url + api_key)
+//   - Model:      one row per model name, child of Provider
+//   - RouterSlot: 6 rows keyed by scenario, each pointing at a Model (or null)
+// Transformer-level config (Provider.transformer, top-level transformers[])
+// stays JSONB / on-disk respectively for PR #1 — PR #2 normalizes them.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// The six built-in routing scenarios consumed by router.ts.
+// `default` is the catch-all; the rest are scenario-specific overrides.
+enum ScenarioKey {
+  default
+  background
+  think
+  longContext
+  webSearch
+  image
+}
+
+model Provider {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  apiBaseUrl  String
+  apiKey      String
+  // Free-form provider-level transformer block. The legacy shape is
+  // { use: string[] | [string, opts][], [modelName]: { use: ... } } —
+  // PR #2 will normalize this into a Transformer table.
+  transformer Json?
+  models      Model[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Model {
+  id          String       @id @default(cuid())
+  providerId  String
+  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  name        String
+  routerSlots RouterSlot[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([providerId, name])
+  @@index([providerId])
+}
+
+model RouterSlot {
+  id        String      @id @default(cuid())
+  scenario  ScenarioKey @unique
+  modelId   String?
+  // onDelete: Restrict means deleting a Model that's bound to a slot
+  // fails — configService null-s the slot first inside its transaction.
+  model     Model?      @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  // Scenario-scoped params (e.g. longContext.threshold). JSONB keeps us
+  // from migrating every time a new knob lands.
+  params    Json?
+  updatedAt DateTime    @updatedAt
+}
