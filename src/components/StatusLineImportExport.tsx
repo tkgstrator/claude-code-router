@@ -68,7 +68,7 @@ export function StatusLineImportExport({ config, onImport, onShowToast }: Status
 
         if (!validationResult.isValid) {
           // 格式化错误信息
-          const errorMessages = validationResult.errors.map((error) => error.message).join('; ')
+          const errorMessages = validationResult.errors.join('; ')
           throw new Error(`${t('statusline.invalid_config')}: ${errorMessages}`)
         }
 
@@ -160,7 +160,7 @@ export function StatusLineImportExport({ config, onImport, onShowToast }: Status
 
         if (!validationResult.isValid) {
           // 格式化错误信息
-          const errorMessages = validationResult.errors.map((error) => error.message).join('; ')
+          const errorMessages = validationResult.errors.join('; ')
           throw new Error(`${t('statusline.invalid_config')}: ${errorMessages}`)
         }
 

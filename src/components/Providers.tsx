@@ -763,9 +763,7 @@ export function Providers() {
                   providers={unavailableProviders}
                   planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
-                  onRemove={(idx) =>
-                    handleSetDeletingProviderIndex(validProviders.indexOf(unavailableProviders[idx]))
-                  }
+                  onRemove={(idx) => handleSetDeletingProviderIndex(validProviders.indexOf(unavailableProviders[idx]))}
                 />
               </div>
             )}
@@ -877,118 +875,6 @@ export function Providers() {
               )}
               {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
                 <div className='space-y-4'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='models'>{t('providers.models')}</Label>
-                    <div className='space-y-2'>
-                      <div className='flex gap-2'>
-                        <div className='flex-1'>
-                          {hasFetchedModels[editingProviderIndex] ? (
-                            <ComboInput
-                              ref={comboInputRef}
-                              options={(editingProvider.models || []).map((model: string) => ({
-                                label: model,
-                                value: model
-                              }))}
-                              value=''
-                              onChange={() => {
-                                // 只更新输入值，不添加模型
-                              }}
-                              onEnter={(value) => {
-                                if (editingProviderIndex !== null) {
-                                  handleAddModel(editingProviderIndex, value)
-                                }
-                              }}
-                              inputPlaceholder={t('providers.models_placeholder')}
-                            />
-                          ) : (
-                            <Input
-                              id='models'
-                              placeholder={t('providers.models_placeholder')}
-                              onKeyDown={(e) => {
-                                if (
-                                  e.key === 'Enter' &&
-                                  e.currentTarget.value.trim() &&
-                                  editingProviderIndex !== null
-                                ) {
-                                  handleAddModel(editingProviderIndex, e.currentTarget.value)
-                                  e.currentTarget.value = ''
-                                }
-                              }}
-                            />
-                          )}
-                        </div>
-                        <Button
-                          onClick={() => {
-                            if (hasFetchedModels[editingProviderIndex] && comboInputRef.current) {
-                              // 使用ComboInput的逻辑
-                              const comboInput = comboInputRef.current as unknown as {
-                                getCurrentValue(): string
-                                clearInput(): void
-                              }
-                              const currentValue = comboInput.getCurrentValue()
-                              if (currentValue && currentValue.trim() && editingProviderIndex !== null) {
-                                handleAddModel(editingProviderIndex, currentValue.trim())
-                                // 清空ComboInput
-                                comboInput.clearInput()
-                              }
-                            } else {
-                              // 使用普通Input的逻辑
-                              const input = document.getElementById('models') as HTMLInputElement
-                              if (input && input.value.trim() && editingProviderIndex !== null) {
-                                handleAddModel(editingProviderIndex, input.value)
-                                input.value = ''
-                              }
-                            }
-                          }}
-                        >
-                          {t('providers.add_model')}
-                        </Button>
-                        {/* <Button 
-                      onClick={() => editingProvider && fetchAvailableModels(editingProvider)}
-                      disabled={isFetchingModels}
-                      variant="outline"
-                    >
-                      {isFetchingModels ? t("providers.fetching_models") : t("providers.fetch_available_models")}
-                    </Button> */}
-                      </div>
-                      <div className='divide-y rounded-md border'>
-                        {[...(editingProvider.models || [])]
-                          .sort((a: string, b: string) => b.localeCompare(a))
-                          .map((model: string) => {
-                            const currentNames = (
-                              (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
-                            ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
-                            const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
-                            const disabledList = Array.isArray(
-                              (editingProvider.transformer as Record<string, unknown> | undefined)?._disabledModels
-                            )
-                              ? (editingProvider.transformer as Record<string, string[]>)._disabledModels
-                              : []
-                            const modelDisabled = disabledList.includes(model)
-                            return (
-                              <div key={model} className='flex items-center gap-3 px-3 py-2'>
-                                <Switch
-                                  checked={!apiKeyMissing && !modelDisabled}
-                                  disabled={apiKeyMissing}
-                                  onCheckedChange={(checked) => setApiModelDisabled(model, !checked)}
-                                />
-                                <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
-                                <div className='w-64'>
-                                  <MultiCombobox
-                                    options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
-                                    value={currentNames}
-                                    onChange={(names) => setModelTransformers(model, names)}
-                                    placeholder={t('providers.select_transformer')}
-                                    emptyPlaceholder={t('providers.no_transformers')}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          })}
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Provider Transformer Selection */}
                   <div className='space-y-2'>
                     <Label>{t('providers.provider_transformer')}</Label>
@@ -1167,6 +1053,118 @@ export function Providers() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  <div className='space-y-2'>
+                    <Label htmlFor='models'>{t('providers.models')}</Label>
+                    <div className='space-y-2'>
+                      <div className='flex gap-2'>
+                        <div className='flex-1'>
+                          {hasFetchedModels[editingProviderIndex] ? (
+                            <ComboInput
+                              ref={comboInputRef}
+                              options={(editingProvider.models || []).map((model: string) => ({
+                                label: model,
+                                value: model
+                              }))}
+                              value=''
+                              onChange={() => {
+                                // 只更新输入值，不添加模型
+                              }}
+                              onEnter={(value) => {
+                                if (editingProviderIndex !== null) {
+                                  handleAddModel(editingProviderIndex, value)
+                                }
+                              }}
+                              inputPlaceholder={t('providers.models_placeholder')}
+                            />
+                          ) : (
+                            <Input
+                              id='models'
+                              placeholder={t('providers.models_placeholder')}
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === 'Enter' &&
+                                  e.currentTarget.value.trim() &&
+                                  editingProviderIndex !== null
+                                ) {
+                                  handleAddModel(editingProviderIndex, e.currentTarget.value)
+                                  e.currentTarget.value = ''
+                                }
+                              }}
+                            />
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => {
+                            if (hasFetchedModels[editingProviderIndex] && comboInputRef.current) {
+                              // 使用ComboInput的逻辑
+                              const comboInput = comboInputRef.current as unknown as {
+                                getCurrentValue(): string
+                                clearInput(): void
+                              }
+                              const currentValue = comboInput.getCurrentValue()
+                              if (currentValue && currentValue.trim() && editingProviderIndex !== null) {
+                                handleAddModel(editingProviderIndex, currentValue.trim())
+                                // 清空ComboInput
+                                comboInput.clearInput()
+                              }
+                            } else {
+                              // 使用普通Input的逻辑
+                              const input = document.getElementById('models') as HTMLInputElement
+                              if (input && input.value.trim() && editingProviderIndex !== null) {
+                                handleAddModel(editingProviderIndex, input.value)
+                                input.value = ''
+                              }
+                            }
+                          }}
+                        >
+                          {t('providers.add_model')}
+                        </Button>
+                        {/* <Button 
+                      onClick={() => editingProvider && fetchAvailableModels(editingProvider)}
+                      disabled={isFetchingModels}
+                      variant="outline"
+                    >
+                      {isFetchingModels ? t("providers.fetching_models") : t("providers.fetch_available_models")}
+                    </Button> */}
+                      </div>
+                      <div className='divide-y rounded-md border'>
+                        {[...(editingProvider.models || [])]
+                          .sort((a: string, b: string) => b.localeCompare(a))
+                          .map((model: string) => {
+                            const currentNames = (
+                              (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
+                            ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
+                            const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
+                            const disabledList = Array.isArray(
+                              (editingProvider.transformer as Record<string, unknown> | undefined)?._disabledModels
+                            )
+                              ? (editingProvider.transformer as Record<string, string[]>)._disabledModels
+                              : []
+                            const modelDisabled = disabledList.includes(model)
+                            return (
+                              <div key={model} className='flex items-center gap-3 px-3 py-2'>
+                                <Switch
+                                  checked={!apiKeyMissing && !modelDisabled}
+                                  disabled={apiKeyMissing}
+                                  onCheckedChange={(checked) => setApiModelDisabled(model, !checked)}
+                                />
+                                <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
+                                <div className='w-64'>
+                                  <MultiCombobox
+                                    options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
+                                    value={currentNames}
+                                    onChange={(names) => setModelTransformers(model, names)}
+                                    placeholder={t('providers.select_transformer')}
+                                    emptyPlaceholder={t('providers.no_transformers')}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
