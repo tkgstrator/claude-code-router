@@ -84,10 +84,8 @@ export function ModelsDashboard() {
           : (provider.api_key?.trim().length ?? 0) > 0
       if (!providerAvailable) return []
       const models = Array.isArray(provider.models) ? provider.models : []
-      const disabledList = Array.isArray(
-        (provider.transformer as Record<string, unknown> | undefined)?._disabledModels
-      )
-        ? ((provider.transformer as Record<string, string[]>)._disabledModels)
+      const disabledList = Array.isArray((provider.transformer as Record<string, unknown> | undefined)?._disabledModels)
+        ? (provider.transformer as Record<string, string[]>)._disabledModels
         : []
       const isSubscription = provider.auth_mode === 'subscription'
       return models.map((model) => {
@@ -226,10 +224,7 @@ export function ModelsDashboard() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr
-                  key={row.key}
-                  className={`border-t hover:bg-gray-50 ${row.enabled ? '' : 'opacity-50'}`}
-                >
+                <tr key={row.key} className={`border-t hover:bg-gray-50 ${row.enabled ? '' : 'opacity-50'}`}>
                   <td className='px-6 py-2 text-gray-700'>
                     <span className='inline-flex items-center gap-2'>
                       <ProviderIcon name={row.provider} size={16} />

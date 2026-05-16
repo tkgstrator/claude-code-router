@@ -1,5 +1,5 @@
-import * as si from 'simple-icons'
 import type { SimpleIcon } from 'simple-icons'
+import * as si from 'simple-icons'
 
 // Vendor → simple-icons slug. Vendors that simple-icons declines to
 // ship for brand-licensing reasons (openai, moonshot-ai at v16) come
@@ -41,9 +41,7 @@ export function ProviderIcon({ name, size = 20, className }: ProviderIconProps) 
   const resolvedName = NAME_ALIASES[name] ?? name
   const slug = VENDOR_ICON_SLUG[resolvedName]
   const fromSi = slug ? (si[slug] as SimpleIcon | undefined) : undefined
-  const icon = fromSi
-    ? { hex: fromSi.hex, title: fromSi.title, path: fromSi.path }
-    : CUSTOM_ICONS[resolvedName]
+  const icon = fromSi ? { hex: fromSi.hex, title: fromSi.title, path: fromSi.path } : CUSTOM_ICONS[resolvedName]
   if (icon) {
     return (
       <svg
@@ -62,6 +60,7 @@ export function ProviderIcon({ name, size = 20, className }: ProviderIconProps) 
   }
   return (
     <span
+      role='img'
       className={`inline-flex items-center justify-center rounded bg-muted text-xs font-medium uppercase text-muted-foreground ${className ?? ''}`}
       style={{ width: size, height: size }}
       aria-label={name}

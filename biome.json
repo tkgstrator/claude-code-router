@@ -15,6 +15,7 @@
       "packages/cli/src/**/*.{ts,tsx}",
       "packages/server/src/**/*.{ts,tsx}",
       "packages/ui/src/**/*.{ts,tsx}",
+      "!packages/server/src/generated",
       "!packages/ui/src/components/ui/**/*.{ts,tsx}",
       "!packages/ui/src/locales",
       "!**/node_modules",

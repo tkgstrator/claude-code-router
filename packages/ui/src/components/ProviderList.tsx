@@ -27,10 +27,9 @@ export function ProviderList({ providers, onEdit, onRemove, planByProvider }: Pr
       return next
     })
     try {
-      const result = await api.post<{ success: boolean; error?: string; latencyMs?: number }>(
-        '/providers/test',
-        { name: providerName }
-      )
+      const result = await api.post<{ success: boolean; error?: string; latencyMs?: number }>('/providers/test', {
+        name: providerName
+      })
       setTestState((prev) => ({ ...prev, [providerName]: result.success ? 'ok' : 'fail' }))
       if (!result.success && result.error) {
         setTestError((prev) => ({ ...prev, [providerName]: result.error as string }))

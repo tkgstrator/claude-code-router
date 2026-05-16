@@ -18,7 +18,7 @@ interface CredentialFileShape {
   scopes: string[] | null
 }
 
-const readJson = async <T,>(path: string): Promise<T | null> => {
+const readJson = async <T>(path: string): Promise<T | null> => {
   try {
     const raw = await readFile(path, 'utf-8')
     return JSON.parse(raw) as T
@@ -47,7 +47,10 @@ const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
   const parts = token.split('.')
   if (parts.length < 2) return null
   try {
-    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(parts[1].length + ((4 - (parts[1].length % 4)) % 4), '=')
+    const padded = parts[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(parts[1].length + ((4 - (parts[1].length % 4)) % 4), '=')
     return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'))
   } catch {
     return null
@@ -55,13 +58,15 @@ const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
 }
 
 const readCodexCredentials = async (): Promise<CredentialFileShape | null> => {
-  const data = await readJson<{ tokens?: { id_token?: string; access_token?: string }; OPENAI_API_KEY?: string | null }>(
-    join(homedir(), '.codex', 'auth.json')
-  )
+  const data = await readJson<{
+    tokens?: { id_token?: string; access_token?: string }
+    OPENAI_API_KEY?: string | null
+  }>(join(homedir(), '.codex', 'auth.json'))
   const idToken = data?.tokens?.id_token
   const claims = idToken ? decodeJwtPayload(idToken) : null
   const auth = (claims?.['https://api.openai.com/auth'] ?? {}) as Record<string, unknown>
-  const activeUntil = typeof auth.chatgpt_subscription_active_until === 'string' ? auth.chatgpt_subscription_active_until : null
+  const activeUntil =
+    typeof auth.chatgpt_subscription_active_until === 'string' ? auth.chatgpt_subscription_active_until : null
   return {
     plan: typeof auth.chatgpt_plan_type === 'string' ? auth.chatgpt_plan_type : null,
     rateLimitTier: null,

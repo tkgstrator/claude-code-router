@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ComboInput } from '@/components/ui/combo-input'
 import { Combobox } from '@/components/ui/combobox'
-import { MultiCombobox } from '@/components/ui/multi-combobox'
 import {
   Dialog,
   DialogContent,
@@ -17,16 +16,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { MultiCombobox } from '@/components/ui/multi-combobox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@/components/ui/popover'
 import { api } from '@/lib/api'
 import { buildTemplates, LLM_PRICES_URL, PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
 import { buildSubscriptionProvider, findSubscriptionPreset, SUBSCRIPTION_PRESETS } from '@/lib/subscriptionPresets'
-import { Switch } from '@/components/ui/switch'
 import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
@@ -54,7 +50,14 @@ export function Providers() {
       const res = await fetch(LLM_PRICES_URL)
       if (res.ok) {
         const data = (await res.json()) as {
-          prices: { id: string; vendor: string; name: string; input: number; output: number; input_cached: number | null }[]
+          prices: {
+            id: string
+            vendor: string
+            name: string
+            input: number
+            output: number
+            input_cached: number | null
+          }[]
         }
         setProviderTemplates(buildTemplates(data.prices))
       }
@@ -342,7 +345,7 @@ export function Providers() {
     const updatedProvider = { ...editingProviderData }
     const transformer = { ...(updatedProvider.transformer ?? { use: [] }) }
     const current = Array.isArray((transformer as Record<string, unknown>)._disabledModels)
-      ? ([...(transformer as Record<string, string[]>)._disabledModels])
+      ? [...(transformer as Record<string, string[]>)._disabledModels]
       : []
     const next = (() => {
       if (disabled) {
@@ -766,9 +769,7 @@ export function Providers() {
                   providers={availableProviders}
                   planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
-                  onRemove={(idx) =>
-                    handleSetDeletingProviderIndex(filteredProviders.indexOf(availableProviders[idx]))
-                  }
+                  onRemove={(idx) => handleSetDeletingProviderIndex(filteredProviders.indexOf(availableProviders[idx]))}
                 />
               </div>
             )}
@@ -895,294 +896,297 @@ export function Providers() {
               )}
               {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
                 <div className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='models'>{t('providers.models')}</Label>
-                <div className='space-y-2'>
-                  <div className='flex gap-2'>
-                    <div className='flex-1'>
-                      {hasFetchedModels[editingProviderIndex] ? (
-                        <ComboInput
-                          ref={comboInputRef}
-                          options={(editingProvider.models || []).map((model: string) => ({
-                            label: model,
-                            value: model
-                          }))}
-                          value=''
-                          onChange={() => {
-                            // 只更新输入值，不添加模型
-                          }}
-                          onEnter={(value) => {
-                            if (editingProviderIndex !== null) {
-                              handleAddModel(editingProviderIndex, value)
+                  <div className='space-y-2'>
+                    <Label htmlFor='models'>{t('providers.models')}</Label>
+                    <div className='space-y-2'>
+                      <div className='flex gap-2'>
+                        <div className='flex-1'>
+                          {hasFetchedModels[editingProviderIndex] ? (
+                            <ComboInput
+                              ref={comboInputRef}
+                              options={(editingProvider.models || []).map((model: string) => ({
+                                label: model,
+                                value: model
+                              }))}
+                              value=''
+                              onChange={() => {
+                                // 只更新输入值，不添加模型
+                              }}
+                              onEnter={(value) => {
+                                if (editingProviderIndex !== null) {
+                                  handleAddModel(editingProviderIndex, value)
+                                }
+                              }}
+                              inputPlaceholder={t('providers.models_placeholder')}
+                            />
+                          ) : (
+                            <Input
+                              id='models'
+                              placeholder={t('providers.models_placeholder')}
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === 'Enter' &&
+                                  e.currentTarget.value.trim() &&
+                                  editingProviderIndex !== null
+                                ) {
+                                  handleAddModel(editingProviderIndex, e.currentTarget.value)
+                                  e.currentTarget.value = ''
+                                }
+                              }}
+                            />
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => {
+                            if (hasFetchedModels[editingProviderIndex] && comboInputRef.current) {
+                              // 使用ComboInput的逻辑
+                              const comboInput = comboInputRef.current as unknown as {
+                                getCurrentValue(): string
+                                clearInput(): void
+                              }
+                              const currentValue = comboInput.getCurrentValue()
+                              if (currentValue && currentValue.trim() && editingProviderIndex !== null) {
+                                handleAddModel(editingProviderIndex, currentValue.trim())
+                                // 清空ComboInput
+                                comboInput.clearInput()
+                              }
+                            } else {
+                              // 使用普通Input的逻辑
+                              const input = document.getElementById('models') as HTMLInputElement
+                              if (input && input.value.trim() && editingProviderIndex !== null) {
+                                handleAddModel(editingProviderIndex, input.value)
+                                input.value = ''
+                              }
                             }
                           }}
-                          inputPlaceholder={t('providers.models_placeholder')}
-                        />
-                      ) : (
-                        <Input
-                          id='models'
-                          placeholder={t('providers.models_placeholder')}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.currentTarget.value.trim() && editingProviderIndex !== null) {
-                              handleAddModel(editingProviderIndex, e.currentTarget.value)
-                              e.currentTarget.value = ''
-                            }
-                          }}
-                        />
-                      )}
-                    </div>
-                    <Button
-                      onClick={() => {
-                        if (hasFetchedModels[editingProviderIndex] && comboInputRef.current) {
-                          // 使用ComboInput的逻辑
-                          const comboInput = comboInputRef.current as unknown as {
-                            getCurrentValue(): string
-                            clearInput(): void
-                          }
-                          const currentValue = comboInput.getCurrentValue()
-                          if (currentValue && currentValue.trim() && editingProviderIndex !== null) {
-                            handleAddModel(editingProviderIndex, currentValue.trim())
-                            // 清空ComboInput
-                            comboInput.clearInput()
-                          }
-                        } else {
-                          // 使用普通Input的逻辑
-                          const input = document.getElementById('models') as HTMLInputElement
-                          if (input && input.value.trim() && editingProviderIndex !== null) {
-                            handleAddModel(editingProviderIndex, input.value)
-                            input.value = ''
-                          }
-                        }
-                      }}
-                    >
-                      {t('providers.add_model')}
-                    </Button>
-                    {/* <Button 
+                        >
+                          {t('providers.add_model')}
+                        </Button>
+                        {/* <Button 
                       onClick={() => editingProvider && fetchAvailableModels(editingProvider)}
                       disabled={isFetchingModels}
                       variant="outline"
                     >
                       {isFetchingModels ? t("providers.fetching_models") : t("providers.fetch_available_models")}
                     </Button> */}
-                  </div>
-                  <div className='divide-y rounded-md border'>
-                    {[...(editingProvider.models || [])]
-                      .sort((a: string, b: string) => b.localeCompare(a))
-                      .map((model: string) => {
-                        const currentNames = (
-                          (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
-                        ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
-                        const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
-                        const disabledList = Array.isArray(
-                          (editingProvider.transformer as Record<string, unknown> | undefined)?._disabledModels
-                        )
-                          ? ((editingProvider.transformer as Record<string, string[]>)._disabledModels)
-                          : []
-                        const modelDisabled = disabledList.includes(model)
-                        return (
-                          <div key={model} className='flex items-center gap-3 px-3 py-2'>
-                            <Switch
-                              checked={!apiKeyMissing && !modelDisabled}
-                              disabled={apiKeyMissing}
-                              onCheckedChange={(checked) => setApiModelDisabled(model, !checked)}
-                            />
-                            <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
-                            <div className='w-64'>
-                              <MultiCombobox
-                                options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
-                                value={currentNames}
-                                onChange={(names) => setModelTransformers(model, names)}
-                                placeholder={t('providers.select_transformer')}
-                                emptyPlaceholder={t('providers.no_transformers')}
-                              />
-                            </div>
-                          </div>
-                        )
-                      })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Provider Transformer Selection */}
-              <div className='space-y-2'>
-                <Label>{t('providers.provider_transformer')}</Label>
-
-                {/* Add new transformer */}
-                <div className='flex gap-2'>
-                  <Combobox
-                    options={availableTransformers.map((t) => ({
-                      label: t.name,
-                      value: t.name
-                    }))}
-                    value=''
-                    onChange={(value) => {
-                      if (editingProviderIndex !== null) {
-                        handleProviderTransformerChange(editingProviderIndex, value)
-                      }
-                    }}
-                    placeholder={t('providers.select_transformer')}
-                    emptyPlaceholder={t('providers.no_transformers')}
-                  />
-                </div>
-
-                {/* Display existing transformers */}
-                {editingProvider.transformer?.use && editingProvider.transformer.use.length > 0 && (
-                  <div className='space-y-2 mt-2'>
-                    <div className='text-sm font-medium text-gray-700'>{t('providers.selected_transformers')}</div>
-                    {editingProvider.transformer.use.map(
-                      (
-                        transformer: string | (string | Record<string, unknown> | { max_tokens: number })[],
-                        transformerIndex: number
-                      ) => (
-                        <div key={transformerIndex} className='border rounded-md p-3'>
-                          <div className='flex gap-2 items-center mb-2'>
-                            <div className='flex-1 bg-gray-50 rounded p-2 text-sm'>
-                              {typeof transformer === 'string'
-                                ? transformer
-                                : Array.isArray(transformer)
-                                  ? String(transformer[0])
-                                  : String(transformer)}
-                            </div>
-                            <Button
-                              variant='outline'
-                              size='icon'
-                              onClick={() => {
-                                if (editingProviderIndex !== null) {
-                                  removeProviderTransformerAtIndex(editingProviderIndex, transformerIndex)
-                                }
-                              }}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
-                          </div>
-
-                          {/* Transformer-specific Parameters */}
-                          <div className='mt-2 pl-4 border-l-2 border-gray-200'>
-                            <Label className='text-sm'>{t('providers.transformer_parameters')}</Label>
-                            <div className='space-y-2 mt-1'>
-                              <div className='flex gap-2'>
-                                <Input
-                                  placeholder={t('providers.parameter_name')}
-                                  value={
-                                    providerParamInputs[
-                                      `provider-${editingProviderIndex}-transformer-${transformerIndex}`
-                                    ]?.name || ''
-                                  }
-                                  onChange={(e) => {
-                                    const key = `provider-${editingProviderIndex}-transformer-${transformerIndex}`
-                                    setProviderParamInputs((prev) => ({
-                                      ...prev,
-                                      [key]: {
-                                        ...(prev[key] || { name: '', value: '' }),
-                                        name: e.target.value
-                                      }
-                                    }))
-                                  }}
+                      </div>
+                      <div className='divide-y rounded-md border'>
+                        {[...(editingProvider.models || [])]
+                          .sort((a: string, b: string) => b.localeCompare(a))
+                          .map((model: string) => {
+                            const currentNames = (
+                              (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
+                            ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
+                            const apiKeyMissing = (editingProvider.api_key?.trim().length ?? 0) === 0
+                            const disabledList = Array.isArray(
+                              (editingProvider.transformer as Record<string, unknown> | undefined)?._disabledModels
+                            )
+                              ? (editingProvider.transformer as Record<string, string[]>)._disabledModels
+                              : []
+                            const modelDisabled = disabledList.includes(model)
+                            return (
+                              <div key={model} className='flex items-center gap-3 px-3 py-2'>
+                                <Switch
+                                  checked={!apiKeyMissing && !modelDisabled}
+                                  disabled={apiKeyMissing}
+                                  onCheckedChange={(checked) => setApiModelDisabled(model, !checked)}
                                 />
-                                <Input
-                                  placeholder={t('providers.parameter_value')}
-                                  value={
-                                    providerParamInputs[
-                                      `provider-${editingProviderIndex}-transformer-${transformerIndex}`
-                                    ]?.value || ''
-                                  }
-                                  onChange={(e) => {
-                                    const key = `provider-${editingProviderIndex}-transformer-${transformerIndex}`
-                                    setProviderParamInputs((prev) => ({
-                                      ...prev,
-                                      [key]: {
-                                        ...(prev[key] || { name: '', value: '' }),
-                                        value: e.target.value
-                                      }
-                                    }))
-                                  }}
-                                />
+                                <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
+                                <div className='w-64'>
+                                  <MultiCombobox
+                                    options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
+                                    value={currentNames}
+                                    onChange={(names) => setModelTransformers(model, names)}
+                                    placeholder={t('providers.select_transformer')}
+                                    emptyPlaceholder={t('providers.no_transformers')}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Provider Transformer Selection */}
+                  <div className='space-y-2'>
+                    <Label>{t('providers.provider_transformer')}</Label>
+
+                    {/* Add new transformer */}
+                    <div className='flex gap-2'>
+                      <Combobox
+                        options={availableTransformers.map((t) => ({
+                          label: t.name,
+                          value: t.name
+                        }))}
+                        value=''
+                        onChange={(value) => {
+                          if (editingProviderIndex !== null) {
+                            handleProviderTransformerChange(editingProviderIndex, value)
+                          }
+                        }}
+                        placeholder={t('providers.select_transformer')}
+                        emptyPlaceholder={t('providers.no_transformers')}
+                      />
+                    </div>
+
+                    {/* Display existing transformers */}
+                    {editingProvider.transformer?.use && editingProvider.transformer.use.length > 0 && (
+                      <div className='space-y-2 mt-2'>
+                        <div className='text-sm font-medium text-gray-700'>{t('providers.selected_transformers')}</div>
+                        {editingProvider.transformer.use.map(
+                          (
+                            transformer: string | (string | Record<string, unknown> | { max_tokens: number })[],
+                            transformerIndex: number
+                          ) => (
+                            <div key={transformerIndex} className='border rounded-md p-3'>
+                              <div className='flex gap-2 items-center mb-2'>
+                                <div className='flex-1 bg-gray-50 rounded p-2 text-sm'>
+                                  {typeof transformer === 'string'
+                                    ? transformer
+                                    : Array.isArray(transformer)
+                                      ? String(transformer[0])
+                                      : String(transformer)}
+                                </div>
                                 <Button
-                                  size='sm'
+                                  variant='outline'
+                                  size='icon'
                                   onClick={() => {
                                     if (editingProviderIndex !== null) {
-                                      const key = `provider-${editingProviderIndex}-transformer-${transformerIndex}`
-                                      const paramInput = providerParamInputs[key]
-                                      if (paramInput && paramInput.name && paramInput.value) {
-                                        addProviderTransformerParameter(
-                                          editingProviderIndex,
-                                          transformerIndex,
-                                          paramInput.name,
-                                          paramInput.value
-                                        )
-                                        setProviderParamInputs((prev) => ({
-                                          ...prev,
-                                          [key]: { name: '', value: '' }
-                                        }))
-                                      }
+                                      removeProviderTransformerAtIndex(editingProviderIndex, transformerIndex)
                                     }
                                   }}
                                 >
-                                  <Plus className='h-4 w-4' />
+                                  <Trash2 className='h-4 w-4' />
                                 </Button>
                               </div>
 
-                              {/* Display existing parameters for this transformer */}
-                              {(() => {
-                                // Get parameters for this specific transformer
-                                if (
-                                  !editingProvider.transformer?.use ||
-                                  editingProvider.transformer.use.length <= transformerIndex
-                                ) {
-                                  return null
-                                }
-
-                                const targetTransformer = editingProvider.transformer.use[transformerIndex]
-                                let params = {}
-
-                                if (Array.isArray(targetTransformer) && targetTransformer.length > 1) {
-                                  // Check if the second element is an object (parameters object)
-                                  if (typeof targetTransformer[1] === 'object' && targetTransformer[1] !== null) {
-                                    params = targetTransformer[1] as Record<string, unknown>
-                                  }
-                                }
-
-                                return Object.keys(params).length > 0 ? (
-                                  <div className='space-y-1'>
-                                    {Object.entries(params).map(([key, value]) => (
-                                      <div
-                                        key={key}
-                                        className='flex items-center justify-between bg-gray-50 rounded p-2'
-                                      >
-                                        <div className='text-sm'>
-                                          <span className='font-medium'>{key}:</span> {String(value)}
-                                        </div>
-                                        <Button
-                                          variant='ghost'
-                                          size='sm'
-                                          className='h-6 w-6 p-0'
-                                          onClick={() => {
-                                            if (editingProviderIndex !== null) {
-                                              // We need a function to remove parameters from a specific transformer
-                                              removeProviderTransformerParameterAtIndex(
-                                                editingProviderIndex,
-                                                transformerIndex,
-                                                key
-                                              )
-                                            }
-                                          }}
-                                        >
-                                          <X className='h-3 w-3' />
-                                        </Button>
-                                      </div>
-                                    ))}
+                              {/* Transformer-specific Parameters */}
+                              <div className='mt-2 pl-4 border-l-2 border-gray-200'>
+                                <Label className='text-sm'>{t('providers.transformer_parameters')}</Label>
+                                <div className='space-y-2 mt-1'>
+                                  <div className='flex gap-2'>
+                                    <Input
+                                      placeholder={t('providers.parameter_name')}
+                                      value={
+                                        providerParamInputs[
+                                          `provider-${editingProviderIndex}-transformer-${transformerIndex}`
+                                        ]?.name || ''
+                                      }
+                                      onChange={(e) => {
+                                        const key = `provider-${editingProviderIndex}-transformer-${transformerIndex}`
+                                        setProviderParamInputs((prev) => ({
+                                          ...prev,
+                                          [key]: {
+                                            ...(prev[key] || { name: '', value: '' }),
+                                            name: e.target.value
+                                          }
+                                        }))
+                                      }}
+                                    />
+                                    <Input
+                                      placeholder={t('providers.parameter_value')}
+                                      value={
+                                        providerParamInputs[
+                                          `provider-${editingProviderIndex}-transformer-${transformerIndex}`
+                                        ]?.value || ''
+                                      }
+                                      onChange={(e) => {
+                                        const key = `provider-${editingProviderIndex}-transformer-${transformerIndex}`
+                                        setProviderParamInputs((prev) => ({
+                                          ...prev,
+                                          [key]: {
+                                            ...(prev[key] || { name: '', value: '' }),
+                                            value: e.target.value
+                                          }
+                                        }))
+                                      }}
+                                    />
+                                    <Button
+                                      size='sm'
+                                      onClick={() => {
+                                        if (editingProviderIndex !== null) {
+                                          const key = `provider-${editingProviderIndex}-transformer-${transformerIndex}`
+                                          const paramInput = providerParamInputs[key]
+                                          if (paramInput && paramInput.name && paramInput.value) {
+                                            addProviderTransformerParameter(
+                                              editingProviderIndex,
+                                              transformerIndex,
+                                              paramInput.name,
+                                              paramInput.value
+                                            )
+                                            setProviderParamInputs((prev) => ({
+                                              ...prev,
+                                              [key]: { name: '', value: '' }
+                                            }))
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <Plus className='h-4 w-4' />
+                                    </Button>
                                   </div>
-                                ) : null
-                              })()}
+
+                                  {/* Display existing parameters for this transformer */}
+                                  {(() => {
+                                    // Get parameters for this specific transformer
+                                    if (
+                                      !editingProvider.transformer?.use ||
+                                      editingProvider.transformer.use.length <= transformerIndex
+                                    ) {
+                                      return null
+                                    }
+
+                                    const targetTransformer = editingProvider.transformer.use[transformerIndex]
+                                    let params = {}
+
+                                    if (Array.isArray(targetTransformer) && targetTransformer.length > 1) {
+                                      // Check if the second element is an object (parameters object)
+                                      if (typeof targetTransformer[1] === 'object' && targetTransformer[1] !== null) {
+                                        params = targetTransformer[1] as Record<string, unknown>
+                                      }
+                                    }
+
+                                    return Object.keys(params).length > 0 ? (
+                                      <div className='space-y-1'>
+                                        {Object.entries(params).map(([key, value]) => (
+                                          <div
+                                            key={key}
+                                            className='flex items-center justify-between bg-gray-50 rounded p-2'
+                                          >
+                                            <div className='text-sm'>
+                                              <span className='font-medium'>{key}:</span> {String(value)}
+                                            </div>
+                                            <Button
+                                              variant='ghost'
+                                              size='sm'
+                                              className='h-6 w-6 p-0'
+                                              onClick={() => {
+                                                if (editingProviderIndex !== null) {
+                                                  // We need a function to remove parameters from a specific transformer
+                                                  removeProviderTransformerParameterAtIndex(
+                                                    editingProviderIndex,
+                                                    transformerIndex,
+                                                    key
+                                                  )
+                                                }
+                                              }}
+                                            >
+                                              <X className='h-3 w-3' />
+                                            </Button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : null
+                                  })()}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      )
+                          )
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-
                 </div>
               ) : (
                 (() => {
@@ -1193,30 +1197,32 @@ export function Providers() {
                     <div className='space-y-2'>
                       <Label>{t('providers.models')}</Label>
                       <div className='divide-y rounded-md border'>
-                        {[...preset.availableModels].sort((a, b) => b.localeCompare(a)).map((model) => {
-                          const enabled = enabledModels.has(model)
-                          const currentNames = (
-                            (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
-                          ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
-                          return (
-                            <div key={model} className='flex items-center gap-3 px-3 py-2'>
-                              <Switch
-                                checked={enabled}
-                                onCheckedChange={(checked) => toggleSubscriptionModel(model, checked)}
-                              />
-                              <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
-                              <div className='w-64'>
-                                <MultiCombobox
-                                  options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
-                                  value={currentNames}
-                                  onChange={(names) => setModelTransformers(model, names)}
-                                  placeholder={t('providers.select_transformer')}
-                                  emptyPlaceholder={t('providers.no_transformers')}
+                        {[...preset.availableModels]
+                          .sort((a, b) => b.localeCompare(a))
+                          .map((model) => {
+                            const enabled = enabledModels.has(model)
+                            const currentNames = (
+                              (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
+                            ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
+                            return (
+                              <div key={model} className='flex items-center gap-3 px-3 py-2'>
+                                <Switch
+                                  checked={enabled}
+                                  onCheckedChange={(checked) => toggleSubscriptionModel(model, checked)}
                                 />
+                                <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
+                                <div className='w-64'>
+                                  <MultiCombobox
+                                    options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
+                                    value={currentNames}
+                                    onChange={(names) => setModelTransformers(model, names)}
+                                    placeholder={t('providers.select_transformer')}
+                                    emptyPlaceholder={t('providers.no_transformers')}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
                       </div>
                     </div>
                   )

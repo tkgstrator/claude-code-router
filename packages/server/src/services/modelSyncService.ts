@@ -52,9 +52,7 @@ async function fetchVendorModels(vendor: string, apiKey: string): Promise<string
   }
   // Google Gemini: { models: [{ name: "models/gemini-..." }] }
   if (Array.isArray(data.models)) {
-    return data.models
-      .map((m) => String(m.name ?? '').replace(/^models\//, ''))
-      .filter((id) => id.length > 0)
+    return data.models.map((m) => String(m.name ?? '').replace(/^models\//, '')).filter((id) => id.length > 0)
   }
   return { error: `${vendor} returned an unrecognised response shape` }
 }
