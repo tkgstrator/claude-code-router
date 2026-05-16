@@ -1,5 +1,7 @@
 import seed from './llm-prices.json'
 
+export { SUBSCRIPTION_PRESETS, type SubscriptionPreset } from './subscriptions'
+
 export const LLM_PRICES_URL = 'https://www.llm-prices.com/current-v1.json'
 
 export interface PriceEntry {

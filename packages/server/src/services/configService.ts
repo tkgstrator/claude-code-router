@@ -9,6 +9,7 @@
  */
 
 import { buildSeedProviders, type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKey } from '@ccr/shared'
+import { SUBSCRIPTION_PRESETS } from '@ccr/shared/data'
 import { getPrismaClient } from '../db/client'
 import {
   AuthMode,
@@ -321,16 +322,36 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
 // overwritten.
 export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient()): Promise<void> {
   const existingNames = new Set((await prisma.provider.findMany({ select: { name: true } })).map((p) => p.name))
-  const missing = buildSeedProviders().filter((seed) => !existingNames.has(seed.name))
-  if (missing.length === 0) return
+  const apiSeeds = buildSeedProviders()
+    .filter((seed) => !existingNames.has(seed.name))
+    .map((seed) => ({
+      name: seed.name,
+      apiBaseUrl: seed.apiBaseUrl,
+      authMode: AuthMode.api_key,
+      transformer: seed.transformer ?? Prisma.DbNull,
+      models: seed.models
+    }))
+  // Subscription presets seed alongside the api_key snapshots so the UI's
+  // Subscription tab is non-empty out of the box. Same top-up semantics
+  // — only names absent from the table are inserted.
+  const subscriptionSeeds = SUBSCRIPTION_PRESETS.filter((preset) => !existingNames.has(preset.id)).map((preset) => ({
+    name: preset.id,
+    apiBaseUrl: preset.apiBaseUrl,
+    authMode: AuthMode.subscription,
+    transformer: Prisma.DbNull,
+    models: preset.defaultEnabledModels
+  }))
+  const allSeeds = [...apiSeeds, ...subscriptionSeeds]
+  if (allSeeds.length === 0) return
   await prisma.$transaction(async (tx) => {
-    for (const seed of missing) {
+    for (const seed of allSeeds) {
       const provider = await tx.provider.create({
         data: {
           name: seed.name,
           apiBaseUrl: seed.apiBaseUrl,
           apiKey: '',
-          transformer: seed.transformer ?? Prisma.DbNull
+          authMode: seed.authMode,
+          transformer: seed.transformer
         }
       })
       if (seed.models.length > 0) {
