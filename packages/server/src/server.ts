@@ -26,6 +26,7 @@ import { join } from 'path'
 import { version as serverVersion } from '../package.json'
 import { applyUiConfig, composeUiConfig } from './services/configService'
 import { refreshModelsForAllProviders } from './services/modelSyncService'
+import { getSubscriptionsInfo } from './services/subscriptionInfoService'
 import { backupConfigFile, readConfigFile, writeConfigFile } from './utils'
 import { checkForUpdates, performUpdate } from './utils/update'
 
@@ -117,6 +118,10 @@ export const createServer = async (config: any): Promise<any> => {
   app.post('/api/refresh-models', async (_req: any, _reply: any) => {
     const outcomes = await refreshModelsForAllProviders()
     return { outcomes }
+  })
+
+  app.get('/api/subscriptions', async () => {
+    return { subscriptions: await getSubscriptionsInfo() }
   })
 
   app.get('/api/update/check', async () => {

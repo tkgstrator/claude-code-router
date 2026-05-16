@@ -1,4 +1,5 @@
 import { Pencil, Trash2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProviderIcon } from '@/lib/providerIcons'
 import type { Provider } from '@/types'
@@ -7,9 +8,10 @@ interface ProviderListProps {
   providers: Provider[]
   onEdit: (index: number) => void
   onRemove: (index: number) => void
+  planByProvider?: Record<string, string | null>
 }
 
-export function ProviderList({ providers, onEdit, onRemove }: ProviderListProps) {
+export function ProviderList({ providers, onEdit, onRemove, planByProvider }: ProviderListProps) {
   // Handle case where providers might be null or undefined
   if (!providers || !Array.isArray(providers)) {
     return (
@@ -78,7 +80,14 @@ export function ProviderList({ providers, onEdit, onRemove }: ProviderListProps)
             <div className='flex flex-1 items-center gap-3'>
               <ProviderIcon name={providerName} size={28} className='flex-shrink-0' />
               <div className='flex-1 space-y-1'>
-                <p className='text-md font-semibold text-gray-800'>{providerName}</p>
+                <div className='flex items-center gap-2'>
+                  <p className='text-md font-semibold text-gray-800'>{providerName}</p>
+                  {planByProvider?.[providerName] && (
+                    <Badge variant='secondary' className='text-xs uppercase tracking-wide'>
+                      {planByProvider[providerName]}
+                    </Badge>
+                  )}
+                </div>
                 <p className='text-sm text-gray-500'>{apiBasePath}</p>
               </div>
             </div>

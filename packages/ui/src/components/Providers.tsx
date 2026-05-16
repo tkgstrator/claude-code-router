@@ -79,6 +79,8 @@ export function Providers() {
   const [subscriptionPickerOpen, setSubscriptionPickerOpen] = useState(false)
   const comboInputRef = useRef<HTMLInputElement>(null)
 
+  const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
+
   // Fetch available transformers when component mounts
   useEffect(() => {
     const fetchTransformers = async () => {
@@ -92,6 +94,24 @@ export function Providers() {
 
     fetchTransformers()
   }, [])
+
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        const response = await api.get<{
+          subscriptions: { providerName: string; plan: string | null }[]
+        }>('/subscriptions')
+        const map: Record<string, string | null> = {}
+        for (const entry of response.subscriptions) {
+          map[entry.providerName] = entry.plan
+        }
+        setPlanByProvider(map)
+      } catch (error) {
+        console.error('Failed to fetch subscriptions:', error)
+      }
+    }
+    fetchSubscriptions()
+  }, [config])
 
   // Handle case where config is null or undefined
   if (!config) {
@@ -741,6 +761,7 @@ export function Providers() {
                 </h3>
                 <ProviderList
                   providers={availableProviders}
+                  planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
                   onRemove={(idx) =>
                     handleSetDeletingProviderIndex(filteredProviders.indexOf(availableProviders[idx]))
@@ -755,6 +776,7 @@ export function Providers() {
                 </h3>
                 <ProviderList
                   providers={unavailableProviders}
+                  planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
                   onRemove={(idx) =>
                     handleSetDeletingProviderIndex(filteredProviders.indexOf(unavailableProviders[idx]))
