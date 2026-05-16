@@ -61,8 +61,14 @@ export function ProviderList({ providers, onEdit, onRemove }: ProviderListProps)
         // Handle case where provider.name might be null or undefined
         const providerName = provider.name || 'Unnamed Provider'
 
-        // Handle case where provider.api_base_url might be null or undefined
-        const apiBaseUrl = provider.api_base_url || 'No API URL'
+        const apiBasePath = (() => {
+          if (!provider.api_base_url) return 'No API URL'
+          try {
+            return new URL(provider.api_base_url).pathname || '/'
+          } catch {
+            return provider.api_base_url
+          }
+        })()
 
         return (
           <div
@@ -73,7 +79,7 @@ export function ProviderList({ providers, onEdit, onRemove }: ProviderListProps)
               <ProviderIcon name={providerName} size={28} className='flex-shrink-0' />
               <div className='flex-1 space-y-1'>
                 <p className='text-md font-semibold text-gray-800'>{providerName}</p>
-                <p className='text-sm text-gray-500'>{apiBaseUrl}</p>
+                <p className='text-sm text-gray-500'>{apiBasePath}</p>
               </div>
             </div>
             <div className='ml-4 flex flex-shrink-0 items-center gap-2'>
