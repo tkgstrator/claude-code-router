@@ -17,6 +17,11 @@ rules:
   # the warning to disabled.
   footer-leading-blank:
     - 0
+  # Acronyms in subjects (README, CLAUDE.md, Postgres) are common and
+  # readable. Disable the case rule so e.g. "docs: README and CLAUDE.md
+  # cover Postgres-backed config store" passes.
+  subject-case:
+    - 0
   type-enum:
     - 2
     - always
