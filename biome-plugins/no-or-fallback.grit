@@ -1,0 +1,10 @@
+language js
+
+or {
+  `$_ || ''` as $match where { register_diagnostic(span=$match, message="Avoid `||` fallback to ''. Surface the missing value or throw instead.", severity="warn") },
+  `$_ || ""` as $match where { register_diagnostic(span=$match, message="Avoid `||` fallback to \"\". Surface the missing value or throw instead.", severity="warn") },
+  `$_ || []` as $match where { register_diagnostic(span=$match, message="Avoid `||` fallback to []. Surface the missing value or throw instead.", severity="warn") },
+  `$_ || {}` as $match where { register_diagnostic(span=$match, message="Avoid `||` fallback to {}. Surface the missing value or throw instead.", severity="warn") },
+  `$_ || null` as $match where { register_diagnostic(span=$match, message="Avoid `||` fallback to null. Surface the missing value or throw instead.", severity="warn") },
+  `$_ || undefined` as $match where { register_diagnostic(span=$match, message="Avoid `||` fallback to undefined. Surface the missing value or throw instead.", severity="warn") }
+}
