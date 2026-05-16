@@ -1,5 +1,14 @@
 import seed from './llm-prices.json'
+import { OFFICIAL_VENDOR_PRICES } from './providers'
 
+export { DEPRECATED_MODELS, isDeprecatedModel } from './deprecations'
+export {
+  LEGACY_MODELS,
+  OFFICIAL_VENDOR_PRICES,
+  type OfficialPricingEntry,
+  VENDOR_PRICE_FILES,
+  type VendorPriceFile
+} from './providers'
 export { SUBSCRIPTION_PRESETS, type SubscriptionPreset } from './subscriptions'
 
 export const LLM_PRICES_URL = 'https://www.llm-prices.com/current-v1.json'
@@ -126,6 +135,14 @@ export function buildSeedPricing(prices: PriceEntry[] = LLM_PRICES_SEED.prices):
   const result: Record<string, PricingEntry> = {}
   for (const p of prices) {
     result[p.id] = { inputPer1M: p.input, outputPer1M: p.output }
+  }
+  // Overlay vendor-published official prices — see ./vendor-prices.
+  // Later vendor files would simply iterate in insertion order; OpenAI
+  // is the only authoritative source we ship today.
+  for (const vendorMap of Object.values(OFFICIAL_VENDOR_PRICES)) {
+    for (const [id, entry] of Object.entries(vendorMap)) {
+      result[id] = entry
+    }
   }
   return result
 }

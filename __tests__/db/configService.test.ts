@@ -7,8 +7,8 @@
  */
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
-import { getPrismaClient } from '../../packages/server/src/db/client'
-import { applyUiConfig, composeUiConfig, ensureRouterSlots } from '../../packages/server/src/services/configService'
+import { getPrismaClient } from '../../src/db/client'
+import { applyUiConfig, composeUiConfig, ensureRouterSlots } from '../../src/services/configService'
 import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
 
 const tmpHome = `/tmp/ccr-db-test-${process.pid}`

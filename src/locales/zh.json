@@ -45,6 +45,10 @@
     "routes": "路由",
     "test": "测试",
     "test_all": "全部测试",
+    "filter_provider": "供应商",
+    "filter_all_providers": "所有供应商",
+    "filter_show_all": "所有模型",
+    "filter_enabled_only": "仅启用",
     "status_ok": "可用",
     "status_fail": "失败",
     "status_unknown": "未检查",
@@ -54,7 +58,13 @@
     "cost": "费用 / 1M",
     "input": "输入 / 1M",
     "output": "输出 / 1M",
-    "cost_hint": "每 100 万 token 的美元价格,基础档,仅供参考"
+    "cost_hint": "每 100 万 token 的美元价格,基础档,仅供参考",
+    "deprecated": "已弃用",
+    "test_all_title": "连接测试",
+    "test_all_desc": "发送真实推理请求以验证连通性。请选择测试范围。",
+    "test_all_all": "全部测试",
+    "test_all_failing": "仅未通过",
+    "last_passed": "最近成功"
   },
   "login": {
     "title": "登录到您的账户",

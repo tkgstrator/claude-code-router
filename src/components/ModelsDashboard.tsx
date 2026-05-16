@@ -6,7 +6,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import { ProviderIcon } from '@/lib/providerIcons'
 import { MODEL_PRICING } from '@/lib/providerTemplates'
@@ -22,6 +31,7 @@ interface ModelRow {
   routes: string[]
   enabled: boolean
   isSubscription: boolean
+  deprecated: boolean
 }
 
 type SortKey = 'provider' | 'model' | 'input' | 'output'
@@ -30,10 +40,14 @@ export function ModelsDashboard() {
   const { t } = useTranslation()
   const { config, setConfig } = useConfig()
   const [status, setStatus] = useState<Record<string, Reachability>>({})
+  const [passedAt, setPassedAt] = useState<Record<string, string | null>>({})
   const [isTestingAll, setIsTestingAll] = useState(false)
+  const [scopeDialogOpen, setScopeDialogOpen] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled'>('all')
+  const [providerFilter, setProviderFilter] = useState<string>('all')
 
   useEffect(() => {
     const fetchSubscriptions = async () => {
@@ -88,31 +102,54 @@ export function ModelsDashboard() {
         ? (provider.transformer as Record<string, string[]>)._disabledModels
         : []
       const isSubscription = provider.auth_mode === 'subscription'
+      const deprecatedSet = new Set(provider.deprecatedModels ?? [])
       return models.map((model) => {
         const key = `${providerName},${model}`
         const routes = ROUTE_KEYS.filter((routeKey) => routerConfig && routerConfig[routeKey] === key)
         const enabled = !disabledList.includes(model)
-        return { provider: providerName, model, key, routes, enabled, isSubscription }
+        const deprecated = deprecatedSet.has(model)
+        return { provider: providerName, model, key, routes, enabled, isSubscription, deprecated }
       })
     })
+    // No active sort: keep the natural order — providers in config order,
+    // models in their per-provider order. We used to fall through to an
+    // alphabetical model tiebreak here, which surfaced "openai
+    // chatgpt-4o-latest" at the top because 'cha' < 'cla'.
+    if (!sortKey) return raw
     const sign = sortDir === 'asc' ? 1 : -1
     const priceOf = (model: string, which: 'inputPer1M' | 'outputPer1M') =>
       MODEL_PRICING[model]?.[which] ?? Number.POSITIVE_INFINITY
     const primary = (row: ModelRow) => {
-      if (!sortKey) return 0
       if (sortKey === 'input') return priceOf(row.model, 'inputPer1M')
       if (sortKey === 'output') return priceOf(row.model, 'outputPer1M')
       return row[sortKey]
     }
+    // Stable sort on primary only — ties preserve raw (provider-grouped,
+    // config-ordered) order, so sorting by Provider doesn't reorder the
+    // models inside each group.
     return [...raw].sort((a, b) => {
       const av = primary(a)
       const bv = primary(b)
       if (av < bv) return -1 * sign
       if (av > bv) return 1 * sign
-      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
-      return a.model.localeCompare(b.model)
+      return 0
     })
   }, [config, sortKey, sortDir, planByProvider])
+
+  const providerNames = useMemo(() => {
+    const names = new Set(rows.map((r) => r.provider))
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [rows])
+
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        if (statusFilter === 'enabled' && !row.enabled) return false
+        if (providerFilter !== 'all' && row.provider !== providerFilter) return false
+        return true
+      }),
+    [rows, statusFilter, providerFilter]
+  )
 
   const SortHeader = ({
     label,
@@ -137,38 +174,71 @@ export function ModelsDashboard() {
     )
   }
 
-  const testModel = async (row: ModelRow): Promise<Reachability> => {
-    try {
-      const res = await fetch('/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config?.APIKEY || '',
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: row.key,
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'ping' }]
-        })
-      })
-      return res.ok ? 'ok' : 'fail'
-    } catch {
-      return 'fail'
+  // Seed status + last-passed date from the DB-backed config so the
+  // dashboard reflects persisted test results across reloads.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-seed when config changes
+  useEffect(() => {
+    const providers = Array.isArray(config?.Providers) ? config.Providers : []
+    const nextStatus: Record<string, Reachability> = {}
+    const nextPassed: Record<string, string | null> = {}
+    for (const p of providers) {
+      const map = p?.modelTestStatus
+      if (!map) continue
+      for (const [model, info] of Object.entries(map)) {
+        const key = `${p.name},${model}`
+        nextStatus[key] = info.status
+        nextPassed[key] = info.passedAt
+      }
+    }
+    setStatus(nextStatus)
+    setPassedAt(nextPassed)
+  }, [config])
+
+  const applyResult = (key: string, result: { status: 'ok' | 'fail' }) => {
+    setStatus((prev) => ({ ...prev, [key]: result.status }))
+    if (result.status === 'ok') {
+      setPassedAt((prev) => ({ ...prev, [key]: new Date().toISOString() }))
     }
   }
 
-  const handleTestAll = async () => {
-    setIsTestingAll(true)
-    const enabledRows = rows.filter((row) => row.enabled)
-    setStatus(Object.fromEntries(enabledRows.map((row) => [row.key, 'testing' as Reachability])))
-    // Sequential to avoid hammering provider rate limits and to keep
-    // the (billed) probe traffic minimal.
-    for (const row of enabledRows) {
-      const result = await testModel(row)
-      setStatus((prev) => ({ ...prev, [row.key]: result }))
+  // Real-inference test of one model (max_tokens=1 ping to the vendor).
+  const testOne = async (row: ModelRow) => {
+    setStatus((prev) => ({ ...prev, [row.key]: 'testing' }))
+    try {
+      const res = await api.post<{ status: 'ok' | 'fail'; error?: string }>('/models/test', {
+        provider: row.provider,
+        model: row.model
+      })
+      applyResult(row.key, res)
+    } catch {
+      setStatus((prev) => ({ ...prev, [row.key]: 'fail' }))
     }
-    setIsTestingAll(false)
+  }
+
+  const runTestAll = async (scope: 'all' | 'failing') => {
+    setScopeDialogOpen(false)
+    setIsTestingAll(true)
+    // Optimistically mark only the in-scope ENABLED rows as testing —
+    // the server skips disabled models, so marking them would leave
+    // their spinner stuck forever.
+    setStatus((prev) => {
+      const next = { ...prev }
+      for (const row of rows) {
+        if (!row.enabled) continue
+        if (scope === 'all' || next[row.key] !== 'ok') next[row.key] = 'testing'
+      }
+      return next
+    })
+    try {
+      const res = await api.post<{
+        results: { provider: string; model: string; status: 'ok' | 'fail' }[]
+      }>('/models/test-all', { scope })
+      for (const r of res.results) applyResult(`${r.provider},${r.model}`, r)
+    } catch {
+      // Leave rows as-is; individual retries are available.
+    } finally {
+      setIsTestingAll(false)
+    }
   }
 
   const renderStatus = (state: Reachability) => {
@@ -188,17 +258,57 @@ export function ModelsDashboard() {
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
       <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
         <CardTitle className='text-lg'>{t('nav.models')}</CardTitle>
-        <Button
-          onClick={handleTestAll}
-          disabled={isTestingAll || rows.length === 0}
-          variant='outline'
-          className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
-        >
-          {isTestingAll ? t('models.status_testing') : t('models.test_all')}
-        </Button>
+        <div className='flex items-center gap-2'>
+          <Select value={providerFilter} onValueChange={setProviderFilter}>
+            <SelectTrigger className='h-9 w-44'>
+              <SelectValue placeholder={t('models.filter_provider')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>{t('models.filter_all_providers')}</SelectItem>
+              {providerNames.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === 'enabled' ? 'enabled' : 'all')}>
+            <SelectTrigger className='h-9 w-36'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>{t('models.filter_show_all')}</SelectItem>
+              <SelectItem value='enabled'>{t('models.filter_enabled_only')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={() => setScopeDialogOpen(true)}
+            disabled={isTestingAll || visibleRows.length === 0}
+            variant='outline'
+            className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
+          >
+            {isTestingAll ? t('models.status_testing') : t('models.test_all')}
+          </Button>
+        </div>
       </CardHeader>
+
+      <Dialog open={scopeDialogOpen} onOpenChange={setScopeDialogOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('models.test_all_title')}</DialogTitle>
+            <DialogDescription>{t('models.test_all_desc')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className='flex-col gap-2 sm:flex-row sm:justify-end'>
+            <Button variant='outline' onClick={() => runTestAll('failing')}>
+              {t('models.test_all_failing')}
+            </Button>
+            <Button onClick={() => runTestAll('all')}>{t('models.test_all_all')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CardContent className='flex-grow overflow-auto p-0'>
-        {rows.length === 0 ? (
+        {visibleRows.length === 0 ? (
           <div className='flex h-full flex-col items-center justify-center gap-2 p-6 text-center'>
             <p className='text-sm text-gray-500'>{t('models.no_models')}</p>
           </div>
@@ -223,7 +333,7 @@ export function ModelsDashboard() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.key} className={`border-t hover:bg-gray-50 ${row.enabled ? '' : 'opacity-50'}`}>
                   <td className='px-6 py-2 text-gray-700'>
                     <span className='inline-flex items-center gap-2'>
@@ -231,7 +341,16 @@ export function ModelsDashboard() {
                       {row.provider}
                     </span>
                   </td>
-                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
+                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>
+                    <span className='inline-flex items-center gap-2'>
+                      {row.model}
+                      {row.deprecated && (
+                        <Badge variant='outline' className='border-amber-300 bg-amber-50 text-[10px] text-amber-700'>
+                          {t('models.deprecated')}
+                        </Badge>
+                      )}
+                    </span>
+                  </td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
                     {row.isSubscription ? (
                       <span className='text-gray-300'>—</span>
@@ -251,7 +370,21 @@ export function ModelsDashboard() {
                     )}
                   </td>
                   <td className='px-2 py-2'>
-                    <div className='flex justify-center'>{renderStatus(status[row.key] || 'unknown')}</div>
+                    <div className='flex justify-center'>
+                      <button
+                        type='button'
+                        onClick={() => testOne(row)}
+                        disabled={isTestingAll || !row.enabled || status[row.key] === 'testing'}
+                        title={
+                          passedAt[row.key]
+                            ? `${t('models.last_passed')}: ${new Date(passedAt[row.key] as string).toLocaleString()}`
+                            : t('models.test')
+                        }
+                        className='rounded-md p-1 transition-all-ease hover:bg-gray-100 disabled:cursor-not-allowed disabled:hover:bg-transparent'
+                      >
+                        {renderStatus(status[row.key] || 'unknown')}
+                      </button>
+                    </div>
                   </td>
                   <td className='px-6 py-2'>
                     <Popover>

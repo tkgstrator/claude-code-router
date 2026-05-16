@@ -1,3 +1,4 @@
+import { isDeprecatedModel } from '@ccr/shared/data'
 import { Eye, EyeOff, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -301,10 +302,32 @@ export function Providers() {
   }
 
   const handleProviderChange = (_index: number, field: string, value: string) => {
-    if (editingProviderData) {
-      const updatedProvider = { ...editingProviderData, [field]: value }
-      setEditingProviderData(updatedProvider)
+    if (!editingProviderData) return
+    const updatedProvider = { ...editingProviderData, [field]: value }
+
+    // When the API key transitions empty -> non-empty, the model
+    // switches flip from "all off (key missing gate)" to "all on minus
+    // _disabledModels". Without seeding, deprecated models would all
+    // turn on. Materialize the deprecated set into _disabledModels on
+    // that edge so they start OFF; from then on it's a normal disabled
+    // list the user controls (enabling one removes it and persists).
+    if (field === 'api_key') {
+      const had = (editingProviderData.api_key?.trim().length ?? 0) > 0
+      const has = value.trim().length > 0
+      if (!had && has) {
+        const models: string[] = Array.isArray(updatedProvider.models) ? updatedProvider.models : []
+        const serverDeprecated = Array.isArray(updatedProvider.deprecatedModels) ? updatedProvider.deprecatedModels : []
+        const deprecated = models.filter((m) => serverDeprecated.includes(m) || isDeprecatedModel(m))
+        if (deprecated.length > 0) {
+          const transformer = { ...(updatedProvider.transformer ?? { use: [] }) }
+          const existing = Array.isArray(transformer._disabledModels) ? (transformer._disabledModels as string[]) : []
+          transformer._disabledModels = [...new Set([...existing, ...deprecated])]
+          updatedProvider.transformer = transformer
+        }
+      }
     }
+
+    setEditingProviderData(updatedProvider)
   }
 
   const handleProviderTransformerChange = (_index: number, transformerPath: string) => {
@@ -643,6 +666,19 @@ export function Providers() {
 
         if (!isNewProvider && currentName) {
           newProviderData.name = currentName
+        }
+
+        // Deprecated models default to OFF when models are specified
+        // from a provider template: seed _disabledModels with them so
+        // the toggle starts unchecked. Enabling one later removes it
+        // from the list and that choice persists.
+        const models: string[] = Array.isArray(newProviderData.models) ? newProviderData.models : []
+        const deprecated = models.filter((m) => isDeprecatedModel(m))
+        if (deprecated.length > 0) {
+          const transformer = { ...(newProviderData.transformer ?? { use: [] }) }
+          const existing = Array.isArray(transformer._disabledModels) ? (transformer._disabledModels as string[]) : []
+          transformer._disabledModels = [...new Set([...existing, ...deprecated])]
+          newProviderData.transformer = transformer
         }
 
         setEditingProviderData(newProviderData as ProviderType)

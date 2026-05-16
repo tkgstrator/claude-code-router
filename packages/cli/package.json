@@ -18,7 +18,6 @@
   "author": "musistudio",
   "license": "MIT",
   "devDependencies": {
-    "@ccr/server": "workspace:*",
     "@ccr/shared": "workspace:*",
     "@inquirer/prompts": "^5.0.0",
     "@types/archiver": "^7.0.0",

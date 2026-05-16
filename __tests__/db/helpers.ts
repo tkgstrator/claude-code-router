@@ -4,7 +4,7 @@
  * the CCR_SKIP_LIVE_TESTS gate that the provider integration tests use.
  */
 
-import { __resetPrismaClientForTests, getPrismaClient } from '../../packages/server/src/db/client'
+import { __resetPrismaClientForTests, getPrismaClient } from '../../src/db/client'
 
 export const HAS_DB = Boolean(process.env.DATABASE_URL) && process.env.CCR_SKIP_DB_TESTS !== '1'
 

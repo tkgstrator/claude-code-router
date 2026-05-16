@@ -11,6 +11,12 @@ export interface Provider {
   api_key: string
   auth_mode?: ProviderAuthMode
   models: string[]
+  // Subset of `models` flagged deprecated server-side. Read-only from
+  // the UI — the server derives it from a vendor-specific registry.
+  deprecatedModels?: string[]
+  // Per-model last real-inference test outcome, keyed by model name.
+  // Populated by the server; updated client-side after a test run.
+  modelTestStatus?: Record<string, { status: 'unknown' | 'ok' | 'fail'; passedAt: string | null }>
   transformer?: ProviderTransformer
 }
 

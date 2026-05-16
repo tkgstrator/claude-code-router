@@ -45,6 +45,10 @@
     "routes": "ルート",
     "test": "テスト",
     "test_all": "すべてテスト",
+    "filter_provider": "プロバイダー",
+    "filter_all_providers": "すべてのプロバイダー",
+    "filter_show_all": "すべてのモデル",
+    "filter_enabled_only": "有効のみ",
     "status_ok": "疎通OK",
     "status_fail": "失敗",
     "status_unknown": "未確認",
@@ -54,7 +58,13 @@
     "cost": "費用 / 1M",
     "input": "入力 / 1M",
     "output": "出力 / 1M",
-    "cost_hint": "100万トークンあたりの USD、ベース価格・目安"
+    "cost_hint": "100万トークンあたりの USD、ベース価格・目安",
+    "deprecated": "非推奨",
+    "test_all_title": "接続テスト",
+    "test_all_desc": "実際に推論リクエストを送って疎通を確認します。対象を選んでください。",
+    "test_all_all": "すべてテスト",
+    "test_all_failing": "未通過のみ",
+    "last_passed": "最終成功"
   },
   "login": {
     "title": "アカウントにサインイン",
