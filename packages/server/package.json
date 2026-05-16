@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "bun run ../../scripts/build-server.ts",
-    "dev": "while bun run src/index.ts; do echo 'Restarting server...'; done",
+    "dev": "bun --watch run src/index.ts",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
