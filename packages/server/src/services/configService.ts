@@ -311,17 +311,20 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
   )
 }
 
-// First-run convenience: when the Provider table is empty, populate it
-// from the llm-prices snapshot so the UI's Add-Provider dropdown and
-// the catalog of available models are non-empty out of the box.
-// api_key is left blank — the user fills it in from the UI. Skipped
-// entirely once any Provider exists, so a deliberately empty DB
-// (e.g. a user who wiped everything) is not re-seeded on restart.
+// First-run convenience: populate the Provider table from the
+// llm-prices snapshot so the UI's Add-Provider dropdown and the catalog
+// of available models are non-empty out of the box. api_key is left
+// blank — the user fills it in from the UI. Behaviour is top-up: any
+// seed whose `name` isn't already in the table gets inserted, so a
+// partial DB (e.g. only the openai row lifted by runJsonToDbMigration)
+// gains the remaining vendors on next boot. Existing rows are never
+// overwritten.
 export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient()): Promise<void> {
-  const count = await prisma.provider.count()
-  if (count > 0) return
+  const existingNames = new Set((await prisma.provider.findMany({ select: { name: true } })).map((p) => p.name))
+  const missing = buildSeedProviders().filter((seed) => !existingNames.has(seed.name))
+  if (missing.length === 0) return
   await prisma.$transaction(async (tx) => {
-    for (const seed of buildSeedProviders()) {
+    for (const seed of missing) {
       const provider = await tx.provider.create({
         data: {
           name: seed.name,

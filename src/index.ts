@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { bootstrapServer } from '@ccr/server/bootstrap'
 import { applyUiConfig, composeUiConfig } from '@ccr/server/config'
 import { refreshModelsForAllProviders } from '@ccr/server/models'
 import serverPackage from '@ccr/server/package'
@@ -30,6 +31,12 @@ const FASTIFY_FALLBACK_URL = (() => {
   if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv
   return 'http://localhost:3456'
 })()
+
+// Mirror what the legacy Fastify server did at boot: lift any
+// pre-existing config.json into Postgres, seed default Providers + the
+// six RouterSlot rows, and copy the envelope scalars onto process.env.
+// Idempotent — re-running it on a populated DB is a no-op.
+await bootstrapServer()
 
 const app = new OpenAPIHono()
 
