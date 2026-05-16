@@ -320,21 +320,26 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
 // partial DB (e.g. only the openai row lifted by runJsonToDbMigration)
 // gains the remaining vendors on next boot. Existing rows are never
 // overwritten.
+interface SeedRow {
+  name: string
+  apiBaseUrl: string
+  authMode: AuthMode
+  transformer: Prisma.InputJsonValue | typeof Prisma.DbNull
+  models: string[]
+}
+
 export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient()): Promise<void> {
-  const existingNames = new Set((await prisma.provider.findMany({ select: { name: true } })).map((p) => p.name))
-  const apiSeeds = buildSeedProviders()
-    .filter((seed) => !existingNames.has(seed.name))
-    .map((seed) => ({
-      name: seed.name,
-      apiBaseUrl: seed.apiBaseUrl,
-      authMode: AuthMode.api_key,
-      transformer: seed.transformer ?? Prisma.DbNull,
-      models: seed.models
-    }))
-  // Subscription presets seed alongside the api_key snapshots so the UI's
-  // Subscription tab is non-empty out of the box. Same top-up semantics
-  // — only names absent from the table are inserted.
-  const subscriptionSeeds = SUBSCRIPTION_PRESETS.filter((preset) => !existingNames.has(preset.id)).map((preset) => ({
+  const existing = await prisma.provider.findMany({ include: { models: true } })
+  const existingByName = new Map(existing.map((p) => [p.name, p]))
+
+  const apiSeeds: SeedRow[] = buildSeedProviders().map((seed) => ({
+    name: seed.name,
+    apiBaseUrl: seed.apiBaseUrl,
+    authMode: AuthMode.api_key,
+    transformer: seed.transformer ?? Prisma.DbNull,
+    models: seed.models
+  }))
+  const subscriptionSeeds: SeedRow[] = SUBSCRIPTION_PRESETS.map((preset) => ({
     name: preset.id,
     apiBaseUrl: preset.apiBaseUrl,
     authMode: AuthMode.subscription,
@@ -342,21 +347,36 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
     models: preset.defaultEnabledModels
   }))
   const allSeeds = [...apiSeeds, ...subscriptionSeeds]
-  if (allSeeds.length === 0) return
+
   await prisma.$transaction(async (tx) => {
     for (const seed of allSeeds) {
-      const provider = await tx.provider.create({
-        data: {
-          name: seed.name,
-          apiBaseUrl: seed.apiBaseUrl,
-          apiKey: '',
-          authMode: seed.authMode,
-          transformer: seed.transformer
+      const current = existingByName.get(seed.name)
+      if (!current) {
+        // Brand-new provider: insert provider + every seed model.
+        const provider = await tx.provider.create({
+          data: {
+            name: seed.name,
+            apiBaseUrl: seed.apiBaseUrl,
+            apiKey: '',
+            authMode: seed.authMode,
+            transformer: seed.transformer
+          }
+        })
+        if (seed.models.length > 0) {
+          await tx.model.createMany({
+            data: seed.models.map((name) => ({ providerId: provider.id, name }))
+          })
         }
-      })
-      if (seed.models.length > 0) {
+        continue
+      }
+      // Provider already exists. Top-up missing models only — never
+      // delete or rename. The provider row's apiBaseUrl / authMode /
+      // transformer stay as the user has them.
+      const existingModelNames = new Set(current.models.map((m) => m.name))
+      const newModels = seed.models.filter((name) => !existingModelNames.has(name))
+      if (newModels.length > 0) {
         await tx.model.createMany({
-          data: seed.models.map((name) => ({ providerId: provider.id, name }))
+          data: newModels.map((name) => ({ providerId: current.id, name }))
         })
       }
     }
