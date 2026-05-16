@@ -797,10 +797,18 @@ export function Providers() {
                   </div>
                 </div>
               ) : (
-                <div className='rounded-md border bg-muted/40 p-4 text-sm text-gray-700 space-y-2'>
-                  <p className='font-medium'>{t('providers.subscription_intro')}</p>
-                  <p className='text-gray-500'>{t('providers.subscription_hint')}</p>
-                </div>
+                (() => {
+                  const preset = findSubscriptionPreset(editingProvider)
+                  const vendor = preset?.vendor ?? 'subscription'
+                  const cli = preset?.cli ?? ''
+                  const credentialsPath = preset?.credentialsPath ?? ''
+                  return (
+                    <div className='rounded-md border bg-muted/40 p-4 text-sm text-gray-700 space-y-2'>
+                      <p className='font-medium'>{t('providers.subscription_intro', { vendor, cli })}</p>
+                      <p className='text-gray-500'>{t('providers.subscription_hint', { credentialsPath })}</p>
+                    </div>
+                  )
+                })()
               )}
               {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
                 <div className='space-y-4'>
@@ -874,24 +882,37 @@ export function Providers() {
                       {isFetchingModels ? t("providers.fetching_models") : t("providers.fetch_available_models")}
                     </Button> */}
                   </div>
-                  <div className='flex flex-wrap gap-2 pt-2'>
+                  <div className='divide-y rounded-md border'>
                     {[...(editingProvider.models || [])]
                       .sort((a: string, b: string) => b.localeCompare(a))
                       .map((model: string) => {
-                        const modelIndex = (editingProvider.models ?? []).indexOf(model)
+                        const currentNames = (
+                          (editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>
+                        ).map((entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])))
                         return (
-                          <Badge key={model} variant='outline' className='font-normal flex items-center gap-1'>
-                            {model}
-                            <button
-                              type='button'
-                              className='ml-1 rounded-full hover:bg-gray-200'
-                              onClick={() =>
-                                editingProviderIndex !== null && handleRemoveModel(editingProviderIndex, modelIndex)
-                              }
-                            >
-                              <X className='h-3 w-3' />
-                            </button>
-                          </Badge>
+                          <div key={model} className='flex items-center gap-3 px-3 py-2'>
+                            <Switch
+                              checked
+                              onCheckedChange={(checked) => {
+                                if (!checked) {
+                                  const idx = (editingProvider.models ?? []).indexOf(model)
+                                  if (idx >= 0 && editingProviderIndex !== null) {
+                                    handleRemoveModel(editingProviderIndex, idx)
+                                  }
+                                }
+                              }}
+                            />
+                            <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
+                            <div className='w-64'>
+                              <MultiCombobox
+                                options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
+                                value={currentNames}
+                                onChange={(names) => setModelTransformers(model, names)}
+                                placeholder={t('providers.select_transformer')}
+                                emptyPlaceholder={t('providers.no_transformers')}
+                              />
+                            </div>
+                          </div>
                         )
                       })}
                   </div>
@@ -1078,33 +1099,6 @@ export function Providers() {
                 )}
               </div>
 
-              {/* Model-specific Transformers */}
-              {editingProvider.models && editingProvider.models.length > 0 && (
-                <div className='space-y-2'>
-                  <Label>{t('providers.model_transformers')}</Label>
-                  <div className='divide-y rounded-md border'>
-                    {[...(editingProvider.models || [])].sort((a: string, b: string) => b.localeCompare(a)).map((model: string) => {
-                      const currentNames = ((editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>).map(
-                        (entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0]))
-                      )
-                      return (
-                        <div key={model} className='flex items-center gap-3 px-3 py-2'>
-                          <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
-                          <div className='w-64'>
-                            <MultiCombobox
-                              options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
-                              value={currentNames}
-                              onChange={(names) => setModelTransformers(model, names)}
-                              placeholder={t('providers.select_transformer')}
-                              emptyPlaceholder={t('providers.no_transformers')}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
                 </div>
               ) : (
                 (() => {
