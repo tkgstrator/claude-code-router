@@ -1,12 +1,12 @@
 import { Eye, EyeOff, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ComboInput } from '@/components/ui/combo-input'
 import { Combobox } from '@/components/ui/combobox'
+import { MultiCombobox } from '@/components/ui/multi-combobox'
 import {
   Dialog,
   DialogContent,
@@ -285,6 +285,27 @@ export function Providers() {
 
     // Add transformer to the use array
     updatedProvider.transformer[model].use = [...updatedProvider.transformer[model].use, transformerPath]
+    setEditingProviderData(updatedProvider)
+  }
+
+  const setModelTransformers = (model: string, names: string[]) => {
+    if (!editingProviderData) return
+    const updatedProvider = { ...editingProviderData }
+    if (!updatedProvider.transformer) {
+      updatedProvider.transformer = { use: [] }
+    }
+    const existing = updatedProvider.transformer[model]?.use ?? []
+    const byName = new Map<string, string | (string | Record<string, unknown> | { max_tokens: number })[]>()
+    for (const entry of existing) {
+      const name = typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0])
+      byName.set(name, entry)
+    }
+    const newUse = names.map((name) => byName.get(name) ?? name)
+    if (newUse.length === 0) {
+      delete updatedProvider.transformer[model]
+    } else {
+      updatedProvider.transformer[model] = { ...(updatedProvider.transformer[model] ?? {}), use: newUse }
+    }
     setEditingProviderData(updatedProvider)
   }
 
@@ -974,212 +995,27 @@ export function Providers() {
               {editingProvider.models && editingProvider.models.length > 0 && (
                 <div className='space-y-2'>
                   <Label>{t('providers.model_transformers')}</Label>
-                  <Accordion type='multiple' className='space-y-2'>
+                  <div className='divide-y rounded-md border'>
                     {(editingProvider.models || []).map((model: string, modelIndex: number) => {
-                      const overrideCount = editingProvider.transformer?.[model]?.use?.length ?? 0
+                      const currentNames = ((editingProvider.transformer?.[model]?.use ?? []) as Array<unknown>).map(
+                        (entry) => (typeof entry === 'string' ? entry : String((entry as Array<unknown>)[0]))
+                      )
                       return (
-                      <AccordionItem key={modelIndex} value={`${modelIndex}-${model}`} className='border rounded-md px-3'>
-                        <AccordionTrigger className='py-2 hover:no-underline'>
-                          <div className='flex items-center gap-2'>
-                            <span className='font-medium text-sm'>{model}</span>
-                            {overrideCount > 0 && (
-                              <Badge variant='secondary' className='text-xs'>
-                                {overrideCount}
-                              </Badge>
-                            )}
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent className='pt-2'>
-                        {/* Add new transformer */}
-                        <div className='flex gap-2'>
-                          <div className='flex-1 flex gap-2'>
-                            <Combobox
-                              options={availableTransformers.map((t) => ({
-                                label: t.name,
-                                value: t.name
-                              }))}
-                              value=''
-                              onChange={(value) => {
-                                if (editingProviderIndex !== null) {
-                                  handleModelTransformerChange(editingProviderIndex, model, value)
-                                }
-                              }}
+                        <div key={modelIndex} className='flex items-center gap-3 px-3 py-2'>
+                          <span className='font-medium text-sm flex-1 min-w-0 truncate'>{model}</span>
+                          <div className='w-64'>
+                            <MultiCombobox
+                              options={availableTransformers.map((t) => ({ label: t.name, value: t.name }))}
+                              value={currentNames}
+                              onChange={(names) => setModelTransformers(model, names)}
                               placeholder={t('providers.select_transformer')}
                               emptyPlaceholder={t('providers.no_transformers')}
                             />
                           </div>
                         </div>
-
-                        {/* Display existing transformers */}
-                        {editingProvider.transformer?.[model]?.use &&
-                          editingProvider.transformer[model].use.length > 0 && (
-                            <div className='space-y-2 mt-2'>
-                              <div className='text-sm font-medium text-gray-700'>
-                                {t('providers.selected_transformers')}
-                              </div>
-                              {editingProvider.transformer[model].use.map(
-                                (
-                                  transformer: string | (string | Record<string, unknown> | { max_tokens: number })[],
-                                  transformerIndex: number
-                                ) => (
-                                  <div key={transformerIndex} className='border rounded-md p-3'>
-                                    <div className='flex gap-2 items-center mb-2'>
-                                      <div className='flex-1 bg-gray-50 rounded p-2 text-sm'>
-                                        {typeof transformer === 'string'
-                                          ? transformer
-                                          : Array.isArray(transformer)
-                                            ? String(transformer[0])
-                                            : String(transformer)}
-                                      </div>
-                                      <Button
-                                        variant='outline'
-                                        size='icon'
-                                        onClick={() => {
-                                          if (editingProviderIndex !== null) {
-                                            removeModelTransformerAtIndex(editingProviderIndex, model, transformerIndex)
-                                          }
-                                        }}
-                                      >
-                                        <Trash2 className='h-4 w-4' />
-                                      </Button>
-                                    </div>
-
-                                    {/* Transformer-specific Parameters */}
-                                    <div className='mt-2 pl-4 border-l-2 border-gray-200'>
-                                      <Label className='text-sm'>{t('providers.transformer_parameters')}</Label>
-                                      <div className='space-y-2 mt-1'>
-                                        <div className='flex gap-2'>
-                                          <Input
-                                            placeholder={t('providers.parameter_name')}
-                                            value={
-                                              modelParamInputs[
-                                                `model-${editingProviderIndex}-${model}-transformer-${transformerIndex}`
-                                              ]?.name || ''
-                                            }
-                                            onChange={(e) => {
-                                              const key = `model-${editingProviderIndex}-${model}-transformer-${transformerIndex}`
-                                              setModelParamInputs((prev) => ({
-                                                ...prev,
-                                                [key]: {
-                                                  ...(prev[key] || { name: '', value: '' }),
-                                                  name: e.target.value
-                                                }
-                                              }))
-                                            }}
-                                          />
-                                          <Input
-                                            placeholder={t('providers.parameter_value')}
-                                            value={
-                                              modelParamInputs[
-                                                `model-${editingProviderIndex}-${model}-transformer-${transformerIndex}`
-                                              ]?.value || ''
-                                            }
-                                            onChange={(e) => {
-                                              const key = `model-${editingProviderIndex}-${model}-transformer-${transformerIndex}`
-                                              setModelParamInputs((prev) => ({
-                                                ...prev,
-                                                [key]: {
-                                                  ...(prev[key] || { name: '', value: '' }),
-                                                  value: e.target.value
-                                                }
-                                              }))
-                                            }}
-                                          />
-                                          <Button
-                                            size='sm'
-                                            onClick={() => {
-                                              if (editingProviderIndex !== null) {
-                                                const key = `model-${editingProviderIndex}-${model}-transformer-${transformerIndex}`
-                                                const paramInput = modelParamInputs[key]
-                                                if (paramInput && paramInput.name && paramInput.value) {
-                                                  addModelTransformerParameter(
-                                                    editingProviderIndex,
-                                                    model,
-                                                    transformerIndex,
-                                                    paramInput.name,
-                                                    paramInput.value
-                                                  )
-                                                  setModelParamInputs((prev) => ({
-                                                    ...prev,
-                                                    [key]: { name: '', value: '' }
-                                                  }))
-                                                }
-                                              }
-                                            }}
-                                          >
-                                            <Plus className='h-4 w-4' />
-                                          </Button>
-                                        </div>
-
-                                        {/* Display existing parameters for this transformer */}
-                                        {(() => {
-                                          // Get parameters for this specific transformer
-                                          if (
-                                            !editingProvider.transformer?.[model]?.use ||
-                                            editingProvider.transformer[model].use.length <= transformerIndex
-                                          ) {
-                                            return null
-                                          }
-
-                                          const targetTransformer =
-                                            editingProvider.transformer[model].use[transformerIndex]
-                                          let params = {}
-
-                                          if (Array.isArray(targetTransformer) && targetTransformer.length > 1) {
-                                            // Check if the second element is an object (parameters object)
-                                            if (
-                                              typeof targetTransformer[1] === 'object' &&
-                                              targetTransformer[1] !== null
-                                            ) {
-                                              params = targetTransformer[1] as Record<string, unknown>
-                                            }
-                                          }
-
-                                          return Object.keys(params).length > 0 ? (
-                                            <div className='space-y-1'>
-                                              {Object.entries(params).map(([key, value]) => (
-                                                <div
-                                                  key={key}
-                                                  className='flex items-center justify-between bg-gray-50 rounded p-2'
-                                                >
-                                                  <div className='text-sm'>
-                                                    <span className='font-medium'>{key}:</span> {String(value)}
-                                                  </div>
-                                                  <Button
-                                                    variant='ghost'
-                                                    size='sm'
-                                                    className='h-6 w-6 p-0'
-                                                    onClick={() => {
-                                                      if (editingProviderIndex !== null) {
-                                                        // We need a function to remove parameters from a specific transformer
-                                                        removeModelTransformerParameterAtIndex(
-                                                          editingProviderIndex,
-                                                          model,
-                                                          transformerIndex,
-                                                          key
-                                                        )
-                                                      }
-                                                    }}
-                                                  >
-                                                    <X className='h-3 w-3' />
-                                                  </Button>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ) : null
-                                        })()}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          )}
-                        </AccordionContent>
-                      </AccordionItem>
-                    )
-                  })}
-                  </Accordion>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>
