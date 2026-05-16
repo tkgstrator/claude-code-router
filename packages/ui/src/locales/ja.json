@@ -54,8 +54,7 @@
     "cost": "費用 / 1M",
     "input": "入力 / 1M",
     "output": "出力 / 1M",
-    "cost_hint": "100万トークンあたりの USD、ベース価格・目安",
-    "disabled": "無効"
+    "cost_hint": "100万トークンあたりの USD、ベース価格・目安"
   },
   "login": {
     "title": "アカウントにサインイン",

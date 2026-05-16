@@ -95,26 +95,22 @@ export function ModelsDashboard() {
         return { provider: providerName, model, key, routes, enabled }
       })
     })
-    if (!sortKey) return raw
     const sign = sortDir === 'asc' ? 1 : -1
     const priceOf = (model: string, which: 'inputPer1M' | 'outputPer1M') =>
       MODEL_PRICING[model]?.[which] ?? Number.POSITIVE_INFINITY
+    const primary = (row: ModelRow) => {
+      if (!sortKey) return 0
+      if (sortKey === 'input') return priceOf(row.model, 'inputPer1M')
+      if (sortKey === 'output') return priceOf(row.model, 'outputPer1M')
+      return row[sortKey]
+    }
     return [...raw].sort((a, b) => {
-      const av =
-        sortKey === 'input'
-          ? priceOf(a.model, 'inputPer1M')
-          : sortKey === 'output'
-            ? priceOf(a.model, 'outputPer1M')
-            : a[sortKey]
-      const bv =
-        sortKey === 'input'
-          ? priceOf(b.model, 'inputPer1M')
-          : sortKey === 'output'
-            ? priceOf(b.model, 'outputPer1M')
-            : b[sortKey]
+      const av = primary(a)
+      const bv = primary(b)
       if (av < bv) return -1 * sign
       if (av > bv) return 1 * sign
-      return 0
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
+      return a.model.localeCompare(b.model)
     })
   }, [config, sortKey, sortDir, planByProvider])
 
@@ -237,16 +233,7 @@ export function ModelsDashboard() {
                       {row.provider}
                     </span>
                   </td>
-                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>
-                    <span className='inline-flex items-center gap-2'>
-                      {row.model}
-                      {!row.enabled && (
-                        <Badge variant='outline' className='text-[10px] uppercase tracking-wide text-gray-500'>
-                          {t('models.disabled')}
-                        </Badge>
-                      )}
-                    </span>
-                  </td>
+                  <td className='px-6 py-2 font-mono text-xs text-gray-800'>{row.model}</td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
                     {MODEL_PRICING[row.model] ? (
                       <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].inputPer1M}</span>

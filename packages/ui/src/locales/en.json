@@ -54,8 +54,7 @@
     "cost": "Cost / 1M",
     "input": "Input / 1M",
     "output": "Output / 1M",
-    "cost_hint": "USD per 1M tokens, base tier — rough guide",
-    "disabled": "Disabled"
+    "cost_hint": "USD per 1M tokens, base tier — rough guide"
   },
   "login": {
     "title": "Sign in to your account",
