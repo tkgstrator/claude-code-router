@@ -160,12 +160,12 @@ class ApiClient {
   // API methods for configuration
   // Get current configuration
   async getConfig(): Promise<Config> {
-    return this.get<Config>('/api/config')
+    return this.get<Config>('/config')
   }
 
   // Update entire configuration
   async updateConfig(config: Config): Promise<Config> {
-    return this.post<Config>('/api/config', config)
+    return this.post<Config>('/config', config)
   }
 
   // Get providers
