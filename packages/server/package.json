@@ -13,6 +13,17 @@
     "./config": {
       "bun": "./src/services/configService.ts",
       "import": "./src/services/configService.ts"
+    },
+    "./subscriptions": {
+      "bun": "./src/services/subscriptionInfoService.ts",
+      "import": "./src/services/subscriptionInfoService.ts"
+    },
+    "./update": {
+      "bun": "./src/utils/update.ts",
+      "import": "./src/utils/update.ts"
+    },
+    "./package": {
+      "import": "./package.json"
     }
   },
   "scripts": {

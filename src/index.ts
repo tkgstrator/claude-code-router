@@ -1,9 +1,12 @@
 import { composeUiConfig } from '@ccr/server/config'
+import serverPackage from '@ccr/server/package'
+import { getSubscriptionsInfo } from '@ccr/server/subscriptions'
+import { checkForUpdates } from '@ccr/server/update'
 import { Hono } from 'hono'
 
-// Phase 1a Hono entry. Only the routes we've actually migrated land
-// here; everything else under /api or /v1 falls through to the legacy
-// Fastify server at FASTIFY_FALLBACK_URL so the UI keeps working.
+// Phase 1c Hono entry. The GET surfaces below run locally; anything
+// else under /api or /v1 falls through to the legacy Fastify server at
+// FASTIFY_FALLBACK_URL so the UI keeps working through the transition.
 const FASTIFY_FALLBACK_URL = (() => {
   const fromEnv = process.env.CCR_FASTIFY_URL
   if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv
@@ -15,6 +18,16 @@ const app = new Hono()
 app.get('/api/config', async (c) => {
   const config = await composeUiConfig()
   return c.json(config)
+})
+
+app.get('/api/subscriptions', async (c) => {
+  const subscriptions = await getSubscriptionsInfo()
+  return c.json({ subscriptions })
+})
+
+app.get('/api/update/check', async (c) => {
+  const result = await checkForUpdates(serverPackage.version)
+  return c.json(result)
 })
 
 const proxyToFastify = async (c: { req: { raw: Request } }) => {
