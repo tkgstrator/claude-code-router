@@ -18,9 +18,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover'
 import { api } from '@/lib/api'
 import { buildTemplates, LLM_PRICES_URL, PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
-import type { Provider } from '@/types'
+import { SUBSCRIPTION_PRESETS } from '@/lib/subscriptionPresets'
+import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
 
@@ -68,6 +74,8 @@ export function Providers() {
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState<string>('')
+  const [activeAuthMode, setActiveAuthMode] = useState<ProviderAuthMode>('api_key')
+  const [subscriptionPickerOpen, setSubscriptionPickerOpen] = useState(false)
   const comboInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch available transformers when component mounts
@@ -115,9 +123,32 @@ export function Providers() {
     setNameError(null)
   }
 
+  const handleAddSubscriptionProvider = async (presetId: string) => {
+    const preset = SUBSCRIPTION_PRESETS.find((p) => p.id === presetId)
+    if (!preset) return
+    setSubscriptionPickerOpen(false)
+    const existingNames = new Set(validProviders.map((p) => p.name.toLowerCase()))
+    const uniqueName = (() => {
+      const base = preset.provider.name
+      if (!existingNames.has(base.toLowerCase())) return base
+      const next = (() => {
+        for (let i = 2; i < 100; i++) {
+          const candidate = `${base}-${i}`
+          if (!existingNames.has(candidate.toLowerCase())) return candidate
+        }
+        return `${base}-${Date.now()}`
+      })()
+      return next
+    })()
+    const newProvider: ProviderType = { ...preset.provider, name: uniqueName }
+    const newConfig = { ...config, Providers: [...config.Providers, newProvider] }
+    setConfig(newConfig)
+    await api.updateConfig(newConfig)
+  }
+
   const handleEditProvider = (index: number) => {
     // Find the actual index in the original providers array
-    const actualIndex = validProviders.indexOf(filteredProviders[index])
+    const actualIndex = validProviders.indexOf(visibleProviders[index])
     const provider = config.Providers[actualIndex]
     setEditingProviderIndex(actualIndex)
     setEditingProviderData(JSON.parse(JSON.stringify(provider))) // 深拷贝
@@ -576,6 +607,11 @@ export function Providers() {
     }
     return false
   })
+  const providersByAuth = {
+    api_key: filteredProviders.filter((p) => (p.auth_mode ?? 'api_key') === 'api_key'),
+    subscription: filteredProviders.filter((p) => p.auth_mode === 'subscription')
+  }
+  const visibleProviders = providersByAuth[activeAuthMode]
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
@@ -584,7 +620,7 @@ export function Providers() {
           <CardTitle className='text-lg'>
             {t('providers.title')}{' '}
             <span className='text-sm font-normal text-gray-500'>
-              ({filteredProviders.length}/{validProviders.length})
+              ({visibleProviders.length}/{providersByAuth[activeAuthMode].length})
             </span>
           </CardTitle>
           <div className='flex items-center gap-2'>
@@ -592,9 +628,44 @@ export function Providers() {
               <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
               {t('providers.refresh_templates')}
             </Button>
-            <Button onClick={handleAddProvider}>{t('providers.add')}</Button>
+            {activeAuthMode === 'api_key' ? (
+              <Button onClick={handleAddProvider}>{t('providers.add')}</Button>
+            ) : (
+              <Popover open={subscriptionPickerOpen} onOpenChange={setSubscriptionPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button>{t('providers.add')}</Button>
+                </PopoverTrigger>
+                <PopoverContent align='end' className='w-64 p-1'>
+                  <div className='flex flex-col'>
+                    {SUBSCRIPTION_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type='button'
+                        onClick={() => handleAddSubscriptionProvider(preset.id)}
+                        className='flex flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground'
+                      >
+                        <span className='text-sm font-medium'>{preset.label}</span>
+                        <span className='text-xs text-gray-500'>{preset.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
+        <Tabs value={activeAuthMode} onValueChange={(v) => setActiveAuthMode(v as ProviderAuthMode)}>
+          <TabsList className='grid w-full grid-cols-2'>
+            <TabsTrigger value='api_key'>
+              {t('providers.auth_api')}
+              <span className='ml-2 text-xs text-gray-500'>({providersByAuth.api_key.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value='subscription'>
+              {t('providers.auth_subscription')}
+              <span className='ml-2 text-xs text-gray-500'>({providersByAuth.subscription.length})</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <div className='flex items-center gap-2'>
           <div className='relative flex-1'>
             <Search className='absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500' />
@@ -614,7 +685,7 @@ export function Providers() {
       </CardHeader>
       <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
         <ProviderList
-          providers={filteredProviders}
+          providers={visibleProviders}
           onEdit={handleEditProvider}
           onRemove={handleSetDeletingProviderIndex}
         />
@@ -665,15 +736,8 @@ export function Providers() {
                   {nameError && <p className='text-sm text-red-500'>{nameError}</p>}
                 </div>
               )}
-              <Tabs
-                value={editingProvider.auth_mode ?? 'api_key'}
-                onValueChange={(v) => handleProviderChange(editingProviderIndex, 'auth_mode', v)}
-              >
-                <TabsList>
-                  <TabsTrigger value='api_key'>{t('providers.auth_api')}</TabsTrigger>
-                  <TabsTrigger value='subscription'>{t('providers.auth_subscription')}</TabsTrigger>
-                </TabsList>
-                <TabsContent value='api_key' className='space-y-4 pt-4'>
+              {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
+                <div className='space-y-4'>
                   <div className='space-y-2'>
                     <Label htmlFor='api_base_url'>{t('providers.api_base_url')}</Label>
                     <Input
@@ -714,14 +778,13 @@ export function Providers() {
                     </div>
                     {apiKeyError && <p className='text-sm text-red-500'>{apiKeyError}</p>}
                   </div>
-                </TabsContent>
-                <TabsContent value='subscription' className='space-y-4 pt-4'>
-                  <div className='rounded-md border bg-muted/40 p-4 text-sm text-gray-700 space-y-2'>
-                    <p className='font-medium'>{t('providers.subscription_intro')}</p>
-                    <p className='text-gray-500'>{t('providers.subscription_hint')}</p>
-                  </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+              ) : (
+                <div className='rounded-md border bg-muted/40 p-4 text-sm text-gray-700 space-y-2'>
+                  <p className='font-medium'>{t('providers.subscription_intro')}</p>
+                  <p className='text-gray-500'>{t('providers.subscription_hint')}</p>
+                </div>
+              )}
               <div className='space-y-2'>
                 <Label htmlFor='models'>{t('providers.models')}</Label>
                 <div className='space-y-2'>
