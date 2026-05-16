@@ -41,17 +41,32 @@ const readClaudeCredentials = async (): Promise<CredentialFileShape | null> => {
   }
 }
 
+// Decode a JWT payload without verifying the signature — we only need
+// the public claims and the file came from the user's own filesystem.
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+  try {
+    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(parts[1].length + ((4 - (parts[1].length % 4)) % 4), '=')
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'))
+  } catch {
+    return null
+  }
+}
+
 const readCodexCredentials = async (): Promise<CredentialFileShape | null> => {
-  // Codex CLI credential shape: best-effort guess. Update once the real
-  // file lands on disk so we can confirm the field names.
-  const data = await readJson<Record<string, unknown>>(join(homedir(), '.codex', 'auth.json'))
-  if (!data) return null
-  const tokens = (data.tokens ?? data) as Record<string, unknown>
+  const data = await readJson<{ tokens?: { id_token?: string; access_token?: string }; OPENAI_API_KEY?: string | null }>(
+    join(homedir(), '.codex', 'auth.json')
+  )
+  const idToken = data?.tokens?.id_token
+  const claims = idToken ? decodeJwtPayload(idToken) : null
+  const auth = (claims?.['https://api.openai.com/auth'] ?? {}) as Record<string, unknown>
+  const activeUntil = typeof auth.chatgpt_subscription_active_until === 'string' ? auth.chatgpt_subscription_active_until : null
   return {
-    plan: typeof tokens.plan === 'string' ? tokens.plan : null,
-    rateLimitTier: typeof tokens.rateLimitTier === 'string' ? tokens.rateLimitTier : null,
-    expiresAt: typeof tokens.expiresAt === 'number' ? tokens.expiresAt : null,
-    scopes: Array.isArray(tokens.scopes) ? (tokens.scopes as string[]) : null
+    plan: typeof auth.chatgpt_plan_type === 'string' ? auth.chatgpt_plan_type : null,
+    rateLimitTier: null,
+    expiresAt: activeUntil ? Date.parse(activeUntil) : null,
+    scopes: null
   }
 }
 
