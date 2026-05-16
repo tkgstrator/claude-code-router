@@ -47,12 +47,32 @@ export interface LlmsContext {
 
 let ctxPromise: Promise<LlmsContext> | null = null
 
+// Subscription providers store no api_key (the OAuth token lives in a
+// credentials file). llms ProviderService skips any provider with a
+// falsy api_key, and the real token is injected at request time by a
+// credentials transformer. So for the /v1 pipeline view we give such
+// providers a placeholder key (never sent — the transformer's auth()
+// overrides the header) plus the matching credentials transformer.
+const CREDENTIALS_TRANSFORMER: Record<string, string> = {
+  'claude-code': 'claude-code-credentials'
+  // codex needs a dedicated codex-credentials transformer in src/llms
+  // before it can route via /v1 — tracked as a follow-up.
+}
+const withSubscriptionAuth = (providers: any[]): any[] =>
+  providers.map((p) => {
+    if (p?.auth_mode !== 'subscription') return p
+    const cred = CREDENTIALS_TRANSFORMER[p.name]
+    if (!cred) return p
+    return { ...p, api_key: 'oauth', transformer: { ...(p.transformer ?? {}), use: [cred] } }
+  })
+
 async function build(): Promise<LlmsContext> {
   const cfg = await loadFullConfig()
+  const providers = withSubscriptionAuth((cfg as any).Providers ?? [])
   // router.ts reads configService.get("providers") (lowercase) and
   // get("Router"); loadFullConfig returns capital Providers. Provide
   // both so explicit "provider,model" routing also works.
-  const initialConfig = { ...cfg, providers: (cfg as any).Providers, Router: (cfg as any).Router }
+  const initialConfig = { ...cfg, Providers: providers, providers, Router: (cfg as any).Router }
   const configService = new ConfigService({ initialConfig })
   const transformerService = new TransformerService(configService, log)
   const tokenizerService = new TokenizerService(configService, log)
