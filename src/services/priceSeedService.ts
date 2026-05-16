@@ -20,6 +20,7 @@
 import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, VENDOR_DEFAULTS } from '@ccr/shared/data'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, Prisma, type PrismaClient } from '../generated/prisma/client'
+import { apiStyleForVendor, modelApiStyleOverride } from './configService'
 
 const OFFICIAL_VENDORS = ['openai', 'anthropic', 'google'] as const
 
@@ -60,6 +61,7 @@ export async function seedScrapedPricesIntoDb(
             apiBaseUrl: defaults?.baseUrl ?? '',
             apiKey: '',
             authMode: AuthMode.api_key,
+            apiStyle: apiStyleForVendor(vendor),
             transformer: defaults?.transformer ?? Prisma.DbNull
           },
           include: { models: true }
@@ -96,7 +98,8 @@ export async function seedScrapedPricesIntoDb(
           deprecated: isDeprecatedModel(id),
           legacy: Boolean(entry.legacy),
           inputPer1M: entry.inputPer1M,
-          outputPer1M: entry.outputPer1M
+          outputPer1M: entry.outputPer1M,
+          apiStyle: modelApiStyleOverride(id)
         }
         if (existingNames.has(id)) {
           await tx.model.update({

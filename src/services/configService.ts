@@ -12,13 +12,31 @@ import { buildSeedProviders, type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKe
 import { isDeprecatedModel, SUBSCRIPTION_PRESETS } from '@ccr/shared/data'
 import { getPrismaClient } from '../db/client'
 import {
+  ApiStyle,
   AuthMode,
   type Model as DbModel,
   type Provider as DbProvider,
   Prisma,
   type PrismaClient
 } from '../generated/prisma/client'
+
 import { backupConfigFile, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
+
+// Explicit per-provider request shape. No runtime fallback — every
+// seeded provider gets a concrete value written to the DB.
+export const apiStyleForVendor = (name: string): ApiStyle => {
+  if (name === 'anthropic' || name === 'claude-code') return ApiStyle.anthropic
+  if (name === 'google') return ApiStyle.gemini
+  if (name === 'codex') return ApiStyle.openai_responses
+  return ApiStyle.openai_chat
+}
+
+// Per-model override stored on Model.apiStyle. Codex-family models are
+// Responses-only even when hosted under the regular (chat) openai
+// provider, so they need an explicit endpoint stored on the row.
+// Returns null when the model should inherit the provider's apiStyle.
+export const modelApiStyleOverride = (modelName: string): ApiStyle | null =>
+  /codex/i.test(modelName) ? ApiStyle.openai_responses : null
 
 // --- Shapes the UI sees -----------------------------------------------------
 
@@ -272,7 +290,12 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
     }
     if (toCreate.length > 0) {
       await tx.model.createMany({
-        data: toCreate.map((name) => ({ providerId: provider.id, name, deprecated: isDeprecatedModel(name) }))
+        data: toCreate.map((name) => ({
+          providerId: provider.id,
+          name,
+          deprecated: isDeprecatedModel(name),
+          apiStyle: modelApiStyleOverride(name)
+        }))
       })
     }
     // Resync the deprecation flag on rows we kept — the registry may
@@ -370,6 +393,7 @@ interface SeedRow {
   name: string
   apiBaseUrl: string
   authMode: AuthMode
+  apiStyle: ApiStyle
   transformer: Prisma.InputJsonValue | typeof Prisma.DbNull
   models: string[]
 }
@@ -382,6 +406,7 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
     name: seed.name,
     apiBaseUrl: seed.apiBaseUrl,
     authMode: AuthMode.api_key,
+    apiStyle: apiStyleForVendor(seed.name),
     transformer: seed.transformer ?? Prisma.DbNull,
     models: seed.models
   }))
@@ -389,6 +414,7 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
     name: preset.id,
     apiBaseUrl: preset.apiBaseUrl,
     authMode: AuthMode.subscription,
+    apiStyle: apiStyleForVendor(preset.id),
     transformer: Prisma.DbNull,
     models: preset.defaultEnabledModels
   }))
@@ -405,6 +431,7 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
             apiBaseUrl: seed.apiBaseUrl,
             apiKey: '',
             authMode: seed.authMode,
+            apiStyle: seed.apiStyle,
             transformer: seed.transformer
           }
         })
@@ -413,7 +440,8 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
             data: seed.models.map((name) => ({
               providerId: provider.id,
               name,
-              deprecated: isDeprecatedModel(name)
+              deprecated: isDeprecatedModel(name),
+              apiStyle: modelApiStyleOverride(name)
             }))
           })
         }
@@ -429,7 +457,8 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
           data: newModels.map((name) => ({
             providerId: current.id,
             name,
-            deprecated: isDeprecatedModel(name)
+            deprecated: isDeprecatedModel(name),
+            apiStyle: modelApiStyleOverride(name)
           }))
         })
       }

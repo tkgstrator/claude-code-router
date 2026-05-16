@@ -16,9 +16,8 @@
  * they fall back to the credential reachability check.
  */
 
-import { VENDOR_DEFAULTS } from '@ccr/shared'
 import { getPrismaClient } from '../db/client'
-import { AuthMode, ModelTestStatus, type PrismaClient } from '../generated/prisma/client'
+import { ApiStyle, AuthMode, ModelTestStatus, type PrismaClient } from '../generated/prisma/client'
 import { getSubscriptionsInfo } from './subscriptionInfoService'
 
 export interface ModelTestResult {
@@ -31,15 +30,6 @@ export interface ModelTestResult {
 
 const TIMEOUT_MS = 20_000
 
-type VendorStyle = 'anthropic' | 'gemini' | 'openai'
-
-const styleFor = (vendor: string): VendorStyle => {
-  const auth = VENDOR_DEFAULTS[vendor]?.modelsAuth
-  if (auth === 'x-api-key') return 'anthropic'
-  if (auth === 'google-key-param') return 'gemini'
-  return 'openai'
-}
-
 const fetchWithTimeout = async (url: string, init: RequestInit): Promise<Response> => {
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS)
@@ -51,14 +41,21 @@ const fetchWithTimeout = async (url: string, init: RequestInit): Promise<Respons
 }
 
 const probeInference = async (
-  vendor: string,
+  style: ApiStyle,
   baseUrl: string,
   apiKey: string,
   model: string
 ): Promise<{ ok: boolean; error?: string }> => {
-  const style = styleFor(vendor)
+  // A 400 saying the output budget was exhausted means the model
+  // actually ran (auth ok, model exists) — it just couldn't finish
+  // within our deliberately tiny 1-token cap. For a reachability test
+  // that's a pass; reasoning models spend the budget on hidden
+  // reasoning and never emit a token here.
+  const budgetExhausted = (s: number, b: string) =>
+    s === 400 &&
+    /could not finish the message because max_tokens|model output limit was reached|max_output_tokens/i.test(b)
   try {
-    if (style === 'anthropic') {
+    if (style === ApiStyle.anthropic) {
       const res = await fetchWithTimeout(baseUrl, {
         method: 'POST',
         headers: {
@@ -76,7 +73,7 @@ const probeInference = async (
       return { ok: false, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` }
     }
 
-    if (style === 'gemini') {
+    if (style === ApiStyle.gemini) {
       // baseUrl ends with /v1beta/models/ — resolve relative to it.
       const url = new URL(`./${model}:generateContent`, baseUrl)
       url.searchParams.set('key', apiKey)
@@ -92,8 +89,33 @@ const probeInference = async (
       return { ok: false, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` }
     }
 
-    // openai-compatible chat completions; baseUrl is the chat endpoint.
-    // gpt-5 / o-series reject `max_tokens` and require
+    // OpenAI Responses API call. The provider's base URL may be the
+    // chat-completions endpoint (codex models live under the regular
+    // openai provider via a per-model apiStyle override), so normalise
+    // it to /responses; if it's already /responses it's unchanged.
+    const probeResponses = async (chatOrResponsesUrl: string): Promise<{ ok: boolean; error?: string }> => {
+      const responsesUrl = chatOrResponsesUrl.replace(/\/chat\/completions(\/?)$/, '/responses$1')
+      const res = await fetchWithTimeout(responsesUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({ model, input: 'ping', max_output_tokens: 1 })
+      })
+      if (res.ok) return { ok: true }
+      const rbody = (await res.text()).slice(0, 300)
+      if (budgetExhausted(res.status, rbody)) return { ok: true }
+      return { ok: false, error: `HTTP ${res.status}: ${rbody.slice(0, 200)}` }
+    }
+
+    if (style === ApiStyle.openai_responses) {
+      // baseUrl is already the /v1/responses endpoint.
+      return probeResponses(baseUrl)
+    }
+
+    // ApiStyle.openai_chat — chat completions; baseUrl is the chat
+    // endpoint. gpt-5 / o-series reject `max_tokens` and require
     // `max_completion_tokens`; older gpt-4 / OpenAI-compatible vendors
     // only know `max_tokens`. Send `max_tokens` first and retry once
     // with `max_completion_tokens` when the vendor explicitly rejects
@@ -111,14 +133,6 @@ const probeInference = async (
           messages: [{ role: 'user', content: 'ping' }]
         })
       })
-
-    // A 400 that says the output budget was exhausted means the model
-    // actually ran (auth ok, model exists) — it just couldn't finish
-    // within our deliberately tiny 1-token cap. For a reachability
-    // test that's a pass; reasoning models (gpt-5 / o-series) spend
-    // the budget on hidden reasoning and can never emit a token here.
-    const budgetExhausted = (s: number, b: string) =>
-      s === 400 && /could not finish the message because max_tokens|model output limit was reached/i.test(b)
 
     const res = await callChat('max_tokens')
     if (res.ok) return { ok: true }
@@ -213,7 +227,10 @@ export async function testModel(
     }
   }
 
-  const probe = await probeInference(provider.name, provider.apiBaseUrl, provider.apiKey, modelName)
+  // Per-model override wins; otherwise the provider's style. Both are
+  // explicit DB values — no endpoint guessing / 404 probing.
+  const effectiveStyle = modelRow.apiStyle ?? provider.apiStyle
+  const probe = await probeInference(effectiveStyle, provider.apiBaseUrl, provider.apiKey, modelName)
   await persist(prisma, modelRow.id, probe.ok, probe.error)
   return {
     provider: providerName,
@@ -231,20 +248,36 @@ export interface TestAllOutcome {
   results: ModelTestResult[]
 }
 
-// scope 'all' tests every Model; 'failing' only those whose current
-// testStatus !== ok (never-tested + previously-failed). Sequential to
-// avoid rate-limit/billed bursts.
+const disabledModelNames = (transformer: unknown): Set<string> => {
+  const raw =
+    transformer && typeof transformer === 'object'
+      ? (transformer as Record<string, unknown>)._disabledModels
+      : undefined
+  return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [])
+}
+
+// scope 'all' tests every enabled Model; 'failing' only enabled models
+// whose current testStatus !== ok (never-tested + previously-failed).
+// Models the user turned off (provider.transformer._disabledModels)
+// are skipped entirely. Sequential to avoid rate-limit/billed bursts.
 export async function testAllModels(
   scope: 'all' | 'failing',
   prisma: PrismaClient = getPrismaClient()
 ): Promise<TestAllOutcome> {
   const models = await prisma.model.findMany({
     where: scope === 'failing' ? { testStatus: { not: ModelTestStatus.ok } } : {},
-    include: { provider: { select: { name: true } } },
+    include: { provider: { select: { name: true, transformer: true } } },
     orderBy: [{ provider: { name: 'asc' } }, { name: 'asc' }]
   })
+  const disabledByProvider = new Map<string, Set<string>>()
   const results: ModelTestResult[] = []
   for (const m of models) {
+    let disabled = disabledByProvider.get(m.provider.name)
+    if (!disabled) {
+      disabled = disabledModelNames(m.provider.transformer)
+      disabledByProvider.set(m.provider.name, disabled)
+    }
+    if (disabled.has(m.name)) continue
     results.push(await testModel(m.provider.name, m.name, prisma))
   }
   return {

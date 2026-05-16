@@ -51,12 +51,28 @@ enum AuthMode {
   subscription
 }
 
+// Wire format of a Provider's chat endpoint, used to shape the
+// connectivity test (and, later, the proxy). Always explicitly set per
+// provider by the seed — there is no runtime fallback, so the value in
+// the DB is authoritative. e.g. codex only speaks the OpenAI Responses
+// API, not /chat/completions.
+enum ApiStyle {
+  openai_chat
+  openai_responses
+  anthropic
+  gemini
+}
+
 model Provider {
   id          String   @id @default(cuid())
   name        String   @unique
   apiBaseUrl  String
   apiKey      String
   authMode    AuthMode @default(api_key)
+  // Request shape for this provider's chat endpoint. Seeded explicitly
+  // for every provider; the default only covers a row created before
+  // the seed runs.
+  apiStyle    ApiStyle @default(openai_chat)
   // Free-form provider-level transformer block. The legacy shape is
   // { use: string[] | [string, opts][], [modelName]: { use: ... } } —
   // PR #2 will normalize this into a Transformer table.
@@ -71,6 +87,12 @@ model Model {
   providerId  String
   provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name        String
+  // Per-model request-shape override. A single api_key provider (e.g.
+  // openai) hosts both chat models and Responses-only models (codex
+  // family), so the provider-level apiStyle isn't granular enough.
+  // Null means "use the provider's apiStyle"; set explicitly (seeded)
+  // for the models that need a different endpoint.
+  apiStyle    ApiStyle?
   // True when the vendor has marked this model as deprecated upstream.
   // The flag is seeded from packages/shared/src/data/deprecations.ts at
   // boot and on the UI refresh-models action; we never delete the row
