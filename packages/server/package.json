@@ -9,6 +9,10 @@
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.js"
+    },
+    "./config": {
+      "bun": "./src/services/configService.ts",
+      "import": "./src/services/configService.ts"
     }
   },
   "scripts": {
