@@ -671,7 +671,10 @@ export function Providers() {
     subscription: filteredProviders.filter((p) => p.auth_mode === 'subscription')
   }
   const visibleProviders = providersByAuth[activeAuthMode]
-  const isAvailable = (p: Provider) => p.auth_mode === 'subscription' || (p.api_key?.trim().length ?? 0) > 0
+  const isAvailable = (p: Provider) => {
+    if (p.auth_mode === 'subscription') return Boolean(planByProvider[p.name])
+    return (p.api_key?.trim().length ?? 0) > 0
+  }
   const availableProviders = visibleProviders.filter(isAvailable)
   const unavailableProviders = visibleProviders.filter((p) => !isAvailable(p))
 
