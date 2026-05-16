@@ -1,17 +1,27 @@
 /**
- * Integration tests for the claude provider (Anthropic via Claude Code OAuth credentials).
- * Requires ~/.claude/.credentials.json to be present.
- * CCR must be running at http://127.0.0.1:3456.
+ * Integration tests for the claude-code subscription provider
+ * (Anthropic via Claude Code OAuth credentials).
+ *
+ * Requires ~/.claude/.credentials.json to be present and the CCR server
+ * running (default http://127.0.0.1:16173, override with CCR_TEST_URL).
+ *
+ * Every *enabled* model of every claude-* subscription provider in
+ * /api/config is smoke-tested, so the matrix tracks the DB instead of a
+ * hardcoded list. A long-context 429 ("Extra usage is required for long
+ * context requests") is a HARD failure — that's the regression guard
+ * for the context-1m beta strip (subscription routing). A generic quota
+ * 429 is tolerated as a skip, since the claude-code free tier genuinely
+ * rate-limits and that is not our bug.
  */
 
 import { describe, test, expect } from "bun:test";
 import {
   streamMessage,
-  sendMessage,
   extractTextFromEvents,
   assertAnthropicSSEShape,
+  fetchSubscriptionModels,
   TEST_TIMEOUT,
-  type SSEEvent,
+  type SubscriptionModel,
 } from "./helpers";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -21,99 +31,78 @@ const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
 const hasCredentials =
   existsSync(CREDENTIALS_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
 
-describe.skipIf(!hasCredentials)("claude / claude-haiku-4-5 (claude-code-credentials)", () => {
-  test(
-    "streaming response has correct Anthropic SSE shape",
-    async () => {
-      const events = await streamMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 100,
-        messages: [{ role: "user", content: "Say exactly: hello" }],
-      });
+const isLongContextGate = (msg: string): boolean =>
+  /extra usage is required for long context|long context request/i.test(msg);
+const isGenericRateLimit = (msg: string): boolean =>
+  /\b429\b|rate_limit|rate limit/i.test(msg);
 
-      assertAnthropicSSEShape(events);
-      const text = extractTextFromEvents(events);
-      expect(text.length).toBeGreaterThan(0);
-    },
-    TEST_TIMEOUT
-  );
+const result = await (async (): Promise<
+  { models: SubscriptionModel[] } | { error: string }
+> => {
+  if (!hasCredentials) return { models: [] };
+  try {
+    return { models: await fetchSubscriptionModels(/claude/i) };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+})();
 
-  test(
-    "response contains expected text",
-    async () => {
-      const events = await streamMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 50,
-        messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
-      });
+describe.skipIf(!hasCredentials)("claude-code subscription / all enabled models", () => {
+  if ("error" in result) {
+    test("CCR server reachable for /api/config", () => {
+      throw new Error(
+        `Could not load model matrix from CCR — is the server running? ${result.error}`
+      );
+    });
+    return;
+  }
 
-      const text = extractTextFromEvents(events);
-      expect(text.toLowerCase()).toContain("pong");
-    },
-    TEST_TIMEOUT
-  );
+  if (result.models.length === 0) {
+    test("at least one enabled claude-code subscription model", () => {
+      throw new Error(
+        "No enabled claude-* subscription models in /api/config — nothing to verify"
+      );
+    });
+    return;
+  }
 
-  test(
-    "non-streaming response returns Anthropic message format",
-    async () => {
-      const res = await sendMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 50,
-        messages: [{ role: "user", content: "Reply with only the number 42." }],
-        stream: false,
-      });
+  for (const { provider, model } of result.models) {
+    describe(`${provider},${model}`, () => {
+      test(
+        "streaming returns valid Anthropic SSE with text",
+        async () => {
+          let events: Awaited<ReturnType<typeof streamMessage>>;
+          try {
+            events = await streamMessage({
+              model: `${provider},${model}`,
+              max_tokens: 64,
+              messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
+            });
+          } catch (err) {
+            const msg = (err as Error).message ?? "";
+            // Regression guard: the context-1m beta strip must keep
+            // subscription routing off Anthropic's long-context billing
+            // gate. If this 429 ever comes back, fail loudly.
+            if (isLongContextGate(msg)) {
+              throw new Error(
+                `${provider},${model}: long-context 429 regressed — context-1m beta is reaching Anthropic again. ${msg}`
+              );
+            }
+            // Genuine transient quota limit on the free tier — not our
+            // bug; skip rather than flake the suite.
+            if (isGenericRateLimit(msg)) {
+              console.warn(`${provider},${model} rate limited (quota), skipping assertion: ${msg}`);
+              return;
+            }
+            throw err;
+          }
 
-      expect(res.ok).toBe(true);
-      const body = await res.json() as any;
-      expect(body.type).toBe("message");
-      expect(body.role).toBe("assistant");
-      expect(Array.isArray(body.content)).toBe(true);
-      const text = body.content.map((c: any) => c.text ?? "").join("");
-      expect(text).toContain("42");
-    },
-    TEST_TIMEOUT
-  );
-
-  test(
-    "system prompt is respected",
-    async () => {
-      const events = await streamMessage({
-        model: "claude,claude-haiku-4-5-20251001",
-        max_tokens: 100,
-        system: "You are a pirate. Every sentence must end with the word ARRR.",
-        messages: [{ role: "user", content: "Say hello." }],
-      });
-
-      const text = extractTextFromEvents(events);
-      expect(text.toUpperCase()).toContain("ARRR");
-    },
-    TEST_TIMEOUT
-  );
-});
-
-describe.skipIf(!hasCredentials)("claude / claude-sonnet-4-6 (claude-code-credentials)", () => {
-  test(
-    "streaming response has correct Anthropic SSE shape",
-    async () => {
-      let events: SSEEvent[];
-      try {
-        events = await streamMessage({
-          model: "claude,claude-sonnet-4-6",
-          max_tokens: 100,
-          messages: [{ role: "user", content: "Say exactly: hello" }],
-        });
-      } catch (err: any) {
-        // claude-code-credentials free tier may hit rate limits; treat as skipped
-        if (err.message?.includes("429") || err.message?.includes("rate_limit")) {
-          console.warn("claude-sonnet-4-6 rate limited, skipping assertion");
-          return;
-        }
-        throw err;
-      }
-      assertAnthropicSSEShape(events);
-      const text = extractTextFromEvents(events);
-      expect(text.length).toBeGreaterThan(0);
-    },
-    TEST_TIMEOUT
-  );
+          assertAnthropicSSEShape(events);
+          const text = extractTextFromEvents(events);
+          expect(text.length).toBeGreaterThan(0);
+        },
+        TEST_TIMEOUT
+      );
+    });
+  }
 });

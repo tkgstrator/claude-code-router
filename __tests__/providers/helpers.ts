@@ -1,11 +1,55 @@
 /**
  * Shared helpers for provider integration tests.
- * Tests call CCR at http://127.0.0.1:3456/v1/messages with Anthropic-format bodies.
+ * Tests call the running CCR server with Anthropic-format bodies.
  * Using "provider,model" in the model field routes directly to that provider.
+ *
+ * Base URL defaults to the consolidated Vite+Hono dev server
+ * (http://127.0.0.1:16173); override with CCR_TEST_URL for a different
+ * host/port.
  */
 
-export const CCR_URL = "http://127.0.0.1:3456/v1/messages";
+const CCR_BASE = process.env.CCR_TEST_URL ?? "http://127.0.0.1:16173";
+export const CCR_URL = `${CCR_BASE}/v1/messages`;
+export const CCR_CONFIG_URL = `${CCR_BASE}/api/config`;
 export const TEST_TIMEOUT = 60_000;
+
+export interface SubscriptionModel {
+  provider: string;
+  model: string;
+}
+
+/**
+ * Pull the live subscription-provider model matrix from the running
+ * server's /api/config (the DB-backed source of truth), so the suite
+ * exercises *every* enabled model of a subscription provider instead
+ * of a hardcoded handful. `enabled` = listed in the provider's models
+ * and not in its transformer._disabledModels. `nameMatch` narrows to a
+ * specific subscription provider (e.g. /claude/ or /codex/).
+ */
+export async function fetchSubscriptionModels(
+  nameMatch: RegExp
+): Promise<SubscriptionModel[]> {
+  const res = await fetch(CCR_CONFIG_URL);
+  if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`);
+  const cfg = (await res.json()) as {
+    Providers?: {
+      name: string;
+      auth_mode?: string;
+      models?: string[];
+      transformer?: { _disabledModels?: string[] };
+    }[];
+  };
+  const out: SubscriptionModel[] = [];
+  for (const p of cfg.Providers ?? []) {
+    if (p.auth_mode !== "subscription") continue;
+    if (!nameMatch.test(p.name)) continue;
+    const disabled = new Set(p.transformer?._disabledModels ?? []);
+    for (const m of p.models ?? []) {
+      if (!disabled.has(m)) out.push({ provider: p.name, model: m });
+    }
+  }
+  return out;
+}
 
 export interface AnthropicMessage {
   role: "user" | "assistant";
