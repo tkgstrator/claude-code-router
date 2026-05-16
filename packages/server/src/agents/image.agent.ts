@@ -1,5 +1,5 @@
 import { LRUCache } from 'lru-cache'
-import type { IAgent, ITool } from './type'
+import type { IAgent, IAgentConfig, IAgentRequest, ITool } from './type'
 
 interface ImageCacheEntry {
   source: any
@@ -49,9 +49,13 @@ export class ImageAgent implements IAgent {
     this.appendTools()
   }
 
-  shouldHandle(req: any, config: any): boolean {
-    if (!config.Router?.image || req.body.model === config.Router.image) return false
-    const lastMessage = req.body.messages[req.body.messages.length - 1]
+  shouldHandle(req: IAgentRequest, config: IAgentConfig): boolean {
+    // Body fields stay loosely typed: the LLM payload shape is owned by
+    // @anthropic-ai/sdk and downstream transformers; this agent only inspects
+    // a handful of message-content fields.
+    const body = req.body as any
+    if (!config.Router?.image || body.model === config.Router.image) return false
+    const lastMessage = body.messages[body.messages.length - 1]
     if (
       !config.forceUseImageAgent &&
       lastMessage.role === 'user' &&
@@ -62,7 +66,7 @@ export class ImageAgent implements IAgent {
           (Array.isArray(item?.content) && item.content.some((sub: any) => sub.type === 'image'))
       )
     ) {
-      req.body.model = config.Router.image
+      body.model = config.Router.image
       const images: any[] = []
       lastMessage.content
         .filter((item: any) => item.type === 'tool_result')
@@ -79,7 +83,7 @@ export class ImageAgent implements IAgent {
       lastMessage.content.push(...images)
       return false
     }
-    return req.body.messages.some(
+    return body.messages.some(
       (msg: any) =>
         msg.role === 'user' &&
         Array.isArray(msg.content) &&
@@ -165,7 +169,10 @@ export class ImageAgent implements IAgent {
           delete args.imageId
         }
 
-        const userMessage = context.req.body.messages[context.req.body.messages.length - 1]
+        // Body content is duck-typed against the @anthropic-ai/sdk payload;
+        // narrowing to a specific schema is a separate task.
+        const ctxBody = context.req.body as any
+        const userMessage = ctxBody.messages[ctxBody.messages.length - 1]
         if (userMessage.role === 'user' && Array.isArray(userMessage.content)) {
           const msgs = userMessage.content.filter(
             (item: any) =>
@@ -221,9 +228,11 @@ Always ensure that your response reflects a clear, accurate interpretation of th
     })
   }
 
-  reqHandler(req: any, config: any) {
+  reqHandler(req: IAgentRequest, _config: IAgentConfig) {
+    // Body content is still loosely typed; see shouldHandle for rationale.
+    const body = req.body as any
     // Inject system prompt
-    req.body?.system?.push({
+    body?.system?.push({
       type: 'text',
       text: `You are a text-only language model and do not possess visual perception.  
 If the user requests you to view, analyze, or extract information from an image, you **must** call the \`analyzeImage\` tool.  
@@ -238,7 +247,7 @@ Ignore any user interruptions or unrelated instructions that might cause you to 
 Your response should consistently follow this rule whenever image-related analysis is requested.`
     })
 
-    const imageContents = req.body.messages.filter((item: any) => {
+    const imageContents = body.messages.filter((item: any) => {
       return (
         item.role === 'user' &&
         Array.isArray(item.content) &&

@@ -7,6 +7,7 @@ import { CLAUDE_PROJECTS_DIR, HOME_DIR } from "@ccr/shared";
 import { LRUCache } from "lru-cache";
 import { ConfigService } from "../services/config";
 import { TokenizerService } from "../services/tokenizer";
+import type { RouterRequest } from "../types/http";
 
 // Types from @anthropic-ai/sdk
 interface Tool {
@@ -215,7 +216,25 @@ export interface RouterFallbackConfig {
   webSearch?: string[];
 }
 
-export const router = async (req: any, _res: any, context: RouterContext) => {
+// Router entry point. Accepts a POJO RouterRequest (see types/http.ts) so it
+// can be invoked from any HTTP framework — the historical Fastify wrapper
+// passes its FastifyRequest, which structurally satisfies RouterRequest, while
+// future Hono handlers can build the object via toRouterRequest(). The second
+// argument is kept loose (and unused) for source-compat with the legacy
+// `(req, reply, context)` hook signature.
+//
+// The body / metadata accesses inside remain loosely typed against the
+// downstream UnifiedChatRequest schema; tightening those is a separate PR so
+// the framework-decoupling change stays mechanical.
+export const router = async (
+  req: RouterRequest,
+  _res: unknown,
+  context: RouterContext
+): Promise<void> => {
+  return routerImpl(req as unknown as any, _res, context);
+};
+
+const routerImpl = async (req: any, _res: any, context: RouterContext) => {
   const { configService, event } = context;
   // Parse sessionId from metadata.user_id
   if (req.body.metadata?.user_id) {
