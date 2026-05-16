@@ -316,15 +316,11 @@ export function Providers() {
       const has = value.trim().length > 0
       if (!had && has) {
         const models: string[] = Array.isArray(updatedProvider.models) ? updatedProvider.models : []
-        const serverDeprecated = Array.isArray(updatedProvider.deprecatedModels)
-          ? updatedProvider.deprecatedModels
-          : []
+        const serverDeprecated = Array.isArray(updatedProvider.deprecatedModels) ? updatedProvider.deprecatedModels : []
         const deprecated = models.filter((m) => serverDeprecated.includes(m) || isDeprecatedModel(m))
         if (deprecated.length > 0) {
           const transformer = { ...(updatedProvider.transformer ?? { use: [] }) }
-          const existing = Array.isArray(transformer._disabledModels)
-            ? (transformer._disabledModels as string[])
-            : []
+          const existing = Array.isArray(transformer._disabledModels) ? (transformer._disabledModels as string[]) : []
           transformer._disabledModels = [...new Set([...existing, ...deprecated])]
           updatedProvider.transformer = transformer
         }
@@ -680,9 +676,7 @@ export function Providers() {
         const deprecated = models.filter((m) => isDeprecatedModel(m))
         if (deprecated.length > 0) {
           const transformer = { ...(newProviderData.transformer ?? { use: [] }) }
-          const existing = Array.isArray(transformer._disabledModels)
-            ? (transformer._disabledModels as string[])
-            : []
+          const existing = Array.isArray(transformer._disabledModels) ? (transformer._disabledModels as string[]) : []
           transformer._disabledModels = [...new Set([...existing, ...deprecated])]
           newProviderData.transformer = transformer
         }

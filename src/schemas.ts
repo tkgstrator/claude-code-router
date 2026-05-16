@@ -19,10 +19,7 @@ export const ProviderSchema = z
     models: z.array(z.string()),
     deprecatedModels: z.array(z.string()).optional(),
     modelTestStatus: z
-      .record(
-        z.string(),
-        z.object({ status: z.enum(['unknown', 'ok', 'fail']), passedAt: z.string().nullable() })
-      )
+      .record(z.string(), z.object({ status: z.enum(['unknown', 'ok', 'fail']), passedAt: z.string().nullable() }))
       .optional(),
     transformer: z.record(z.string(), JsonValueSchema).optional()
   })
@@ -176,9 +173,7 @@ export const TransformersResponseSchema = z
 
 // --- Price scraper ---------------------------------------------------------
 
-export const ScrapePricesVendorSchema = z
-  .enum(['openai', 'anthropic', 'google', 'all'])
-  .openapi('ScrapePricesVendor')
+export const ScrapePricesVendorSchema = z.enum(['openai', 'anthropic', 'google', 'all']).openapi('ScrapePricesVendor')
 
 // --- Model inference test --------------------------------------------------
 

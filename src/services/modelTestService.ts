@@ -31,9 +31,7 @@ interface SubAuth {
   token: string
   extraHeaders?: Record<string, string>
 }
-const readSubscriptionAuth = async (
-  apiBaseUrl: string
-): Promise<SubAuth | { error: string }> => {
+const readSubscriptionAuth = async (apiBaseUrl: string): Promise<SubAuth | { error: string }> => {
   const readJson = async <T>(path: string): Promise<T | null> => {
     try {
       return JSON.parse(await readFile(path, 'utf-8')) as T
@@ -218,8 +216,7 @@ const probeInference = async (
     if (res.ok) return { ok: true }
     const body = (await res.text()).slice(0, 300)
     if (reachable(res.status, body)) return { ok: true }
-    const wantsCompletionTokens =
-      res.status === 400 && /max_tokens/.test(body) && /max_completion_tokens/.test(body)
+    const wantsCompletionTokens = res.status === 400 && /max_tokens/.test(body) && /max_completion_tokens/.test(body)
     if (wantsCompletionTokens) {
       const retry = await callChat('max_completion_tokens')
       if (retry.ok) return { ok: true }
@@ -304,13 +301,7 @@ export async function testModel(
       }
     }
     const subStyle = modelRow.apiStyle ?? provider.apiStyle
-    const subProbe = await probeInference(
-      subStyle,
-      provider.apiBaseUrl,
-      auth.token,
-      modelName,
-      auth.extraHeaders
-    )
+    const subProbe = await probeInference(subStyle, provider.apiBaseUrl, auth.token, modelName, auth.extraHeaders)
     await persist(prisma, modelRow.id, subProbe.ok, subProbe.error)
     return {
       provider: providerName,
@@ -376,14 +367,10 @@ export async function testAllModels(
   // Which subscription providers actually have valid, unexpired creds.
   const subs = await getSubscriptionsInfo()
   const validSubscription = new Set(
-    subs
-      .filter((s) => s.plan && !(s.expiresAt && s.expiresAt < Date.now()))
-      .map((s) => s.providerName)
+    subs.filter((s) => s.plan && !(s.expiresAt && s.expiresAt < Date.now())).map((s) => s.providerName)
   )
   const hasCredentials = (p: { name: string; apiKey: string; authMode: AuthMode }): boolean =>
-    p.authMode === AuthMode.subscription
-      ? validSubscription.has(p.name)
-      : p.apiKey.trim().length > 0
+    p.authMode === AuthMode.subscription ? validSubscription.has(p.name) : p.apiKey.trim().length > 0
 
   const results: ModelTestResult[] = []
   for (const m of models) {

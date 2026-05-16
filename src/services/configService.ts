@@ -15,8 +15,8 @@ import {
   ApiStyle,
   AuthMode,
   type Model as DbModel,
-  ModelTestStatus,
   type Provider as DbProvider,
+  ModelTestStatus,
   Prisma,
   type PrismaClient
 } from '../generated/prisma/client'
@@ -129,9 +129,7 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
   // any UI change.
   const disabledModels = p.models.filter((m) => !m.enabled).map((m) => m.name)
   const baseTransformer =
-    p.transformer && typeof p.transformer === 'object'
-      ? (p.transformer as Record<string, unknown>)
-      : undefined
+    p.transformer && typeof p.transformer === 'object' ? (p.transformer as Record<string, unknown>) : undefined
   const transformerOut =
     baseTransformer || disabledModels.length > 0
       ? { ...(baseTransformer ?? {}), ...(disabledModels.length > 0 ? { _disabledModels: disabledModels } : {}) }
@@ -282,9 +280,7 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
     const prevProvider = existing.find((e) => e.name === inc.name)
     const prevEnabledByName = new Map(prevProvider?.models.map((m) => [m.name, m.enabled]) ?? [])
     const incTransformer =
-      inc.transformer && typeof inc.transformer === 'object'
-        ? (inc.transformer as Record<string, unknown>)
-        : undefined
+      inc.transformer && typeof inc.transformer === 'object' ? (inc.transformer as Record<string, unknown>) : undefined
     const storedTransformer = (() => {
       if (!incTransformer) return undefined
       const { _disabledModels: _omit, ...rest } = incTransformer
@@ -377,7 +373,11 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
     // Resync the deprecation flag on rows we kept — the registry may
     // have flipped a model between releases, and we don't want a model
     // first seeded as active to silently stay that way.
-    await syncDeprecationFlags(tx, provider.id, [...desired].filter((n) => existingNames.has(n)))
+    await syncDeprecationFlags(
+      tx,
+      provider.id,
+      [...desired].filter((n) => existingNames.has(n))
+    )
   }
 }
 

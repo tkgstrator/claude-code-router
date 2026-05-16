@@ -10,8 +10,8 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { CONFIG_FILE } from '../../packages/shared/src/constants'
-import { runJsonToDbMigration } from '../../packages/server/src/db/migrateFromJson'
-import { composeUiConfig } from '../../packages/server/src/services/configService'
+import { runJsonToDbMigration } from '../../src/db/migrateFromJson'
+import { composeUiConfig } from '../../src/services/configService'
 import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
 
 // Each test writes a fresh config.json into ~/.claude-code-router/.

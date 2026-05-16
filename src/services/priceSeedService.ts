@@ -32,9 +32,7 @@ export interface PriceSeedOutcome {
   skipped?: string
 }
 
-export async function seedScrapedPricesIntoDb(
-  prisma: PrismaClient = getPrismaClient()
-): Promise<PriceSeedOutcome[]> {
+export async function seedScrapedPricesIntoDb(prisma: PrismaClient = getPrismaClient()): Promise<PriceSeedOutcome[]> {
   const outcomes: PriceSeedOutcome[] = []
 
   for (const vendor of OFFICIAL_VENDORS) {
