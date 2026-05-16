@@ -85,11 +85,30 @@ interface PipeError {
   code?: string
   message?: string
 }
-const errorJson = (c: Context, e: PipeError) =>
-  c.json(
+
+// sendRequestToProvider throws this exact shape on a non-ok upstream
+// response: "Error from provider(<name>,<model>: <status>): <rawBody>"
+// with statusCode = the upstream status. Forward the upstream status +
+// original body verbatim so Claude Code sees the genuine Anthropic
+// error (e.g. rate_limit_error) and reacts immediately, instead of our
+// re-wrapped message. Fail fast — these are never retried here.
+const PROVIDER_ERR_RE = /^Error from provider\([^)]*:\s*(\d+)\):\s*([\s\S]*)$/
+const errorResponse = (c: Context, e: PipeError) => {
+  if (e.code === 'provider_response_error' && typeof e.message === 'string') {
+    const m = e.message.match(PROVIDER_ERR_RE)
+    if (m) {
+      const status = Number(m[1]) || e.statusCode || 502
+      return new Response(m[2], {
+        status: status as number,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+  }
+  return c.json(
     { type: 'error', error: { type: e.code ?? 'internal_error', message: e.message ?? 'error' } },
     (e.statusCode ?? 500) as 500
   )
+}
 
 const endpointTransformerMap = (ctx: { transformerService: { getTransformersWithEndpoint(): unknown[] } }) => {
   const map = new Map<string, Map<string, unknown>>()
@@ -211,9 +230,9 @@ v1Route.post('/v1/*', async (c) => {
       try {
         return await runPipeline()
       } catch (err2) {
-        return errorJson(c, err2 as PipeError)
+        return errorResponse(c, err2 as PipeError)
       }
     }
-    return errorJson(c, err as PipeError)
+    return errorResponse(c, err as PipeError)
   }
 })
