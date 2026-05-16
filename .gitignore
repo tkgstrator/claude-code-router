@@ -5,6 +5,7 @@ log.txt
 dist
 .DS_Store
 tsconfig.tsbuildinfo
+tsconfig.*.tsbuildinfo
 
 # Documentation build output
 docs/build

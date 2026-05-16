@@ -17,10 +17,9 @@
       "packages/shared/src/**/*.{ts,tsx}",
       "packages/cli/src/**/*.{ts,tsx}",
       "packages/server/src/**/*.{ts,tsx}",
-      "packages/ui/src/**/*.{ts,tsx}",
       "!packages/server/src/generated",
-      "!packages/ui/src/components/ui/**/*.{ts,tsx}",
-      "!packages/ui/src/locales",
+      "!src/components/ui/**/*.{ts,tsx}",
+      "!src/locales",
       "!**/node_modules",
       "!**/dist"
     ]
@@ -57,7 +56,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/ui/src/**/*.{ts,tsx}"],
+      "includes": ["src/**/*.{ts,tsx}"],
       "linter": {
         "rules": {
           "a11y": {
