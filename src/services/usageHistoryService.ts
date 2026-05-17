@@ -1,8 +1,9 @@
 import { getPrismaClient } from '../db/client'
+import dayjs from '../lib/dayjs'
 import { getUsage } from './usageService'
 
 // Keep a bit more than the week the UI charts so the edges look full.
-const RETAIN_MS = 8 * 86_400_000
+const RETAIN_DAYS = 8
 
 interface SnapshotRow {
   provider: string
@@ -13,8 +14,8 @@ interface SnapshotRow {
 
 const toDate = (iso: string | null): Date | null => {
   if (!iso) return null
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? null : d
+  const d = dayjs(iso)
+  return d.isValid() ? d.toDate() : null
 }
 
 // Flatten the live usage snapshot into one row per window.
@@ -74,12 +75,18 @@ const flatten = (u: Awaited<ReturnType<typeof getUsage>>): SnapshotRow[] => {
 export async function recordUsageSnapshots(): Promise<void> {
   const rows = flatten(await getUsage())
   if (rows.length === 0) return
-  await getPrismaClient().usageSnapshot.createMany({ data: rows })
+  // Snap to the 5-min mark (BullMQ fires the job on the same grid via
+  // cron */5) so every capture lands on a clean :00/:05/:10 boundary
+  // and one capture's rows share an identical pivot timestamp.
+  const capturedAt = dayjs().floor('minute', 5).toDate()
+  await getPrismaClient().usageSnapshot.createMany({
+    data: rows.map((r) => ({ ...r, capturedAt }))
+  })
 }
 
 export async function pruneOldSnapshots(): Promise<void> {
   await getPrismaClient().usageSnapshot.deleteMany({
-    where: { capturedAt: { lt: new Date(Date.now() - RETAIN_MS) } }
+    where: { capturedAt: { lt: dayjs().subtract(RETAIN_DAYS, 'day').toDate() } }
   })
 }
 
@@ -114,13 +121,13 @@ const paceAt = (metric: string, capturedAt: Date, resetAt: Date | null): number 
   if (!resetAt) return null
   const windowS = WINDOW_SECONDS[metric]
   if (!windowS) return null
-  const elapsedS = windowS - (resetAt.getTime() - capturedAt.getTime()) / 1000
+  const elapsedS = windowS - dayjs(resetAt).diff(dayjs(capturedAt), 'second', true)
   const pct = (elapsedS / windowS) * 100
   return Math.round(Math.min(100, Math.max(0, pct)))
 }
 
 export async function getUsageHistory(days: number): Promise<UsageHistory> {
-  const since = new Date(Date.now() - days * 86_400_000)
+  const since = dayjs().subtract(days, 'day').toDate()
   const samples = await getPrismaClient().usageSnapshot.findMany({
     where: { capturedAt: { gte: since } },
     orderBy: { capturedAt: 'asc' },

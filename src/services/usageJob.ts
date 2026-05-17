@@ -5,7 +5,11 @@ import { pruneOldSnapshots, recordUsageSnapshots } from './usageHistoryService'
 const QUEUE = 'usage'
 const SCHEDULER_ID = 'usage-capture'
 const JOB_NAME = 'capture'
-const EVERY_MS = 5 * 60_000
+// Fire on the wall-clock 5-minute marks (:00/:05/:10 …) rather than
+// `every: 300000`, which drifts by whatever offset the scheduler was
+// first registered at. The capture timestamp is rounded to the same
+// grid in usageHistoryService, so this just keeps fire ≈ stored time.
+const CRON = '*/5 * * * *'
 
 // Survive Vite SSR module re-evaluation / HMR: one job setup per
 // process. The repeatable schedule itself is Redis-owned (idempotent
@@ -55,7 +59,7 @@ export async function startUsageCapture(): Promise<void> {
 
   const register = async (): Promise<void> => {
     try {
-      await queue.upsertJobScheduler(SCHEDULER_ID, { every: EVERY_MS }, { name: JOB_NAME })
+      await queue.upsertJobScheduler(SCHEDULER_ID, { pattern: CRON }, { name: JOB_NAME })
     } catch (err) {
       onRedisError(err)
     }
