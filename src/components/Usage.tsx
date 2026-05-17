@@ -114,11 +114,13 @@ export function Usage() {
   }, [])
 
   const { rows, metrics } = history
+  // Only the actual metrics go in the config; the dashed `__pace`
+  // companion lines are intentionally absent so they never show up in
+  // the legend or tooltip (they still render — stroked via metaFor).
   const chartConfig: ChartConfig = {}
   for (const m of metrics) {
     const meta = metaFor(m)
     chartConfig[m] = { label: meta.label, color: meta.color }
-    chartConfig[`${m}__pace`] = { label: `${meta.label} (pace)`, color: meta.color }
   }
 
   return (
