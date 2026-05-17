@@ -1,0 +1,21 @@
+{
+  // Runtime-only resolution config for `bun src/server.ts` in
+  // production (Dockerfile CMD passes --tsconfig-override).
+  //
+  // tsconfig.json maps `@/llms/*` to the type-only stub
+  // src/llms-vendor.d.ts so the strict `tsc` pass treats the vendored,
+  // intentionally-loose llms subsystem as `any`. Vite (dev) ignores
+  // tsconfig paths and resolves `@/llms/*` to real source via its own
+  // `@` alias. Plain Bun DOES honour tsconfig paths and would try to
+  // execute the .d.ts stub at runtime (ReferenceError: llmsAny is not
+  // defined). This override keeps only `@/*` -> src/*, so `@/llms/...`
+  // resolves to the real source — mirroring Vite — without weakening
+  // the strict typecheck contract in tsconfig.json. NOT used by tsc.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}
