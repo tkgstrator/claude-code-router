@@ -34,3 +34,4 @@ dayjs.extend(ceilPlugin)
 // The configured singleton. Self-code imports dayjs from here so the
 // .floor/.ceil augmentation is always loaded, never from 'dayjs'.
 export default dayjs
+export type { Dayjs } from 'dayjs'

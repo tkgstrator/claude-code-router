@@ -158,13 +158,17 @@ export const UsageResponseSchema = z
   })
   .openapi('UsageResponse')
 
-// Rows are chart-ready: { t: ISO } plus one numeric column per metric.
-// The dynamic metric keys are why this is a record rather than a fixed
-// object — recharts consumes exactly this shape.
+// Thin DB passthrough: one raw snapshot row per capture. The frontend
+// derives the chart series (deltas, reset clamping, moving average).
 export const UsageHistoryResponseSchema = z
   .object({
-    metrics: z.array(z.string().nonempty()),
-    rows: z.array(z.record(z.string(), z.union([z.string(), z.number()])))
+    samples: z.array(
+      z.object({
+        metric: z.string().nonempty(),
+        percent: z.number(),
+        t: z.string().nonempty()
+      })
+    )
   })
   .openapi('UsageHistoryResponse')
 

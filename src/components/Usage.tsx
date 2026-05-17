@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,14 +11,40 @@ import {
   ChartTooltipContent
 } from '@/components/ui/chart'
 import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
 
 const REFRESH_MS = 5 * 60_000
 
-// Backend returns chart-ready rows ({ t, <metric>: percent }) plus the
-// metric list — no client pivot, no missing-key handling.
+// The backend is a thin DB read; all chart shaping lives here.
+interface UsageSample {
+  metric: string
+  percent: number
+  t: string
+}
 interface HistoryResponse {
-  metrics: string[]
-  rows: Record<string, number | string>[]
+  samples: UsageSample[]
+}
+
+interface ConsumptionPoint {
+  t: string
+  v: number
+}
+
+// Per-metric burn rate: positive 5-min deltas (window resets drop the
+// %, so negatives clamp to 0) summed over a trailing 1-hour window =
+// "% of the window consumed in the last hour".
+function hourlyConsumption(samples: UsageSample[], metric: string): ConsumptionPoint[] {
+  const pts = samples
+    .filter((s) => s.metric === metric)
+    .map((s) => ({ at: dayjs(s.t), pct: s.percent, t: s.t }))
+  const deltas = pts.map((p, i) => (i === 0 ? 0 : Math.max(0, p.pct - pts[i - 1].pct)))
+  return pts.map((p, i) => {
+    const cutoff = p.at.subtract(1, 'hour')
+    const v = deltas
+      .slice(0, i + 1)
+      .reduce((acc, d, j) => (pts[j].at.isAfter(cutoff) ? acc + d : acc), 0)
+    return { t: p.t, v: Math.round(v * 10) / 10 }
+  })
 }
 
 interface MetricMeta {
@@ -71,8 +97,8 @@ interface UsageResponse {
 
 const fmtReset = (iso: string | null): string => {
   if (!iso) return '—'
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
+  const d = dayjs(iso)
+  return d.isValid() ? d.format('YYYY/MM/DD HH:mm') : iso
 }
 
 function UsageBar({ label, percent, reset }: { label: string; percent: number; reset: string }) {
@@ -95,7 +121,7 @@ export function Usage() {
   const { t } = useTranslation()
   const [data, setData] = useState<UsageResponse | null>(null)
   const [error, setError] = useState(false)
-  const [history, setHistory] = useState<HistoryResponse>({ metrics: [], rows: [] })
+  const [history, setHistory] = useState<HistoryResponse>({ samples: [] })
 
   useEffect(() => {
     const refresh = () => {
@@ -106,22 +132,38 @@ export function Usage() {
       api
         .get<HistoryResponse>('/usage/history?days=7')
         .then(setHistory)
-        .catch(() => setHistory({ metrics: [], rows: [] }))
+        .catch(() => setHistory({ samples: [] }))
     }
     refresh()
     const id = setInterval(refresh, REFRESH_MS)
     return () => clearInterval(id)
   }, [])
 
-  const { rows, metrics } = history
-  // Only the actual metrics go in the config; the dashed `__pace`
-  // companion lines are intentionally absent so they never show up in
-  // the legend or tooltip (they still render — stroked via metaFor).
-  const chartConfig: ChartConfig = {}
-  for (const m of metrics) {
-    const meta = metaFor(m)
-    chartConfig[m] = { label: meta.label, color: meta.color }
-  }
+  // All metrics on one chart: each metric's hourly-consumption series
+  // merged into shared rows keyed by capture time. Recomputed only
+  // when a fetch replaces history.
+  const { rows, metrics, config, ticks } = useMemo(() => {
+    const metrics = [...new Set(history.samples.map((s) => s.metric))].sort()
+    const byT = new Map<string, Record<string, number | string>>()
+    for (const m of metrics) {
+      for (const p of hourlyConsumption(history.samples, m)) {
+        const existing = byT.get(p.t)
+        const row = existing ? existing : { t: p.t }
+        row[m] = p.v
+        byT.set(p.t, row)
+      }
+    }
+    const config: ChartConfig = {}
+    for (const m of metrics) {
+      const meta = metaFor(m)
+      config[m] = { label: meta.label, color: meta.color }
+    }
+    const rows = [...byT.values()].sort((a, b) => (String(a.t) < String(b.t) ? -1 : 1))
+    // Only clean 10-min marks are tick candidates, so the axis shows
+    // 10:00 / 10:10 / 10:20 … and never a stray 10:18.
+    const ticks = rows.map((r) => String(r.t)).filter((iso) => dayjs(iso).minute() % 10 === 0)
+    return { rows, metrics, config, ticks }
+  }, [history])
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
@@ -204,19 +246,20 @@ export function Usage() {
           {rows.length === 0 ? (
             <p className='text-sm text-muted-foreground'>{t('usage.historyEmpty')}</p>
           ) : (
-            <ChartContainer config={chartConfig} className='aspect-auto h-72 w-full'>
+            <ChartContainer config={config} className='aspect-auto h-72 w-full'>
               <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis
                   dataKey='t'
-                  tickFormatter={(v) => new Date(String(v)).toLocaleDateString()}
+                  ticks={ticks}
+                  tickFormatter={(val) => dayjs(String(val)).format('HH:mm')}
                   tickLine={false}
                   axisLine={false}
                   minTickGap={40}
                 />
-                <YAxis domain={[0, 100]} tickLine={false} axisLine={false} unit='%' width={40} />
+                <YAxis tickLine={false} axisLine={false} unit='%/h' width={48} />
                 <ChartTooltip
-                  content={<ChartTooltipContent labelFormatter={(l) => new Date(String(l)).toLocaleString()} />}
+                  content={<ChartTooltipContent labelFormatter={(l) => dayjs(String(l)).format('M/D HH:mm')} />}
                 />
                 <ChartLegend content={<ChartLegendContent />} />
                 {metrics.map((m) => (
@@ -228,19 +271,7 @@ export function Usage() {
                     dot={false}
                     strokeWidth={2}
                     connectNulls
-                  />
-                ))}
-                {metrics.map((m) => (
-                  <Line
-                    key={`${m}__pace`}
-                    type='monotone'
-                    dataKey={`${m}__pace`}
-                    stroke={metaFor(m).color}
-                    strokeDasharray='4 4'
-                    strokeWidth={1.5}
-                    dot={false}
-                    connectNulls
-                    legendType='none'
+                    isAnimationActive={false}
                   />
                 ))}
               </LineChart>

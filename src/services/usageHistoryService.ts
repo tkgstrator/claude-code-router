@@ -90,61 +90,31 @@ export async function pruneOldSnapshots(): Promise<void> {
   })
 }
 
-// A chart row: the capture time plus one numeric column per metric.
-// Returned ready for recharts so the frontend renders it verbatim —
-// no client-side pivot, no missing-key fallbacks.
-export type UsageHistoryRow = { t: string } & Record<string, number | string>
+// One raw snapshot row. The backend stays a thin DB read — every
+// chart-shaping decision (deltas, reset clamping, moving average,
+// line vs bar) lives in the frontend.
+export interface UsageSample {
+  metric: string
+  percent: number
+  t: string
+}
 
 export interface UsageHistory {
-  metrics: string[]
-  rows: UsageHistoryRow[]
-}
-
-// Window length per metric (the rolling-limit period). Used to derive
-// the linear allocation pace: 0% at window start -> 100% at reset.
-const FIVE_HOURS_S = 5 * 3600
-const SEVEN_DAYS_S = 7 * 86_400
-const WINDOW_SECONDS: Record<string, number> = {
-  'claude.five_hour': FIVE_HOURS_S,
-  'claude.seven_day': SEVEN_DAYS_S,
-  'claude.seven_day_sonnet': SEVEN_DAYS_S,
-  'claude.seven_day_opus': SEVEN_DAYS_S,
-  'codex.primary': FIVE_HOURS_S,
-  'codex.secondary': SEVEN_DAYS_S
-}
-
-// % a perfectly-even burn would be at, given how far `capturedAt` is
-// into the window that ends at `resetAt`. Staying under this means the
-// current pace won't exhaust the window before it resets. Returns null
-// when we can't place it (no resetAt / unknown window).
-const paceAt = (metric: string, capturedAt: Date, resetAt: Date | null): number | null => {
-  if (!resetAt) return null
-  const windowS = WINDOW_SECONDS[metric]
-  if (!windowS) return null
-  const elapsedS = windowS - dayjs(resetAt).diff(dayjs(capturedAt), 'second', true)
-  const pct = (elapsedS / windowS) * 100
-  return Math.round(Math.min(100, Math.max(0, pct)))
+  samples: UsageSample[]
 }
 
 export async function getUsageHistory(days: number): Promise<UsageHistory> {
   const since = dayjs().subtract(days, 'day').toDate()
-  const samples = await getPrismaClient().usageSnapshot.findMany({
+  const rows = await getPrismaClient().usageSnapshot.findMany({
     where: { capturedAt: { gte: since } },
     orderBy: { capturedAt: 'asc' },
-    select: { metric: true, percent: true, resetAt: true, capturedAt: true }
+    select: { metric: true, percent: true, capturedAt: true }
   })
-
-  const metricSet = new Set<string>()
-  const byTime = new Map<string, UsageHistoryRow>()
-  for (const s of samples) {
-    metricSet.add(s.metric)
-    const t = s.capturedAt.toISOString()
-    const pace = paceAt(s.metric, s.capturedAt, s.resetAt)
-    const existing = byTime.get(t)
-    const row = existing ? existing : { t }
-    row[s.metric] = s.percent
-    if (pace !== null) row[`${s.metric}__pace`] = pace
-    byTime.set(t, row)
+  return {
+    samples: rows.map((r) => ({
+      metric: r.metric,
+      percent: r.percent,
+      t: dayjs(r.capturedAt).toISOString()
+    }))
   }
-  return { metrics: [...metricSet].sort(), rows: [...byTime.values()] }
 }
