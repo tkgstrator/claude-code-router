@@ -222,7 +222,7 @@ export function Usage() {
                     key={m}
                     type='monotone'
                     dataKey={m}
-                    stroke={`var(--color-${m})`}
+                    stroke={metaFor(m).color}
                     dot={false}
                     strokeWidth={2}
                     connectNulls
@@ -233,7 +233,7 @@ export function Usage() {
                     key={`${m}__pace`}
                     type='monotone'
                     dataKey={`${m}__pace`}
-                    stroke={`var(--color-${m})`}
+                    stroke={metaFor(m).color}
                     strokeDasharray='4 4'
                     strokeWidth={1.5}
                     dot={false}
