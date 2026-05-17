@@ -1,4 +1,4 @@
-import { CheckCircle2, LoaderCircle, Pencil, Trash2, Wifi, XCircle } from 'lucide-react'
+import { CheckCircle2, LoaderCircle, Pencil, Wifi, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,11 +11,10 @@ type TestState = 'idle' | 'testing' | 'ok' | 'fail'
 interface ProviderListProps {
   providers: Provider[]
   onEdit: (index: number) => void
-  onRemove: (index: number) => void
   planByProvider?: Record<string, string | null>
 }
 
-export function ProviderList({ providers, onEdit, onRemove, planByProvider }: ProviderListProps) {
+export function ProviderList({ providers, onEdit, planByProvider }: ProviderListProps) {
   const [testState, setTestState] = useState<Record<string, TestState>>({})
   const [testError, setTestError] = useState<Record<string, string>>({})
 
@@ -81,14 +80,6 @@ export function ProviderList({ providers, onEdit, onRemove, planByProvider }: Pr
                 >
                   <Pencil className='h-4 w-4' />
                 </Button>
-                <Button
-                  variant='destructive'
-                  size='icon'
-                  onClick={() => onRemove(index)}
-                  className='transition-all duration-200 hover:scale-110'
-                >
-                  <Trash2 className='h-4 w-4 text-current transition-colors duration-200' />
-                </Button>
               </div>
             </div>
           )
@@ -143,14 +134,6 @@ export function ProviderList({ providers, onEdit, onRemove, planByProvider }: Pr
                 className='transition-all-ease hover:scale-110'
               >
                 <Pencil className='h-4 w-4' />
-              </Button>
-              <Button
-                variant='destructive'
-                size='icon'
-                onClick={() => onRemove(index)}
-                className='transition-all duration-200 hover:scale-110'
-              >
-                <Trash2 className='h-4 w-4 text-current transition-colors duration-200' />
               </Button>
             </div>
           </div>
