@@ -3,35 +3,7 @@ import { runJsonToDbMigration } from '../db/migrateFromJson'
 import { initConfig, initDir, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
 import { ensureRouterSlots, ensureSeedProviders } from './configService'
 import { seedScrapedPricesIntoDb } from './priceSeedService'
-import { pruneOldSnapshots, recordUsageSnapshots } from './usageHistoryService'
-
-const SNAPSHOT_INTERVAL_MS = 5 * 60_000
-
-// Module-load can re-run under the Vite SSR runner; keep a single
-// loop. A self-rescheduling setTimeout (not setInterval) so the next
-// capture is only queued AFTER the current one settles — no overlap
-// or drift if a usage fetch is slow, and a failure never stops the
-// loop or crashes the server.
-const capture: { started: boolean } = { started: false }
-
-async function captureOnce(): Promise<void> {
-  try {
-    await recordUsageSnapshots()
-    await pruneOldSnapshots()
-  } catch {
-    // swallow — the loop must keep going
-  }
-}
-
-function startUsageCapture(): void {
-  if (capture.started) return
-  capture.started = true
-  const tick = async (): Promise<void> => {
-    await captureOnce()
-    setTimeout(tick, SNAPSHOT_INTERVAL_MS)
-  }
-  setTimeout(tick, 10_000) // let boot settle before the first hit
-}
+import { startUsageCapture } from './usageJob'
 
 // First boot must never come up as an open proxy to the user's paid
 // subscriptions. If no APIKEY is set, mint a 128-bit hex secret,
@@ -73,5 +45,7 @@ export async function bootstrapServer(): Promise<void> {
   await ensureRouterSlots()
   await ensureApiKey()
   await initConfig()
-  startUsageCapture()
+  // Fire-and-forget: never block server boot on Redis. The job setup
+  // is resilient and registers the schedule once Redis is reachable.
+  void startUsageCapture()
 }
