@@ -22,6 +22,7 @@ import {
 } from '../generated/prisma/client'
 
 import { backupConfigFile, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
+import { getSubscriptionsInfo } from './subscriptionInfoService'
 
 // Explicit per-provider request shape. No runtime fallback — every
 // seeded provider gets a concrete value written to the DB.
@@ -454,10 +455,23 @@ export async function getEnabledModels(
 ): Promise<{ provider: string; model: string }[]> {
   const rows = await prisma.model.findMany({
     where: { enabled: true },
-    select: { name: true, provider: { select: { name: true } } },
+    select: { name: true, provider: { select: { name: true, apiKey: true, authMode: true } } },
     orderBy: [{ provider: { name: 'asc' } }, { name: 'asc' }]
   })
-  return rows.map((r) => ({ provider: r.provider.name, model: r.name }))
+  // Only providers that can actually authenticate are routable: an
+  // api_key provider needs a non-empty key; a subscription provider
+  // needs live credentials (a resolved plan). Mirrors the models
+  // dashboard's availability gate so the Router never lists models
+  // from unconfigured seed providers (e.g. an empty-key google).
+  const subs = await getSubscriptionsInfo()
+  const subPlan = new Map(subs.map((s) => [s.providerName, s.plan]))
+  return rows
+    .filter((r) =>
+      r.provider.authMode === AuthMode.subscription
+        ? Boolean(subPlan.get(r.provider.name))
+        : r.provider.apiKey.trim().length > 0
+    )
+    .map((r) => ({ provider: r.provider.name, model: r.name }))
 }
 
 // Seed the 6 RouterSlot rows with null modelId if they're missing. Used
