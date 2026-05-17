@@ -19,6 +19,7 @@ interface UsageResponse {
     sevenDaySonnet: ClaudeWindow | null
     sevenDayOpus: ClaudeWindow | null
     extraUsageEnabled: boolean
+    capturedAt: string
   } | null
   codex: {
     primary: CodexWindow | null
@@ -104,6 +105,9 @@ export function Usage() {
                   reset={`${t('usage.resets')}: ${fmtReset(data.claude.sevenDayOpus.resetsAt)}`}
                 />
               )}
+              <div className='text-xs text-gray-500'>
+                {t('usage.capturedAt')}: {fmtReset(data.claude.capturedAt)}
+              </div>
             </div>
           )}
         </section>

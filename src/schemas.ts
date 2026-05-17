@@ -143,7 +143,8 @@ export const UsageResponseSchema = z
         sevenDay: ClaudeUsageWindowSchema,
         sevenDaySonnet: ClaudeUsageWindowSchema,
         sevenDayOpus: ClaudeUsageWindowSchema,
-        extraUsageEnabled: z.boolean()
+        extraUsageEnabled: z.boolean(),
+        capturedAt: z.string().nonempty()
       })
       .nullable(),
     codex: z
