@@ -1,6 +1,7 @@
 import { homedir } from "os";
 import { join } from "path";
 import { readFileSync, writeFileSync } from "fs";
+import { logger } from "../../lib/logger";
 
 const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
 
@@ -42,7 +43,13 @@ async function refreshToken(refreshTokenValue: string): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`Token refresh failed: ${response.status}`);
+    // Include the upstream body so the *reason* (e.g. invalid_grant
+    // when the rotating refresh token was already consumed) is visible
+    // instead of a bare status code.
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Token refresh failed: ${response.status} ${detail}`.trim()
+    );
   }
 
   const data = (await response.json()) as any;
@@ -57,24 +64,54 @@ async function refreshToken(refreshTokenValue: string): Promise<string> {
   return data.access_token;
 }
 
+// Shared in-flight refresh. Without this, Claude Code firing the main
+// model (e.g. Opus) and a background/subagent call (e.g. Sonnet)
+// near-simultaneously makes BOTH requests read the about-to-expire
+// token and each POST a refresh with the SAME refresh token. The
+// OAuth refresh token is single-use/rotating, so only the first call
+// succeeds; the loser gets invalid_grant, falls back to the now-stale
+// access token, and 401s upstream with "Invalid bearer token" — which
+// is exactly why Opus (won the refresh) works while Sonnet (lost it)
+// fails. Collapsing concurrent refreshes into one promise means every
+// waiter gets the same fresh token (or the same consistent fallback).
+let refreshInFlight: Promise<string> | null = null;
+
 async function getValidToken(): Promise<string> {
   const credentials = readCredentials();
   const { accessToken, refreshToken: rt, expiresAt } =
     credentials.claudeAiOauth;
 
-  // Refresh if token expires within 5 minutes
-  if (expiresAt - Date.now() < 5 * 60 * 1000) {
-    try {
-      return await refreshToken(rt);
-    } catch {
-      // If refresh fails, fall through and try the existing token
-      console.warn(
-        "[claude-code-credentials] Token refresh failed; using existing token"
-      );
-    }
+  // Token still good for >5 minutes — use it as-is.
+  if (expiresAt - Date.now() >= 5 * 60 * 1000) {
+    return accessToken;
   }
 
-  return accessToken;
+  if (!refreshInFlight) {
+    refreshInFlight = refreshToken(rt)
+      .catch((e: unknown) => {
+        // Surface WHY (status + body) to the file logger + console so
+        // it shows up in the LogViewer, then fall back to the existing
+        // token (the upstream 401 with full body is also logged by
+        // sendRequestToProvider).
+        logger.error(
+          {
+            provider: "claude-code",
+            err: String((e as Error)?.message ?? e),
+          },
+          "[claude-code-credentials] OAuth token refresh failed; using " +
+            "the existing token (likely to 401). Re-authenticate: run " +
+            "`claude` and sign in, which rewrites " +
+            "~/.claude/.credentials.json (no `ccr restart` needed — the " +
+            "file is re-read every request)."
+        );
+        return accessToken;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+
+  return refreshInFlight;
 }
 
 // A Claude subscription OAuth token only gets the subscription's

@@ -12,6 +12,7 @@ import { ConfigService } from "@/llms/services/config";
 import { ProviderService } from "@/llms/services/provider";
 import { TransformerService } from "@/llms/services/transformer";
 import { Transformer } from "@/llms/types/transformer";
+import { randomUUID } from "crypto";
 
 // Extend FastifyInstance to include custom services
 declare module "fastify" {
@@ -308,6 +309,40 @@ async function sendRequestToProvider(
 ) {
   const url = config.url || new URL(provider.baseUrl);
 
+  // One id per upstream send. LogViewer groups a request's lines by
+  // `reqId`, so binding it on a child logger ties the "llm request"
+  // metadata to its "llm response"/error line. Generated here (the
+  // pipeline has no ambient request id), so a fallback/retry that
+  // re-enters this function is its own visible attempt.
+  const reqId = randomUUID();
+  const reqLog =
+    fastify.log && typeof fastify.log.child === "function"
+      ? fastify.log.child({ reqId })
+      : fastify.log;
+  const startedAt = Date.now();
+
+  // Metadata only — never the prompt/response bodies. `type: 'request
+  // body'` + `data.model` is the shape LogViewer reads the model from.
+  reqLog.debug(
+    {
+      type: "request body",
+      data: {
+        provider: provider.name,
+        model: requestBody?.model,
+        url: String(url),
+        stream: requestBody?.stream === true,
+        bypass,
+        messages: Array.isArray(requestBody?.messages)
+          ? requestBody.messages.length
+          : undefined,
+        tools: Array.isArray(requestBody?.tools)
+          ? requestBody.tools.length
+          : undefined,
+      },
+    },
+    "llm request"
+  );
+
   // Handle authentication in passthrough mode
   if (bypass && typeof transformer.auth === "function") {
     const auth = await transformer.auth(requestBody, provider);
@@ -362,18 +397,58 @@ async function sendRequestToProvider(
     fastify.log
   );
 
+  const durationMs = Date.now() - startedAt;
+
   // Handle request errors
   if (!response.ok) {
     const errorText = await response.text();
-    fastify.log.error(
-      `[provider_response_error] Error from provider(${provider.name},${requestBody.model}: ${response.status}): ${errorText}`,
+    const isSubscription =
+      typeof transformer?.name === "string" &&
+      transformer.name.endsWith("-credentials");
+    // Keep this message byte-for-byte: v1Route's PROVIDER_ERR_RE parses
+    // exactly "Error from provider(<name>,<model>: <status>): <rawBody>"
+    // to forward the genuine upstream error to Claude Code verbatim.
+    const message = `Error from provider(${provider.name},${requestBody.model}: ${response.status}): ${errorText}`;
+    reqLog.error(
+      {
+        type: "response",
+        provider: provider.name,
+        model: requestBody?.model,
+        status: response.status,
+        durationMs,
+        body: errorText,
+      },
+      `[provider_response_error] ${message}`
     );
-    throw createApiError(
-      `Error from provider(${provider.name},${requestBody.model}: ${response.status}): ${errorText}`,
-      response.status,
-      "provider_response_error"
-    );
+    // A 401/403 from a subscription (*-credentials) provider is almost
+    // always an expired/absent OAuth token, not a real API error. Spell
+    // that out instead of leaving a bare "Invalid bearer token".
+    if (
+      (response.status === 401 || response.status === 403) &&
+      isSubscription
+    ) {
+      reqLog.error(
+        { provider: provider.name, status: response.status },
+        `Subscription auth rejected by '${provider.name}' (${response.status}). ` +
+          "The OAuth credentials are missing or expired — re-authenticate " +
+          "the underlying CLI (run `claude` and sign in for claude-code, or " +
+          "`codex login` for codex) so the credentials file is refreshed, " +
+          "then `ccr restart`."
+      );
+    }
+    throw createApiError(message, response.status, "provider_response_error");
   }
+
+  reqLog.debug(
+    {
+      type: "response",
+      provider: provider.name,
+      model: requestBody?.model,
+      status: response.status,
+      durationMs,
+    },
+    "llm response"
+  );
 
   return response;
 }

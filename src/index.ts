@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { configRoute } from './api/config/route'
+import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
 import { modelTestAllRoute } from './api/models/test-all/route'
@@ -41,6 +42,7 @@ app.use('/v1/*', apiKeyAuth)
 // Each sub-app declares its own absolute /api/... paths, so mount them
 // at root. OpenAPIHono.route() also merges their OpenAPI registries.
 app.route('/', configRoute)
+app.route('/', logsRoute)
 app.route('/', transformersRoute)
 app.route('/', subscriptionsRoute)
 app.route('/', usageRoute)

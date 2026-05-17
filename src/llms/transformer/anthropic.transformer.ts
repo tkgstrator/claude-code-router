@@ -311,6 +311,31 @@ export class AnthropicTransformer implements Transformer {
           }
         };
 
+        // Close whatever content block is currently open and FULLY
+        // reset block state. Codex (openai-responses) interleaves
+        // multiple reasoning-summary segments with text and tool calls,
+        // so each block type can recur. Latching isThinkingStarted /
+        // hasTextContentStarted "true forever" made a later thinking or
+        // text delta reference an index that was never (re)opened,
+        // which Claude Code rejects with "Content block not found".
+        // Routing every block transition through here guarantees a
+        // content_block_start always precedes its deltas + stop.
+        const closeCurrentBlock = () => {
+          if (currentContentBlockIndex >= 0) {
+            safeEnqueue(
+              encoder.encode(
+                `event: content_block_stop\ndata: ${JSON.stringify({
+                  type: "content_block_stop",
+                  index: currentContentBlockIndex,
+                })}\n\n`
+              )
+            );
+          }
+          currentContentBlockIndex = -1;
+          isThinkingStarted = false;
+          hasTextContentStarted = false;
+        };
+
         const safeClose = () => {
           if (!isClosed) {
             try {
@@ -509,23 +534,14 @@ export class AnthropicTransformer implements Transformer {
                 }
 
                 if (choice?.delta?.thinking && !isClosed && !hasFinished) {
-                  // Close any previous content block if open
-                  // if (currentContentBlockIndex >= 0) {
-                  //   const contentBlockStop = {
-                  //     type: "content_block_stop",
-                  //     index: currentContentBlockIndex,
-                  //   };
-                  //   safeEnqueue(
-                  //     encoder.encode(
-                  //       `event: content_block_stop\ndata: ${JSON.stringify(
-                  //         contentBlockStop
-                  //       )}\n\n`
-                  //     )
-                  //   );
-                  //   currentContentBlockIndex = -1;
-                  // }
-
+                  // A thinking delta belongs in a thinking block. If one
+                  // isn't currently open (first ever, or a NEW codex
+                  // reasoning segment after text / a tool call / a prior
+                  // summary that was already signed+closed), close
+                  // whatever is open and start a fresh thinking block so
+                  // this delta has a matching content_block_start.
                   if (!isThinkingStarted) {
+                    closeCurrentBlock();
                     const thinkingBlockIndex = assignContentBlockIndex();
                     const contentBlockStart = {
                       type: "content_block_start",
@@ -558,18 +574,10 @@ export class AnthropicTransformer implements Transformer {
                         )}\n\n`
                       )
                     );
-                    const contentBlockStop = {
-                      type: "content_block_stop",
-                      index: currentContentBlockIndex,
-                    };
-                    safeEnqueue(
-                      encoder.encode(
-                        `event: content_block_stop\ndata: ${JSON.stringify(
-                          contentBlockStop
-                        )}\n\n`
-                      )
-                    );
-                    currentContentBlockIndex = -1;
+                    // Stop + fully reset so the next reasoning segment
+                    // (codex emits several) opens its OWN thinking block
+                    // instead of emitting an orphan delta on index -1.
+                    closeCurrentBlock();
                   } else if (choice.delta.thinking.content) {
                     const thinkingChunk = {
                       type: "content_block_delta",
@@ -592,28 +600,13 @@ export class AnthropicTransformer implements Transformer {
                 if (choice?.delta?.content && !isClosed && !hasFinished) {
                   contentChunks++;
 
-                  // Close any previous content block if open and it's not a text content block
-                  if (currentContentBlockIndex >= 0) {
-                    // Check if current content block is text type
-                    const isCurrentTextBlock = hasTextContentStarted;
-                    if (!isCurrentTextBlock) {
-                      const contentBlockStop = {
-                        type: "content_block_stop",
-                        index: currentContentBlockIndex,
-                      };
-                      safeEnqueue(
-                        encoder.encode(
-                          `event: content_block_stop\ndata: ${JSON.stringify(
-                            contentBlockStop
-                          )}\n\n`
-                        )
-                      );
-                      currentContentBlockIndex = -1;
-                    }
-                  }
-
+                  // Need a text block open. If the open block isn't a
+                  // text one (thinking / tool_use / none — e.g. codex
+                  // finishing a reasoning segment, or text resuming
+                  // after a tool call), close it and start a fresh text
+                  // block so this delta has a matching start.
                   if (!hasTextContentStarted && !hasFinished) {
-                    hasTextContentStarted = true;
+                    closeCurrentBlock();
                     const textBlockIndex = assignContentBlockIndex();
                     const contentBlockStart = {
                       type: "content_block_start",
@@ -631,6 +624,7 @@ export class AnthropicTransformer implements Transformer {
                       )
                     );
                     currentContentBlockIndex = textBlockIndex;
+                    hasTextContentStarted = true;
                   }
 
                   if (!isClosed && !hasFinished) {
@@ -657,22 +651,10 @@ export class AnthropicTransformer implements Transformer {
                   !isClosed &&
                   !hasFinished
                 ) {
-                  // Close text content block if open
-                  if (currentContentBlockIndex >= 0 && hasTextContentStarted) {
-                    const contentBlockStop = {
-                      type: "content_block_stop",
-                      index: currentContentBlockIndex,
-                    };
-                    safeEnqueue(
-                      encoder.encode(
-                        `event: content_block_stop\ndata: ${JSON.stringify(
-                          contentBlockStop
-                        )}\n\n`
-                      )
-                    );
-                    currentContentBlockIndex = -1;
-                    hasTextContentStarted = false;
-                  }
+                  // Close whatever block is open (text / thinking /
+                  // tool) before emitting the self-contained
+                  // web_search_tool_result blocks.
+                  closeCurrentBlock();
 
                   choice?.delta?.annotations.forEach((annotation: any) => {
                     const annotationBlockIndex = assignContentBlockIndex();
@@ -729,21 +711,12 @@ export class AnthropicTransformer implements Transformer {
                       !toolCallIndexToContentBlockIndex.has(toolCallIndex);
 
                     if (isUnknownIndex) {
-                      // Close any previous content block if open
-                      if (currentContentBlockIndex >= 0) {
-                        const contentBlockStop = {
-                          type: "content_block_stop",
-                          index: currentContentBlockIndex,
-                        };
-                        safeEnqueue(
-                          encoder.encode(
-                            `event: content_block_stop\ndata: ${JSON.stringify(
-                              contentBlockStop
-                            )}\n\n`
-                          )
-                        );
-                        currentContentBlockIndex = -1;
-                      }
+                      // Entering a tool_use block: close any open
+                      // thinking / text / previous-tool block and reset
+                      // the latches so a later reasoning or text segment
+                      // (codex reasons between tool calls) re-opens with
+                      // its own content_block_start.
+                      closeCurrentBlock();
 
                       const newContentBlockIndex = assignContentBlockIndex();
                       toolCallIndexToContentBlockIndex.set(

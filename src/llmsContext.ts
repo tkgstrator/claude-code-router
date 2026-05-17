@@ -19,6 +19,7 @@ import { ProviderService } from '@/llms/services/provider'
 import { TokenizerService } from '@/llms/services/tokenizer'
 import { TransformerService } from '@/llms/services/transformer'
 import { router } from '@/llms/utils/router'
+import { logger } from './lib/logger'
 import { loadFullConfig } from './services/configService'
 
 // Re-export the pipeline entrypoints through this @ts-nocheck module so
@@ -26,16 +27,13 @@ import { loadFullConfig } from './services/configService'
 // can't satisfy named imports directly).
 export { handleTransformerEndpoint, router }
 
-// Minimal pino-shaped logger the llms code expects on fastify.log.
-const log: any = {
-  info: () => {},
-  debug: () => {},
-  trace: () => {},
-  warn: (...a: unknown[]) => console.warn('[llms]', ...a),
-  error: (...a: unknown[]) => console.error('[llms]', ...a),
-  fatal: (...a: unknown[]) => console.error('[llms]', ...a),
-  child: () => log
-}
+// pino-shaped logger the llms code expects on fastify.log. Previously
+// info/debug/trace were dropped on the floor and warn/error only hit
+// the console; now everything goes through the shared JSON-lines
+// logger (file + console, level-gated by LOG_LEVEL) so provider
+// errors, routing decisions and the per-request LLM metadata are
+// actually visible / inspectable in the UI's LogViewer.
+const log: any = logger
 
 export interface LlmsContext {
   configService: any
