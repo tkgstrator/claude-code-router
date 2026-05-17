@@ -1,589 +1,261 @@
-[![](https://img.shields.io/badge/%F0%9F%87%A8%F0%9F%87%B3-%E4%B8%AD%E6%96%87%E7%89%88-ff0000?style=flat)](README_zh.md)
-[![](https://img.shields.io/badge/%F0%9F%87%AF%F0%9F%87%B5-%E6%97%A5%E6%9C%AC%E8%AA%9E-white?style=flat)](README_ja.md)
-[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
-[![](https://img.shields.io/github/license/musistudio/claude-code-router)](https://github.com/musistudio/claude-code-router/blob/main/LICENSE)
+# Claude Code Router
 
-<hr>
+Route Claude Code requests to any LLM provider without changing your Claude
+Code setup. Claude Code Router (CCR) sits between Claude Code and the upstream
+model, applying task-based routing and per-provider request/response
+transformations.
 
-> This project is sponsored by Z.ai, supporting us with their GLM CODING PLAN.
-
-> GLM CODING PLAN is a subscription service designed for AI coding, starting at just $10/month. It provides access to their flagship GLM-4.7 & （GLM-5 Only Available  for Pro Users）model across 10+ popular AI coding tools (Claude Code, Cline, Roo Code, etc.), offering developers top-tier, fast, and stable coding experiences.
-
-> Get 10% OFF GLM CODING PLAN：https://z.ai/subscribe?ic=8JVLJQFSKB  
-
-> A powerful tool to route Claude Code requests to different models and customize any request.
+The npm package is published as `@musistudio/claude-code-router` and installs
+the `ccr` command-line tool.
 
 ## Features
 
-Claude Code Router sits between Claude Code and the LLM, so you can route every request to whichever model fits best — without touching your Claude Code setup.
+- Task-based routing: distinct models for default, background, think,
+  longContext, webSearch, and image scenarios.
+- Multi-provider support through pluggable transformers (Anthropic, OpenAI,
+  Gemini, DeepSeek, OpenRouter, Groq, and more).
+- Switch the model mid-session from inside Claude Code using the
+  `provider,model` format.
+- Subagent model pinning via an inline prompt tag.
+- Custom JavaScript router and custom transformer plugins.
+- Web management UI and a full `ccr` CLI.
+- Preset system to export, share, and install configurations (sensitive
+  fields are redacted on export).
+- Recurring usage-capture job backed by BullMQ and Redis.
 
-- **Automatic routing by task type** — Background tasks go to a fast, cheap model; reasoning tasks to a powerful one; long documents to a high-context model. Configure once, works automatically.
-- **Any provider** — OpenAI, Gemini, DeepSeek, OpenRouter, Ollama (local), Groq, and more. Mix providers freely.
-- **ChatGPT Plus (Codex)** — Route through your ChatGPT Plus subscription via Codex CLI credentials, or use gpt-5.5 / gpt-5.4 / gpt-5.3-codex via OpenAI API key.
-- **No extra API key** — Use your existing Claude Code sign-in as a backend via the `claude-code-credentials` transformer.
-- **Switch models mid-session** — Type `/model gemini,gemini-3.1-pro-preview` inside Claude Code to change the model on the fly.
-- **Config UI & CLI** — `ccr ui` opens a browser editor; `ccr model` handles everything from the terminal.
-- **GitHub Actions** — Works in CI/CD pipelines with `NON_INTERACTIVE_MODE`.
-- **Custom transformers** — Write plugins to support any provider or modify request/response behavior.
+## Architecture
 
-## 🤖 Available Models
+CCR is a Bun monorepo (`workspaces: ["packages/*"]`) plus a consolidated
+application at the repository root.
 
-The following providers and models are configured by default. Edit `~/.claude-code-router/config.json` to add or change providers.
+### Consolidated app (repository root)
 
-### Codex — ChatGPT Plus via Codex CLI credentials
-Requires `~/.codex/auth.json`. Run `codex` to authenticate.
+- `src/` — React web UI (`src/app`, `src/components`, `src/assets`).
+- `src/index.ts` — Hono server entry point.
+- `src/api/<path>/route.ts` — backend routes; one Hono sub-app per file,
+  mounted in `src/index.ts`.
+- `src/api/v1/route.ts` — the native `/v1/*` LLM proxy that drives the
+  absorbed routing and transformer pipeline.
+- `src/prisma/schema.prisma` — Prisma schema and migrations.
 
-| Model          | Used for                            |
-|----------------|-------------------------------------|
-| gpt-5.5        | default / think / longContext       |
-| gpt-5.4        | High capability                     |
-| gpt-5.3-codex  | Coding-optimized                    |
+### Monorepo packages
 
-### OpenAI — `$OPENAI_API_KEY`
+| Package | Name | Role |
+|---------|------|------|
+| `packages/cli` | `@ccr/cli` | Command-line tool providing the `ccr` command (published as `@musistudio/claude-code-router`) |
+| `packages/shared` | `@ccr/shared` | Shared constants, utilities, and preset management |
 
-| Model          | Notes              |
-|----------------|--------------------|
-| gpt-5.5        | Latest, high capability |
-| gpt-5.4        | High capability    |
-| gpt-5.3-codex  | Coding-optimized   |
-| gpt-4.1        | High capability    |
-| gpt-4.1-mini   | Fast, economical   |
-| gpt-4o         | High capability    |
-| gpt-4o-mini    | Fast, economical   |
+### Routing
 
-### Gemini — `$GEMINI_API_KEY`
+The router selects a model per request. Built-in scenarios are `default`,
+`background`, `think` (Plan Mode), `longContext` (above a configurable token
+threshold), `webSearch`, and `image`. Routing can also be driven by a custom
+JavaScript router (`CUSTOM_ROUTER_PATH`) or project-level configuration.
+Request size is estimated with `tiktoken` (`cl100k_base`).
 
-| Model                 | Notes           |
-|-----------------------|-----------------|
-| gemini-3.1-pro-preview | Latest, high capability |
-| gemini-2.5-flash      | Fast, default   |
-| gemini-2.5-pro        | High capability |
+### Transformers
 
-### Claude — Claude Code OAuth credentials
-Requires `~/.claude/.credentials.json`. Sign in via Claude Code.
+Transformers adapt Anthropic-format requests to each provider's API. They can
+be applied globally (provider level), per model, and configured with options.
+Custom transformer plugins are loaded via the `transformers` array in the
+disk envelope.
 
-| Model                     | Used for        |
-|---------------------------|-----------------|
-| claude-opus-4-7           | High capability |
-| claude-sonnet-4-6         | Balanced        |
-| claude-haiku-4-5-20251001 | background tasks |
+### Configuration store
 
-### Default Routing
+Configuration is split across two stores:
 
-| Scenario    | Provider, Model                  |
-|-------------|----------------------------------|
-| default     | codex, gpt-5.5                   |
-| background  | claude, claude-haiku-4-5-20251001 |
-| think       | codex, gpt-5.5                   |
-| longContext | codex, gpt-5.5                   |
+- Disk envelope: `~/.claude-code-router/config.json` holds boot-time scalars
+  (HOST, PORT, APIKEY, LOG, LOG_LEVEL, PROXY_URL, API_TIMEOUT_MS, CLAUDE_PATH,
+  NON_INTERACTIVE_MODE) plus disk-resident objects (StatusLine, transformers,
+  plugins). It uses JSON5, supports `$VAR` / `${VAR}` environment-variable
+  interpolation, and keeps the last 3 automatic backups.
+- PostgreSQL via Prisma: Providers, Models, and the RouterSlot rows.
+  `DATABASE_URL` is read from `.env`.
 
-To route to a specific model, use the `provider,model` format in the `/model` command or request body:
+On first boot, the server performs a one-shot, idempotent migration that lifts
+any legacy Providers/Router found on disk into the database; it refuses to run
+when both stores are already populated.
 
-```
-/model openai,gpt-4o-mini
-/model gemini,gemini-2.5-flash
-/model claude,claude-haiku-4-5-20251001
-```
+### HTTP surface and authentication
 
-## 🚀 Getting Started
+The `/api/*` and `/v1/*` routes are guarded by the envelope `APIKEY`. The key
+is minted on first boot if unset, and clients must send it as the `x-api-key`
+header or as `Authorization: Bearer <key>`. The web UI is served at `/`.
 
-### 1. Quick Start with Docker
+### Usage capture
 
-The recommended way to run Claude Code Router is via Docker Compose. This requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). No repository clone is needed — the image is published to Docker Hub.
+A recurring usage-capture job runs via BullMQ on Redis and is started during
+server bootstrap.
 
-**Step 1 — Create a working directory and config file:**
+## Requirements
 
-```shell
-mkdir -p ~/ccr ~/.claude-code-router
-cd ~/ccr
+- Node.js >= 18 and Bun (the package manager and runtime; `engines.bun >= 1.1.0`).
+- PostgreSQL and Redis.
 
-cat > ~/.claude-code-router/config.json << 'EOF'
-{
-  "APIKEY": "your-secret-key",
-  "Providers": [
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o", "gpt-4o-mini"],
-      "transformer": { "use": ["OpenAI"] }
-    }
-  ],
-  "Router": {
-    "default": "openai,gpt-4o-mini"
-  }
-}
-EOF
+For development, the devcontainer (`.devcontainer/compose.yaml`) provides the
+`postgres` and `redis` services, so no manual database or cache setup is
+required when developing inside it.
+
+## Getting started
+
+Install dependencies (this also runs `prisma generate` via `postinstall`):
+
+```bash
+bun install
 ```
 
-**Step 2 — Download `compose.yaml`:**
-
-```shell
-curl -fsSL https://raw.githubusercontent.com/musistudio/claude-code-router/main/compose.yaml -o compose.yaml
-```
-
-**Step 3 — (Optional) Create a `.env` file for API keys:**
-
-```shell
-cat > .env << 'EOF'
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
-EOF
-```
-
-**Step 4 — Start the service:**
-
-```shell
-docker compose up -d
-```
-
-The router is now available at `http://127.0.0.1:3456`.
-
-**Step 5 — Configure Claude Code to use the router:**
-
-```shell
-ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
-```
-
-Or set permanently in your shell profile:
-
-```shell
-export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
-export ANTHROPIC_AUTH_TOKEN=your-secret-key
-```
-
-> **Note**: After modifying `config.json`, restart the container for changes to take effect:
->
-> ```shell
-> docker compose restart
-> ```
-
-**View logs:**
-
-```shell
-docker compose logs -f
-```
-
----
-
-### Alternative: Global CLI Install
-
-If you prefer a non-Docker setup, install Claude Code Router as a global CLI tool.
-
-First, ensure you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code/quickstart) installed:
-
-```shell
-npm install -g @anthropic-ai/claude-code
-```
-
-Then, install Claude Code Router:
-
-```shell
-# Via Bun (recommended — the project runs on Bun internally)
-bun install -g @musistudio/claude-code-router
-
-# Via npm
-npm install -g @musistudio/claude-code-router
-```
-
-Start Claude Code using the router:
-
-```shell
-ccr code
-```
-
-> **Note**: After modifying the configuration file, restart the service:
->
-> ```shell
-> ccr restart
-> ```
-
----
-
-### 2. Configuration
-
-Claude Code Router now uses a hybrid store:
-
-- `Providers`, `Router`, and model bindings live in **Postgres** (via Prisma).
-- Boot-time envelope keys (HOST/PORT/APIKEY/LOG_LEVEL/etc.) stay in `~/.claude-code-router/config.json`.
-- On the first start after upgrading, the server lifts any `Providers` / `Router` it finds on disk into the database and rewrites the file as envelope-only. The pre-migration copy is kept as `config.json.<timestamp>.bak`. If the database already holds rows AND `config.json` still carries the legacy keys (e.g. after a manual restore), the migration refuses to run and asks you to resolve the conflict manually.
-
-Set `DATABASE_URL` in `.env` (the `.devcontainer/compose.yaml` brings up a local `postgres` service):
+Set `DATABASE_URL` in `.env` (the devcontainer's `postgres` service is the
+default target in that environment):
 
 ```bash
 DATABASE_URL=postgres://postgres:password@postgres:5432/ccr
 ```
 
-For the schema and migration tooling, run inside `packages/server`:
+Apply the database schema:
 
 ```bash
-bun run db:generate         # regenerate the Prisma client
-bun run db:migrate           # create + apply a new migration (dev)
-bun run db:migrate:deploy    # apply existing migrations (prod / CI)
-bun run db:reset             # drop and recreate the schema (destructive)
-bun run db:studio            # open Prisma Studio
+bun run db:migrate
 ```
 
-See `config.example.json` for envelope reference fields:
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `LOG` | `true` | Enable/disable log files |
-| `LOG_LEVEL` | `"debug"` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |
-| `PROXY_URL` | — | HTTP proxy for all API requests |
-| `APIKEY` | — | Secret key clients must send in `x-api-key` or `Authorization` |
-| `HOST` | `127.0.0.1` | Listen address. Forced to `127.0.0.1` when `APIKEY` is unset |
-| `NON_INTERACTIVE_MODE` | `false` | Set `true` for Docker / CI / GitHub Actions |
-| `API_TIMEOUT_MS` | — | Timeout for upstream API calls (ms) |
-
-> Providers and Router are managed via the Web UI (`ccr ui`) or `/api/config`; they no longer belong in `config.json` after the first boot.
-
-API keys support environment variable interpolation (`$VAR_NAME` or `${VAR_NAME}`). With Docker Compose, place keys in a `.env` file at the project root:
+Start the development server (Vite, host-exposed on port 16173):
 
 ```bash
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=AIza...
+bun run dev
 ```
 
-Minimal example:
+The web UI is then available at http://localhost:16173.
 
-```json
-{
-  "Providers": [
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o", "gpt-4o-mini"],
-      "transformer": { "use": ["OpenAI"] }
-    }
-  ],
-  "Router": {
-    "default": "openai,gpt-4o",
-    "background": "openai,gpt-4o-mini"
-  }
-}
+Build for production:
+
+```bash
+bun run build
 ```
 
-For per-provider configuration details, see the [Provider guides](#providers).
+`build` runs `build:shared` followed by `build:ui`. The CLI is built
+separately with `build:cli`.
 
-### 3. Start Claude Code
+Because `/api/*` and `/v1/*` are guarded by `APIKEY`, requests to those
+routes must include the envelope key as `x-api-key` or
+`Authorization: Bearer <key>`.
 
-```shell
-ccr code
+### Testing
+
+Run the provider test suite:
+
+```bash
+bun run test:providers
 ```
 
-After editing `config.json`, restart the service for changes to take effect:
+Linting and formatting use Biome.
 
-```shell
-ccr restart
+### Database tooling
+
+| Script | Purpose |
+|--------|---------|
+| `bun run db:generate` | Regenerate the Prisma client |
+| `bun run db:migrate` | Create and apply a new migration (development) |
+| `bun run db:migrate:deploy` | Apply existing migrations (production / CI) |
+| `bun run db:reset` | Drop and recreate the schema (destructive) |
+| `bun run db:studio` | Open Prisma Studio |
+
+Never edit DDL directly; always go through Prisma migrations.
+
+### Price scraping
+
+| Script | Purpose |
+|--------|---------|
+| `bun run scrape:openai-prices` | Scrape OpenAI prices |
+| `bun run scrape:anthropic-prices` | Scrape Anthropic prices |
+| `bun run scrape:google-prices` | Scrape Google/Gemini prices |
+| `bun run scrape:prices` | Scrape all of the above |
+
+### Release
+
+| Script | Purpose |
+|--------|---------|
+| `bun run release` | Build, then release all targets |
+| `bun run release:npm` | Release the npm package |
+| `bun run release:docker` | Release the Docker image |
+
+## CLI usage
+
+The `ccr` command (from `@ccr/cli`) exposes the following subcommands:
+
+```bash
+ccr start       # Start the server
+ccr stop        # Stop the server
+ccr restart     # Restart the server
+ccr status      # Show status
+ccr code        # Run the claude command through the router
+ccr model       # Interactive model selection and configuration
+ccr preset      # Manage presets (export, install, list, info, delete)
+ccr activate    # Output shell environment variables for integration
+ccr ui          # Open the web UI
+ccr statusline  # Integrated status line (reads JSON from stdin)
 ```
 
-### 4. Config UI
+The configuration envelope is hot-reloaded only on restart (`ccr restart`).
 
-```shell
-ccr ui
-```
+## Configuration
 
-Opens a browser-based editor for `config.json`.
+### Envelope keys (disk)
 
-### 5. CLI Model Management
-
-```shell
-ccr model
-```
-
-An interactive terminal UI to view and change your provider/model setup without editing JSON. You can switch the model for any routing scenario (default, background, think, longContext…), add models to existing providers, or create a new provider from scratch.
-
-### 6. Presets Management
-
-Presets allow you to save, share, and reuse configurations easily. You can export your current configuration as a preset and install presets from files or URLs.
-
-```shell
-# Export current configuration as a preset
-ccr preset export my-preset
-
-# Export with metadata
-ccr preset export my-preset --description "My OpenAI config" --author "Your Name" --tags "openai,production"
-
-# Install a preset from local directory
-ccr preset install /path/to/preset
-
-# List all installed presets
-ccr preset list
-
-# Show preset information
-ccr preset info my-preset
-
-# Delete a preset
-ccr preset delete my-preset
-```
-
-API keys are automatically redacted on export (`{{field}}` placeholders) and prompted for on install. Presets are stored in `~/.claude-code-router/presets/<name>/manifest.json`.
-
-### 7. Activate Command
-
-Point your shell (and any Agent SDK apps) at the router without using `ccr code`:
-
-```shell
-eval "$(ccr activate)"
-```
-
-This sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and a few other environment variables so that `claude` and Anthropic SDK apps route through CCR automatically.
-
-To persist across sessions, add the line to your `~/.zshrc` or `~/.bashrc`. The router must be running (`ccr start`) for the variables to have any effect.
-
-#### Providers
-
-Each provider entry needs `name`, `api_base_url`, `api_key`, `models`, and optionally a `transformer`.
-
-Per-provider configuration guides:
-- [OpenAI](https://musistudio.github.io/claude-code-router/docs/config/providers/openai) — Chat Completions, Responses API (Codex), ChatGPT Plus
-- [Google Gemini](https://musistudio.github.io/claude-code-router/docs/config/providers/gemini)
-- [Claude (Claude Code credentials)](https://musistudio.github.io/claude-code-router/docs/config/providers/claude-code)
-- [DeepSeek](https://musistudio.github.io/claude-code-router/docs/config/providers/deepseek)
-- [OpenRouter](https://musistudio.github.io/claude-code-router/docs/config/providers/openrouter)
-- [Groq](https://musistudio.github.io/claude-code-router/docs/config/providers/groq)
-- [Ollama (local)](https://musistudio.github.io/claude-code-router/docs/config/providers/ollama)
-
-#### Transformers
-
-Transformers adapt Anthropic-format requests to each provider’s API. Built-in transformers:
-
-| Transformer | Use for |
-|-------------|---------|
-| `OpenAI` | OpenAI Chat Completions |
-| `openai-responses` | OpenAI Responses API (Codex) |
-| `claude-code-credentials` | Anthropic via Claude Code OAuth token |
-| `gemini` | Google Gemini |
-| `deepseek` | DeepSeek |
-| `openrouter` | OpenRouter (supports provider routing params) |
-| `groq` | Groq |
-| `maxtoken` | Override `max_tokens` |
-| `tooluse` | Optimize tool calling via `tool_choice` |
-| `reasoning` | Handle `reasoning_content` field |
-| `enhancetool` | Error-tolerant tool call parsing (disables streaming) |
-| `cleancache` | Strip `cache_control` from requests |
-| `vertex-gemini` | Gemini via Vertex AI auth |
-| `sampling` | Pass `temperature`, `top_p`, `top_k`, `repetition_penalty` |
-
-Community transformers: [gemini-cli](https://gist.github.com/musistudio/1c13a65f35916a7ab690649d3df8d1cd), [qwen-cli](https://gist.github.com/musistudio/f5a67841ced39912fd99e42200d5ca8b), [chutes-glm](https://gist.github.com/vitobotta/2be3f33722e05e8d4f9d2b0138b8c863), [rovo-cli](https://gist.github.com/SaseQ/c2a20a38b11276537ec5332d1f7a5e53)
-
-Custom transformers are loaded via the `transformers` array in `config.json`:
-```json
-{ "transformers": [{ "path": "/path/to/my-transformer.js" }] }
-```
-
-#### Router
-
-The `Router` object maps scenarios to `provider,model` strings:
+These boot-time scalars live in `~/.claude-code-router/config.json`:
 
 | Key | Description |
 |-----|-------------|
-| `default` | General tasks |
-| `background` | Lightweight background tasks |
-| `think` | Reasoning / Plan Mode |
-| `longContext` | Long context (default threshold: 60 000 tokens) |
-| `longContextThreshold` | Custom token threshold for `longContext` |
-| `webSearch` | Web search (model must support it; append `:online` for OpenRouter) |
-| `image` | Image tasks via CCR’s built-in agent |
+| `HOST` | Listen address. Listens on `0.0.0.0` only when an `APIKEY` is set |
+| `PORT` | Listen port |
+| `APIKEY` | Secret key clients must send as `x-api-key` or `Authorization: Bearer` |
+| `LOG` | Enable or disable log files |
+| `LOG_LEVEL` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |
+| `PROXY_URL` | HTTP proxy for upstream API requests |
+| `API_TIMEOUT_MS` | Timeout for upstream API calls (ms) |
+| `CLAUDE_PATH` | Path to the `claude` executable |
+| `NON_INTERACTIVE_MODE` | Set `true` for Docker / CI / GitHub Actions |
 
-Switch models on the fly: `/model provider,model` — e.g. `/model openrouter,anthropic/claude-3.5-sonnet`
+The envelope also stores disk-resident objects: `StatusLine`, `transformers`,
+and `plugins`. Validation: when Providers are configured, both `HOST` and
+`APIKEY` must be set; otherwise the server listens on `0.0.0.0` without
+authentication.
 
-#### Custom Router
+### Providers, Models, and Router (database)
 
-Set `CUSTOM_ROUTER_PATH` in `config.json` to load a JS module that returns `"provider,model"` or `null`. See `custom-router.example.js` for a working template.
+Providers, Models, and the per-scenario RouterSlot rows are stored in
+PostgreSQL via Prisma, not in `config.json`. Manage them through the web UI or
+the configuration API; change the schema only through Prisma migrations.
 
-##### Subagent Routing
+### Subagent routing
 
-Prefix subagent prompts with `<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>` to pin a specific model:
+Pin a specific model for a subagent by prefixing its prompt with a tag:
 
 ```
-<CCR-SUBAGENT-MODEL>openrouter,anthropic/claude-3.5-sonnet</CCR-SUBAGENT-MODEL>
-Please help me analyze this code snippet...
+<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+Please help me analyze this code...
 ```
 
-## Status Line (Beta)
-To better monitor the status of claude-code-router at runtime, version v1.0.40 includes a built-in statusline tool, which you can enable in the UI.
+### Presets
 
-## 🤖 GitHub Actions
+Presets let you save, share, and reuse configurations. They are stored in
+`~/.claude-code-router/presets/<name>/manifest.json`. Sensitive fields
+(api_key, password, secret) are automatically redacted to `{{field}}`
+placeholders on export and prompted for on install.
 
-Integrate Claude Code Router into your CI/CD pipeline. After setting up [Claude Code Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions), modify your `.github/workflows/claude.yaml` to use the router:
-
-```yaml
-name: Claude Code
-
-on:
-  issue_comment:
-    types: [created]
-  # ... other triggers
-
-jobs:
-  claude:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      # ... other conditions
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Prepare Environment
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          mkdir -p $HOME/.claude-code-router
-          cat << 'EOF' > $HOME/.claude-code-router/config.json
-          {
-            "log": true,
-            "NON_INTERACTIVE_MODE": true,
-            "OPENAI_API_KEY": "${{ secrets.OPENAI_API_KEY }}",
-            "OPENAI_BASE_URL": "https://api.deepseek.com",
-            "OPENAI_MODEL": "deepseek-chat"
-          }
-          EOF
-        shell: bash
-
-      - name: Start Claude Code Router
-        run: |
-          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
-        shell: bash
-
-      - name: Run Claude Code
-        id: claude
-        uses: anthropics/claude-code-action@beta
-        env:
-          ANTHROPIC_BASE_URL: http://localhost:3456
-        with:
-          anthropic_api_key: "any-string-is-ok"
+```bash
+ccr preset export <name>      # Export current configuration as a preset
+ccr preset install <source>   # Install from a file, URL, or name
+ccr preset list               # List installed presets
+ccr preset info <name>        # Show preset information
+ccr preset delete <name>      # Delete a preset
 ```
 
-> **Note**: When running in GitHub Actions or other automation environments, make sure to set `"NON_INTERACTIVE_MODE": true` in your configuration to prevent the process from hanging due to stdin handling issues.
+## Logging
 
-This setup allows for interesting automations, like running tasks during off-peak hours to reduce API costs.
+- Server-level logs (pino): `~/.claude-code-router/logs/ccr-*.log` —
+  HTTP requests, API calls, and server events. Controlled by `LOG_LEVEL`.
+- Application-level logs: `~/.claude-code-router/claude-code-router.log` —
+  routing decisions and business-logic events.
 
-## ❤️ Support & Sponsoring
+## License
 
-If you find this project helpful, please consider sponsoring its development. Your support is greatly appreciated!
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F31GN2GM)
-
-[Paypal](https://paypal.me/musistudio1999)
-
-### Our Sponsors
-
-A huge thank you to all our sponsors for their generous support!
-
-
-- [AIHubmix](https://aihubmix.com/)
-- [BurnCloud](https://ai.burncloud.com)
-- [302.AI](https://share.302.ai/ZGVF9w)
-- [Z智谱](https://www.bigmodel.cn/claude-code?ic=FPF9IVAGFJ)
-- @Simon Leischnig
-- [@duanshuaimin](https://github.com/duanshuaimin)
-- [@vrgitadmin](https://github.com/vrgitadmin)
-- @\*o
-- [@ceilwoo](https://github.com/ceilwoo)
-- @\*说
-- @\*更
-- @K\*g
-- @R\*R
-- [@bobleer](https://github.com/bobleer)
-- @\*苗
-- @\*划
-- [@Clarence-pan](https://github.com/Clarence-pan)
-- [@carter003](https://github.com/carter003)
-- @S\*r
-- @\*晖
-- @\*敏
-- @Z\*z
-- @\*然
-- [@cluic](https://github.com/cluic)
-- @\*苗
-- [@PromptExpert](https://github.com/PromptExpert)
-- @\*应
-- [@yusnake](https://github.com/yusnake)
-- @\*飞
-- @董\*
-- @\*汀
-- @\*涯
-- @\*:-）
-- @\*\*磊
-- @\*琢
-- @\*成
-- @Z\*o
-- @\*琨
-- [@congzhangzh](https://github.com/congzhangzh)
-- @\*\_
-- @Z\*m
-- @*鑫
-- @c\*y
-- @\*昕
-- [@witsice](https://github.com/witsice)
-- @b\*g
-- @\*亿
-- @\*辉
-- @JACK
-- @\*光
-- @W\*l
-- [@kesku](https://github.com/kesku)
-- [@biguncle](https://github.com/biguncle)
-- @二吉吉
-- @a\*g
-- @\*林
-- @\*咸
-- @\*明
-- @S\*y
-- @f\*o
-- @\*智
-- @F\*t
-- @r\*c
-- [@qierkang](http://github.com/qierkang)
-- @\*军
-- [@snrise-z](http://github.com/snrise-z)
-- @\*王
-- [@greatheart1000](http://github.com/greatheart1000)
-- @\*王
-- @zcutlip
-- [@Peng-YM](http://github.com/Peng-YM)
-- @\*更
-- @\*.
-- @F\*t
-- @\*政
-- @\*铭
-- @\*叶
-- @七\*o
-- @\*青
-- @\*\*晨
-- @\*远
-- @\*霄
-- @\*\*吉
-- @\*\*飞
-- @\*\*驰
-- @x\*g
-- @\*\*东
-- @\*落
-- @哆\*k
-- @\*涛
-- [@苗大](https://github.com/WitMiao)
-- @\*呢
-- @\d*u
-- @crizcraig
-- s\*s
-- \*火
-- \*勤
-- \*\*锟
-- \*涛
-- \*\*明
-- \*知
-- \*语
-- \*瓜
-
-
-(If your name is masked, please contact me via my homepage email to update it with your GitHub username.)
+MIT. See `LICENSE`.
