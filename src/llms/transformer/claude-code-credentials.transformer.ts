@@ -98,7 +98,7 @@ async function getValidToken(): Promise<string> {
             provider: "claude-code",
             err: String((e as Error)?.message ?? e),
           },
-          "[claude-code-credentials] OAuth token refresh failed; using " +
+          "[claude-code-oauth] OAuth token refresh failed; using " +
             "the existing token (likely to 401). Re-authenticate: run " +
             "`claude` and sign in, which rewrites " +
             "~/.claude/.credentials.json (no `ccr restart` needed — the " +
@@ -149,7 +149,7 @@ function withClaudeCodeIdentity(system: unknown): { type: "text"; text: string }
 }
 
 export class ClaudeCodeCredentialsTransformer {
-  name = "claude-code-credentials";
+  name = "claude-code-oauth";
   endPoint = "/v1/messages";
 
   async auth(request: any, _provider: any) {

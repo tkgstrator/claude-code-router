@@ -42,7 +42,7 @@ function readCodexAuth(): { token: string; accountId?: string } {
 // codex can't use, so the credential injection is done here via
 // transformRequestIn's returned `config` (merged by the pipeline).
 export class CodexCredentialsTransformer {
-  name = "codex-credentials";
+  name = "codex-oauth";
 
   async transformRequestIn(request: any, provider: any) {
     const { token, accountId } = readCodexAuth();

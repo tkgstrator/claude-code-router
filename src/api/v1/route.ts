@@ -239,11 +239,11 @@ const buildInvocation = async (
   const soleUse = provider?.transformer?.use?.length === 1 ? provider.transformer.use[0]?.name : undefined
   if (soleUse && transformersByName.has(soleUse)) transformer = transformersByName.get(soleUse)
 
-  // Subscription providers route through a `*-credentials` sole
-  // transformer (claude-code-credentials, codex-credentials, …).
-  // Reshape the beta header for the OAuth path (drop context-1m, add
-  // the oauth beta) so premium models aren't 429'd by the overage gate.
-  if (typeof soleUse === 'string' && soleUse.endsWith('-credentials')) {
+  // Subscription providers route through a `*-oauth` sole transformer
+  // (claude-code-oauth, codex-oauth, …). Reshape the beta header for
+  // the OAuth path (drop context-1m, add the oauth beta) so premium
+  // models aren't 429'd by the overage gate.
+  if (typeof soleUse === 'string' && soleUse.endsWith('-oauth')) {
     prepareSubscriptionBetas(headers)
   }
 

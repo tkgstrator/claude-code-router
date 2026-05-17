@@ -11,14 +11,14 @@ interface BuiltinTransformer {
 }
 
 export const BUILTIN_TRANSFORMERS: BuiltinTransformer[] = [
-  { name: 'Anthropic', endpoint: '/v1/messages' },
+  { name: 'anthropic', endpoint: '/v1/messages' },
   { name: 'gemini', endpoint: '/v1beta/models/:modelAndAction' },
   { name: 'vertex-gemini', endpoint: null },
   { name: 'vertex-claude', endpoint: null },
   { name: 'deepseek', endpoint: null },
   { name: 'tooluse', endpoint: null },
   { name: 'openrouter', endpoint: null },
-  { name: 'OpenAI', endpoint: '/v1/chat/completions' },
+  { name: 'openai', endpoint: '/v1/chat/completions' },
   { name: 'maxtoken', endpoint: null },
   { name: 'groq', endpoint: null },
   { name: 'cleancache', endpoint: null },
@@ -32,5 +32,5 @@ export const BUILTIN_TRANSFORMERS: BuiltinTransformer[] = [
   { name: 'vercel', endpoint: '/v1/chat/completions' },
   { name: 'openai-responses', endpoint: '/v1/responses' },
   { name: 'forcereasoning', endpoint: null },
-  { name: 'claude-code-credentials', endpoint: '/v1/messages' }
+  { name: 'claude-code-oauth', endpoint: '/v1/messages' }
 ]

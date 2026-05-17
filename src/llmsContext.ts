@@ -57,12 +57,12 @@ let ctxPromise: Promise<LlmsContext> | null = null
 //
 // codex is OpenAI Responses-API style talking to the ChatGPT backend,
 // so it CAN'T bypass: it needs the full transform chain (the anthropic
-// endpoint transformer -> openai-responses) plus codex-credentials
+// endpoint transformer -> openai-responses) plus codex-oauth
 // LAST to add the subscription auth + backend requirements. Two `use`
 // entries means non-bypass, so the chain actually runs.
 const SUBSCRIPTION_TRANSFORMER_CHAIN: Record<string, string[]> = {
-  'claude-code': ['claude-code-credentials'],
-  codex: ['openai-responses', 'codex-credentials']
+  'claude-code': ['claude-code-oauth'],
+  codex: ['openai-responses', 'codex-oauth']
 }
 const withSubscriptionAuth = (providers: any[]): any[] =>
   providers.map((p) => {
