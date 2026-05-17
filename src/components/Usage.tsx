@@ -1,8 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent
+} from '@/components/ui/chart'
 import { api } from '@/lib/api'
+
+const REFRESH_MS = 5 * 60_000
 
 // Backend returns chart-ready rows ({ t, <metric>: percent }) plus the
 // metric list — no client pivot, no missing-key handling.
@@ -88,17 +98,28 @@ export function Usage() {
   const [history, setHistory] = useState<HistoryResponse>({ metrics: [], rows: [] })
 
   useEffect(() => {
-    api
-      .get<UsageResponse>('/usage')
-      .then(setData)
-      .catch(() => setError(true))
-    api
-      .get<HistoryResponse>('/usage/history?days=7')
-      .then(setHistory)
-      .catch(() => setHistory({ metrics: [], rows: [] }))
+    const refresh = () => {
+      api
+        .get<UsageResponse>('/usage')
+        .then(setData)
+        .catch(() => setError(true))
+      api
+        .get<HistoryResponse>('/usage/history?days=7')
+        .then(setHistory)
+        .catch(() => setHistory({ metrics: [], rows: [] }))
+    }
+    refresh()
+    const id = setInterval(refresh, REFRESH_MS)
+    return () => clearInterval(id)
   }, [])
 
   const { rows, metrics } = history
+  const chartConfig: ChartConfig = {}
+  for (const m of metrics) {
+    const meta = metaFor(m)
+    chartConfig[m] = { label: meta.label, color: meta.color }
+    chartConfig[`${m}__pace`] = { label: `${meta.label} (pace)`, color: meta.color }
+  }
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
@@ -179,38 +200,49 @@ export function Usage() {
         <section className='space-y-3'>
           <h3 className='text-sm font-semibold'>{t('usage.history')}</h3>
           {rows.length === 0 ? (
-            <p className='text-sm text-gray-500'>{t('usage.historyEmpty')}</p>
+            <p className='text-sm text-muted-foreground'>{t('usage.historyEmpty')}</p>
           ) : (
-            <div className='h-72 w-full'>
-              <ResponsiveContainer width='100%' height='100%'>
-                <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                  <CartesianGrid strokeDasharray='3 3' stroke='#e5e7eb' />
-                  <XAxis
-                    dataKey='t'
-                    tickFormatter={(v) => new Date(String(v)).toLocaleDateString()}
-                    tick={{ fontSize: 11 }}
-                    minTickGap={40}
+            <ChartContainer config={chartConfig} className='aspect-auto h-72 w-full'>
+              <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey='t'
+                  tickFormatter={(v) => new Date(String(v)).toLocaleDateString()}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={40}
+                />
+                <YAxis domain={[0, 100]} tickLine={false} axisLine={false} unit='%' width={40} />
+                <ChartTooltip
+                  content={<ChartTooltipContent labelFormatter={(l) => new Date(String(l)).toLocaleString()} />}
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                {metrics.map((m) => (
+                  <Line
+                    key={m}
+                    type='monotone'
+                    dataKey={m}
+                    stroke={`var(--color-${m})`}
+                    dot={false}
+                    strokeWidth={2}
+                    connectNulls
                   />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit='%' width={40} />
-                  <Tooltip
-                    labelFormatter={(v) => new Date(String(v)).toLocaleString()}
-                    formatter={(value, name) => [`${value}%`, metaFor(String(name)).label]}
+                ))}
+                {metrics.map((m) => (
+                  <Line
+                    key={`${m}__pace`}
+                    type='monotone'
+                    dataKey={`${m}__pace`}
+                    stroke={`var(--color-${m})`}
+                    strokeDasharray='4 4'
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    legendType='none'
                   />
-                  <Legend formatter={(name) => metaFor(String(name)).label} />
-                  {metrics.map((m) => (
-                    <Line
-                      key={m}
-                      type='monotone'
-                      dataKey={m}
-                      stroke={metaFor(m).color}
-                      dot={false}
-                      strokeWidth={2}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                ))}
+              </LineChart>
+            </ChartContainer>
           )}
         </section>
       </CardContent>

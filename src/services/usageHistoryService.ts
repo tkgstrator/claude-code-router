@@ -93,12 +93,38 @@ export interface UsageHistory {
   rows: UsageHistoryRow[]
 }
 
+// Window length per metric (the rolling-limit period). Used to derive
+// the linear allocation pace: 0% at window start -> 100% at reset.
+const FIVE_HOURS_S = 5 * 3600
+const SEVEN_DAYS_S = 7 * 86_400
+const WINDOW_SECONDS: Record<string, number> = {
+  'claude.five_hour': FIVE_HOURS_S,
+  'claude.seven_day': SEVEN_DAYS_S,
+  'claude.seven_day_sonnet': SEVEN_DAYS_S,
+  'claude.seven_day_opus': SEVEN_DAYS_S,
+  'codex.primary': FIVE_HOURS_S,
+  'codex.secondary': SEVEN_DAYS_S
+}
+
+// % a perfectly-even burn would be at, given how far `capturedAt` is
+// into the window that ends at `resetAt`. Staying under this means the
+// current pace won't exhaust the window before it resets. Returns null
+// when we can't place it (no resetAt / unknown window).
+const paceAt = (metric: string, capturedAt: Date, resetAt: Date | null): number | null => {
+  if (!resetAt) return null
+  const windowS = WINDOW_SECONDS[metric]
+  if (!windowS) return null
+  const elapsedS = windowS - (resetAt.getTime() - capturedAt.getTime()) / 1000
+  const pct = (elapsedS / windowS) * 100
+  return Math.round(Math.min(100, Math.max(0, pct)))
+}
+
 export async function getUsageHistory(days: number): Promise<UsageHistory> {
   const since = new Date(Date.now() - days * 86_400_000)
   const samples = await getPrismaClient().usageSnapshot.findMany({
     where: { capturedAt: { gte: since } },
     orderBy: { capturedAt: 'asc' },
-    select: { metric: true, percent: true, capturedAt: true }
+    select: { metric: true, percent: true, resetAt: true, capturedAt: true }
   })
 
   const metricSet = new Set<string>()
@@ -106,12 +132,12 @@ export async function getUsageHistory(days: number): Promise<UsageHistory> {
   for (const s of samples) {
     metricSet.add(s.metric)
     const t = s.capturedAt.toISOString()
+    const pace = paceAt(s.metric, s.capturedAt, s.resetAt)
     const existing = byTime.get(t)
-    if (existing) {
-      existing[s.metric] = s.percent
-    } else {
-      byTime.set(t, { t, [s.metric]: s.percent })
-    }
+    const row = existing ? existing : { t }
+    row[s.metric] = s.percent
+    if (pace !== null) row[`${s.metric}__pace`] = pace
+    byTime.set(t, row)
   }
   return { metrics: [...metricSet].sort(), rows: [...byTime.values()] }
 }
