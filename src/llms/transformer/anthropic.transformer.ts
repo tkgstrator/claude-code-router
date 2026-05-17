@@ -16,7 +16,7 @@ import { createApiError } from "@/llms/api/middleware";
 import { formatBase64 } from "@/llms/utils/image";
 
 export class AnthropicTransformer implements Transformer {
-  name = "Anthropic";
+  name = "anthropic";
   endPoint = "/v1/messages";
   private useBearer: boolean;
   logger?: any;
