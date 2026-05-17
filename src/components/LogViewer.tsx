@@ -1,11 +1,11 @@
 import Editor from '@monaco-editor/react'
-import dayjs from '@/lib/dayjs'
 import { ArrowLeft, Bug, Download, File, Layers, RefreshCw, Trash2, X } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
 
 interface LogViewerProps {
   open: boolean

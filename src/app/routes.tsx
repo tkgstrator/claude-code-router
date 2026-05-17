@@ -14,49 +14,47 @@ import { Usage } from '@/components/Usage'
 
 const fullHeight = (node: ReactNode) => <div className='h-full'>{node}</div>
 
-export const router = createBrowserRouter(
-  [
-    {
-      path: '/',
-      element: <Navigate to='/models' replace />
-    },
-    {
-      path: '/login',
-      element: (
-        <PublicRoute>
-          <Login />
-        </PublicRoute>
-      )
-    },
-    {
-      element: (
-        <ProtectedRoute>
-          <AppShell />
-        </ProtectedRoute>
-      ),
-      children: [
-        { path: '/models', element: fullHeight(<ModelsDashboard />) },
-        { path: '/providers', element: fullHeight(<Providers />) },
-        { path: '/router', element: fullHeight(<RouterPanel />) },
-        { path: '/transformers', element: fullHeight(<Transformers />) },
-        { path: '/usage', element: fullHeight(<Usage />) }
-      ]
-    },
-    {
-      path: '/presets',
-      element: (
-        <ProtectedRoute>
-          <Presets />
-        </ProtectedRoute>
-      )
-    },
-    {
-      path: '/debug',
-      element: (
-        <ProtectedRoute>
-          <DebugPage />
-        </ProtectedRoute>
-      )
-    }
-  ]
-)
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <Navigate to='/models' replace />
+  },
+  {
+    path: '/login',
+    element: (
+      <PublicRoute>
+        <Login />
+      </PublicRoute>
+    )
+  },
+  {
+    element: (
+      <ProtectedRoute>
+        <AppShell />
+      </ProtectedRoute>
+    ),
+    children: [
+      { path: '/models', element: fullHeight(<ModelsDashboard />) },
+      { path: '/providers', element: fullHeight(<Providers />) },
+      { path: '/router', element: fullHeight(<RouterPanel />) },
+      { path: '/transformers', element: fullHeight(<Transformers />) },
+      { path: '/usage', element: fullHeight(<Usage />) }
+    ]
+  },
+  {
+    path: '/presets',
+    element: (
+      <ProtectedRoute>
+        <Presets />
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/debug',
+    element: (
+      <ProtectedRoute>
+        <DebugPage />
+      </ProtectedRoute>
+    )
+  }
+])

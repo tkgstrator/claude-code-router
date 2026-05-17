@@ -34,15 +34,11 @@ interface ConsumptionPoint {
 // %, so negatives clamp to 0) summed over a trailing 1-hour window =
 // "% of the window consumed in the last hour".
 function hourlyConsumption(samples: UsageSample[], metric: string): ConsumptionPoint[] {
-  const pts = samples
-    .filter((s) => s.metric === metric)
-    .map((s) => ({ at: dayjs(s.t), pct: s.percent, t: s.t }))
+  const pts = samples.filter((s) => s.metric === metric).map((s) => ({ at: dayjs(s.t), pct: s.percent, t: s.t }))
   const deltas = pts.map((p, i) => (i === 0 ? 0 : Math.max(0, p.pct - pts[i - 1].pct)))
   return pts.map((p, i) => {
     const cutoff = p.at.subtract(1, 'hour')
-    const v = deltas
-      .slice(0, i + 1)
-      .reduce((acc, d, j) => (pts[j].at.isAfter(cutoff) ? acc + d : acc), 0)
+    const v = deltas.slice(0, i + 1).reduce((acc, d, j) => (pts[j].at.isAfter(cutoff) ? acc + d : acc), 0)
     return { t: p.t, v: Math.round(v * 10) / 10 }
   })
 }
