@@ -120,6 +120,44 @@ export const EnabledModelsResponseSchema = z
   })
   .openapi('EnabledModelsResponse')
 
+const ClaudeUsageWindowSchema = z
+  .object({
+    utilization: z.number(),
+    resetsAt: z.string().nullable()
+  })
+  .nullable()
+
+const CodexUsageWindowSchema = z
+  .object({
+    usedPercent: z.number(),
+    resetAt: z.string().nullable(),
+    windowSeconds: z.number().nullable()
+  })
+  .nullable()
+
+export const UsageResponseSchema = z
+  .object({
+    claude: z
+      .object({
+        fiveHour: ClaudeUsageWindowSchema,
+        sevenDay: ClaudeUsageWindowSchema,
+        sevenDaySonnet: ClaudeUsageWindowSchema,
+        sevenDayOpus: ClaudeUsageWindowSchema,
+        extraUsageEnabled: z.boolean(),
+        capturedAt: z.string().nonempty()
+      })
+      .nullable(),
+    codex: z
+      .object({
+        planType: z.string().nullable(),
+        primary: CodexUsageWindowSchema,
+        secondary: CodexUsageWindowSchema,
+        capturedAt: z.string().nonempty()
+      })
+      .nullable()
+  })
+  .openapi('UsageResponse')
+
 // --- Providers test --------------------------------------------------------
 
 export const ProviderTestRequestSchema = z

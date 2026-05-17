@@ -36,7 +36,24 @@
     "models": "Models",
     "providers": "Providers",
     "router": "Router",
-    "transformers": "Transformers"
+    "transformers": "Transformers",
+    "usage": "Usage"
+  },
+  "usage": {
+    "title": "Subscription Usage",
+    "loadError": "Failed to load usage",
+    "claude": "Claude (claude-code)",
+    "claudeUnavailable": "Unavailable — no Claude subscription credentials, or the usage endpoint returned an error.",
+    "fiveHour": "5-hour window",
+    "sevenDay": "7-day window",
+    "sevenDaySonnet": "7-day (Sonnet)",
+    "sevenDayOpus": "7-day (Opus)",
+    "codex": "Codex (ChatGPT)",
+    "codexNoData": "Unavailable — no Codex (ChatGPT) credentials, or the usage endpoint returned an error.",
+    "primary": "Primary window",
+    "secondary": "Secondary window",
+    "resets": "Resets",
+    "capturedAt": "Captured at"
   },
   "models": {
     "provider": "Provider",

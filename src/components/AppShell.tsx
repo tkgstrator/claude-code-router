@@ -3,6 +3,7 @@ import {
   FileCog,
   FileJson,
   FileText,
+  Gauge,
   Languages,
   LayoutDashboard,
   RefreshCw,
@@ -45,7 +46,8 @@ const NAV_ITEMS = [
   { to: '/models', icon: LayoutDashboard, key: 'nav.models' },
   { to: '/providers', icon: Server, key: 'nav.providers' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
-  { to: '/transformers', icon: Wand2, key: 'nav.transformers' }
+  { to: '/transformers', icon: Wand2, key: 'nav.transformers' },
+  { to: '/usage', icon: Gauge, key: 'nav.usage' }
 ] as const
 
 export function AppShell() {

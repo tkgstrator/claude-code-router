@@ -36,7 +36,24 @@
     "models": "モデル",
     "providers": "プロバイダー",
     "router": "ルーター",
-    "transformers": "Transformer"
+    "transformers": "Transformer",
+    "usage": "使用状況"
+  },
+  "usage": {
+    "title": "サブスク使用状況",
+    "loadError": "使用状況の取得に失敗しました",
+    "claude": "Claude（claude-code）",
+    "claudeUnavailable": "取得不可 — Claude サブスクの認証情報が無いか、usage エンドポイントがエラーを返しました。",
+    "fiveHour": "5時間ウィンドウ",
+    "sevenDay": "7日ウィンドウ",
+    "sevenDaySonnet": "7日（Sonnet）",
+    "sevenDayOpus": "7日（Opus）",
+    "codex": "Codex（ChatGPT）",
+    "codexNoData": "取得不可 — Codex（ChatGPT）の認証情報が無いか、usage エンドポイントがエラーを返しました。",
+    "primary": "プライマリウィンドウ",
+    "secondary": "セカンダリウィンドウ",
+    "resets": "リセット",
+    "capturedAt": "取得時刻"
   },
   "models": {
     "provider": "プロバイダー",

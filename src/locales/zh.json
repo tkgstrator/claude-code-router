@@ -36,7 +36,24 @@
     "models": "模型",
     "providers": "供应商",
     "router": "路由",
-    "transformers": "转换器"
+    "transformers": "转换器",
+    "usage": "用量"
+  },
+  "usage": {
+    "title": "订阅用量",
+    "loadError": "加载用量失败",
+    "claude": "Claude（claude-code）",
+    "claudeUnavailable": "不可用 — 没有 Claude 订阅凭据，或用量接口返回错误。",
+    "fiveHour": "5 小时窗口",
+    "sevenDay": "7 天窗口",
+    "sevenDaySonnet": "7 天（Sonnet）",
+    "sevenDayOpus": "7 天（Opus）",
+    "codex": "Codex（ChatGPT）",
+    "codexNoData": "不可用 — 没有 Codex（ChatGPT）凭据，或用量接口返回错误。",
+    "primary": "主窗口",
+    "secondary": "次窗口",
+    "resets": "重置",
+    "capturedAt": "采集时间"
   },
   "models": {
     "provider": "供应商",
