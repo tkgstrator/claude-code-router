@@ -8,8 +8,7 @@ import {
   Save,
   Server,
   Settings,
-  Shuffle,
-  Wand2
+  Shuffle
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -44,7 +43,8 @@ const NAV_ITEMS = [
   { to: '/models', icon: LayoutDashboard, key: 'nav.models' },
   { to: '/providers', icon: Server, key: 'nav.providers' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
-  { to: '/transformers', icon: Wand2, key: 'nav.transformers' },
+  // Transformers nav hidden (edit screen unused). Route still exists at /transformers.
+  // { to: '/transformers', icon: Wand2, key: 'nav.transformers' },
   { to: '/usage', icon: Gauge, key: 'nav.usage' }
 ] as const
 
