@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_IMAGE: musistudio/claude-code-router
+  DOCKER_IMAGE: tkgling/claude-code-router
 
 jobs:
   build-and-push:
