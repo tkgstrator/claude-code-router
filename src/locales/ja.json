@@ -74,7 +74,8 @@
     "signIn": "サインイン",
     "invalidApiKey": "無効な API キーです",
     "configError": "設定を読み込めません",
-    "validating": "API キーを検証中..."
+    "validating": "API キーを検証中...",
+    "keyHint": "初回起動時は、サーバーのコンソール（[ccr] APIKEY= の行）または ~/.claude-code-router/config.json に API キーが表示・保存されています"
   },
   "setup": {
     "title": "API Key を設定",

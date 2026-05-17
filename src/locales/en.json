@@ -74,7 +74,8 @@
     "signIn": "Sign In",
     "invalidApiKey": "Invalid API key",
     "configError": "Configuration not loaded",
-    "validating": "Validating API key..."
+    "validating": "Validating API key...",
+    "keyHint": "First run? Your API key was printed to the server console (look for [ccr] APIKEY=) and saved to ~/.claude-code-router/config.json"
   },
   "setup": {
     "title": "Configure API Key",

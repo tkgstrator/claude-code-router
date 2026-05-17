@@ -1,13 +1,31 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { api } from '@/lib/api'
 import { useConfig } from './ConfigProvider'
 import { Combobox } from './ui/combobox'
+
+interface EnabledModel {
+  provider: string
+  model: string
+}
 
 export function Router() {
   const { t } = useTranslation()
   const { config, setConfig } = useConfig()
+  const [models, setModels] = useState<EnabledModel[]>([])
+
+  // The Router only ever offers enabled models. The backend decides
+  // that (GET /api/models returns Model.enabled rows only); this just
+  // renders the list — no client-side filtering.
+  useEffect(() => {
+    api
+      .get<{ models: EnabledModel[] }>('/models')
+      .then((data) => setModels(data.models))
+      .catch((err) => console.error('Failed to load enabled models:', err))
+  }, [])
 
   // Handle case where config is null or undefined
   if (!config) {
@@ -45,24 +63,10 @@ export function Router() {
     setConfig({ ...config, forceUseImageAgent: value })
   }
 
-  // Handle case where config.Providers might be null or undefined
-  const providers = Array.isArray(config.Providers) ? config.Providers : []
-
-  const modelOptions = providers.flatMap((provider) => {
-    // Handle case where individual provider might be null or undefined
-    if (!provider) return []
-
-    // Handle case where provider.models might be null or undefined
-    const models = Array.isArray(provider.models) ? provider.models : []
-
-    // Handle case where provider.name might be null or undefined
-    const providerName = provider.name || 'Unknown Provider'
-
-    return models.map((model) => ({
-      value: `${providerName},${model || 'Unknown Model'}`,
-      label: `${providerName}, ${model || 'Unknown Model'}`
-    }))
-  })
+  const modelOptions = models.map(({ provider, model }) => ({
+    value: `${provider},${model}`,
+    label: `${provider}, ${model}`
+  }))
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>

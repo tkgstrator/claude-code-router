@@ -1,7 +1,31 @@
+import { randomBytes } from 'node:crypto'
 import { runJsonToDbMigration } from '../db/migrateFromJson'
-import { initConfig, initDir } from '../lib/configEnvelope'
+import { initConfig, initDir, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
 import { ensureRouterSlots, ensureSeedProviders } from './configService'
 import { seedScrapedPricesIntoDb } from './priceSeedService'
+
+// First boot must never come up as an open proxy to the user's paid
+// subscriptions. If no APIKEY is set, mint a 128-bit hex secret,
+// persist it to the envelope, and surface it so the operator can paste
+// it into the client (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN). Once
+// set it's left alone (rotate from the UI).
+async function ensureApiKey(): Promise<void> {
+  const cfg = (await readConfigFile()) as Record<string, unknown>
+  const current = typeof cfg.APIKEY === 'string' ? cfg.APIKEY.trim() : ''
+  if (current.length > 0) return
+  const key = randomBytes(16).toString('hex')
+  await writeConfigFile({ ...cfg, APIKEY: key })
+  console.warn(
+    [
+      '',
+      '[ccr] No APIKEY was configured — generated one so /api and /v1',
+      '[ccr] are not exposed unauthenticated:',
+      `[ccr]   APIKEY=${key}`,
+      `[ccr] Point the client at it, e.g. ANTHROPIC_API_KEY=${key}`,
+      ''
+    ].join('\n')
+  )
+}
 
 // One-shot bootstrap for hosts that don't go through the legacy
 // Fastify Server class — the Hono root in src/index.ts calls this at
@@ -18,5 +42,6 @@ export async function bootstrapServer(): Promise<void> {
   // providers are untouched by this.
   await seedScrapedPricesIntoDb()
   await ensureRouterSlots()
+  await ensureApiKey()
   await initConfig()
 }
