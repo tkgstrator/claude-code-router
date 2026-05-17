@@ -149,6 +149,17 @@ export class OpenAIResponsesTransformer implements Transformer {
         return;
       }
 
+      // The Responses API strictly validates every `input[]` item and
+      // rejects unknown fields with 400 "Unknown parameter:
+      // 'input[N].thinking'". An Anthropic-format assistant turn that
+      // came through the passthrough path still carries `thinking`
+      // (extended-reasoning block) and a message-level `cache_control`,
+      // neither of which the Responses schema accepts. Strip them
+      // before the raw message reaches the input array — the reasoning
+      // is replayed separately via the top-level `reasoning` param.
+      delete (message as any).thinking;
+      delete (message as any).cache_control;
+
       input.push(message);
     });
 
