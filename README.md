@@ -96,6 +96,86 @@ For development, the devcontainer (`.devcontainer/compose.yaml`) provides the
 `postgres` and `redis` services, so no manual database or cache setup is
 required when developing inside it.
 
+## Run with Docker Compose
+
+To self-host the published image (`tkgling/claude-code-router`) together
+with its PostgreSQL and Redis dependencies, an example `docker-compose.yml`:
+
+```yaml
+services:
+  ccr:
+    image: tkgling/claude-code-router:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/ccr
+      REDIS_URL: redis://redis:6379
+      # Optional: pin the API key. If unset, one is minted on first boot
+      # and written into the config volume below.
+      # APIKEY: change-me
+    ports:
+      # The server listens on the envelope PORT (default 3456). Map it to
+      # whatever host port you want.
+      - "3456:3456"
+    volumes:
+      # Bind-mount the config envelope so config.json (including the
+      # minted APIKEY) is readable/editable on the host. Adjust the
+      # container path to the image user's home if it is not /root.
+      - ./ccr-config:/root/.claude-code-router
+      # Claude / Codex subscription credentials, so subscription-mode
+      # providers (claude-code, codex) can authenticate. Read-write
+      # because the Codex token is refreshed in place. Drop these if you
+      # only use api_key providers.
+      - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.codex:/root/.codex
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17.9
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ccr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ccr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:8.6.3
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+Bring it up with `docker compose up -d`. The database schema is managed by
+Prisma migrations — apply them once against the running database, e.g.:
+
+```bash
+docker compose run --rm ccr bun run db:migrate:deploy
+```
+
+`DATABASE_URL` / `REDIS_URL` use the compose service names (`postgres`,
+`redis`) as hosts. `/api/*` and `/v1/*` remain `APIKEY`-guarded; retrieve the
+minted key from the config volume (or set `APIKEY` explicitly above).
+
 ## Getting started
 
 Install dependencies (this also runs `prisma generate` via `postinstall`):
