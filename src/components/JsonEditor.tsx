@@ -14,7 +14,7 @@ interface JsonEditorProps {
 
 export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
   const { t } = useTranslation()
-  const { config } = useConfig()
+  const { config, setConfig } = useConfig()
   const [jsonValue, setJsonValue] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -80,6 +80,10 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
       const success = handleSaveResponse(response, t('app.config_saved_success'), t('app.config_saved_failed'))
 
       if (success) {
+        // Sync the shared config with what was just persisted so the
+        // app doesn't keep showing the pre-save state (and a later
+        // save from another panel can't revert these edits).
+        setConfig(parsedConfig)
         onOpenChange(false)
       }
     } catch (error) {
@@ -109,6 +113,9 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
 
       // Only restart if save was successful
       if (saveSuccessful) {
+        // Keep the shared config in sync with what was persisted (see
+        // handleSave) before the restart round-trip.
+        setConfig(parsedConfig)
         // Restart service
         const restartResponse = await api.restartService()
 
