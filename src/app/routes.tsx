@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { createMemoryRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { DebugPage } from '@/components/DebugPage'
 import { Login } from '@/components/Login'
@@ -14,7 +14,7 @@ import { Usage } from '@/components/Usage'
 
 const fullHeight = (node: ReactNode) => <div className='h-full'>{node}</div>
 
-export const router = createMemoryRouter(
+export const router = createBrowserRouter(
   [
     {
       path: '/',
@@ -58,8 +58,5 @@ export const router = createMemoryRouter(
         </ProtectedRoute>
       )
     }
-  ],
-  {
-    initialEntries: ['/models']
-  }
+  ]
 )
