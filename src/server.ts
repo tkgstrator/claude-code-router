@@ -50,7 +50,19 @@ app.get('/*', (c) => c.html(indexHtml))
 const parsedPort = Number(process.env.PORT)
 const port = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 16173
 
+// Bun's per-request idle timeout defaults to 10s and kills any socket
+// that goes quiet for that long. LLM calls routinely think for far
+// longer than 10s before the first token (and a streamed answer can
+// pause mid-flight), so the default makes Bun abort live requests with
+// "request timed out after 10 seconds". 255 is Bun's maximum and the
+// only value high enough to cover slow upstream models / long agent
+// turns; lower values just reintroduce the cutoff. Override via
+// API_TIMEOUT_MS (seconds, clamped to Bun's 1..255 range) if needed.
+const parsedIdle = Math.round(Number(process.env.API_TIMEOUT_MS) / 1000)
+const idleTimeout = Number.isFinite(parsedIdle) && parsedIdle > 0 ? Math.min(parsedIdle, 255) : 255
+
 export default {
   port,
+  idleTimeout,
   fetch: app.fetch
 }
