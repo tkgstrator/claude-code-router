@@ -18,8 +18,10 @@ services:
         condition: service_healthy
 
   redis:
-    image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    image: redis:8.6.3
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -46,4 +48,6 @@ volumes:
   node_modules:
     driver: local
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
