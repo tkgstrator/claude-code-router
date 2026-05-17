@@ -74,7 +74,8 @@
     "signIn": "登录",
     "invalidApiKey": "API密钥无效",
     "configError": "配置未加载",
-    "validating": "正在验证API密钥..."
+    "validating": "正在验证API密钥...",
+    "keyHint": "首次启动时，API 密钥已打印到服务器控制台（查找 [ccr] APIKEY= 行）并保存到 ~/.claude-code-router/config.json"
   },
   "setup": {
     "title": "配置 API Key",

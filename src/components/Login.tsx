@@ -120,6 +120,7 @@ export function Login() {
                 placeholder={t('login.apiKeyPlaceholder')}
               />
             </div>
+            <p className='text-sm text-gray-500'>{t('login.keyHint')}</p>
             {error && <div className='text-sm text-red-500'>{error}</div>}
           </CardContent>
           <CardFooter>
