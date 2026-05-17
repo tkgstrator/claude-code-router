@@ -9,8 +9,8 @@ interface ClaudeWindow {
 }
 interface CodexWindow {
   usedPercent: number
-  windowMinutes: number | null
   resetAt: string | null
+  windowSeconds: number | null
 }
 interface UsageResponse {
   claude: {
@@ -22,9 +22,9 @@ interface UsageResponse {
     capturedAt: string
   } | null
   codex: {
+    planType: string | null
     primary: CodexWindow | null
     secondary: CodexWindow | null
-    limitName: string | null
     capturedAt: string
   } | null
 }
@@ -120,7 +120,7 @@ export function Usage() {
             <div className='space-y-4'>
               {data.codex.primary && (
                 <UsageBar
-                  label={data.codex.limitName ?? t('usage.primary')}
+                  label={t('usage.primary')}
                   percent={data.codex.primary.usedPercent}
                   reset={`${t('usage.resets')}: ${fmtReset(data.codex.primary.resetAt)}`}
                 />

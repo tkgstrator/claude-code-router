@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { type CodexUsageSnapshot, getCodexUsageSnapshot } from './codexUsageCache'
 
 export interface ClaudeUsageWindow {
   utilization: number
@@ -17,9 +16,22 @@ export interface ClaudeUsage {
   capturedAt: string
 }
 
+export interface CodexUsageWindow {
+  usedPercent: number
+  resetAt: string | null
+  windowSeconds: number | null
+}
+
+export interface CodexUsage {
+  planType: string | null
+  primary: CodexUsageWindow | null
+  secondary: CodexUsageWindow | null
+  capturedAt: string
+}
+
 export interface UsageResponse {
   claude: ClaudeUsage | null
-  codex: CodexUsageSnapshot | null
+  codex: CodexUsage | null
 }
 
 const claudeToken = async (): Promise<string | null> => {
@@ -95,10 +107,81 @@ const fetchClaudeUsage = async (): Promise<ClaudeUsage | null> => {
   return claudeStore.value
 }
 
-// Claude via its official usage endpoint (cached/stale-tolerant —
-// the endpoint self-rate-limits); Codex from the in-memory snapshot
-// captured off real /v1 traffic (no probe spend).
+// Codex has a pollable usage endpoint after all — the ChatGPT backend
+// `/wham/usage` (what the Codex CLI's get_rate_limits hits). CCR holds
+// the same creds the /v1 codex path uses, so poll it directly like
+// Claude. Shape verified live: { plan_type, rate_limit:{ allowed,
+// limit_reached, primary_window, secondary_window } } where a window
+// is { used_percent, limit_window_seconds, reset_after_seconds,
+// reset_at(epoch s) }.
+const CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage'
+const codexStore: { value: CodexUsage | null; at: number } = { value: null, at: 0 }
+
+const codexAuth = async (): Promise<{ token: string; accountId: string | null } | null> => {
+  try {
+    const raw = await readFile(join(homedir(), '.codex', 'auth.json'), 'utf-8')
+    const tokens = (JSON.parse(raw) as { tokens?: { access_token?: unknown; account_id?: unknown } })?.tokens
+    const token = tokens?.access_token
+    if (typeof token !== 'string' || token.length === 0) return null
+    return { token, accountId: typeof tokens?.account_id === 'string' ? tokens.account_id : null }
+  } catch {
+    return null
+  }
+}
+
+const codexWindowOf = (v: unknown): CodexUsageWindow | null => {
+  if (!v || typeof v !== 'object') return null
+  const o = v as Record<string, unknown>
+  if (typeof o.used_percent !== 'number') return null
+  const resetAt = typeof o.reset_at === 'number' ? new Date(o.reset_at * 1000).toISOString() : null
+  return {
+    usedPercent: o.used_percent,
+    resetAt,
+    windowSeconds: typeof o.limit_window_seconds === 'number' ? o.limit_window_seconds : null
+  }
+}
+
+const requestCodexUsage = async (): Promise<CodexUsage | null> => {
+  const auth = await codexAuth()
+  if (!auth) return null
+  try {
+    const res = await fetch(CODEX_USAGE_URL, {
+      headers: {
+        authorization: `Bearer ${auth.token}`,
+        'content-type': 'application/json',
+        ...(auth.accountId ? { 'chatgpt-account-id': auth.accountId } : {})
+      }
+    })
+    if (!res.ok) return null
+    const j = (await res.json()) as Record<string, unknown>
+    const rl = j.rate_limit
+    const limits = rl && typeof rl === 'object' ? (rl as Record<string, unknown>) : {}
+    return {
+      planType: typeof j.plan_type === 'string' ? j.plan_type : null,
+      primary: codexWindowOf(limits.primary_window),
+      secondary: codexWindowOf(limits.secondary_window),
+      capturedAt: new Date().toISOString()
+    }
+  } catch {
+    return null
+  }
+}
+
+const fetchCodexUsage = async (): Promise<CodexUsage | null> => {
+  const fresh = codexStore.value && Date.now() - codexStore.at < CLAUDE_TTL_MS
+  if (fresh) return codexStore.value
+  const next = await requestCodexUsage()
+  if (next) {
+    codexStore.value = next
+    codexStore.at = Date.now()
+    return next
+  }
+  return codexStore.value
+}
+
+// Both providers via their official usage endpoints, cached and
+// stale-tolerant (each self-rate-limits to varying degrees).
 export async function getUsage(): Promise<UsageResponse> {
-  const claude = await fetchClaudeUsage()
-  return { claude, codex: getCodexUsageSnapshot() }
+  const [claude, codex] = await Promise.all([fetchClaudeUsage(), fetchCodexUsage()])
+  return { claude, codex }
 }

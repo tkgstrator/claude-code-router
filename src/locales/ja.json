@@ -49,7 +49,7 @@
     "sevenDaySonnet": "7日（Sonnet）",
     "sevenDayOpus": "7日（Opus）",
     "codex": "Codex（ChatGPT）",
-    "codexNoData": "データなし — Codex に usage エンドポイントは無く、実際の codex リクエストの応答から取得します。まず codex にルーティングしてください。",
+    "codexNoData": "取得不可 — Codex（ChatGPT）の認証情報が無いか、usage エンドポイントがエラーを返しました。",
     "primary": "プライマリウィンドウ",
     "secondary": "セカンダリウィンドウ",
     "resets": "リセット",

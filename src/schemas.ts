@@ -130,8 +130,8 @@ const ClaudeUsageWindowSchema = z
 const CodexUsageWindowSchema = z
   .object({
     usedPercent: z.number(),
-    windowMinutes: z.number().nullable(),
-    resetAt: z.string().nullable()
+    resetAt: z.string().nullable(),
+    windowSeconds: z.number().nullable()
   })
   .nullable()
 
@@ -149,9 +149,9 @@ export const UsageResponseSchema = z
       .nullable(),
     codex: z
       .object({
+        planType: z.string().nullable(),
         primary: CodexUsageWindowSchema,
         secondary: CodexUsageWindowSchema,
-        limitName: z.string().nullable(),
         capturedAt: z.string().nonempty()
       })
       .nullable()

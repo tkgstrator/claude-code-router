@@ -49,7 +49,7 @@
     "sevenDaySonnet": "7 天（Sonnet）",
     "sevenDayOpus": "7 天（Opus）",
     "codex": "Codex（ChatGPT）",
-    "codexNoData": "暂无数据 — Codex 没有用量接口，限额需从真实 codex 请求的响应中获取。请先将请求路由到 codex。",
+    "codexNoData": "不可用 — 没有 Codex（ChatGPT）凭据，或用量接口返回错误。",
     "primary": "主窗口",
     "secondary": "次窗口",
     "resets": "重置",

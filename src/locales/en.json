@@ -49,7 +49,7 @@
     "sevenDaySonnet": "7-day (Sonnet)",
     "sevenDayOpus": "7-day (Opus)",
     "codex": "Codex (ChatGPT)",
-    "codexNoData": "No data yet — Codex has no usage endpoint; limits are captured from a real codex request. Route something to codex first.",
+    "codexNoData": "Unavailable — no Codex (ChatGPT) credentials, or the usage endpoint returned an error.",
     "primary": "Primary window",
     "secondary": "Secondary window",
     "resets": "Resets",
