@@ -1,5 +1,3 @@
-![](blog/images/claude-code-router-img.png)
-
 [![](https://img.shields.io/badge/%F0%9F%87%A8%F0%9F%87%B3-%E4%B8%AD%E6%96%87%E7%89%88-ff0000?style=flat)](README_zh.md)
 [![](https://img.shields.io/badge/%F0%9F%87%AF%F0%9F%87%B5-%E6%97%A5%E6%9C%AC%E8%AA%9E-white?style=flat)](README_ja.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
@@ -7,18 +5,13 @@
 
 <hr>
 
-![](blog/images/sponsors/glm-en.jpg)
 > This project is sponsored by Z.ai, supporting us with their GLM CODING PLAN.
 
 > GLM CODING PLAN is a subscription service designed for AI coding, starting at just $10/month. It provides access to their flagship GLM-4.7 & （GLM-5 Only Available  for Pro Users）model across 10+ popular AI coding tools (Claude Code, Cline, Roo Code, etc.), offering developers top-tier, fast, and stable coding experiences.
 
 > Get 10% OFF GLM CODING PLAN：https://z.ai/subscribe?ic=8JVLJQFSKB  
 
-> [Progressive Disclosure of Agent Tools from the Perspective of CLI Tool Style](/blog/en/progressive-disclosure-of-agent-tools-from-the-perspective-of-cli-tool-style.md)
-
 > A powerful tool to route Claude Code requests to different models and customize any request.
-
-![](blog/images/claude-code.png)
 
 ## Features
 
@@ -294,14 +287,11 @@ ccr ui
 
 Opens a browser-based editor for `config.json`.
 
-![UI](/blog/images/ui.png)
-
 ### 5. CLI Model Management
 
 ```shell
 ccr model
 ```
-![](blog/images/models.gif)
 
 An interactive terminal UI to view and change your provider/model setup without editing JSON. You can switch the model for any routing scenario (default, background, think, longContext…), add models to existing providers, or create a new provider from scratch.
 
@@ -415,10 +405,6 @@ Please help me analyze this code snippet...
 
 ## Status Line (Beta)
 To better monitor the status of claude-code-router at runtime, version v1.0.40 includes a built-in statusline tool, which you can enable in the UI.
-![statusline-config.png](/blog/images/statusline-config.png)
-
-The effect is as follows:
-![statusline](/blog/images/statusline.png)
 
 ## 🤖 GitHub Actions
 
@@ -482,12 +468,6 @@ jobs:
 
 This setup allows for interesting automations, like running tasks during off-peak hours to reduce API costs.
 
-## 📝 Further Reading
-
-- [Project Motivation and How It Works](blog/en/project-motivation-and-how-it-works.md)
-- [Maybe We Can Do More with the Router](blog/en/maybe-we-can-do-more-with-the-route.md)
-- [GLM-4.6 Supports Reasoning and Interleaved Thinking](blog/en/glm-4.6-supports-reasoning.md)
-
 ## ❤️ Support & Sponsoring
 
 If you find this project helpful, please consider sponsoring its development. Your support is greatly appreciated!
@@ -495,13 +475,6 @@ If you find this project helpful, please consider sponsoring its development. Yo
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F31GN2GM)
 
 [Paypal](https://paypal.me/musistudio1999)
-
-<table>
-  <tr>
-    <td><img src="/blog/images/alipay.jpg" width="200" alt="Alipay" /></td>
-    <td><img src="/blog/images/wechat.jpg" width="200" alt="WeChat Pay" /></td>
-  </tr>
-</table>
 
 ### Our Sponsors
 
