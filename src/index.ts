@@ -11,6 +11,7 @@ import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
 import { updateCheckRoute } from './api/update/check/route'
 import { updatePerformRoute } from './api/update/perform/route'
+import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
 import { apiKeyAuth } from './lib/apiKeyAuth'
@@ -43,6 +44,7 @@ app.route('/', configRoute)
 app.route('/', transformersRoute)
 app.route('/', subscriptionsRoute)
 app.route('/', usageRoute)
+app.route('/', usageHistoryRoute)
 app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
 app.route('/', refreshModelsRoute)

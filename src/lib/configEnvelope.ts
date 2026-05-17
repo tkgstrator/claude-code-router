@@ -3,6 +3,7 @@ import path from 'node:path'
 import readline from 'node:readline'
 import { CONFIG_FILE, DEFAULT_CONFIG, ENVELOPE_ENV_KEYS, HOME_DIR, PLUGINS_DIR } from '@ccr/shared'
 import JSON5 from 'json5'
+import dayjs from './dayjs'
 
 // Function to interpolate environment variables in config values
 const interpolateEnvVars = (obj: any): any => {
@@ -116,7 +117,7 @@ export const backupConfigFile = async () => {
         .then(() => true)
         .catch(() => false)
     ) {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const timestamp = dayjs().toISOString().replace(/[:.]/g, '-')
       const backupPath = `${CONFIG_FILE}.${timestamp}.bak`
       await fs.copyFile(CONFIG_FILE, backupPath)
 

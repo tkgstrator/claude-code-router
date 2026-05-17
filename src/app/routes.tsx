@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { createMemoryRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { DebugPage } from '@/components/DebugPage'
 import { Login } from '@/components/Login'
@@ -14,52 +14,47 @@ import { Usage } from '@/components/Usage'
 
 const fullHeight = (node: ReactNode) => <div className='h-full'>{node}</div>
 
-export const router = createMemoryRouter(
-  [
-    {
-      path: '/',
-      element: <Navigate to='/models' replace />
-    },
-    {
-      path: '/login',
-      element: (
-        <PublicRoute>
-          <Login />
-        </PublicRoute>
-      )
-    },
-    {
-      element: (
-        <ProtectedRoute>
-          <AppShell />
-        </ProtectedRoute>
-      ),
-      children: [
-        { path: '/models', element: fullHeight(<ModelsDashboard />) },
-        { path: '/providers', element: fullHeight(<Providers />) },
-        { path: '/router', element: fullHeight(<RouterPanel />) },
-        { path: '/transformers', element: fullHeight(<Transformers />) },
-        { path: '/usage', element: fullHeight(<Usage />) }
-      ]
-    },
-    {
-      path: '/presets',
-      element: (
-        <ProtectedRoute>
-          <Presets />
-        </ProtectedRoute>
-      )
-    },
-    {
-      path: '/debug',
-      element: (
-        <ProtectedRoute>
-          <DebugPage />
-        </ProtectedRoute>
-      )
-    }
-  ],
+export const router = createBrowserRouter([
   {
-    initialEntries: ['/models']
+    path: '/',
+    element: <Navigate to='/models' replace />
+  },
+  {
+    path: '/login',
+    element: (
+      <PublicRoute>
+        <Login />
+      </PublicRoute>
+    )
+  },
+  {
+    element: (
+      <ProtectedRoute>
+        <AppShell />
+      </ProtectedRoute>
+    ),
+    children: [
+      { path: '/models', element: fullHeight(<ModelsDashboard />) },
+      { path: '/providers', element: fullHeight(<Providers />) },
+      { path: '/router', element: fullHeight(<RouterPanel />) },
+      { path: '/transformers', element: fullHeight(<Transformers />) },
+      { path: '/usage', element: fullHeight(<Usage />) }
+    ]
+  },
+  {
+    path: '/presets',
+    element: (
+      <ProtectedRoute>
+        <Presets />
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/debug',
+    element: (
+      <ProtectedRoute>
+        <DebugPage />
+      </ProtectedRoute>
+    )
   }
-)
+])

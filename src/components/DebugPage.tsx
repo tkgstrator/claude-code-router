@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import dayjs from '@/lib/dayjs'
 import { requestHistoryDB } from '@/lib/db'
 import { RequestHistoryDrawer } from './RequestHistoryDrawer'
 
@@ -142,7 +143,7 @@ export function DebugPage() {
       const headers = JSON.parse(requestData.headers)
       const body = JSON.parse(requestData.body)
 
-      const startTime = Date.now()
+      const startTime = dayjs()
 
       const response = await fetch(requestData.url, {
         method: requestData.method,
@@ -153,8 +154,8 @@ export function DebugPage() {
         body: requestData.method !== 'GET' ? JSON.stringify(body) : undefined
       })
 
-      const endTime = Date.now()
-      const responseTime = endTime - startTime
+      const endTime = dayjs()
+      const responseTime = endTime.diff(startTime)
 
       const responseHeaders: Record<string, string> = {}
       response.headers.forEach((value, key) => {

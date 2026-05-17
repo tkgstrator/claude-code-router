@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
 import { buildTemplates, LLM_PRICES_URL, PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
 import { buildSubscriptionProvider, findSubscriptionPreset, SUBSCRIPTION_PRESETS } from '@/lib/subscriptionPresets'
 import type { Provider, ProviderAuthMode } from '@/types'
@@ -162,7 +163,7 @@ export function Providers() {
         const candidate = `${base}-${i}`
         if (!existingNames.has(candidate.toLowerCase())) return candidate
       }
-      return `${base}-${Date.now()}`
+      return `${base}-${dayjs().valueOf()}`
     })()
     const newProvider: ProviderType = buildSubscriptionProvider(preset, uniqueName)
     const newConfig = { ...config, Providers: [...config.Providers, newProvider] }

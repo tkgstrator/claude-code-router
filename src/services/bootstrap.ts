@@ -3,6 +3,7 @@ import { runJsonToDbMigration } from '../db/migrateFromJson'
 import { initConfig, initDir, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
 import { ensureRouterSlots, ensureSeedProviders } from './configService'
 import { seedScrapedPricesIntoDb } from './priceSeedService'
+import { startUsageCapture } from './usageJob'
 
 // First boot must never come up as an open proxy to the user's paid
 // subscriptions. If no APIKEY is set, mint a 128-bit hex secret,
@@ -44,4 +45,7 @@ export async function bootstrapServer(): Promise<void> {
   await ensureRouterSlots()
   await ensureApiKey()
   await initConfig()
+  // Fire-and-forget: never block server boot on Redis. The job setup
+  // is resilient and registers the schedule once Redis is reachable.
+  void startUsageCapture()
 }

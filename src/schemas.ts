@@ -158,6 +158,20 @@ export const UsageResponseSchema = z
   })
   .openapi('UsageResponse')
 
+// Thin DB passthrough: one raw snapshot row per capture. The frontend
+// derives the chart series (deltas, reset clamping, moving average).
+export const UsageHistoryResponseSchema = z
+  .object({
+    samples: z.array(
+      z.object({
+        metric: z.string().nonempty(),
+        percent: z.number(),
+        t: z.string().nonempty()
+      })
+    )
+  })
+  .openapi('UsageHistoryResponse')
+
 // --- Providers test --------------------------------------------------------
 
 export const ProviderTestRequestSchema = z

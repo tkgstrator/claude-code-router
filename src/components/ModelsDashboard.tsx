@@ -17,6 +17,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
 import { ProviderIcon } from '@/lib/providerIcons'
 import { MODEL_PRICING } from '@/lib/providerTemplates'
 
@@ -197,7 +198,7 @@ export function ModelsDashboard() {
   const applyResult = (key: string, result: { status: 'ok' | 'fail' }) => {
     setStatus((prev) => ({ ...prev, [key]: result.status }))
     if (result.status === 'ok') {
-      setPassedAt((prev) => ({ ...prev, [key]: new Date().toISOString() }))
+      setPassedAt((prev) => ({ ...prev, [key]: dayjs().toISOString() }))
     }
   }
 
@@ -377,7 +378,7 @@ export function ModelsDashboard() {
                         disabled={isTestingAll || !row.enabled || status[row.key] === 'testing'}
                         title={
                           passedAt[row.key]
-                            ? `${t('models.last_passed')}: ${new Date(passedAt[row.key] as string).toLocaleString()}`
+                            ? `${t('models.last_passed')}: ${dayjs(passedAt[row.key] as string).format('YYYY/MM/DD HH:mm')}`
                             : t('models.test')
                         }
                         className='rounded-md p-1 transition-all-ease hover:bg-gray-100 disabled:cursor-not-allowed disabled:hover:bg-transparent'
