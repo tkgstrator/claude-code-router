@@ -1,5 +1,3 @@
-![](blog/images/claude-code-router-img.png)
-
 [![](https://img.shields.io/badge/%F0%9F%87%AC%F0%9F%87%A7-English-000aff?style=flat)](README.md)
 [![](https://img.shields.io/badge/%F0%9F%87%A8%F0%9F%87%B3-%E4%B8%AD%E6%96%87%E7%89%88-ff0000?style=flat)](README_zh.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
@@ -7,7 +5,6 @@
 
 <hr>
 
-![](blog/images/sponsors/glm-en.jpg)
 > このプロジェクトは Z.ai のスポンサーを受けており、GLM CODING PLAN によってサポートされています。
 
 > GLM CODING PLAN は AI コーディング向けサブスクリプションサービスで、月額 $10 からご利用いただけます。Claude Code、Cline、Roo Code などの 10 以上の AI コーディングツールで旗艦モデル GLM-4.7 にアクセスでき、開発者に最高水準の高速・安定したコーディング体験を提供します。
@@ -15,8 +12,6 @@
 > GLM CODING PLAN 10% OFF：https://z.ai/subscribe?ic=8JVLJQFSKB
 
 > Claude Code のリクエストを異なるモデルにルーティングし、あらゆるリクエストをカスタマイズする強力なツール。
-
-![](blog/images/claude-code.png)
 
 ## ✨ 機能
 
@@ -346,14 +341,11 @@ ccr ui
 
 ブラウザが開き、`config.json` を視覚的に編集できます。
 
-![UI](/blog/images/ui.png)
-
 ### 5. CLI モデル管理
 
 ```shell
 ccr model
 ```
-![](blog/images/models.gif)
 
 このコマンドで以下の操作をインタラクティブに行えます：
 
@@ -559,10 +551,6 @@ module.exports = async function router(req, config) {
 ## ステータスライン（ベータ）
 
 claude-code-router のリアルタイムステータスを表示するためのステータスラインツールを v1.0.40 から内蔵しています。UI から有効化できます。
-![statusline-config.png](/blog/images/statusline-config.png)
-
-表示例：
-![statusline](/blog/images/statusline.png)
 
 ## 🤖 GitHub Actions
 
@@ -630,11 +618,6 @@ jobs:
 
 > **注意**: GitHub Actions などの自動化環境で実行する場合、`"NON_INTERACTIVE_MODE": true` を設定してプロセスのハングを防いでください。
 
-## 📝 詳細情報
-
-- [プロジェクトの動機と仕組み](blog/en/project-motivation-and-how-it-works.md)
-- [ルーターでできることを考える](blog/en/maybe-we-can-do-more-with-the-route.md)
-
 ## ❤️ サポートとスポンサー
 
 このプロジェクトが役立つと感じたら、開発のスポンサーをご検討ください。
@@ -642,10 +625,3 @@ jobs:
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F31GN2GM)
 
 [Paypal](https://paypal.me/musistudio1999)
-
-<table>
-  <tr>
-    <td><img src="/blog/images/alipay.jpg" width="200" alt="Alipay" /></td>
-    <td><img src="/blog/images/wechat.jpg" width="200" alt="WeChat Pay" /></td>
-  </tr>
-</table>

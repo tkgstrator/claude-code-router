@@ -8,14 +8,11 @@
     "build:shared": "bun run --filter @ccr/shared build",
     "build:cli": "bun run --filter @ccr/cli build",
     "build:ui": "vite build",
-    "build:docs": "bun run --filter claude-code-router-docs build",
     "release": "bun run build && bash scripts/release.sh all",
     "release:npm": "bash scripts/release.sh npm",
     "release:docker": "bash scripts/release.sh docker",
     "dev:cli": "bun run --filter @ccr/cli dev",
     "dev:ui": "vite",
-    "dev:docs": "bun run --filter claude-code-router-docs start",
-    "serve:docs": "bun run --filter claude-code-router-docs serve",
     "test:providers": "bun test __tests__/providers",
     "scrape:openai-prices": "bun run scripts/scrape-openai-prices.ts",
     "scrape:anthropic-prices": "bun run scripts/scrape-anthropic-prices.ts",
@@ -67,8 +64,7 @@
     "@types/react": "18"
   },
   "workspaces": [
-    "packages/*",
-    "docs"
+    "packages/*"
   ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
