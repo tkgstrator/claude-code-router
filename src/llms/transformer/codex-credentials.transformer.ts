@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+import { captureCodexUsage } from "../../services/codexUsageCache";
 
 const CODEX_AUTH_PATH = join(homedir(), ".codex", "auth.json");
 
@@ -88,6 +89,10 @@ export class CodexCredentialsTransformer {
   // Re-tag a successful stream so the SSE branch is taken. Non-2xx
   // bodies are genuine JSON errors; leave them untouched.
   async transformResponseOut(response: Response) {
+    // Codex has no usage endpoint — its rate limits ride on this reply
+    // as x-codex-* headers. Snapshot them from real traffic so the
+    // Usage view can show them without spending a probe request.
+    captureCodexUsage((name) => response.headers.get(name));
     if (!response.ok) return response;
     const ct = response.headers.get("content-type") || "";
     if (ct.includes("text/event-stream")) return response;

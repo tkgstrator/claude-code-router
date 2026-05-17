@@ -10,6 +10,7 @@ import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
 import { Router as RouterPanel } from '@/components/Router'
 import { Transformers } from '@/components/Transformers'
+import { Usage } from '@/components/Usage'
 
 const fullHeight = (node: ReactNode) => <div className='h-full'>{node}</div>
 
@@ -37,7 +38,8 @@ export const router = createMemoryRouter(
         { path: '/models', element: fullHeight(<ModelsDashboard />) },
         { path: '/providers', element: fullHeight(<Providers />) },
         { path: '/router', element: fullHeight(<RouterPanel />) },
-        { path: '/transformers', element: fullHeight(<Transformers />) }
+        { path: '/transformers', element: fullHeight(<Transformers />) },
+        { path: '/usage', element: fullHeight(<Usage />) }
       ]
     },
     {
