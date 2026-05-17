@@ -1,3 +1,4 @@
+import dayjs from '@/lib/dayjs'
 import type { StatusLineConfig, StatusLineModuleConfig } from '@/types'
 
 // Stub kept for callers that still import this surface. Validation
@@ -118,7 +119,7 @@ export function createDefaultStatusLineConfig(): StatusLineConfig {
 export function backupConfig(config: StatusLineConfig): string {
   const backup = {
     config,
-    timestamp: new Date().toISOString(),
+    timestamp: dayjs().toISOString(),
     version: '1.0'
   }
   return JSON.stringify(backup, null, 2)

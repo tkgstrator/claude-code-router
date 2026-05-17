@@ -1,3 +1,5 @@
+import dayjs from './dayjs'
+
 export interface RequestHistoryItem {
   id: string
   url: string
@@ -40,8 +42,8 @@ class RequestHistoryDB {
     const db = await this.openDB()
     const item: RequestHistoryItem = {
       ...request,
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString()
+      id: dayjs().valueOf().toString(),
+      timestamp: dayjs().toISOString()
     }
 
     return new Promise((resolve, reject) => {

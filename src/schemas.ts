@@ -14,7 +14,9 @@ export const ProviderSchema = z
   .object({
     name: z.string().min(1),
     api_base_url: z.string(),
-    api_key: z.string(),
+    // null when the key is unset (fresh seed / cleared). A present
+    // value is an arbitrary secret, so no .nonempty() here.
+    api_key: z.string().nullable(),
     auth_mode: AuthModeSchema,
     models: z.array(z.string()),
     deprecatedModels: z.array(z.string()).optional(),
@@ -30,18 +32,21 @@ export type Provider = z.infer<typeof ProviderSchema>
 
 export const RouterSchema = z
   .object({
-    // Values are "providerName,modelName" or "" when the slot is unset.
-    // Kept in literal form (not derived from SCENARIO_KEYS) so the
-    // generated OpenAPI schema lists each slot explicitly.
-    default: z.string(),
-    background: z.string(),
-    think: z.string(),
-    longContext: z.string(),
-    webSearch: z.string(),
-    image: z.string(),
+    // Values are "providerName,modelName", or null when the slot is
+    // unassigned. Kept in literal form (not derived from SCENARIO_KEYS)
+    // so the generated OpenAPI schema lists each slot explicitly.
+    default: z.string().nonempty().nullable(),
+    background: z.string().nonempty().nullable(),
+    think: z.string().nonempty().nullable(),
+    longContext: z.string().nonempty().nullable(),
+    webSearch: z.string().nonempty().nullable(),
+    image: z.string().nonempty().nullable(),
+    // Genuinely optional: composeUiConfig omits the key entirely when
+    // there's no threshold (it is not emitted as null), so .optional()
+    // matches the wire — .nullable() would reject the absent key.
     longContextThreshold: z.number().int().positive().optional()
   })
-  .catchall(z.union([z.string(), z.number()]))
+  .catchall(z.union([z.string().nonempty(), z.number(), z.null()]))
   .openapi('Router')
 export type Router = z.infer<typeof RouterSchema>
 
@@ -62,9 +67,12 @@ export const ConfigSchema = z
     APIKEY: z.string().optional(),
     LOG: z.boolean().optional(),
     LOG_LEVEL: z.string().optional(),
-    PROXY_URL: z.string().optional(),
+    // composeUiConfig always emits these optional path/url scalars, as
+    // a non-empty string or null when unset (absent / '' on disk).
+    PROXY_URL: z.string().nullable(),
     API_TIMEOUT_MS: z.union([z.number(), z.string()]).optional(),
-    CLAUDE_PATH: z.string().optional(),
+    CLAUDE_PATH: z.string().nullable(),
+    CUSTOM_ROUTER_PATH: z.string().nullable(),
     NON_INTERACTIVE_MODE: z.boolean().optional()
   })
   .openapi('Config')
@@ -119,6 +127,58 @@ export const EnabledModelsResponseSchema = z
     models: z.array(EnabledModelSchema)
   })
   .openapi('EnabledModelsResponse')
+
+const ClaudeUsageWindowSchema = z
+  .object({
+    utilization: z.number(),
+    resetsAt: z.string().nullable()
+  })
+  .nullable()
+
+const CodexUsageWindowSchema = z
+  .object({
+    usedPercent: z.number(),
+    resetAt: z.string().nullable(),
+    windowSeconds: z.number().nullable()
+  })
+  .nullable()
+
+export const UsageResponseSchema = z
+  .object({
+    claude: z
+      .object({
+        fiveHour: ClaudeUsageWindowSchema,
+        sevenDay: ClaudeUsageWindowSchema,
+        sevenDaySonnet: ClaudeUsageWindowSchema,
+        sevenDayOpus: ClaudeUsageWindowSchema,
+        extraUsageEnabled: z.boolean(),
+        capturedAt: z.string().nonempty()
+      })
+      .nullable(),
+    codex: z
+      .object({
+        planType: z.string().nullable(),
+        primary: CodexUsageWindowSchema,
+        secondary: CodexUsageWindowSchema,
+        capturedAt: z.string().nonempty()
+      })
+      .nullable()
+  })
+  .openapi('UsageResponse')
+
+// Thin DB passthrough: one raw snapshot row per capture. The frontend
+// derives the chart series (deltas, reset clamping, moving average).
+export const UsageHistoryResponseSchema = z
+  .object({
+    samples: z.array(
+      z.object({
+        metric: z.string().nonempty(),
+        percent: z.number(),
+        t: z.string().nonempty()
+      })
+    )
+  })
+  .openapi('UsageHistoryResponse')
 
 // --- Providers test --------------------------------------------------------
 

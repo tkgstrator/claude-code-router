@@ -51,13 +51,13 @@ export async function seedScrapedPricesIntoDb(prisma: PrismaClient = getPrismaCl
       })
       if (!provider) {
         // Provider row absent (fresh DB before ensureSeedProviders, or
-        // user removed it). Recreate as api_key with a blank key — the
-        // user fills the key in from the UI.
+        // user removed it). Recreate as api_key with no key set (NULL,
+        // never '') — the user fills the key in from the UI.
         provider = await tx.provider.create({
           data: {
             name: vendor,
             apiBaseUrl: defaults?.baseUrl ?? '',
-            apiKey: '',
+            apiKey: null,
             authMode: AuthMode.api_key,
             apiStyle: apiStyleForVendor(vendor),
             transformer: defaults?.transformer ?? Prisma.DbNull

@@ -11,7 +11,10 @@ import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
 import { updateCheckRoute } from './api/update/check/route'
 import { updatePerformRoute } from './api/update/perform/route'
+import { usageHistoryRoute } from './api/usage/history/route'
+import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
+import { apiKeyAuth } from './lib/apiKeyAuth'
 import { APP_VERSION } from './lib/version'
 import { bootstrapServer } from './services/bootstrap'
 
@@ -28,11 +31,20 @@ await bootstrapServer()
 
 const app = new OpenAPIHono()
 
+// Gate everything that hits the paid subscriptions or mutates config
+// behind the envelope APIKEY (bootstrap mints one on first run). The
+// static SPA at `/` stays open so the UI can load and prompt for the
+// key; its own /api calls then carry it.
+app.use('/api/*', apiKeyAuth)
+app.use('/v1/*', apiKeyAuth)
+
 // Each sub-app declares its own absolute /api/... paths, so mount them
 // at root. OpenAPIHono.route() also merges their OpenAPI registries.
 app.route('/', configRoute)
 app.route('/', transformersRoute)
 app.route('/', subscriptionsRoute)
+app.route('/', usageRoute)
+app.route('/', usageHistoryRoute)
 app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
 app.route('/', refreshModelsRoute)

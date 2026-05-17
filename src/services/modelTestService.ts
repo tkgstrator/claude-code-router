@@ -21,6 +21,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { getPrismaClient } from '../db/client'
 import { ApiStyle, AuthMode, ModelTestStatus, type PrismaClient } from '../generated/prisma/client'
+import dayjs from '../lib/dayjs'
 import { getSubscriptionsInfo } from './subscriptionInfoService'
 
 // Read the OAuth access token a subscription provider authenticates
@@ -45,7 +46,7 @@ const readSubscriptionAuth = async (apiBaseUrl: string): Promise<SubAuth | { err
     )
     const oauth = data?.claudeAiOauth
     if (!oauth?.accessToken) return { error: 'no Claude subscription credentials on disk' }
-    if (typeof oauth.expiresAt === 'number' && oauth.expiresAt < Date.now()) {
+    if (typeof oauth.expiresAt === 'number' && oauth.expiresAt < dayjs().valueOf()) {
       return { error: 'Claude subscription token expired — re-login with the Claude CLI' }
     }
     // Claude Code sends the OAuth token as x-api-key (see the llms
@@ -236,7 +237,7 @@ const persist = async (
   ok: boolean,
   error: string | undefined
 ): Promise<void> => {
-  const now = new Date()
+  const now = dayjs().toDate()
   await prisma.model.update({
     where: { id: modelId },
     data: {
@@ -253,7 +254,7 @@ export async function testModel(
   modelName: string,
   prisma: PrismaClient = getPrismaClient()
 ): Promise<ModelTestResult> {
-  const start = Date.now()
+  const start = dayjs()
   const provider = await prisma.provider.findUnique({
     where: { name: providerName },
     include: { models: { where: { name: modelName } } }
@@ -268,7 +269,7 @@ export async function testModel(
       model: modelName,
       status: 'fail',
       error: 'model not found on provider',
-      latencyMs: Date.now() - start
+      latencyMs: dayjs().diff(start)
     }
   }
 
@@ -281,7 +282,7 @@ export async function testModel(
       model: modelName,
       status: 'fail',
       error: 'model is disabled',
-      latencyMs: Date.now() - start
+      latencyMs: dayjs().diff(start)
     }
   }
 
@@ -297,7 +298,7 @@ export async function testModel(
         model: modelName,
         status: 'fail',
         error: auth.error,
-        latencyMs: Date.now() - start
+        latencyMs: dayjs().diff(start)
       }
     }
     const subStyle = modelRow.apiStyle ?? provider.apiStyle
@@ -308,7 +309,7 @@ export async function testModel(
       model: modelName,
       status: subProbe.ok ? 'ok' : 'fail',
       error: subProbe.ok ? undefined : subProbe.error,
-      latencyMs: Date.now() - start
+      latencyMs: dayjs().diff(start)
     }
   }
 
@@ -319,7 +320,7 @@ export async function testModel(
       model: modelName,
       status: 'fail',
       error: 'no api key on file',
-      latencyMs: Date.now() - start
+      latencyMs: dayjs().diff(start)
     }
   }
 
@@ -333,7 +334,7 @@ export async function testModel(
     model: modelName,
     status: probe.ok ? 'ok' : 'fail',
     error: probe.ok ? undefined : probe.error,
-    latencyMs: Date.now() - start
+    latencyMs: dayjs().diff(start)
   }
 }
 
@@ -367,10 +368,12 @@ export async function testAllModels(
   // Which subscription providers actually have valid, unexpired creds.
   const subs = await getSubscriptionsInfo()
   const validSubscription = new Set(
-    subs.filter((s) => s.plan && !(s.expiresAt && s.expiresAt < Date.now())).map((s) => s.providerName)
+    subs.filter((s) => s.plan && !(s.expiresAt && s.expiresAt < dayjs().valueOf())).map((s) => s.providerName)
   )
-  const hasCredentials = (p: { name: string; apiKey: string; authMode: AuthMode }): boolean =>
-    p.authMode === AuthMode.subscription ? validSubscription.has(p.name) : p.apiKey.trim().length > 0
+  const hasCredentials = (p: { name: string; apiKey: string | null; authMode: AuthMode }): boolean =>
+    p.authMode === AuthMode.subscription
+      ? validSubscription.has(p.name)
+      : p.apiKey !== null && p.apiKey.trim().length > 0
 
   const results: ModelTestResult[] = []
   for (const m of models) {

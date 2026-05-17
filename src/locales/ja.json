@@ -36,7 +36,26 @@
     "models": "モデル",
     "providers": "プロバイダー",
     "router": "ルーター",
-    "transformers": "Transformer"
+    "transformers": "Transformer",
+    "usage": "使用状況"
+  },
+  "usage": {
+    "title": "サブスク使用状況",
+    "loadError": "使用状況の取得に失敗しました",
+    "claude": "Claude（claude-code）",
+    "claudeUnavailable": "取得不可 — Claude サブスクの認証情報が無いか、usage エンドポイントがエラーを返しました。",
+    "fiveHour": "5時間ウィンドウ",
+    "sevenDay": "7日ウィンドウ",
+    "sevenDaySonnet": "7日（Sonnet）",
+    "sevenDayOpus": "7日（Opus）",
+    "codex": "Codex（ChatGPT）",
+    "codexNoData": "取得不可 — Codex（ChatGPT）の認証情報が無いか、usage エンドポイントがエラーを返しました。",
+    "primary": "プライマリウィンドウ",
+    "secondary": "セカンダリウィンドウ",
+    "resets": "リセット",
+    "capturedAt": "取得時刻",
+    "history": "直近1週間",
+    "historyEmpty": "まだデータがありません — 利用率は5分ごとに記録されます。しばらくしてから確認してください。"
   },
   "models": {
     "provider": "プロバイダー",
@@ -74,7 +93,8 @@
     "signIn": "サインイン",
     "invalidApiKey": "無効な API キーです",
     "configError": "設定を読み込めません",
-    "validating": "API キーを検証中..."
+    "validating": "API キーを検証中...",
+    "keyHint": "初回起動時は、サーバーのコンソール（[ccr] APIKEY= の行）または ~/.claude-code-router/config.json に API キーが表示・保存されています"
   },
   "setup": {
     "title": "API Key を設定",

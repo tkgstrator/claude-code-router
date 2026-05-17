@@ -1,5 +1,5 @@
 import Editor from '@monaco-editor/react'
-import { RefreshCw, Save, X } from 'lucide-react'
+import { Save, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
@@ -14,18 +14,36 @@ interface JsonEditorProps {
 
 export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
   const { t } = useTranslation()
-  const { config } = useConfig()
+  const { reloadConfig } = useConfig()
   const [jsonValue, setJsonValue] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Load the editor from the RAW /api/config wire JSON (which carries
+  // explicit nulls for unset api_key / path scalars / router slots), not
+  // the provider's normalized Config (which coerces null -> '' for the
+  // app's controlled inputs). The editor should show the truth on disk.
   useEffect(() => {
-    if (config && open) {
-      setJsonValue(JSON.stringify(config, null, 2))
+    if (!open) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const raw = await api.getConfig()
+        if (!cancelled) setJsonValue(JSON.stringify(raw, null, 2))
+      } catch (error) {
+        console.error('Failed to load config:', error)
+        if (!cancelled && showToast) {
+          showToast(t('app.config_saved_failed') + ': ' + (error as Error).message, 'error')
+        }
+      }
     }
-  }, [config, open])
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [open, showToast, t])
 
   // Handle open/close animations
   useEffect(() => {
@@ -80,46 +98,20 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
       const success = handleSaveResponse(response, t('app.config_saved_success'), t('app.config_saved_failed'))
 
       if (success) {
+        // Re-fetch and re-normalize the shared config rather than
+        // pushing the raw parsed JSON (which may carry nulls for unset
+        // api_key / path scalars / router slots). Feeding raw nulls into
+        // the shared Config would break other screens' controlled
+        // inputs (e.g. SettingsDialog binds value={config.CLAUDE_PATH}
+        // with no fallback). reloadConfig applies the same normalization
+        // the provider does on mount, so other panels stay consistent.
+        await reloadConfig()
         onOpenChange(false)
       }
     } catch (error) {
       console.error('Failed to save config:', error)
       if (showToast) {
         showToast(t('app.config_saved_failed') + ': ' + (error as Error).message, 'error')
-      }
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleSaveAndRestart = async () => {
-    if (!jsonValue) return
-
-    try {
-      setIsSaving(true)
-      const parsedConfig = JSON.parse(jsonValue)
-
-      // Save config first
-      const saveResponse = await api.updateConfig(parsedConfig)
-      const saveSuccessful = handleSaveResponse(
-        saveResponse,
-        t('app.config_saved_success'),
-        t('app.config_saved_failed')
-      )
-
-      // Only restart if save was successful
-      if (saveSuccessful) {
-        // Restart service
-        const restartResponse = await api.restartService()
-
-        handleSaveResponse(restartResponse, t('app.config_saved_restart_success'), t('app.config_saved_restart_failed'))
-
-        onOpenChange(false)
-      }
-    } catch (error) {
-      console.error('Failed to save config and restart:', error)
-      if (showToast) {
-        showToast(t('app.config_saved_restart_failed') + ': ' + (error as Error).message, 'error')
       }
     } finally {
       setIsSaving(false)
@@ -161,10 +153,6 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
             <Button variant='outline' size='sm' onClick={handleSave} disabled={isSaving}>
               <Save className='h-4 w-4 mr-2' />
               {isSaving ? t('json_editor.saving') : t('json_editor.save')}
-            </Button>
-            <Button variant='default' size='sm' onClick={handleSaveAndRestart} disabled={isSaving}>
-              <RefreshCw className='h-4 w-4 mr-2' />
-              {isSaving ? t('json_editor.saving') : t('json_editor.save_and_restart')}
             </Button>
           </div>
         </div>

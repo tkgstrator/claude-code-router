@@ -1,16 +1,14 @@
 import {
   CircleArrowUp,
-  FileCog,
   FileJson,
   FileText,
+  Gauge,
   Languages,
   LayoutDashboard,
-  RefreshCw,
   Save,
   Server,
   Settings,
-  Shuffle,
-  Wand2
+  Shuffle
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +43,9 @@ const NAV_ITEMS = [
   { to: '/models', icon: LayoutDashboard, key: 'nav.models' },
   { to: '/providers', icon: Server, key: 'nav.providers' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
-  { to: '/transformers', icon: Wand2, key: 'nav.transformers' }
+  // Transformers nav hidden (edit screen unused). Route still exists at /transformers.
+  // { to: '/transformers', icon: Wand2, key: 'nav.transformers' },
+  { to: '/usage', icon: Gauge, key: 'nav.usage' }
 ] as const
 
 export function AppShell() {
@@ -86,37 +86,6 @@ export function AppShell() {
       }
     } catch (err) {
       setToast({ message: `${t('app.config_saved_failed')}: ${(err as Error).message}`, type: 'error' })
-    }
-  }
-
-  const saveConfigAndRestart = async () => {
-    if (!config) {
-      setToast({ message: t('app.config_missing'), type: 'error' })
-      return
-    }
-    try {
-      const response = await api.updateConfig(config)
-      let saveSuccessful = true
-      if (response && typeof response === 'object' && 'success' in response) {
-        const apiResponse = response as { success: boolean; message?: string }
-        if (!apiResponse.success) {
-          saveSuccessful = false
-          setToast({ message: apiResponse.message || t('app.config_saved_failed'), type: 'error' })
-        }
-      }
-      if (saveSuccessful) {
-        const restartResponse = await api.restartService()
-        if (restartResponse && typeof restartResponse === 'object' && 'success' in restartResponse) {
-          const apiResponse = restartResponse as { success: boolean; message?: string }
-          if (apiResponse.success) {
-            setToast({ message: apiResponse.message || t('app.config_saved_restart_success'), type: 'success' })
-          }
-        } else {
-          setToast({ message: t('app.config_saved_restart_success'), type: 'success' })
-        }
-      }
-    } catch (err) {
-      setToast({ message: `${t('app.config_saved_restart_failed')}: ${(err as Error).message}`, type: 'error' })
     }
   }
 
@@ -252,6 +221,7 @@ export function AppShell() {
                 {t(key)}
               </NavLink>
             ))}
+            {/* Presets nav hidden (unused). Route still exists at /presets.
             <button
               type='button'
               onClick={() => navigate('/presets')}
@@ -260,6 +230,7 @@ export function AppShell() {
               <FileCog className='h-4 w-4' />
               {t('app.presets')}
             </button>
+            */}
           </nav>
         </aside>
 
@@ -377,13 +348,6 @@ export function AppShell() {
             >
               <Save className='mr-2 h-4 w-4' />
               {t('app.save')}
-            </Button>
-            <Button
-              onClick={saveConfigAndRestart}
-              className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
-            >
-              <RefreshCw className='mr-2 h-4 w-4' />
-              {t('app.save_and_restart')}
             </Button>
           </header>
 

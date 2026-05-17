@@ -22,6 +22,7 @@ import {
 } from '../generated/prisma/client'
 
 import { backupConfigFile, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
+import { getSubscriptionsInfo } from './subscriptionInfoService'
 
 // Explicit per-provider request shape. No runtime fallback — every
 // seeded provider gets a concrete value written to the DB.
@@ -54,7 +55,9 @@ const disabledSet = (transformer: unknown): Set<string> => {
 type UiProvider = {
   name: string
   api_base_url: string
-  api_key: string
+  // null when unset (no key supplied / cleared). Never '' — "no key"
+  // is always null end to end.
+  api_key: string | null
   auth_mode: 'api_key' | 'subscription'
   models: string[]
   // Subset of `models` whose Model.deprecated row is true. Surfaced as a
@@ -70,16 +73,16 @@ type UiProvider = {
 }
 
 // Mirrors packages/ui/src/types.ts RouterConfig. Slot values are
-// "providerName,modelName" strings (or "" when unset).
+// "providerName,modelName" strings, or null when the slot is unassigned.
 type UiRouter = {
-  default: string
-  background: string
-  think: string
-  longContext: string
+  default: string | null
+  background: string | null
+  think: string | null
+  longContext: string | null
   longContextThreshold?: number
-  webSearch: string
-  image: string
-} & Record<string, string | number>
+  webSearch: string | null
+  image: string | null
+} & Record<string, string | number | null>
 
 // The legacy response shape. Typed envelope scalars (so call sites like
 // `config.APIKEY` keep working) + Providers/Router. We can't extend
@@ -94,9 +97,12 @@ export type LegacyConfig = {
   APIKEY?: string
   LOG?: boolean
   LOG_LEVEL?: string
-  PROXY_URL?: string
+  // Optional path/url scalars: null when unset (absent or '' on disk),
+  // a non-empty string otherwise. composeUiConfig always emits these.
+  PROXY_URL?: string | null
   API_TIMEOUT_MS?: number | string
-  CLAUDE_PATH?: string
+  CLAUDE_PATH?: string | null
+  CUSTOM_ROUTER_PATH?: string | null
   NON_INTERACTIVE_MODE?: boolean
   StatusLine?: unknown
   transformers?: unknown[]
@@ -107,17 +113,29 @@ export type LegacyConfig = {
 
 // --- Compose ----------------------------------------------------------------
 
+// Unassigned slots are null (not '') so "no model bound" reads the
+// same on the wire as everywhere else.
 const emptyRouter = (): UiRouter => ({
-  default: '',
-  background: '',
-  think: '',
-  longContext: '',
-  webSearch: '',
-  image: ''
+  default: null,
+  background: null,
+  think: null,
+  longContext: null,
+  webSearch: null,
+  image: null
 })
 
-const formatSlot = (provider: DbProvider | null | undefined, model: DbModel | null | undefined): string =>
-  provider && model ? `${provider.name},${model.name}` : ''
+const formatSlot = (provider: DbProvider | null | undefined, model: DbModel | null | undefined): string | null =>
+  provider && model ? `${provider.name},${model.name}` : null
+
+// Optional disk-envelope path/url scalars: "unset" is expressed as null
+// on the wire. The envelope may carry the key as a non-empty string, as
+// '' (legacy), or omit it entirely — all three collapse to null unless
+// there's an actual value.
+const envelopeStringOrNull = (raw: unknown): string | null => {
+  if (typeof raw !== 'string') return null
+  if (raw.length === 0) return null
+  return raw
+}
 
 type ProviderWithModels = DbProvider & { models: DbModel[] }
 
@@ -147,6 +165,7 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
   return {
     name: p.name,
     api_base_url: p.apiBaseUrl,
+    // DB value verbatim: null when unset. Never coerced to ''.
     api_key: p.apiKey,
     auth_mode: p.authMode,
     models: p.models.map((m) => m.name),
@@ -187,8 +206,15 @@ export async function composeUiConfig(): Promise<LegacyConfig> {
     }
   }
 
+  const envelopeRecord = envelopeOnly as Record<string, unknown>
   return {
     ...(envelopeOnly as ConfigEnvelope),
+    // Optional path/url scalars are always emitted, as null when unset
+    // (absent or '' on disk) so the JSON editor / wire shows "no value"
+    // consistently rather than an empty string.
+    CLAUDE_PATH: envelopeStringOrNull(envelopeRecord.CLAUDE_PATH),
+    PROXY_URL: envelopeStringOrNull(envelopeRecord.PROXY_URL),
+    CUSTOM_ROUTER_PATH: envelopeStringOrNull(envelopeRecord.CUSTOM_ROUTER_PATH),
     Providers: providers.map(toUiProvider),
     Router: router
   }
@@ -201,6 +227,15 @@ export type ApplyResult = {
   warnings: string[]
 }
 
+// Normalize an incoming api_key for storage. "Unset" is always NULL in
+// the DB — an empty / whitespace-only value from the wire is collapsed
+// to null so '' can never creep back. A real null stays null (never
+// coerced to ''); a present value is stored verbatim.
+const apiKeyForStorage = (raw: string | null): string | null => {
+  if (raw === null) return null
+  return raw.trim().length === 0 ? null : raw
+}
+
 // Pull a "providerName,modelName" string apart. Empty / malformed input
 // resolves to null,null — the slot will be nulled out.
 const parseSlot = (raw: unknown): { providerName: string | null; modelName: string | null } => {
@@ -208,6 +243,23 @@ const parseSlot = (raw: unknown): { providerName: string | null; modelName: stri
   const [p, m] = raw.split(',')
   if (!p || !m) return { providerName: null, modelName: null }
   return { providerName: p.trim(), modelName: m.trim() }
+}
+
+// Optional path/url envelope scalars. Their "unset" state is null on
+// the wire (see composeUiConfig); on disk we represent unset as the key
+// being absent rather than persisting an explicit null or '' — the next
+// composeUiConfig re-derives null from absence. A real value is kept.
+const OPTIONAL_ENVELOPE_PATHS = ['CLAUDE_PATH', 'PROXY_URL', 'CUSTOM_ROUTER_PATH'] as const
+
+const pruneUnsetEnvelopePaths = (envelope: Record<string, unknown>): Record<string, unknown> => {
+  const out: Record<string, unknown> = { ...envelope }
+  for (const key of OPTIONAL_ENVELOPE_PATHS) {
+    const value = out[key]
+    if (value === null || value === undefined || (typeof value === 'string' && value.trim().length === 0)) {
+      delete out[key]
+    }
+  }
+  return out
 }
 
 // Envelope keys live on disk; Providers/Router live in DB. Everything
@@ -241,7 +293,10 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // the DB write after a file write — and the file is the smaller of
   // the two surfaces.
   await backupConfigFile()
-  await writeConfigFile(envelope)
+  // Don't persist null / '' for the optional path scalars — drop the
+  // key so "unset" stays absent on disk (composeUiConfig re-derives
+  // null). A real value is written through unchanged.
+  await writeConfigFile(pruneUnsetEnvelopePaths(envelope as Record<string, unknown>))
 
   return { success: true, warnings }
 }
@@ -286,18 +341,19 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
       const { _disabledModels: _omit, ...rest } = incTransformer
       return Object.keys(rest).length > 0 ? (rest as Prisma.InputJsonValue) : undefined
     })()
+    const apiKey = apiKeyForStorage(inc.api_key)
     const provider = await tx.provider.upsert({
       where: { name: inc.name },
       update: {
         apiBaseUrl: inc.api_base_url,
-        apiKey: inc.api_key,
+        apiKey,
         authMode,
         transformer: storedTransformer ?? Prisma.DbNull
       },
       create: {
         name: inc.name,
         apiBaseUrl: inc.api_base_url,
-        apiKey: inc.api_key,
+        apiKey,
         authMode,
         transformer: storedTransformer ?? Prisma.DbNull
       },
@@ -454,10 +510,23 @@ export async function getEnabledModels(
 ): Promise<{ provider: string; model: string }[]> {
   const rows = await prisma.model.findMany({
     where: { enabled: true },
-    select: { name: true, provider: { select: { name: true } } },
+    select: { name: true, provider: { select: { name: true, apiKey: true, authMode: true } } },
     orderBy: [{ provider: { name: 'asc' } }, { name: 'asc' }]
   })
-  return rows.map((r) => ({ provider: r.provider.name, model: r.name }))
+  // Only providers that can actually authenticate are routable: an
+  // api_key provider needs a non-empty key; a subscription provider
+  // needs live credentials (a resolved plan). Mirrors the models
+  // dashboard's availability gate so the Router never lists models
+  // from unconfigured seed providers (e.g. an empty-key google).
+  const subs = await getSubscriptionsInfo()
+  const subPlan = new Map(subs.map((s) => [s.providerName, s.plan]))
+  return rows
+    .filter((r) =>
+      r.provider.authMode === AuthMode.subscription
+        ? Boolean(subPlan.get(r.provider.name))
+        : r.provider.apiKey !== null && r.provider.apiKey.trim().length > 0
+    )
+    .map((r) => ({ provider: r.provider.name, model: r.name }))
 }
 
 // Seed the 6 RouterSlot rows with null modelId if they're missing. Used
@@ -477,7 +546,7 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
 // First-run convenience: populate the Provider table from the
 // llm-prices snapshot so the UI's Add-Provider dropdown and the catalog
 // of available models are non-empty out of the box. api_key is left
-// blank — the user fills it in from the UI. Behaviour is top-up: any
+// unset (NULL) — the user fills it in from the UI. Behaviour is top-up: any
 // seed whose `name` isn't already in the table gets inserted, so a
 // partial DB (e.g. only the openai row lifted by runJsonToDbMigration)
 // gains the remaining vendors on next boot. Existing rows are never
@@ -522,7 +591,9 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
           data: {
             name: seed.name,
             apiBaseUrl: seed.apiBaseUrl,
-            apiKey: '',
+            // Unset: the user fills the key in from the UI. NULL (not
+            // '') so "no key" is represented consistently end to end.
+            apiKey: null,
             authMode: seed.authMode,
             apiStyle: seed.apiStyle,
             transformer: seed.transformer

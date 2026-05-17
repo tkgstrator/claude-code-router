@@ -67,7 +67,10 @@ model Provider {
   id          String   @id @default(cuid())
   name        String   @unique
   apiBaseUrl  String
-  apiKey      String
+  // Null means "unset" — the user hasn't supplied a key yet (fresh
+  // seed) or has cleared it. An empty string is never stored; "no key"
+  // is always NULL so the wire shape and UI stay consistent.
+  apiKey      String?
   authMode    AuthMode @default(api_key)
   // Request shape for this provider's chat endpoint. Seeded explicitly
   // for every provider; the default only covers a row created before
@@ -142,4 +145,20 @@ model RouterSlot {
   // from migrating every time a new knob lands.
   params    Json?
   updatedAt DateTime    @updatedAt
+}
+
+// Time series of subscription utilization, captured on an interval so
+// the Usage view can chart the past week. `metric` is the window key
+// (e.g. claude.five_hour, claude.seven_day, codex.primary). `percent`
+// is 0-100. Old rows are pruned to keep this bounded.
+model UsageSnapshot {
+  id         String   @id @default(cuid())
+  provider   String
+  metric     String
+  percent    Float
+  resetAt    DateTime?
+  capturedAt DateTime @default(now())
+
+  @@index([provider, metric, capturedAt])
+  @@index([capturedAt])
 }

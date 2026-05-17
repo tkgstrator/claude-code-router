@@ -2,6 +2,7 @@ import { Clock, History, Trash2, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import dayjs from '@/lib/dayjs'
 import { type RequestHistoryItem, requestHistoryDB } from '@/lib/db'
 
 interface RequestHistoryDrawerProps {
@@ -54,15 +55,13 @@ export function RequestHistoryDrawer({ isOpen, onClose, onSelectRequest }: Reque
   }
 
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const minutes = Math.floor(diff / 60000)
+    const date = dayjs(timestamp)
+    const minutes = dayjs().diff(date, 'minute')
 
     if (minutes < 1) return '刚刚'
     if (minutes < 60) return `${minutes}分钟前`
     if (minutes < 1440) return `${Math.floor(minutes / 60)}小时前`
-    return date.toLocaleDateString()
+    return date.format('YYYY/MM/DD')
   }
 
   if (!isOpen) return null
