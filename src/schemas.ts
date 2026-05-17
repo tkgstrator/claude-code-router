@@ -35,15 +35,18 @@ export const RouterSchema = z
     // Values are "providerName,modelName", or null when the slot is
     // unassigned. Kept in literal form (not derived from SCENARIO_KEYS)
     // so the generated OpenAPI schema lists each slot explicitly.
-    default: z.string().nullable(),
-    background: z.string().nullable(),
-    think: z.string().nullable(),
-    longContext: z.string().nullable(),
-    webSearch: z.string().nullable(),
-    image: z.string().nullable(),
+    default: z.string().nonempty().nullable(),
+    background: z.string().nonempty().nullable(),
+    think: z.string().nonempty().nullable(),
+    longContext: z.string().nonempty().nullable(),
+    webSearch: z.string().nonempty().nullable(),
+    image: z.string().nonempty().nullable(),
+    // Genuinely optional: composeUiConfig omits the key entirely when
+    // there's no threshold (it is not emitted as null), so .optional()
+    // matches the wire — .nullable() would reject the absent key.
     longContextThreshold: z.number().int().positive().optional()
   })
-  .catchall(z.union([z.string(), z.number(), z.null()]))
+  .catchall(z.union([z.string().nonempty(), z.number(), z.null()]))
   .openapi('Router')
 export type Router = z.infer<typeof RouterSchema>
 
