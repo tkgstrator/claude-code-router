@@ -87,7 +87,7 @@ const requestClaudeUsage = async (): Promise<ClaudeUsage | null> => {
       sevenDayOpus: windowOf(j.seven_day_opus),
       extraUsageEnabled:
         typeof extra === 'object' && extra !== null && (extra as Record<string, unknown>).is_enabled === true,
-      capturedAt: new Date().toISOString()
+      capturedAt: dayjs().toISOString()
     }
   } catch {
     return null
@@ -95,12 +95,12 @@ const requestClaudeUsage = async (): Promise<ClaudeUsage | null> => {
 }
 
 const fetchClaudeUsage = async (): Promise<ClaudeUsage | null> => {
-  const fresh = claudeStore.value && Date.now() - claudeStore.at < CLAUDE_TTL_MS
+  const fresh = claudeStore.value && dayjs().valueOf() - claudeStore.at < CLAUDE_TTL_MS
   if (fresh) return claudeStore.value
   const next = await requestClaudeUsage()
   if (next) {
     claudeStore.value = next
-    claudeStore.at = Date.now()
+    claudeStore.at = dayjs().valueOf()
     return next
   }
   // Refresh failed (usually the endpoint's own 429) — keep showing the
@@ -214,7 +214,7 @@ const codexWindowOf = (v: unknown): CodexUsageWindow | null => {
   if (!v || typeof v !== 'object') return null
   const o = v as Record<string, unknown>
   if (typeof o.used_percent !== 'number') return null
-  const resetAt = typeof o.reset_at === 'number' ? new Date(o.reset_at * 1000).toISOString() : null
+  const resetAt = typeof o.reset_at === 'number' ? dayjs(o.reset_at * 1000).toISOString() : null
   return {
     usedPercent: o.used_percent,
     resetAt,
@@ -241,7 +241,7 @@ const requestCodexUsage = async (): Promise<CodexUsage | null> => {
       planType: typeof j.plan_type === 'string' ? j.plan_type : null,
       primary: codexWindowOf(limits.primary_window),
       secondary: codexWindowOf(limits.secondary_window),
-      capturedAt: new Date().toISOString()
+      capturedAt: dayjs().toISOString()
     }
   } catch {
     return null
@@ -249,12 +249,12 @@ const requestCodexUsage = async (): Promise<CodexUsage | null> => {
 }
 
 const fetchCodexUsage = async (): Promise<CodexUsage | null> => {
-  const fresh = codexStore.value && Date.now() - codexStore.at < CLAUDE_TTL_MS
+  const fresh = codexStore.value && dayjs().valueOf() - codexStore.at < CLAUDE_TTL_MS
   if (fresh) return codexStore.value
   const next = await requestCodexUsage()
   if (next) {
     codexStore.value = next
-    codexStore.at = Date.now()
+    codexStore.at = dayjs().valueOf()
     return next
   }
   return codexStore.value

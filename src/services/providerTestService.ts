@@ -1,5 +1,6 @@
 import { VENDOR_DEFAULTS } from '@ccr/shared'
 import { getPrismaClient } from '../db/client'
+import dayjs from '../lib/dayjs'
 import { getSubscriptionsInfo } from './subscriptionInfoService'
 
 export interface ProviderTestResult {
@@ -33,11 +34,11 @@ const probeApiKey = async (vendor: string, apiKey: string): Promise<{ ok: boolea
 }
 
 export async function testProvider(name: string): Promise<ProviderTestResult> {
-  const start = Date.now()
+  const start = dayjs()
   const prisma = getPrismaClient()
   const provider = await prisma.provider.findUnique({ where: { name } })
   if (!provider) {
-    return { success: false, latencyMs: Date.now() - start, error: `provider "${name}" not found` }
+    return { success: false, latencyMs: dayjs().diff(start), error: `provider "${name}" not found` }
   }
   if (provider.authMode === 'subscription') {
     const subs = await getSubscriptionsInfo()
@@ -45,22 +46,22 @@ export async function testProvider(name: string): Promise<ProviderTestResult> {
     if (!match || !match.plan) {
       return {
         success: false,
-        latencyMs: Date.now() - start,
+        latencyMs: dayjs().diff(start),
         error: 'no subscription credentials on disk — log in with the vendor CLI first'
       }
     }
-    if (match.expiresAt && match.expiresAt < Date.now()) {
+    if (match.expiresAt && match.expiresAt < dayjs().valueOf()) {
       return {
         success: false,
-        latencyMs: Date.now() - start,
+        latencyMs: dayjs().diff(start),
         error: 'subscription token has expired — refresh by logging in again'
       }
     }
-    return { success: true, latencyMs: Date.now() - start }
+    return { success: true, latencyMs: dayjs().diff(start) }
   }
   if (!provider.apiKey || provider.apiKey.trim() === '') {
-    return { success: false, latencyMs: Date.now() - start, error: 'no api key on file' }
+    return { success: false, latencyMs: dayjs().diff(start), error: 'no api key on file' }
   }
   const probe = await probeApiKey(provider.name, provider.apiKey)
-  return { success: probe.ok, latencyMs: Date.now() - start, error: probe.error }
+  return { success: probe.ok, latencyMs: dayjs().diff(start), error: probe.error }
 }
