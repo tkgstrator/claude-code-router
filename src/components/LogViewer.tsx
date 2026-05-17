@@ -501,12 +501,19 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
     // 如果在分组模式且选中了具体请求，显示该请求的日志
     if (groupByReqId && groupedLogs && selectedReqId && groupedLogs.groups[selectedReqId]) {
       const requestLogs = groupedLogs.groups[selectedReqId]
-      // 提取原始JSON字符串并每行一个
-      return requestLogs.map((log) => JSON.stringify(log)).join('\n')
+      return requestLogs.map((log) => JSON.stringify(log, null, 2)).join('\n\n')
     }
 
-    // 其他情况，直接显示原始日志字符串数组，每行一个
-    return logs.join('\n')
+    // 其他情况，优先将每一行按 JSON 格式美化，解析失败则原样显示
+    return logs
+      .map((logLine) => {
+        try {
+          return JSON.stringify(JSON.parse(logLine), null, 2)
+        } catch {
+          return logLine
+        }
+      })
+      .join('\n\n')
   }
 
   // 解析日志行，获取final request的行号
