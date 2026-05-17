@@ -53,7 +53,9 @@
     "primary": "Primary window",
     "secondary": "Secondary window",
     "resets": "Resets",
-    "capturedAt": "Captured at"
+    "capturedAt": "Captured at",
+    "history": "Past week",
+    "historyEmpty": "No data yet — utilization is captured every 5 minutes. Check back shortly."
   },
   "models": {
     "provider": "Provider",

@@ -3,6 +3,26 @@ import { runJsonToDbMigration } from '../db/migrateFromJson'
 import { initConfig, initDir, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
 import { ensureRouterSlots, ensureSeedProviders } from './configService'
 import { seedScrapedPricesIntoDb } from './priceSeedService'
+import { pruneOldSnapshots, recordUsageSnapshots } from './usageHistoryService'
+
+const SNAPSHOT_INTERVAL_MS = 5 * 60_000
+
+// Module-load can re-run under the Vite SSR runner; keep a single
+// interval. Fire-and-forget: a failed capture/prune must never crash
+// the server or stack up.
+const capture: { started: boolean } = { started: false }
+
+const captureOnce = (): void => {
+  recordUsageSnapshots().catch(() => {})
+  pruneOldSnapshots().catch(() => {})
+}
+
+function startUsageCapture(): void {
+  if (capture.started) return
+  capture.started = true
+  setTimeout(captureOnce, 10_000) // let boot settle before the first hit
+  setInterval(captureOnce, SNAPSHOT_INTERVAL_MS)
+}
 
 // First boot must never come up as an open proxy to the user's paid
 // subscriptions. If no APIKEY is set, mint a 128-bit hex secret,
@@ -44,4 +64,5 @@ export async function bootstrapServer(): Promise<void> {
   await ensureRouterSlots()
   await ensureApiKey()
   await initConfig()
+  startUsageCapture()
 }

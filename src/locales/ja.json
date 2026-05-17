@@ -53,7 +53,9 @@
     "primary": "プライマリウィンドウ",
     "secondary": "セカンダリウィンドウ",
     "resets": "リセット",
-    "capturedAt": "取得時刻"
+    "capturedAt": "取得時刻",
+    "history": "直近1週間",
+    "historyEmpty": "まだデータがありません — 利用率は5分ごとに記録されます。しばらくしてから確認してください。"
   },
   "models": {
     "provider": "プロバイダー",

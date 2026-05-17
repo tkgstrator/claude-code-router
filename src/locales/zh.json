@@ -53,7 +53,9 @@
     "primary": "主窗口",
     "secondary": "次窗口",
     "resets": "重置",
-    "capturedAt": "采集时间"
+    "capturedAt": "采集时间",
+    "history": "近一周",
+    "historyEmpty": "暂无数据 — 用量每 5 分钟记录一次，请稍后再查看。"
   },
   "models": {
     "provider": "供应商",

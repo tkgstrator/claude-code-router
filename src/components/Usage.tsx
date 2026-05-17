@@ -1,7 +1,37 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
+
+// Backend returns chart-ready rows ({ t, <metric>: percent }) plus the
+// metric list — no client pivot, no missing-key handling.
+interface HistoryResponse {
+  metrics: string[]
+  rows: Record<string, number | string>[]
+}
+
+interface MetricMeta {
+  label: string
+  color: string
+}
+
+// Stable color + readable label per known window metric.
+const METRIC_META: Record<string, MetricMeta> = {
+  'claude.five_hour': { label: 'Claude 5h', color: '#d97757' },
+  'claude.seven_day': { label: 'Claude 7d', color: '#b35a3f' },
+  'claude.seven_day_sonnet': { label: 'Claude 7d Sonnet', color: '#e6a08c' },
+  'claude.seven_day_opus': { label: 'Claude 7d Opus', color: '#8c3d28' },
+  'codex.primary': { label: 'Codex 5h', color: '#10a37f' },
+  'codex.secondary': { label: 'Codex 7d', color: '#0a6f57' }
+}
+
+// Definite lookup with an explicit default — no nullish/or fallback.
+function metaFor(metric: string): MetricMeta {
+  const meta = METRIC_META[metric]
+  if (meta) return meta
+  return { label: metric, color: '#888888' }
+}
 
 interface ClaudeWindow {
   utilization: number
@@ -55,13 +85,20 @@ export function Usage() {
   const { t } = useTranslation()
   const [data, setData] = useState<UsageResponse | null>(null)
   const [error, setError] = useState(false)
+  const [history, setHistory] = useState<HistoryResponse>({ metrics: [], rows: [] })
 
   useEffect(() => {
     api
       .get<UsageResponse>('/usage')
       .then(setData)
       .catch(() => setError(true))
+    api
+      .get<HistoryResponse>('/usage/history?days=7')
+      .then(setHistory)
+      .catch(() => setHistory({ metrics: [], rows: [] }))
   }, [])
+
+  const { rows, metrics } = history
 
   return (
     <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
@@ -135,6 +172,44 @@ export function Usage() {
               <div className='text-xs text-gray-500'>
                 {t('usage.capturedAt')}: {fmtReset(data.codex.capturedAt)}
               </div>
+            </div>
+          )}
+        </section>
+
+        <section className='space-y-3'>
+          <h3 className='text-sm font-semibold'>{t('usage.history')}</h3>
+          {rows.length === 0 ? (
+            <p className='text-sm text-gray-500'>{t('usage.historyEmpty')}</p>
+          ) : (
+            <div className='h-72 w-full'>
+              <ResponsiveContainer width='100%' height='100%'>
+                <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                  <CartesianGrid strokeDasharray='3 3' stroke='#e5e7eb' />
+                  <XAxis
+                    dataKey='t'
+                    tickFormatter={(v) => new Date(String(v)).toLocaleDateString()}
+                    tick={{ fontSize: 11 }}
+                    minTickGap={40}
+                  />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit='%' width={40} />
+                  <Tooltip
+                    labelFormatter={(v) => new Date(String(v)).toLocaleString()}
+                    formatter={(value, name) => [`${value}%`, metaFor(String(name)).label]}
+                  />
+                  <Legend formatter={(name) => metaFor(String(name)).label} />
+                  {metrics.map((m) => (
+                    <Line
+                      key={m}
+                      type='monotone'
+                      dataKey={m}
+                      stroke={metaFor(m).color}
+                      dot={false}
+                      strokeWidth={2}
+                      connectNulls
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           )}
         </section>
