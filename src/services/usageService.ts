@@ -197,6 +197,12 @@ const refreshCodexToken = async (auth: CodexAuthFile, refreshToken: string): Pro
   }
 }
 
+// Node fs throws ENOENT when the file is simply absent; that means the
+// operator has not logged in with the Codex CLI yet, which is a normal
+// "not registered" state rather than an error. Narrowed without an
+// `as` assertion (the biome plugin forbids those).
+const isFileNotFound = (e: unknown): boolean => e instanceof Error && 'code' in e && e.code === 'ENOENT'
+
 const codexAuth = async (): Promise<{ token: string; accountId: string | null } | null> => {
   try {
     const raw = await readFile(CODEX_AUTH_PATH, 'utf-8')
@@ -218,7 +224,11 @@ const codexAuth = async (): Promise<{ token: string; accountId: string | null } 
     console.warn(fresh !== null ? '[codex] token refreshed ok' : '[codex] token refresh failed; using existing token')
     return { token: fresh !== null ? fresh : access, accountId }
   } catch (e) {
-    console.warn(`[codex] auth.json unreadable: ${e instanceof Error ? e.message : String(e)}`)
+    // Not-yet-registered (no auth.json) is normal and must not warn on
+    // every poll; only real read/parse failures are worth surfacing.
+    if (!isFileNotFound(e)) {
+      console.warn(`[codex] auth.json unreadable: ${e instanceof Error ? e.message : String(e)}`)
+    }
     return null
   }
 }
@@ -238,7 +248,8 @@ const codexWindowOf = (v: unknown): CodexUsageWindow | null => {
 const requestCodexUsage = async (): Promise<CodexUsage | null> => {
   const auth = await codexAuth()
   if (!auth) {
-    console.warn('[codex] no usable auth; skipping wham/usage')
+    // codexAuth() already logged anything worth logging; an absent or
+    // not-yet-registered subscription stays silent here.
     return null
   }
   try {

@@ -15,6 +15,12 @@ import dayjs from '@/lib/dayjs'
 
 const REFRESH_MS = 5 * 60_000
 
+// Subscription credentials come from the vendor CLI login, not a form
+// in this UI; when nothing is connected yet we point the user at the
+// vendor's own subscription page rather than showing an error.
+const CLAUDE_SUBSCRIBE_URL = 'https://claude.ai'
+const CODEX_SUBSCRIBE_URL = 'https://chatgpt.com'
+
 // The backend is a thin DB read; all chart shaping lives here.
 interface UsageSample {
   metric: string
@@ -113,6 +119,27 @@ function UsageBar({ label, percent, reset }: { label: string; percent: number; r
   )
 }
 
+// Soft "not connected yet" state for a subscription section: a muted
+// explanation plus a link to the vendor's subscription page. This is a
+// normal state (the operator simply has not logged in with the vendor
+// CLI), so it must not read like an error.
+function NotRegistered({ message, hint, href, cta }: { message: string; hint: string; href: string; cta: string }) {
+  return (
+    <div className='space-y-1 text-sm text-gray-500'>
+      <p>{message}</p>
+      <p className='text-xs'>{hint}</p>
+      <a
+        href={href}
+        target='_blank'
+        rel='noreferrer'
+        className='inline-block text-xs font-medium text-primary hover:underline'
+      >
+        {cta}
+      </a>
+    </div>
+  )
+}
+
 export function Usage() {
   const { t } = useTranslation()
   const [data, setData] = useState<UsageResponse | null>(null)
@@ -172,7 +199,12 @@ export function Usage() {
         <section className='space-y-3'>
           <h3 className='text-sm font-semibold'>{t('usage.claude')}</h3>
           {!data?.claude ? (
-            <p className='text-sm text-gray-500'>{t('usage.claudeUnavailable')}</p>
+            <NotRegistered
+              message={t('usage.claudeNotRegistered')}
+              hint={t('usage.notRegisteredHint', { cli: 'claude' })}
+              href={CLAUDE_SUBSCRIBE_URL}
+              cta={t('usage.openSubscriptionPage')}
+            />
           ) : (
             <div className='space-y-4'>
               {data.claude.fiveHour && (
@@ -213,7 +245,12 @@ export function Usage() {
         <section className='space-y-3'>
           <h3 className='text-sm font-semibold'>{t('usage.codex')}</h3>
           {!data?.codex ? (
-            <p className='text-sm text-gray-500'>{t('usage.codexNoData')}</p>
+            <NotRegistered
+              message={t('usage.codexNotRegistered')}
+              hint={t('usage.notRegisteredHint', { cli: 'codex' })}
+              href={CODEX_SUBSCRIBE_URL}
+              cta={t('usage.openSubscriptionPage')}
+            />
           ) : (
             <div className='space-y-4'>
               {data.codex.primary && (
