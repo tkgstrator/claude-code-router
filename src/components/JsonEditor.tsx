@@ -14,18 +14,36 @@ interface JsonEditorProps {
 
 export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
   const { t } = useTranslation()
-  const { config, setConfig } = useConfig()
+  const { reloadConfig } = useConfig()
   const [jsonValue, setJsonValue] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Load the editor from the RAW /api/config wire JSON (which carries
+  // explicit nulls for unset api_key / path scalars / router slots), not
+  // the provider's normalized Config (which coerces null -> '' for the
+  // app's controlled inputs). The editor should show the truth on disk.
   useEffect(() => {
-    if (config && open) {
-      setJsonValue(JSON.stringify(config, null, 2))
+    if (!open) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const raw = await api.getConfig()
+        if (!cancelled) setJsonValue(JSON.stringify(raw, null, 2))
+      } catch (error) {
+        console.error('Failed to load config:', error)
+        if (!cancelled && showToast) {
+          showToast(t('app.config_saved_failed') + ': ' + (error as Error).message, 'error')
+        }
+      }
     }
-  }, [config, open])
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [open, showToast, t])
 
   // Handle open/close animations
   useEffect(() => {
@@ -80,10 +98,14 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
       const success = handleSaveResponse(response, t('app.config_saved_success'), t('app.config_saved_failed'))
 
       if (success) {
-        // Sync the shared config with what was just persisted so the
-        // app doesn't keep showing the pre-save state (and a later
-        // save from another panel can't revert these edits).
-        setConfig(parsedConfig)
+        // Re-fetch and re-normalize the shared config rather than
+        // pushing the raw parsed JSON (which may carry nulls for unset
+        // api_key / path scalars / router slots). Feeding raw nulls into
+        // the shared Config would break other screens' controlled
+        // inputs (e.g. SettingsDialog binds value={config.CLAUDE_PATH}
+        // with no fallback). reloadConfig applies the same normalization
+        // the provider does on mount, so other panels stay consistent.
+        await reloadConfig()
         onOpenChange(false)
       }
     } catch (error) {

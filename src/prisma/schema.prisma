@@ -67,7 +67,10 @@ model Provider {
   id          String   @id @default(cuid())
   name        String   @unique
   apiBaseUrl  String
-  apiKey      String
+  // Null means "unset" — the user hasn't supplied a key yet (fresh
+  // seed) or has cleared it. An empty string is never stored; "no key"
+  // is always NULL so the wire shape and UI stay consistent.
+  apiKey      String?
   authMode    AuthMode @default(api_key)
   // Request shape for this provider's chat endpoint. Seeded explicitly
   // for every provider; the default only covers a row created before
