@@ -1,15 +1,28 @@
-import { exec } from 'node:child_process'
-import { promisify } from 'node:util'
-
-const execPromise = promisify(exec)
+// The published package this deployment tracks for update checks.
+const NPM_PACKAGE = '@musistudio/claude-code-router'
+// npm registry dist-tag endpoint: returns the manifest of the
+// `latest` release (including its `version`). Queried over plain HTTP
+// so no `npm` binary or child process is involved — the production
+// image runs on Bun (oven/bun) and ships no npm.
+const NPM_REGISTRY_LATEST_URL = `https://registry.npmjs.org/${NPM_PACKAGE}/latest`
 
 export async function checkForUpdates(currentVersion: string) {
   try {
-    const { stdout } = await execPromise('npm view @musistudio/claude-code-router version')
-    const latestVersion = stdout.trim()
+    const response = await fetch(NPM_REGISTRY_LATEST_URL, {
+      headers: { Accept: 'application/json' }
+    })
+    if (!response.ok) {
+      throw new Error(`npm registry returned HTTP ${response.status}`)
+    }
+    // fetch().json() is `any`; narrow the single field we need with a
+    // runtime type guard instead of an unchecked `as` assertion.
+    const body = await response.json()
+    const latestVersion: unknown = body?.version
+    if (typeof latestVersion !== 'string' || latestVersion.length === 0) {
+      throw new Error('npm registry response had no version field')
+    }
     const hasUpdate = compareVersions(latestVersion, currentVersion) > 0
-    const changelog = ''
-    return { hasUpdate, latestVersion, changelog }
+    return { hasUpdate, latestVersion, changelog: '' }
   } catch (error) {
     console.error('Error checking for updates:', error)
     return { hasUpdate: false, latestVersion: currentVersion, changelog: '' }
@@ -17,22 +30,14 @@ export async function checkForUpdates(currentVersion: string) {
 }
 
 export async function performUpdate() {
-  try {
-    const { stdout, stderr } = await execPromise('npm update -g @musistudio/claude-code-router')
-    if (stderr) {
-      console.error('Update stderr:', stderr)
-    }
-    console.log('Update stdout:', stdout)
-    return {
-      success: true,
-      message: 'Update completed successfully. Please restart the application to apply changes.'
-    }
-  } catch (error) {
-    console.error('Error performing update:', error)
-    return {
-      success: false,
-      message: `Failed to perform update: ${error instanceof Error ? error.message : 'Unknown error'}`
-    }
+  // The production deployment runs as an immutable container image
+  // (oven/bun, no npm). An in-place `npm update -g` cannot work and
+  // would only corrupt the running install, so this is intentionally
+  // a no-op that tells the operator how to actually upgrade.
+  return {
+    success: false,
+    message:
+      'Self-update is not available in this deployment. Pull the latest image and redeploy (e.g. `docker compose pull && docker compose up -d`).'
   }
 }
 

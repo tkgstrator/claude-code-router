@@ -1,0 +1,47 @@
+# Keep the build context small and deterministic. Anything the
+# Dockerfile needs is COPYed explicitly; everything below is either
+# regenerated in-image (deps, prisma client, dist/), host-only, or
+# irrelevant to building/running the production Bun server.
+
+# Dependencies / build output (reinstalled & regenerated in-image)
+node_modules
+**/node_modules
+dist
+**/dist
+src/generated
+tsconfig.tsbuildinfo
+tsconfig.*.tsbuildinfo
+scripts/*.js
+scripts/*.js.map
+scripts/*.d.ts
+
+# VCS / CI / editor / tooling metadata
+.git
+.github
+.gitignore
+.vscode
+.idea
+.editorconfig
+.actrc
+.mcp.json
+.claude
+biome-plugins
+
+# Local/host-only runtime state — never bake into the image
+.env
+.env.*
+!.env.example
+ccr-config
+**/*.log
+log.txt
+
+# Dev container & local compose (image is built from the root Dockerfile)
+.devcontainer
+compose.yaml
+
+# Docs / misc text not needed at runtime
+README*.md
+CLAUDE.md
+LICENSE
+custom-router.example.js
+__tests__
