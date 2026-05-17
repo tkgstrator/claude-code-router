@@ -1,4 +1,5 @@
 import type React from 'react'
+import dayjs from '@/lib/dayjs'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -36,7 +37,7 @@ export function StatusLineImportExport({ config, onImport, onShowToast }: Status
       const dataStr = JSON.stringify(config, null, 2)
       const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`
 
-      const exportFileDefaultName = `statusline-config-${new Date().toISOString().slice(0, 10)}.json`
+      const exportFileDefaultName = `statusline-config-${dayjs().format('YYYY-MM-DD')}.json`
 
       const linkElement = document.createElement('a')
       linkElement.setAttribute('href', dataUri)
@@ -126,7 +127,7 @@ export function StatusLineImportExport({ config, onImport, onShowToast }: Status
       const backupStr = backupConfig(config)
       const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(backupStr)}`
 
-      const backupFileName = `statusline-backup-${new Date().toISOString().slice(0, 10)}.json`
+      const backupFileName = `statusline-backup-${dayjs().format('YYYY-MM-DD')}.json`
 
       const linkElement = document.createElement('a')
       linkElement.setAttribute('href', dataUri)

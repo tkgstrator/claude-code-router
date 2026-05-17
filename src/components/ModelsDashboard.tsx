@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
+import dayjs from '@/lib/dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
@@ -197,7 +198,7 @@ export function ModelsDashboard() {
   const applyResult = (key: string, result: { status: 'ok' | 'fail' }) => {
     setStatus((prev) => ({ ...prev, [key]: result.status }))
     if (result.status === 'ok') {
-      setPassedAt((prev) => ({ ...prev, [key]: new Date().toISOString() }))
+      setPassedAt((prev) => ({ ...prev, [key]: dayjs().toISOString() }))
     }
   }
 
@@ -377,7 +378,7 @@ export function ModelsDashboard() {
                         disabled={isTestingAll || !row.enabled || status[row.key] === 'testing'}
                         title={
                           passedAt[row.key]
-                            ? `${t('models.last_passed')}: ${new Date(passedAt[row.key] as string).toLocaleString()}`
+                            ? `${t('models.last_passed')}: ${dayjs(passedAt[row.key] as string).format('YYYY/MM/DD HH:mm')}`
                             : t('models.test')
                         }
                         className='rounded-md p-1 transition-all-ease hover:bg-gray-100 disabled:cursor-not-allowed disabled:hover:bg-transparent'

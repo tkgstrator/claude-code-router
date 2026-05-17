@@ -1,4 +1,5 @@
 import MonacoEditor from '@monaco-editor/react'
+import dayjs from '@/lib/dayjs'
 import { ArrowLeft, Copy, History, Maximize, Send, Square } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -142,7 +143,7 @@ export function DebugPage() {
       const headers = JSON.parse(requestData.headers)
       const body = JSON.parse(requestData.body)
 
-      const startTime = Date.now()
+      const startTime = dayjs()
 
       const response = await fetch(requestData.url, {
         method: requestData.method,
@@ -153,8 +154,8 @@ export function DebugPage() {
         body: requestData.method !== 'GET' ? JSON.stringify(body) : undefined
       })
 
-      const endTime = Date.now()
-      const responseTime = endTime - startTime
+      const endTime = dayjs()
+      const responseTime = endTime.diff(startTime)
 
       const responseHeaders: Record<string, string> = {}
       response.headers.forEach((value, key) => {

@@ -1,4 +1,5 @@
 import Editor from '@monaco-editor/react'
+import dayjs from '@/lib/dayjs'
 import { ArrowLeft, Bug, Download, File, Layers, RefreshCw, Trash2, X } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -289,7 +290,7 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
         // 如果启用了分组，使用Web Worker进行聚合（需要转换为LogEntry格式供Worker使用）
         if (groupByReqId && workerRef.current) {
           // const workerLogs: LogEntry[] = response.map((logLine, index) => ({
-          //   timestamp: new Date().toISOString(),
+          //   timestamp: dayjs().toISOString(),
           //   level: 'info',
           //   message: logLine,
           //   source: undefined,
@@ -372,7 +373,7 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
       }
       // 当在分组模式但没有选中具体请求时，显示原始日志字符串数组
       return logs.map((logLine) => ({
-        timestamp: new Date().toISOString(),
+        timestamp: dayjs().toISOString(),
         level: 'info',
         message: logLine,
         source: undefined,
@@ -381,7 +382,7 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
     }
     // 当不在分组模式时，显示原始日志字符串数组
     return logs.map((logLine) => ({
-      timestamp: new Date().toISOString(),
+      timestamp: dayjs().toISOString(),
       level: 'info',
       message: logLine,
       source: undefined,
@@ -399,7 +400,7 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${selectedFile.name}-${new Date().toISOString().split('T')[0]}.txt`
+    a.download = `${selectedFile.name}-${dayjs().toISOString().split('T')[0]}.txt`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -419,7 +420,7 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+    return dayjs(dateString).format('YYYY/MM/DD HH:mm:ss')
   }
 
   // 面包屑导航项类型

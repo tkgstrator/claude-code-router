@@ -1,4 +1,5 @@
 import { isDeprecatedModel } from '@ccr/shared/data'
+import dayjs from '@/lib/dayjs'
 import { Eye, EyeOff, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -162,7 +163,7 @@ export function Providers() {
         const candidate = `${base}-${i}`
         if (!existingNames.has(candidate.toLowerCase())) return candidate
       }
-      return `${base}-${Date.now()}`
+      return `${base}-${dayjs().valueOf()}`
     })()
     const newProvider: ProviderType = buildSubscriptionProvider(preset, uniqueName)
     const newConfig = { ...config, Providers: [...config.Providers, newProvider] }
