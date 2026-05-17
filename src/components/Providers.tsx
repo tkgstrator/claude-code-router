@@ -9,24 +9,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ComboInput } from '@/components/ui/combo-input'
 import { Combobox } from '@/components/ui/combobox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MultiCombobox } from '@/components/ui/multi-combobox'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
-import dayjs from '@/lib/dayjs'
-import { buildTemplates, LLM_PRICES_URL, PROVIDER_TEMPLATES } from '@/lib/providerTemplates'
-import { buildSubscriptionProvider, findSubscriptionPreset, SUBSCRIPTION_PRESETS } from '@/lib/subscriptionPresets'
+import { findSubscriptionPreset } from '@/lib/subscriptionPresets'
 import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
@@ -38,39 +28,21 @@ export function Providers() {
   const { showToast } = useOutletContext<ShellOutletContext>()
   const { config, setConfig } = useConfig()
   const [editingProviderIndex, setEditingProviderIndex] = useState<number | null>(null)
-  const [deletingProviderIndex, setDeletingProviderIndex] = useState<number | null>(null)
   const [hasFetchedModels, setHasFetchedModels] = useState<Record<number, boolean>>({})
   const [providerParamInputs, setProviderParamInputs] = useState<Record<string, { name: string; value: string }>>({})
   const [modelParamInputs, setModelParamInputs] = useState<Record<string, { name: string; value: string }>>({})
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
-  const [isNewProvider, setIsNewProvider] = useState<boolean>(false)
-  const [providerTemplates, setProviderTemplates] = useState<ProviderType[]>(PROVIDER_TEMPLATES)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
 
   const refreshTemplates = async () => {
     setRefreshingTemplates(true)
     try {
-      // (1) refresh the template combobox from the upstream llm-prices snapshot
-      const res = await fetch(LLM_PRICES_URL)
-      if (res.ok) {
-        const data = (await res.json()) as {
-          prices: {
-            id: string
-            vendor: string
-            name: string
-            input: number
-            output: number
-            input_cached: number | null
-          }[]
-        }
-        setProviderTemplates(buildTemplates(data.prices))
-      }
-      // (2) ask the server to top each configured provider up from its
+      // Ask the server to top each configured provider up from its
       // /v1/models so e.g. claude-opus-4-7 shows up without waiting for
       // llm-prices to catch up
       await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
-      // (3) reload config so the new models show up in the UI
+      // Reload config so the new models show up in the UI
       const fresh = await api.getConfig()
       setConfig(fresh)
     } catch (err) {
@@ -83,7 +55,6 @@ export function Providers() {
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
   const [activeAuthMode, setActiveAuthMode] = useState<ProviderAuthMode>('api_key')
-  const [subscriptionPickerOpen, setSubscriptionPickerOpen] = useState(false)
   const comboInputRef = useRef<HTMLInputElement>(null)
 
   const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
@@ -137,47 +108,12 @@ export function Providers() {
   // Validate config.Providers to ensure it's an array
   const validProviders = Array.isArray(config.Providers) ? config.Providers : []
 
-  const handleAddProvider = () => {
-    const newProvider: ProviderType = { name: '', api_base_url: '', api_key: '', auth_mode: 'api_key', models: [] }
-    setEditingProviderIndex(config.Providers.length)
-    setEditingProviderData(newProvider)
-    setIsNewProvider(true)
-    // Reset API key visibility and error when adding new provider
-    setShowApiKey((prev) => ({
-      ...prev,
-      [config.Providers.length]: false
-    }))
-    setApiKeyError(null)
-    setNameError(null)
-  }
-
-  const handleAddSubscriptionProvider = async (presetId: string) => {
-    const preset = SUBSCRIPTION_PRESETS.find((p) => p.id === presetId)
-    if (!preset) return
-    setSubscriptionPickerOpen(false)
-    const existingNames = new Set(validProviders.map((p) => p.name.toLowerCase()))
-    const uniqueName = (() => {
-      const base = preset.id
-      if (!existingNames.has(base.toLowerCase())) return base
-      for (let i = 2; i < 100; i++) {
-        const candidate = `${base}-${i}`
-        if (!existingNames.has(candidate.toLowerCase())) return candidate
-      }
-      return `${base}-${dayjs().valueOf()}`
-    })()
-    const newProvider: ProviderType = buildSubscriptionProvider(preset, uniqueName)
-    const newConfig = { ...config, Providers: [...config.Providers, newProvider] }
-    setConfig(newConfig)
-    await api.updateConfig(newConfig)
-  }
-
   const handleEditProvider = (index: number) => {
     // Find the actual index in the original providers array
     const actualIndex = validProviders.indexOf(visibleProviders[index])
     const provider = config.Providers[actualIndex]
     setEditingProviderIndex(actualIndex)
     setEditingProviderData(JSON.parse(JSON.stringify(provider))) // 深拷贝
-    setIsNewProvider(false)
     // Reset API key visibility and error when opening edit dialog
     setShowApiKey((prev) => ({
       ...prev,
@@ -199,8 +135,8 @@ export function Providers() {
     // Check for duplicate names (case-insensitive)
     const trimmedName = editingProviderData.name.trim()
     const isDuplicate = config.Providers.some((provider, index) => {
-      // For edit mode, skip checking the current provider being edited
-      if (!isNewProvider && index === editingProviderIndex) {
+      // Skip checking the current provider being edited
+      if (index === editingProviderIndex) {
         return false
       }
       return provider.name.toLowerCase() === trimmedName.toLowerCase()
@@ -224,11 +160,7 @@ export function Providers() {
 
     if (editingProviderIndex !== null && editingProviderData) {
       const newProviders = [...config.Providers]
-      if (isNewProvider) {
-        newProviders.push(editingProviderData)
-      } else {
-        newProviders[editingProviderIndex] = editingProviderData
-      }
+      newProviders[editingProviderIndex] = editingProviderData
       const newConfig = { ...config, Providers: newProviders }
       setConfig(newConfig)
       await api.updateConfig(newConfig)
@@ -264,7 +196,6 @@ export function Providers() {
     }
     setEditingProviderIndex(null)
     setEditingProviderData(null)
-    setIsNewProvider(false)
   }
 
   const handleCancelAddProvider = () => {
@@ -284,22 +215,8 @@ export function Providers() {
     }
     setEditingProviderIndex(null)
     setEditingProviderData(null)
-    setIsNewProvider(false)
     setApiKeyError(null)
     setNameError(null)
-  }
-
-  const handleSetDeletingProviderIndex = (index: number) => {
-    setDeletingProviderIndex(index)
-  }
-
-  const handleRemoveProvider = async (index: number) => {
-    const newProviders = [...config.Providers]
-    newProviders.splice(index, 1)
-    const newConfig = { ...config, Providers: newProviders }
-    setConfig(newConfig)
-    setDeletingProviderIndex(null)
-    await api.updateConfig(newConfig)
   }
 
   const handleProviderChange = (_index: number, field: string, value: string) => {
@@ -657,38 +574,6 @@ export function Providers() {
     }
   }
 
-  const handleTemplateImport = (value: string) => {
-    if (!value) return
-    try {
-      const selectedTemplate = JSON.parse(value)
-      if (selectedTemplate) {
-        const currentName = editingProviderData?.name
-        const newProviderData = JSON.parse(JSON.stringify(selectedTemplate))
-
-        if (!isNewProvider && currentName) {
-          newProviderData.name = currentName
-        }
-
-        // Deprecated models default to OFF when models are specified
-        // from a provider template: seed _disabledModels with them so
-        // the toggle starts unchecked. Enabling one later removes it
-        // from the list and that choice persists.
-        const models: string[] = Array.isArray(newProviderData.models) ? newProviderData.models : []
-        const deprecated = models.filter((m) => isDeprecatedModel(m))
-        if (deprecated.length > 0) {
-          const transformer = { ...(newProviderData.transformer ?? { use: [] }) }
-          const existing = Array.isArray(transformer._disabledModels) ? (transformer._disabledModels as string[]) : []
-          transformer._disabledModels = [...new Set([...existing, ...deprecated])]
-          newProviderData.transformer = transformer
-        }
-
-        setEditingProviderData(newProviderData as ProviderType)
-      }
-    } catch (e) {
-      console.error('Failed to parse template', e)
-    }
-  }
-
   const handleRemoveModel = (_providerIndex: number, modelIndex: number) => {
     if (!editingProviderData) return
 
@@ -730,30 +615,6 @@ export function Providers() {
               <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
               {t('providers.refresh_templates')}
             </Button>
-            {activeAuthMode === 'api_key' ? (
-              <Button onClick={handleAddProvider}>{t('providers.add')}</Button>
-            ) : (
-              <Popover open={subscriptionPickerOpen} onOpenChange={setSubscriptionPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button>{t('providers.add')}</Button>
-                </PopoverTrigger>
-                <PopoverContent align='end' className='w-64 p-1'>
-                  <div className='flex flex-col'>
-                    {SUBSCRIPTION_PRESETS.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type='button'
-                        onClick={() => handleAddSubscriptionProvider(preset.id)}
-                        className='flex flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground'
-                      >
-                        <span className='text-sm font-medium'>{preset.label}</span>
-                        <span className='text-xs text-gray-500'>{preset.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
           </div>
         </div>
         <Tabs value={activeAuthMode} onValueChange={(v) => setActiveAuthMode(v as ProviderAuthMode)}>
@@ -771,11 +632,7 @@ export function Providers() {
       </CardHeader>
       <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
         {visibleProviders.length === 0 ? (
-          <ProviderList
-            providers={visibleProviders}
-            onEdit={handleEditProvider}
-            onRemove={handleSetDeletingProviderIndex}
-          />
+          <ProviderList providers={visibleProviders} onEdit={handleEditProvider} />
         ) : (
           <div className='space-y-6'>
             {availableProviders.length > 0 && (
@@ -787,7 +644,6 @@ export function Providers() {
                   providers={availableProviders}
                   planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
-                  onRemove={(idx) => handleSetDeletingProviderIndex(validProviders.indexOf(availableProviders[idx]))}
                 />
               </div>
             )}
@@ -800,7 +656,6 @@ export function Providers() {
                   providers={unavailableProviders}
                   planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
-                  onRemove={(idx) => handleSetDeletingProviderIndex(validProviders.indexOf(unavailableProviders[idx]))}
                 />
               </div>
             )}
@@ -824,35 +679,6 @@ export function Providers() {
           </DialogHeader>
           {editingProvider && editingProviderIndex !== null && (
             <div className='space-y-4 p-4 overflow-y-auto flex-grow'>
-              {isNewProvider && providerTemplates.length > 0 && (
-                <div className='space-y-2'>
-                  <Label>{t('providers.import_from_template')}</Label>
-                  <Combobox
-                    options={providerTemplates.map((p) => ({ label: p.name, value: JSON.stringify(p) }))}
-                    value=''
-                    onChange={handleTemplateImport}
-                    placeholder={t('providers.select_template')}
-                    emptyPlaceholder={t('providers.no_templates_found')}
-                  />
-                </div>
-              )}
-              {isNewProvider && (
-                <div className='space-y-2'>
-                  <Label htmlFor='name'>{t('providers.name')}</Label>
-                  <Input
-                    id='name'
-                    value={editingProvider.name || ''}
-                    onChange={(e) => {
-                      handleProviderChange(editingProviderIndex, 'name', e.target.value)
-                      if (nameError) {
-                        setNameError(null)
-                      }
-                    }}
-                    className={nameError ? 'border-red-500' : ''}
-                  />
-                  {nameError && <p className='text-sm text-red-500'>{nameError}</p>}
-                </div>
-              )}
               {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
                 <div className='space-y-4'>
                   <div className='space-y-2'>
@@ -1259,27 +1085,6 @@ export function Providers() {
               <Button onClick={handleSaveProvider}>{t('app.save')}</Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deletingProviderIndex !== null} onOpenChange={() => setDeletingProviderIndex(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('providers.delete')}</DialogTitle>
-            <DialogDescription>{t('providers.delete_provider_confirm')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setDeletingProviderIndex(null)}>
-              {t('providers.cancel')}
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={() => deletingProviderIndex !== null && handleRemoveProvider(deletingProviderIndex)}
-            >
-              {t('providers.delete')}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
