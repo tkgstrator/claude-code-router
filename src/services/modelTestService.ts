@@ -370,8 +370,10 @@ export async function testAllModels(
   const validSubscription = new Set(
     subs.filter((s) => s.plan && !(s.expiresAt && s.expiresAt < dayjs().valueOf())).map((s) => s.providerName)
   )
-  const hasCredentials = (p: { name: string; apiKey: string; authMode: AuthMode }): boolean =>
-    p.authMode === AuthMode.subscription ? validSubscription.has(p.name) : p.apiKey.trim().length > 0
+  const hasCredentials = (p: { name: string; apiKey: string | null; authMode: AuthMode }): boolean =>
+    p.authMode === AuthMode.subscription
+      ? validSubscription.has(p.name)
+      : p.apiKey !== null && p.apiKey.trim().length > 0
 
   const results: ModelTestResult[] = []
   for (const m of models) {

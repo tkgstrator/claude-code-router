@@ -14,7 +14,9 @@ export const ProviderSchema = z
   .object({
     name: z.string().min(1),
     api_base_url: z.string(),
-    api_key: z.string(),
+    // null when the key is unset (fresh seed / cleared). A present
+    // value is an arbitrary secret, so no .nonempty() here.
+    api_key: z.string().nullable(),
     auth_mode: AuthModeSchema,
     models: z.array(z.string()),
     deprecatedModels: z.array(z.string()).optional(),
@@ -30,18 +32,18 @@ export type Provider = z.infer<typeof ProviderSchema>
 
 export const RouterSchema = z
   .object({
-    // Values are "providerName,modelName" or "" when the slot is unset.
-    // Kept in literal form (not derived from SCENARIO_KEYS) so the
-    // generated OpenAPI schema lists each slot explicitly.
-    default: z.string(),
-    background: z.string(),
-    think: z.string(),
-    longContext: z.string(),
-    webSearch: z.string(),
-    image: z.string(),
+    // Values are "providerName,modelName", or null when the slot is
+    // unassigned. Kept in literal form (not derived from SCENARIO_KEYS)
+    // so the generated OpenAPI schema lists each slot explicitly.
+    default: z.string().nullable(),
+    background: z.string().nullable(),
+    think: z.string().nullable(),
+    longContext: z.string().nullable(),
+    webSearch: z.string().nullable(),
+    image: z.string().nullable(),
     longContextThreshold: z.number().int().positive().optional()
   })
-  .catchall(z.union([z.string(), z.number()]))
+  .catchall(z.union([z.string(), z.number(), z.null()]))
   .openapi('Router')
 export type Router = z.infer<typeof RouterSchema>
 
@@ -62,9 +64,12 @@ export const ConfigSchema = z
     APIKEY: z.string().optional(),
     LOG: z.boolean().optional(),
     LOG_LEVEL: z.string().optional(),
-    PROXY_URL: z.string().optional(),
+    // composeUiConfig always emits these optional path/url scalars, as
+    // a non-empty string or null when unset (absent / '' on disk).
+    PROXY_URL: z.string().nullable(),
     API_TIMEOUT_MS: z.union([z.number(), z.string()]).optional(),
-    CLAUDE_PATH: z.string().optional(),
+    CLAUDE_PATH: z.string().nullable(),
+    CUSTOM_ROUTER_PATH: z.string().nullable(),
     NON_INTERACTIVE_MODE: z.boolean().optional()
   })
   .openapi('Config')
