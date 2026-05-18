@@ -1,18 +1,18 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
+import { z } from 'zod'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
+import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { SelectCombobox } from './SelectCombobox'
-import type { ShellOutletContext } from './AppShell'
 
 interface EnabledModel {
   provider: string
@@ -27,7 +27,7 @@ const routerSchema = z.object({
   longContextThreshold: z.coerce.number().int().positive(),
   webSearch: z.string(),
   image: z.string(),
-  forceUseImageAgent: z.string(),
+  forceUseImageAgent: z.string()
 })
 
 type RouterFormValues = z.infer<typeof routerSchema>
@@ -48,8 +48,8 @@ export function Router() {
       longContextThreshold: 60000,
       webSearch: '',
       image: '',
-      forceUseImageAgent: 'false',
-    },
+      forceUseImageAgent: 'false'
+    }
   })
 
   // The Router only ever offers enabled models. The backend decides
@@ -73,7 +73,7 @@ export function Router() {
       longContextThreshold: r.longContextThreshold || 60000,
       webSearch: r.webSearch || '',
       image: r.image || '',
-      forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false',
+      forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
     })
   }, [config, form])
 
@@ -81,7 +81,7 @@ export function Router() {
 
   const modelOptions = models.map(({ provider, model }) => ({
     value: `${provider},${model}`,
-    label: `${provider}, ${model}`,
+    label: `${provider}, ${model}`
   }))
 
   const onSubmit = async (values: RouterFormValues) => {
@@ -94,9 +94,9 @@ export function Router() {
         longContext: values.longContext,
         longContextThreshold: values.longContextThreshold,
         webSearch: values.webSearch,
-        image: values.image,
+        image: values.image
       },
-      forceUseImageAgent: values.forceUseImageAgent === 'true',
+      forceUseImageAgent: values.forceUseImageAgent === 'true'
     }
     setConfig(updated)
     try {
@@ -121,7 +121,6 @@ export function Router() {
       <PageContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-
             <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6'>
               <FormField
                 control={form.control}

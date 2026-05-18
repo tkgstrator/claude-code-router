@@ -2,9 +2,9 @@ import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, XC
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import {
   Dialog,
   DialogContent,
@@ -245,7 +245,9 @@ export function ModelsDashboard() {
 
   const renderStatus = (state: Reachability) => {
     if (state === 'testing') {
-      return <LoaderCircle className='h-4 w-4 animate-spin text-muted-foreground' aria-label={t('models.status_testing')} />
+      return (
+        <LoaderCircle className='h-4 w-4 animate-spin text-muted-foreground' aria-label={t('models.status_testing')} />
+      )
     }
     if (state === 'ok') {
       return <CheckCircle2 className='h-4 w-4 text-green-600' aria-label={t('models.status_ok')} />

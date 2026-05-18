@@ -14,13 +14,7 @@ interface SelectComboboxProps {
   disabled?: boolean
 }
 
-export function SelectCombobox({
-  options,
-  value,
-  onChange,
-  placeholder,
-  disabled,
-}: SelectComboboxProps) {
+export function SelectCombobox({ options, value, onChange, placeholder, disabled }: SelectComboboxProps) {
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger className='w-full'>

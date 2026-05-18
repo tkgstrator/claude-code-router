@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
 import type { ShellOutletContext } from '@/components/AppShell'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
+import { SelectCombobox as Combobox } from '@/components/SelectCombobox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { ComboInput } from '@/components/ui/combo-input'
-import { SelectCombobox as Combobox } from '@/components/SelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -760,7 +760,9 @@ export function Providers() {
                     {/* Display existing transformers */}
                     {editingProvider.transformer?.use && editingProvider.transformer.use.length > 0 && (
                       <div className='space-y-2 mt-2'>
-                        <div className='text-sm font-medium text-foreground'>{t('providers.selected_transformers')}</div>
+                        <div className='text-sm font-medium text-foreground'>
+                          {t('providers.selected_transformers')}
+                        </div>
                         {editingProvider.transformer.use.map(
                           (
                             transformer: string | (string | Record<string, unknown> | { max_tokens: number })[],
