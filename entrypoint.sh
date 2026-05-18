@@ -22,19 +22,11 @@ if [ -f /app/.codex-cli-version ]; then
   export CODEX_CLI_VERSION
 fi
 
-# The prisma CLI is dev-only and not installed in this lean image.
-# Fetch it on demand, pinned to the @prisma/client version that IS
-# present, so the migration engine matches the generated client
-# instead of bunx silently pulling a newer prisma.
-PRISMA_VERSION="$(bun -e "process.stdout.write(require('@prisma/client/package.json').version)" 2>/dev/null || true)"
-if [ -n "$PRISMA_VERSION" ]; then
-  PRISMA_PKG="prisma@$PRISMA_VERSION"
-else
-  PRISMA_PKG="prisma"
-fi
-
-echo "[entrypoint] applying prisma migrations (migrate deploy via $PRISMA_PKG)..."
-bunx "$PRISMA_PKG" migrate deploy
+# prisma is a runtime dependency (installed locally; prisma.config.ts
+# imports `prisma/config`), so this resolves the local, lockfile-pinned
+# CLI — no network fetch.
+echo "[entrypoint] applying prisma migrations (migrate deploy)..."
+bunx prisma migrate deploy
 echo "[entrypoint] migrations applied; starting server"
 
 exec "$@"

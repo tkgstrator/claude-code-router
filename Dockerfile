@@ -43,10 +43,12 @@ COPY prisma.config.ts ./
 COPY packages ./packages
 COPY src ./src
 
-# Production deps only — drops vite, @openai/codex, prisma CLI, biome,
-# typescript, playwright, … --ignore-scripts skips the root
-# `prisma generate` postinstall (the prisma CLI is dev-only); the
-# generated client and built assets are copied from the builder.
+# Production deps only — drops vite, @openai/codex, biome, typescript,
+# playwright, … `prisma` is a runtime dep (the entrypoint runs
+# `prisma migrate deploy` and prisma.config.ts imports `prisma/config`),
+# so scripts run normally: the postinstall regenerates the client and
+# prisma fetches its engines. Built SPA/@ccr/shared still come from the
+# builder.
 RUN bun install --production --frozen-lockfile --ignore-scripts
 
 # Build outputs the production-only install does not reproduce.
