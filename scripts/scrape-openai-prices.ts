@@ -43,6 +43,7 @@ interface PriceRow {
   input: number
   output: number
   legacy: boolean
+  cachedInput?: number
 }
 
 const browser = await chromium.launch({ headless: true })
@@ -127,7 +128,10 @@ const parseFlagshipShortLong = (t: RawTable): PriceRow[] => {
     const input = parsePrice(row[1])
     const output = parsePrice(row[3])
     if (input == null || output == null) continue
-    out.push({ id, input, output, legacy: t.fromAllModels })
+    const cachedInput = parsePrice(row[2]) // "Cached input" column
+    const r: PriceRow = { id, input, output, legacy: t.fromAllModels }
+    if (cachedInput != null) r.cachedInput = cachedInput
+    out.push(r)
   }
   return out
 }
@@ -143,7 +147,10 @@ const parseSimplePrice = (t: RawTable): PriceRow[] => {
     const input = parsePrice(row[1])
     const output = parsePrice(row[3])
     if (input == null || output == null) continue
-    out.push({ id, input, output, legacy: t.fromAllModels })
+    const cachedInput = parsePrice(row[2]) // "Cached input" column
+    const r: PriceRow = { id, input, output, legacy: t.fromAllModels }
+    if (cachedInput != null) r.cachedInput = cachedInput
+    out.push(r)
   }
   return out
 }
@@ -226,14 +233,17 @@ const parseSpecialized = (t: RawTable): PriceRow[] => {
   for (const row of t.bodyRows) {
     let id: string
     let inputCell: string
+    let cachedCell: string
     let outputCell: string
     if (row.length === 5 && isModelId(row[1])) {
       id = row[1]
       inputCell = row[2]
+      cachedCell = row[3]
       outputCell = row[4]
     } else if (row.length === 4 && isModelId(row[0])) {
       id = row[0]
       inputCell = row[1]
+      cachedCell = row[2]
       outputCell = row[3]
     } else {
       continue
@@ -245,7 +255,10 @@ const parseSpecialized = (t: RawTable): PriceRow[] => {
     // UI can still display "$X / —" cleanly.
     const isInputOnly =
       output == null || /^free$/i.test(outputCell) || outputCell === '-' || outputCell === ''
-    out.push({ id, input, output: isInputOnly ? 0 : (output ?? 0), legacy: t.fromAllModels })
+    const cachedInput = parsePrice(cachedCell)
+    const r: PriceRow = { id, input, output: isInputOnly ? 0 : (output ?? 0), legacy: t.fromAllModels }
+    if (cachedInput != null) r.cachedInput = cachedInput
+    out.push(r)
   }
   return out
 }
@@ -281,6 +294,7 @@ interface OutEntry {
   output: number
   legacy?: boolean
   context?: number
+  cachedInput?: number
 }
 
 const prices: Record<string, OutEntry> = {}
@@ -289,6 +303,7 @@ for (const t of tables) {
     if (prices[r.id]) continue // first write wins; primary (current) tables run first
     const entry: OutEntry = { input: r.input, output: r.output }
     if (r.legacy) entry.legacy = true
+    if (r.cachedInput != null) entry.cachedInput = r.cachedInput
     prices[r.id] = entry
   }
 }
