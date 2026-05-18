@@ -9,7 +9,7 @@
  */
 
 import { buildSeedProviders, type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKey } from '@ccr/shared'
-import { isDeprecatedModel, SUBSCRIPTION_PRESETS } from '@ccr/shared/data'
+import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS } from '@ccr/shared/data'
 import { getPrismaClient } from '../db/client'
 import {
   ApiStyle,
@@ -566,17 +566,20 @@ interface SeedRow {
   models: string[]
 }
 
-// Context window for a SUBSCRIPTION (claude-code) Claude model. The
-// docs advertise 1M for Sonnet too, but on the subscription path that
-// 1M needs extra usage the plan doesn't grant — empirically only
-// Opus 4.7 actually serves >200K; everything else is the standard
-// 200K. api_key providers get their real (1M) value from the price
-// scrape via priceSeedService, so this only touches subscription
-// Claude models; undefined leaves contextWindow null (codex/openai
-// subscription, api_key).
+// Context window for a SUBSCRIPTION model (priceSeedService skips
+// subscription providers, so it must be set here).
+//  - Claude: the docs advertise 1M for Sonnet too, but on the
+//    subscription path that 1M needs extra usage the plan doesn't
+//    grant — empirically only Opus 4.7 serves >200K; everything else
+//    is the standard 200K.
+//  - codex (and any other non-Claude subscription model): the same as
+//    the API — reuse the vendor-official scraped value for that model
+//    id (OpenAI sub/API share the window).
+// undefined → contextWindow stays null (api_key handled by the scrape).
 const subscriptionContextWindow = (seed: SeedRow, name: string): number | undefined => {
-  if (seed.authMode !== AuthMode.subscription || !name.startsWith('claude-')) return undefined
-  return name === 'claude-opus-4-7' ? 1_000_000 : 200_000
+  if (seed.authMode !== AuthMode.subscription) return undefined
+  if (name.startsWith('claude-')) return name === 'claude-opus-4-7' ? 1_000_000 : 200_000
+  return OFFICIAL_VENDOR_PRICES.openai?.[name]?.contextWindow
 }
 
 export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient()): Promise<void> {
@@ -655,23 +658,21 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
       // Resync deprecation flag for already-seeded rows so new entries
       // added to DEPRECATED_MODELS on upgrade reach existing DBs.
       await syncDeprecationFlags(tx, current.id, seed.models)
-      // Same for the subscription Claude context-window rule, so it
-      // reaches DBs whose claude-code models were seeded before the
-      // column existed (Opus 4.7 → 1M, every other Claude → 200K).
+      // Resync the subscription context window onto already-seeded rows
+      // (claude-code Opus 4.7 → 1M / other Claude → 200K; codex → the
+      // shared OpenAI value) so DBs seeded before the column existed
+      // get it too. Group by value so it's a handful of updateManys.
       if (seed.authMode === AuthMode.subscription) {
-        const claudeModels = seed.models.filter((n) => n.startsWith('claude-'))
-        const opus = claudeModels.filter((n) => n === 'claude-opus-4-7')
-        const rest = claudeModels.filter((n) => n !== 'claude-opus-4-7')
-        if (opus.length > 0) {
-          await tx.model.updateMany({
-            where: { providerId: current.id, name: { in: opus } },
-            data: { contextWindow: 1_000_000 }
-          })
+        const byCtx = new Map<number, string[]>()
+        for (const name of seed.models) {
+          const ctx = subscriptionContextWindow(seed, name)
+          if (ctx == null) continue
+          byCtx.set(ctx, [...(byCtx.get(ctx) ?? []), name])
         }
-        if (rest.length > 0) {
+        for (const [ctx, names] of byCtx) {
           await tx.model.updateMany({
-            where: { providerId: current.id, name: { in: rest } },
-            data: { contextWindow: 200_000 }
+            where: { providerId: current.id, name: { in: names } },
+            data: { contextWindow: ctx }
           })
         }
       }
