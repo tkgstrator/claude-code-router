@@ -1,6 +1,44 @@
+import { createHash, randomUUID } from "crypto";
 import { readFileSync } from "fs";
-import { homedir } from "os";
+import { arch, homedir } from "os";
+import { createRequire } from "module";
 import { join } from "path";
+
+// Identify as the official Codex CLI. The ChatGPT backend classifies a
+// request as "CLI" (subscription allotment) vs "Other" (overage) by
+// these markers; without them codex requests bill as Other and skip the
+// CLI path.
+//
+// A standalone (non-editor) `codex exec` sends:
+//   codex_exec/<ver> (<os> <ver>; <arch>)
+// We deliberately omit the `vscode/...` editor suffix the capture had:
+// CCR is a server, not running inside VS Code, and `code` is absent
+// from the production image anyway. Version source order: CODEX_CLI_VERSION
+// env (lets prod pin it if @openai/codex is ever pruned) -> the installed
+// @openai/codex package -> "0.0.0". Resolved once at boot; never throws.
+const CODEX_USER_AGENT: string = (() => {
+  const safe = (fn: () => string, fallback: string): string => {
+    try {
+      const v = fn().trim();
+      return v.length > 0 ? v : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const codexVer =
+    (process.env.CODEX_CLI_VERSION ?? "").trim() ||
+    safe(
+      () => createRequire(import.meta.url)("@openai/codex/package.json").version,
+      "0.0.0"
+    );
+  const osStr = safe(() => {
+    const rel = readFileSync("/etc/os-release", "utf-8");
+    const name = rel.match(/^NAME="?([^"\n]+)"?/m)?.[1] ?? "Linux";
+    const ver = rel.match(/^VERSION_ID="?([^"\n]+)"?/m)?.[1] ?? "";
+    return `${name} ${ver}`.trim();
+  }, "Linux");
+  return `codex_exec/${codexVer} (${osStr}; ${arch()})`;
+})();
 
 const CODEX_AUTH_PATH = join(homedir(), ".codex", "auth.json");
 
@@ -60,12 +98,26 @@ export class CodexCredentialsTransformer {
       request.instructions = "You are a helpful assistant.";
     }
 
+    // OpenAI routes its prompt cache by `prompt_cache_key`; the official
+    // CLI uses a per-session uuid. This proxy is stateless, so derive a
+    // deterministic key from the stable request prefix instead — every
+    // turn of the same conversation hashes identically and hits the
+    // cache, fixing the prefix being re-billed each turn.
+    request.prompt_cache_key = createHash("sha256")
+      .update(
+        `${request.model ?? ""}\n${request.instructions ?? ""}\n${JSON.stringify(request.tools ?? [])}`
+      )
+      .digest("hex")
+      .slice(0, 32);
+
     // provider.baseUrl is the codex backend root
     // (https://chatgpt.com/backend-api/codex); the Responses endpoint
     // is one level down. sendRequestToProvider uses config.url verbatim
     // when set, otherwise provider.baseUrl.
     const base = String(provider?.baseUrl ?? "").replace(/\/+$/, "");
     const url = /\/responses$/.test(base) ? base : `${base}/responses`;
+
+    const sessionId = randomUUID();
 
     return {
       body: request,
@@ -74,6 +126,14 @@ export class CodexCredentialsTransformer {
         headers: {
           Authorization: `Bearer ${token}`,
           "content-type": "application/json",
+          accept: "text/event-stream",
+          originator: "codex_exec",
+          "user-agent": CODEX_USER_AGENT,
+          session_id: sessionId,
+          thread_id: sessionId,
+          "x-client-request-id": randomUUID(),
+          "x-codex-beta-features": "terminal_resize_reflow",
+          "x-codex-window-id": `${sessionId}:0`,
           ...(accountId ? { "chatgpt-account-id": accountId } : {}),
         },
       },
