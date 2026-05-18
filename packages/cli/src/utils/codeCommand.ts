@@ -42,7 +42,9 @@ export async function executeCodeCommand(
   // Priority: preset.StatusLine > global config.StatusLine
   const statusLineConfig = presetConfig?.StatusLine || config?.StatusLine
 
-  if (statusLineConfig?.enabled) {
+  // Default-on: the status line is injected unless the user explicitly
+  // opts out with `StatusLine.enabled: false`.
+  if (statusLineConfig?.enabled !== false) {
     // If using preset, pass preset name to statusline command
     const statuslineCommand = presetName ? `ccr statusline ${presetName}` : 'ccr statusline'
 
