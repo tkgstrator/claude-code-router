@@ -1,11 +1,11 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useForm, useFieldArray } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import { z } from 'zod'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,7 @@ import { TransformerList } from './TransformerList'
 
 const transformerSchema = z.object({
   path: z.string().min(1),
-  options: z.array(z.object({ key: z.string(), value: z.string() })),
+  options: z.array(z.object({ key: z.string(), value: z.string() }))
 })
 
 type TransformerFormValues = z.infer<typeof transformerSchema>
@@ -30,7 +30,7 @@ function TransformerEditDialog({
   open,
   transformer,
   onSave,
-  onCancel,
+  onCancel
 }: {
   open: boolean
   transformer: { path: string; options?: Record<string, string> } | null
@@ -41,7 +41,7 @@ function TransformerEditDialog({
 
   const form = useForm<TransformerFormValues>({
     resolver: zodResolver(transformerSchema),
-    defaultValues: { path: '', options: [] },
+    defaultValues: { path: '', options: [] }
   })
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'options' })
@@ -50,7 +50,7 @@ function TransformerEditDialog({
     if (!open || !transformer) return
     form.reset({
       path: transformer.path ?? '',
-      options: Object.entries(transformer.options ?? {}).map(([key, value]) => ({ key, value })),
+      options: Object.entries(transformer.options ?? {}).map(([key, value]) => ({ key, value }))
     })
   }, [open, transformer, form])
 

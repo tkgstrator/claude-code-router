@@ -95,6 +95,18 @@ const consoleStream = pinoPretty({
   ignore: 'timestamp'
 })
 
+// Plain combined stream instead of pino.multistream: multistream fixes its
+// internal minLevel at construction time, so logger.level changes made after
+// creation (e.g. syncLevelFromEnv) are silently ignored. A plain write()
+// shim delegates entirely to pino's own level gate, which IS updated by
+// logger.level assignments.
+const combinedStream = {
+  write(line: string): void {
+    fileStream.write(line)
+    consoleStream.write(line)
+  }
+}
+
 export const logger = pino(
   {
     level: env.LOG_LEVEL,
@@ -109,7 +121,17 @@ export const logger = pino(
       return `,"time":${now.valueOf()},"timestamp":"${now.toISOString()}"`
     }
   },
-  pino.multistream([{ stream: fileStream }, { stream: consoleStream }])
+  combinedStream
 )
+
+// Called by bootstrapServer() after initConfig() applies the config.json
+// envelope to process.env — the logger is initialized at import time before
+// the envelope is loaded, so the level must be re-applied once it is known.
+export const syncLevelFromEnv = () => {
+  const raw = process.env.LOG_LEVEL ?? ''
+  const valid = ['fatal', 'error', 'warn', 'info', 'debug', 'trace']
+  if (valid.includes(raw)) logger.level = raw
+  logger.info({ LOG_LEVEL: logger.level, LOG: env.LOG }, 'log config applied')
+}
 
 export { LOG_DIR }

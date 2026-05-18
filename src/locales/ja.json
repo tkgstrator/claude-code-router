@@ -37,7 +37,9 @@
     "providers": "プロバイダー",
     "router": "ルーター",
     "transformers": "Transformer",
-    "usage": "使用状況"
+    "usage": "使用状況",
+    "history": "履歴",
+    "settings": "設定"
   },
   "usage": {
     "title": "サブスク使用状況",
@@ -313,6 +315,31 @@
     "worker_init_failed": "ワーカーの初期化に失敗しました",
     "grouping_not_supported": "サーバーがグループ化に対応していません",
     "back": "戻る"
+  },
+  "history": {
+    "title": "履歴",
+    "no_history": "リクエスト履歴がありません",
+    "loading": "読み込み中...",
+    "clear_confirm": "すべてのリクエスト履歴を削除しますか?",
+    "select_session": "セッションを選択して詳細を確認",
+    "detail": {
+      "provider": "プロバイダー",
+      "model": "モデル",
+      "time": "日時",
+      "duration": "処理時間",
+      "status": "ステータス",
+      "tokens": "トークン使用量",
+      "input_tokens": "入力トークン",
+      "output_tokens": "出力トークン",
+      "cache_read": "キャッシュ読み取り",
+      "cache_write": "キャッシュ書き込み",
+      "total_input": "合計入力",
+      "cache": "キャッシュ",
+      "cache_hit_rate": "キャッシュヒット率",
+      "estimated_cost": "推定コスト",
+      "requests": "リクエスト数",
+      "requests_list": "個別リクエスト"
+    }
   },
   "presets": {
     "title": "プリセット",

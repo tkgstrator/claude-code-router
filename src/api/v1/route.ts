@@ -286,9 +286,13 @@ v1Route.post('/v1/*', async (c) => {
   try {
     return await runPipeline()
   } catch (err) {
+    const e = err as PipeError & { stack?: string }
+    if (e.code !== 'provider_response_error') {
+      ctx.log.error({ err: { code: e.code, message: e.message, stack: e.stack } }, 'pipeline error')
+    }
     // Safety net for a model/level combo the matrix doesn't know yet:
     // parse the supported list from the 400 and retry once.
-    const fix = bestSupportedLevel((err as PipeError).message)
+    const fix = bestSupportedLevel(e.message)
     if (fix && deepReplaceValue(body, fix.bad, fix.level)) {
       replyShim.statusCode = 200
       for (const k of Object.keys(replyHeaders)) delete replyHeaders[k]
@@ -298,6 +302,6 @@ v1Route.post('/v1/*', async (c) => {
         return errorResponse(c, err2 as PipeError)
       }
     }
-    return errorResponse(c, err as PipeError)
+    return errorResponse(c, e)
   }
 })

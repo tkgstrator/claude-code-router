@@ -18,24 +18,21 @@ export function sendUnifiedRequest(
       }
     });
   }
-  let combinedSignal: AbortSignal;
-  const timeoutSignal = AbortSignal.timeout(config.TIMEOUT ?? 60 * 1000 * 60);
-
+  // AbortSignal.timeout() causes ERR_INVALID_THIS in Bun when fetch()
+  // registers its own listener on the signal. Use AbortController +
+  // setTimeout instead, which avoids that Bun-specific issue entirely.
+  const controller = new AbortController();
+  const timeoutMs = config.TIMEOUT ?? 60 * 1000 * 60;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   if (config.signal) {
-    const controller = new AbortController();
-    const abortHandler = () => controller.abort();
-    config.signal.addEventListener("abort", abortHandler);
-    timeoutSignal.addEventListener("abort", abortHandler);
-    combinedSignal = controller.signal;
-  } else {
-    combinedSignal = timeoutSignal;
+    config.signal.addEventListener("abort", () => controller.abort());
   }
 
   const fetchOptions: RequestInit = {
     method: "POST",
     headers: headers,
     body: JSON.stringify(request),
-    signal: combinedSignal,
+    signal: controller.signal,
   };
 
   if (config.httpsProxy) {
@@ -46,12 +43,15 @@ export function sendUnifiedRequest(
   logger?.debug(
     {
       reqId: context.req.id,
-      request: fetchOptions,
+      // Exclude `signal` (AbortSignal): pino-redact's wildcard traversal
+      // accesses AbortSignal.aborted getter which throws ERR_INVALID_THIS.
+      request: { method: fetchOptions.method, bodyLength: (fetchOptions.body as string)?.length },
       headers: Object.fromEntries(headers.entries()),
       requestUrl: typeof url === "string" ? url : url.toString(),
       useProxy: config.httpsProxy,
     },
     "final request"
   );
-  return fetch(typeof url === "string" ? url : url.toString(), fetchOptions);
+  return fetch(typeof url === "string" ? url : url.toString(), fetchOptions)
+    .finally(() => clearTimeout(timeoutId));
 }

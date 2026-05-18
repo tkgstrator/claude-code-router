@@ -106,7 +106,7 @@ export function ModelsDashboard() {
       const isSubscription = provider.auth_mode === 'subscription'
       const deprecatedSet = new Set(provider.deprecatedModels ?? [])
       const ctxMap = provider.modelContextWindows ?? {}
-      return models.map((model) => {
+      return models.map((model: string) => {
         const key = `${providerName},${model}`
         const enabled = !disabledList.includes(model)
         const deprecated = deprecatedSet.has(model)
@@ -186,7 +186,8 @@ export function ModelsDashboard() {
     for (const p of providers) {
       const map = p?.modelTestStatus
       if (!map) continue
-      for (const [model, info] of Object.entries(map)) {
+      for (const model of Object.keys(map)) {
+        const info = map[model]
         const key = `${p.name},${model}`
         nextStatus[key] = info.status
         nextPassed[key] = info.passedAt

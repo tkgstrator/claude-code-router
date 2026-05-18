@@ -9,6 +9,7 @@
  */
 
 const CCR_BASE = process.env.CCR_TEST_URL ?? "http://127.0.0.1:16173";
+const CCR_APIKEY = process.env.CCR_TEST_APIKEY ?? "test";
 export const CCR_URL = `${CCR_BASE}/v1/messages`;
 export const CCR_CONFIG_URL = `${CCR_BASE}/api/config`;
 export const TEST_TIMEOUT = 60_000;
@@ -29,7 +30,7 @@ export interface SubscriptionModel {
 export async function fetchSubscriptionModels(
   nameMatch: RegExp
 ): Promise<SubscriptionModel[]> {
-  const res = await fetch(CCR_CONFIG_URL);
+  const res = await fetch(CCR_CONFIG_URL, { headers: { "x-api-key": CCR_APIKEY } });
   if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`);
   const cfg = (await res.json()) as {
     Providers?: {
@@ -109,7 +110,7 @@ export async function sendMessage(body: AnthropicRequest): Promise<Response> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": "test",
+      "x-api-key": CCR_APIKEY,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),

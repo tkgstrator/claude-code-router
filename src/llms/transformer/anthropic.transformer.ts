@@ -288,7 +288,7 @@ export class AnthropicTransformer implements Transformer {
             try {
               controller.enqueue(data);
               const dataStr = new TextDecoder().decode(data);
-              this.logger.debug({
+              this.logger.trace({
                 reqId: context.req.id,
                 data: dataStr,
                 type: "send data",
@@ -431,7 +431,7 @@ export class AnthropicTransformer implements Transformer {
 
               if (!line.startsWith("data:")) continue;
               const data = line.slice(5).trim();
-              this.logger.debug({
+              this.logger.trace({
                 reqId: context.req.id,
                 type: "recieved data",
                 data,
@@ -444,7 +444,7 @@ export class AnthropicTransformer implements Transformer {
               try {
                 const chunk = JSON.parse(data);
                 totalChunks++;
-                this.logger.debug({
+                this.logger.trace({
                   reqId: context.req.id,
                   response: chunk,
                   tppe: "Original Response",

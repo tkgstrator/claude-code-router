@@ -70,9 +70,7 @@ function AppSidebar() {
   return (
     <Sidebar collapsible='icon'>
       <SidebarHeader className='h-16 justify-center border-b px-4'>
-        <span className='text-sm font-semibold group-data-[collapsible=icon]:hidden'>
-          {t('app.title')}
-        </span>
+        <span className='text-sm font-semibold group-data-[collapsible=icon]:hidden'>{t('app.title')}</span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -262,113 +260,113 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className='flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4'>
-          <SidebarTrigger />
-          <div className='flex items-center gap-2'>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant='ghost' size='icon' onClick={() => setIsJsonEditorOpen(true)}>
-                  <FileJson className='h-5 w-5' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('app.json_editor')}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant='ghost' size='icon' onClick={() => setIsLogViewerOpen(true)}>
-                  <FileText className='h-5 w-5' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('app.log_viewer')}</TooltipContent>
-            </Tooltip>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant='ghost' size='icon'>
-                  <Languages className='h-5 w-5' />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className='w-32 p-2'>
-                <div className='space-y-1'>
-                  {(['en', 'zh', 'ja'] as const).map((lang) => (
-                    <Button
-                      key={lang}
-                      variant={i18n.language.startsWith(lang) ? 'default' : 'ghost'}
-                      className='w-full justify-start'
-                      onClick={() => i18n.changeLanguage(lang)}
-                    >
-                      {lang === 'en' ? 'English' : lang === 'zh' ? '中文' : '日本語'}
-                    </Button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Button variant='ghost' size='icon' onClick={toggleDark}>
-              {isDark ? <Sun className='h-5 w-5' /> : <Moon className='h-5 w-5' />}
-            </Button>
-            {isUpdateFeatureAvailable && (
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <header className='flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4'>
+            <SidebarTrigger />
+            <div className='flex items-center gap-2'>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={() => checkForUpdates(true)}
-                    disabled={isCheckingUpdate}
-                    className='relative'
-                  >
-                    <CircleArrowUp className='h-5 w-5' />
-                    {isNewVersionAvailable && !isCheckingUpdate && (
-                      <span className='absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white' />
-                    )}
+                  <Button variant='ghost' size='icon' onClick={() => setIsJsonEditorOpen(true)}>
+                    <FileJson className='h-5 w-5' />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{t('app.check_updates')}</TooltipContent>
+                <TooltipContent>{t('app.json_editor')}</TooltipContent>
               </Tooltip>
-            )}
-            <Button onClick={saveConfig} variant='outline'>
-              <Save className='mr-2 h-4 w-4' />
-              {t('app.save')}
-            </Button>
-          </div>
-        </header>
-        <main className='flex-1 overflow-auto'>
-          <Outlet context={outletContext} />
-        </main>
-      </SidebarInset>
-
-      <SetupDialog open={needsSetup} />
-      <JsonEditor open={isJsonEditorOpen} onOpenChange={setIsJsonEditorOpen} showToast={showToast} />
-      <LogViewer open={isLogViewerOpen} onOpenChange={setIsLogViewerOpen} showToast={showToast} />
-      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
-        <DialogContent className='max-w-2xl'>
-          <DialogHeader>
-            <DialogTitle>
-              {t('app.new_version_available')}
-              {newVersionInfo && (
-                <span className='ml-2 text-sm font-normal text-muted-foreground'>v{newVersionInfo.version}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant='ghost' size='icon' onClick={() => setIsLogViewerOpen(true)}>
+                    <FileText className='h-5 w-5' />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('app.log_viewer')}</TooltipContent>
+              </Tooltip>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant='ghost' size='icon'>
+                    <Languages className='h-5 w-5' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className='w-32 p-2'>
+                  <div className='space-y-1'>
+                    {(['en', 'zh', 'ja'] as const).map((lang) => (
+                      <Button
+                        key={lang}
+                        variant={i18n.language.startsWith(lang) ? 'default' : 'ghost'}
+                        className='w-full justify-start'
+                        onClick={() => i18n.changeLanguage(lang)}
+                      >
+                        {lang === 'en' ? 'English' : lang === 'zh' ? '中文' : '日本語'}
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button variant='ghost' size='icon' onClick={toggleDark}>
+                {isDark ? <Sun className='h-5 w-5' /> : <Moon className='h-5 w-5' />}
+              </Button>
+              {isUpdateFeatureAvailable && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      onClick={() => checkForUpdates(true)}
+                      disabled={isCheckingUpdate}
+                      className='relative'
+                    >
+                      <CircleArrowUp className='h-5 w-5' />
+                      {isNewVersionAvailable && !isCheckingUpdate && (
+                        <span className='absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white' />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('app.check_updates')}</TooltipContent>
+                </Tooltip>
               )}
-            </DialogTitle>
-            <DialogDescription>{t('app.update_description')}</DialogDescription>
-          </DialogHeader>
-          <div className='max-h-96 overflow-y-auto py-4'>
-            {newVersionInfo?.changelog ? (
-              <div className='whitespace-pre-wrap text-sm'>{newVersionInfo.changelog}</div>
-            ) : (
-              <div className='text-muted-foreground'>{t('app.no_changelog_available')}</div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setIsUpdateDialogOpen(false)}>
-              {t('app.later')}
-            </Button>
-            <Button onClick={performUpdate}>{t('app.update_now')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </SidebarProvider>
+              <Button onClick={saveConfig} variant='outline'>
+                <Save className='mr-2 h-4 w-4' />
+                {t('app.save')}
+              </Button>
+            </div>
+          </header>
+          <main className='flex-1 overflow-auto'>
+            <Outlet context={outletContext} />
+          </main>
+        </SidebarInset>
+
+        <SetupDialog open={needsSetup} />
+        <JsonEditor open={isJsonEditorOpen} onOpenChange={setIsJsonEditorOpen} showToast={showToast} />
+        <LogViewer open={isLogViewerOpen} onOpenChange={setIsLogViewerOpen} showToast={showToast} />
+        <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+          <DialogContent className='max-w-2xl'>
+            <DialogHeader>
+              <DialogTitle>
+                {t('app.new_version_available')}
+                {newVersionInfo && (
+                  <span className='ml-2 text-sm font-normal text-muted-foreground'>v{newVersionInfo.version}</span>
+                )}
+              </DialogTitle>
+              <DialogDescription>{t('app.update_description')}</DialogDescription>
+            </DialogHeader>
+            <div className='max-h-96 overflow-y-auto py-4'>
+              {newVersionInfo?.changelog ? (
+                <div className='whitespace-pre-wrap text-sm'>{newVersionInfo.changelog}</div>
+              ) : (
+                <div className='text-muted-foreground'>{t('app.no_changelog_available')}</div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant='outline' onClick={() => setIsUpdateDialogOpen(false)}>
+                {t('app.later')}
+              </Button>
+              <Button onClick={performUpdate}>{t('app.update_now')}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      </SidebarProvider>
     </TooltipProvider>
   )
 }

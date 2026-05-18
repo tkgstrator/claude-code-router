@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { runJsonToDbMigration } from '../db/migrateFromJson'
 import { initConfig, initDir, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
+import { syncLevelFromEnv } from '../lib/logger'
 import { ensureRouterSlots, ensureSeedProviders } from './configService'
 import { seedScrapedPricesIntoDb } from './priceSeedService'
 import { startUsageCapture } from './usageJob'
@@ -45,6 +46,11 @@ export async function bootstrapServer(): Promise<void> {
   await ensureRouterSlots()
   await ensureApiKey()
   await initConfig()
+  // Re-apply LOG_LEVEL to the already-initialized logger. The pino
+  // instance is created at import time before the config envelope has
+  // been read, so the level must be updated once initConfig() has
+  // mirrored config.json's LOG_LEVEL onto process.env.
+  syncLevelFromEnv()
   // Fire-and-forget: never block server boot on Redis. The job setup
   // is resilient and registers the schedule once Redis is reachable.
   void startUsageCapture()

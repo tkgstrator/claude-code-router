@@ -9,21 +9,39 @@ import { z } from '@hono/zod-openapi'
 // --- Provider --------------------------------------------------------------
 
 export const AuthModeSchema = z.enum(['api_key', 'subscription']).openapi('AuthMode')
+export const ProviderAuthModeSchema = AuthModeSchema
+export type ProviderAuthMode = z.infer<typeof ProviderAuthModeSchema>
+
+export const ProviderTransformerSchema = z
+  .object({
+    use: z.array(
+      z.union([
+        z.string().nonempty(),
+        z.array(z.union([z.string().nonempty(), z.record(z.string().nonempty(), z.unknown())]))
+      ])
+    )
+  })
+  .catchall(z.any())
+export type ProviderTransformer = z.infer<typeof ProviderTransformerSchema>
 
 export const ProviderSchema = z
   .object({
     name: z.string().min(1),
-    api_base_url: z.string(),
+    api_base_url: z.url(),
     // null when the key is unset (fresh seed / cleared). A present
     // value is an arbitrary secret, so no .nonempty() here.
     api_key: z.string().nullable(),
     auth_mode: AuthModeSchema,
-    models: z.array(z.string()),
-    deprecatedModels: z.array(z.string()).optional(),
+    models: z.array(z.string().nonempty()),
+    deprecatedModels: z.array(z.string().nonempty()).optional(),
     modelTestStatus: z
-      .record(z.string(), z.object({ status: z.enum(['unknown', 'ok', 'fail']), passedAt: z.string().nullable() }))
+      .record(
+        z.string().nonempty(),
+        z.object({ status: z.enum(['unknown', 'ok', 'fail']), passedAt: z.string().nullable() })
+      )
       .optional(),
-    transformer: z.record(z.string(), JsonValueSchema).optional()
+    modelContextWindows: z.record(z.string().nonempty(), z.number()).optional(),
+    transformer: ProviderTransformerSchema.optional()
   })
   .openapi('Provider')
 export type Provider = z.infer<typeof ProviderSchema>

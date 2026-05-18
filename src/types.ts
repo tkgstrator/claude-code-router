@@ -1,37 +1,8 @@
 import { z } from 'zod'
+import { ProviderSchema } from '@/schemas'
 
-export const ProviderTransformerSchema = z
-  .object({
-    use: z.array(
-      z.union([
-        z.string().nonempty(),
-        z.array(z.union([z.string().nonempty(), z.record(z.string().nonempty(), z.unknown())]))
-      ])
-    )
-  })
-  .catchall(z.any())
-
-export const ProviderAuthModeSchema = z.enum(['api_key', 'subscription'])
-
-export const ProviderSchema = z.object({
-  name: z.string().nonempty(),
-  api_base_url: z.url(),
-  api_key: z.string().nonempty(),
-  auth_mode: ProviderAuthModeSchema.optional(),
-  models: z.array(z.string().nonempty()),
-  deprecatedModels: z.array(z.string().nonempty()).default([]),
-  modelTestStatus: z
-    .record(
-      z.string().nonempty(),
-      z.object({
-        status: z.enum(['unknown', 'ok', 'fail']),
-        passedAt: z.string().nullable()
-      })
-    )
-    .optional(),
-  modelContextWindows: z.record(z.string().nonempty(), z.number()).optional(),
-  transformer: ProviderTransformerSchema.optional()
-})
+export type { Provider, ProviderAuthMode, ProviderTransformer } from '@/schemas'
+export { ProviderAuthModeSchema, ProviderSchema, ProviderTransformerSchema } from '@/schemas'
 
 export const RouterConfigSchema = z.object({
   default: z.string().nonempty(),
@@ -45,7 +16,7 @@ export const RouterConfigSchema = z.object({
 })
 
 export const TransformerSchema = z.object({
-  name: z.string().optional(),
+  name: z.string().nonempty().optional(),
   path: z.string().nonempty(),
   options: z.record(z.string().nonempty(), z.any()).optional()
 })
@@ -90,9 +61,6 @@ export const ConfigSchema = z.object({
 
 export const AccessLevelSchema = z.enum(['restricted', 'full'])
 
-export type ProviderTransformer = z.infer<typeof ProviderTransformerSchema>
-export type ProviderAuthMode = z.infer<typeof ProviderAuthModeSchema>
-export type Provider = z.infer<typeof ProviderSchema>
 export type RouterConfig = z.infer<typeof RouterConfigSchema>
 export type Transformer = z.infer<typeof TransformerSchema>
 export type StatusLineModuleConfig = z.infer<typeof StatusLineModuleConfigSchema>

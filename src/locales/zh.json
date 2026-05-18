@@ -37,7 +37,9 @@
     "providers": "供应商",
     "router": "路由",
     "transformers": "转换器",
-    "usage": "用量"
+    "usage": "用量",
+    "history": "历史",
+    "settings": "设置"
   },
   "usage": {
     "title": "订阅用量",
@@ -313,6 +315,31 @@
     "worker_init_failed": "Worker初始化失败",
     "grouping_not_supported": "服务器不支持日志分组",
     "back": "返回"
+  },
+  "history": {
+    "title": "历史",
+    "no_history": "暂无请求历史",
+    "loading": "加载中...",
+    "clear_confirm": "确定清空所有请求历史吗？",
+    "select_session": "选择一个会话查看详情",
+    "detail": {
+      "provider": "供应商",
+      "model": "模型",
+      "time": "时间",
+      "duration": "耗时",
+      "status": "状态",
+      "tokens": "Token 用量",
+      "input_tokens": "输入 Token",
+      "output_tokens": "输出 Token",
+      "cache_read": "缓存读取",
+      "cache_write": "缓存写入",
+      "total_input": "总输入",
+      "cache": "缓存",
+      "cache_hit_rate": "缓存命中率",
+      "estimated_cost": "预估费用",
+      "requests": "请求数",
+      "requests_list": "单次请求"
+    }
   },
   "presets": {
     "title": "预设",

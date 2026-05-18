@@ -311,7 +311,10 @@ requestLogsRoute.openapi(
     path: '/api/request-logs/:id',
     request: { params: z.object({ id: z.string().nonempty() }) },
     responses: {
-      200: { description: 'Deleted.', content: { 'application/json': { schema: z.object({ id: z.string().nonempty() }) } } }
+      200: {
+        description: 'Deleted.',
+        content: { 'application/json': { schema: z.object({ id: z.string().nonempty() }) } }
+      }
     }
   }),
   async (c) => {

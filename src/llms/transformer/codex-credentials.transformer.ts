@@ -37,7 +37,7 @@ const CODEX_USER_AGENT: string = (() => {
     const ver = rel.match(/^VERSION_ID="?([^"\n]+)"?/m)?.[1] ?? "";
     return `${name} ${ver}`.trim();
   }, "Linux");
-  return `codex_exec/${codexVer} (${osStr}; ${arch()})`;
+  return `codex_cli/${codexVer} (${osStr}; ${arch()})`;
 })();
 
 const CODEX_AUTH_PATH = join(homedir(), ".codex", "auth.json");
@@ -127,7 +127,7 @@ export class CodexCredentialsTransformer {
           Authorization: `Bearer ${token}`,
           "content-type": "application/json",
           accept: "text/event-stream",
-          originator: "codex_exec",
+          originator: "codex_cli",
           "user-agent": CODEX_USER_AGENT,
           session_id: sessionId,
           thread_id: sessionId,

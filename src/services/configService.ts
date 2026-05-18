@@ -22,6 +22,7 @@ import {
 } from '../generated/prisma/client'
 
 import { backupConfigFile, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
+import { resetLlmsContext } from '../llmsContext'
 import { getSubscriptionsInfo } from './subscriptionInfoService'
 
 // Explicit per-provider request shape. No runtime fallback — every
@@ -303,6 +304,10 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // key so "unset" stays absent on disk (composeUiConfig re-derives
   // null). A real value is written through unchanged.
   await writeConfigFile(pruneUnsetEnvelopePaths(envelope as Record<string, unknown>))
+
+  // Force the llms context to rebuild on the next request so Router /
+  // provider changes take effect immediately without a server restart.
+  resetLlmsContext()
 
   return { success: true, warnings }
 }

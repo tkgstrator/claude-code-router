@@ -101,10 +101,10 @@ export type RequiredInput = z.infer<typeof RequiredInputBaseSchema> & {
 
 export const ProviderConfigSchema = z
   .object({
-    name: z.string(),
-    api_base_url: z.string(),
-    api_key: z.string(),
-    models: z.array(z.string()),
+    name: z.string().nonempty(),
+    api_base_url: z.url(),
+    api_key: z.string().nonempty(),
+    models: z.array(z.string().nonempty()).default([]),
     transformer: JsonValueSchema.optional()
   })
   .catchall(JsonValueSchema)
@@ -112,15 +112,15 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 
 export const RouterConfigSchema = z
   .object({
-    default: z.string().optional(),
-    background: z.string().optional(),
-    think: z.string().optional(),
-    longContext: z.string().optional(),
+    default: z.string().nonempty().optional(),
+    background: z.string().nonempty().optional(),
+    think: z.string().nonempty().optional(),
+    longContext: z.string().nonempty().optional(),
     longContextThreshold: z.number().optional(),
-    webSearch: z.string().optional(),
-    image: z.string().optional()
+    webSearch: z.string().nonempty().optional(),
+    image: z.string().nonempty().optional()
   })
-  .catchall(z.union([z.string(), z.number()]))
+  .catchall(z.union([z.string().nonempty(), z.number()]))
 export type RouterConfig = z.infer<typeof RouterConfigSchema>
 
 export const TransformerConfigSchema = z

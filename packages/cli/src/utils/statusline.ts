@@ -150,6 +150,11 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 
 // Get color code
 function getColorCode(colorName: string): string {
+  // Check ANSI named colors (e.g. bright_blue, bg_bright_red)
+  if (COLORS[colorName]) {
+    return COLORS[colorName]
+  }
+
   // Check if it's a hexadecimal color
   if (colorName.startsWith('#') || /^[0-9a-fA-F]{6}$/.test(colorName) || /^[0-9a-fA-F]{3}$/.test(colorName)) {
     const rgb = hexToRgb(colorName)
@@ -158,7 +163,6 @@ function getColorCode(colorName: string): string {
     }
   }
 
-  // Default to empty string
   return ''
 }
 

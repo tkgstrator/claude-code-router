@@ -252,7 +252,7 @@ export function DebugPage() {
   return (
     <div className='h-screen bg-gray-50 font-sans'>
       {/* 头部 */}
-      <header className='flex h-16 items-center justify-between border-b bg-white px-6'>
+      <header className='flex h-16 items-center justify-between border-b bg-background px-6'>
         <div className='flex items-center gap-4'>
           <Button variant='ghost' size='sm' onClick={() => navigate('/models')}>
             <ArrowLeft className='h-4 w-4 mr-2' />
@@ -276,7 +276,7 @@ export function DebugPage() {
       <main className='flex h-[calc(100vh-4rem)] flex-col gap-4 p-4 overflow-hidden'>
         {/* 上部分：请求参数配置 - 上中下布局 */}
         <div className='h-1/2 flex flex-col gap-4'>
-          <div className='bg-white rounded-lg border p-4 flex-1 flex flex-col'>
+          <div className='bg-background rounded-lg border p-4 flex-1 flex flex-col'>
             <h3 className='font-medium mb-4'>请求参数配置</h3>
             <div className='flex flex-col gap-4 flex-1'>
               {/* 上：Method、URL和发送请求按钮配置 */}
@@ -336,7 +336,7 @@ export function DebugPage() {
                     <div
                       className={`${fullscreenEditor === 'headers' ? '' : 'h-full'} flex flex-col ${
                         fullscreenEditor === 'headers'
-                          ? 'fixed bg-white w-[100vw] h-[100vh] z-[9999] top-0 left-0 p-4'
+                          ? 'fixed bg-background w-[100vw] h-[100vh] z-[9999] top-0 left-0 p-4'
                           : ''
                       }`}
                     >
@@ -378,7 +378,7 @@ export function DebugPage() {
                     <div
                       className={`${fullscreenEditor === 'body' ? '' : 'h-full'} flex flex-col ${
                         fullscreenEditor === 'body'
-                          ? 'fixed bg-white w-[100vw] h-[100vh] z-[9999] top-0 left-0 p-4'
+                          ? 'fixed bg-background w-[100vw] h-[100vh] z-[9999] top-0 left-0 p-4'
                           : ''
                       }`}
                     >
@@ -423,7 +423,7 @@ export function DebugPage() {
 
         {/* 下部分：响应信息查看 */}
         <div className='h-1/2 flex flex-col gap-4'>
-          <div className='flex-1 bg-white rounded-lg border p-4 flex flex-col'>
+          <div className='flex-1 bg-background rounded-lg border p-4 flex flex-col'>
             <div className='flex items-center justify-between mb-4'>
               <h3 className='font-medium'>响应信息</h3>
               {responseData.status > 0 && (

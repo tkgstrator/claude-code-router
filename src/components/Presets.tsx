@@ -683,7 +683,9 @@ export function Presets() {
                           <div className='flex items-center gap-2 mb-2'>
                             <h3 className='font-semibold text-lg'>{preset.name}</h3>
                           </div>
-                          {preset.description && <p className='text-sm text-muted-foreground mb-2'>{preset.description}</p>}
+                          {preset.description && (
+                            <p className='text-sm text-muted-foreground mb-2'>{preset.description}</p>
+                          )}
                           <div className='flex items-center gap-4 text-sm text-muted-foreground'>
                             {preset.author && (
                               <div className='flex items-center gap-1.5'>
