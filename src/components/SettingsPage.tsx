@@ -16,18 +16,16 @@ import { PageContainer, PageContent, PageHeader } from './PageLayout'
 import { SelectCombobox } from './SelectCombobox'
 import { StatusLineConfigDialog } from './StatusLineConfigDialog'
 
-const optionalStr = z.preprocess((v) => (v === '' ? undefined : v), z.string().nonempty().optional())
-
 const settingsSchema = z.object({
   LOG: z.boolean(),
   LOG_LEVEL: z.string().nonempty(),
-  CLAUDE_PATH: optionalStr,
-  HOST: optionalStr,
+  CLAUDE_PATH: z.string().default(''),
+  HOST: z.string().default(''),
   PORT: z.number().int().positive(),
-  API_TIMEOUT_MS: optionalStr,
-  PROXY_URL: optionalStr,
-  APIKEY: optionalStr,
-  CUSTOM_ROUTER_PATH: optionalStr
+  API_TIMEOUT_MS: z.string().default(''),
+  PROXY_URL: z.string().default(''),
+  APIKEY: z.string().default(''),
+  CUSTOM_ROUTER_PATH: z.string().default('')
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
@@ -57,12 +55,12 @@ export function SettingsPage() {
       ? {
           LOG: config.LOG || false,
           LOG_LEVEL: config.LOG_LEVEL || 'info',
-          CLAUDE_PATH: config.CLAUDE_PATH || '',
-          HOST: config.HOST || '',
+          CLAUDE_PATH: config.CLAUDE_PATH,
+          HOST: config.HOST,
           PORT: config.PORT || 3000,
-          API_TIMEOUT_MS: config.API_TIMEOUT_MS || '',
-          PROXY_URL: config.PROXY_URL || '',
-          APIKEY: config.APIKEY || '',
+          API_TIMEOUT_MS: config.API_TIMEOUT_MS,
+          PROXY_URL: config.PROXY_URL,
+          APIKEY: config.APIKEY,
           CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH || ''
         }
       : undefined

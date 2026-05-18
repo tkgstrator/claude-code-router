@@ -43,14 +43,14 @@ const LogLevelSchema = z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace
 
 export const ConfigEnvelopeSchema = z
   .object({
-    HOST: z.string().optional(),
+    HOST: z.string().default(''),
     PORT: z.number().int().positive().optional(),
-    APIKEY: z.string().optional(),
+    APIKEY: z.string().default(''),
     LOG: z.boolean().optional(),
     LOG_LEVEL: LogLevelSchema.optional(),
-    PROXY_URL: z.string().optional(),
+    PROXY_URL: z.string().default(''),
     API_TIMEOUT_MS: z.number().int().nonnegative().optional(),
-    CLAUDE_PATH: z.string().optional(),
+    CLAUDE_PATH: z.string().default(''),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
 
     // Object-shaped envelope members that stay on disk for PR #1.

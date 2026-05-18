@@ -19,16 +19,14 @@ interface EnabledModel {
   model: string
 }
 
-const optionalStr = z.preprocess((v) => (v === '' ? undefined : v), z.string().nonempty().optional())
-
 const routerSchema = z.object({
-  default: optionalStr,
-  background: optionalStr,
-  think: optionalStr,
-  longContext: optionalStr,
+  default: z.string().default(''),
+  background: z.string().default(''),
+  think: z.string().default(''),
+  longContext: z.string().default(''),
   longContextThreshold: z.number().int().positive(),
-  webSearch: optionalStr,
-  image: optionalStr,
+  webSearch: z.string().default(''),
+  image: z.string().default(''),
   forceUseImageAgent: z.string().nonempty()
 })
 
