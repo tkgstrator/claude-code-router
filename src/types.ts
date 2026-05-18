@@ -1,6 +1,7 @@
 export interface ProviderTransformer {
   use: (string | (string | Record<string, unknown> | { max_tokens: number })[])[]
-  [key: string]: any // Allow for model-specific transformers
+  // biome-ignore lint/suspicious/noExplicitAny: index signature for model-specific transformers
+  [key: string]: any
 }
 
 export type ProviderAuthMode = 'api_key' | 'subscription'
@@ -31,12 +32,14 @@ export interface RouterConfig {
   longContextThreshold: number
   webSearch: string
   image: string
+  // biome-ignore lint/suspicious/noExplicitAny: free-form custom router slot
   custom?: any
 }
 
 export interface Transformer {
   name?: string
   path: string
+  // biome-ignore lint/suspicious/noExplicitAny: transformer options are free-form
   options?: Record<string, any>
 }
 

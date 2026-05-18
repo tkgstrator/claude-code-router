@@ -3,7 +3,9 @@
  * Fetches preset market data directly from remote without caching
  */
 
+import { z } from 'zod'
 import type { PresetIndexEntry } from './types'
+import { PresetIndexEntrySchema } from './types'
 
 // Preset market URL
 const MARKET_URL = 'https://pub-0dc3e1677e894f07bbea11b17a29e032.r2.dev/presets.json'
@@ -18,8 +20,7 @@ async function fetchMarketData(): Promise<PresetIndexEntry[]> {
     throw new Error(`Failed to fetch preset market: ${response.status} ${response.statusText}`)
   }
 
-  const data = (await response.json()) as PresetIndexEntry[]
-  return data
+  return z.array(PresetIndexEntrySchema).parse(await response.json())
 }
 
 /**
@@ -27,7 +28,7 @@ async function fetchMarketData(): Promise<PresetIndexEntry[]> {
  * @returns Array of preset market entries
  */
 export async function getMarketPresets(): Promise<PresetIndexEntry[]> {
-  return await fetchMarketData()
+  return fetchMarketData()
 }
 
 /**
@@ -52,5 +53,5 @@ export async function findMarketPresetByName(presetName: string): Promise<Preset
     preset = marketPresets.find((p) => p.name.toLowerCase() === lowerName)
   }
 
-  return preset || null
+  return preset !== undefined ? preset : null
 }

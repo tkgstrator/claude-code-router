@@ -11,6 +11,7 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       // More specific than @/* — routes the vendored llms imports to
       // an `any` stub for typecheck only (Vite resolves the real
