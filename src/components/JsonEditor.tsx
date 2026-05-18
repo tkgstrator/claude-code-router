@@ -19,7 +19,16 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
   const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'))
+    })
+    observer.observe(document.documentElement, { attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
 
   // Load the editor from the RAW /api/config wire JSON (which carries
   // explicit nulls for unset api_key / path scalars / router slots), not
@@ -135,7 +144,7 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
 
       <div
         ref={containerRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-all duration-300 ease-out transform ${
+        className={`fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-background shadow-2xl transition-all duration-300 ease-out transform ${
           isAnimating && open ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
@@ -157,13 +166,13 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
           </div>
         </div>
 
-        <div className='flex-1 min-h-0 bg-gray-50'>
+        <div className='flex-1 min-h-0'>
           <Editor
             height='100%'
             defaultLanguage='json'
             value={jsonValue}
             onChange={(value) => setJsonValue(value || '')}
-            theme='vs'
+            theme={isDark ? 'vs-dark' : 'vs'}
             options={{
               minimap: { enabled: true },
               fontSize: 14,

@@ -3,20 +3,22 @@ import {
   FileJson,
   FileText,
   Gauge,
+  History,
   Languages,
   LayoutDashboard,
+  Moon,
   Save,
   Server,
   Settings,
-  Shuffle
+  Shuffle,
+  Sun
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { JsonEditor } from '@/components/JsonEditor'
 import { LogViewer } from '@/components/LogViewer'
-import { SettingsDialog } from '@/components/SettingsDialog'
 import { SetupDialog } from '@/components/SetupDialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,6 +30,19 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger
+} from '@/components/ui/sidebar'
 import { Toast } from '@/components/ui/toast'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
@@ -43,16 +58,47 @@ const NAV_ITEMS = [
   { to: '/models', icon: LayoutDashboard, key: 'nav.models' },
   { to: '/providers', icon: Server, key: 'nav.providers' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
-  // Transformers nav hidden (edit screen unused). Route still exists at /transformers.
-  // { to: '/transformers', icon: Wand2, key: 'nav.transformers' },
-  { to: '/usage', icon: Gauge, key: 'nav.usage' }
+  { to: '/usage', icon: Gauge, key: 'nav.usage' },
+  { to: '/history', icon: History, key: 'nav.history' },
+  { to: '/settings', icon: Settings, key: 'nav.settings' }
 ] as const
+
+function AppSidebar() {
+  const { t } = useTranslation()
+  const { pathname } = useLocation()
+
+  return (
+    <Sidebar collapsible='icon'>
+      <SidebarHeader className='h-16 justify-center border-b px-4'>
+        <span className='text-sm font-semibold group-data-[collapsible=icon]:hidden'>
+          {t('app.title')}
+        </span>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu>
+            {NAV_ITEMS.map(({ to, icon: Icon, key }) => (
+              <SidebarMenuItem key={to}>
+                <SidebarMenuButton size='lg' asChild isActive={pathname.startsWith(to)} tooltip={t(key)}>
+                  <NavLink to={to}>
+                    <Icon />
+                    <span>{t(key)}</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarRail />
+    </Sidebar>
+  )
+}
 
 export function AppShell() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { config, error } = useConfig()
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isJsonEditorOpen, setIsJsonEditorOpen] = useState(false)
   const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
@@ -64,6 +110,22 @@ export function AppShell() {
   const [hasCheckedUpdate, setHasCheckedUpdate] = useState(false)
   const [isUpdateFeatureAvailable, setIsUpdateFeatureAvailable] = useState(true)
   const hasAutoCheckedUpdate = useRef(false)
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+
+  const toggleDark = () => {
+    const next = !isDark
+    document.documentElement.classList.toggle('dark', next)
+    localStorage.setItem('theme', next ? 'dark' : 'light')
+    setIsDark(next)
+  }
+
+  useEffect(() => {
+    const stored = localStorage.getItem('theme')
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const dark = stored ? stored === 'dark' : prefersDark
+    document.documentElement.classList.toggle('dark', dark)
+    setIsDark(dark)
+  }, [])
 
   const showToast: ToastFn = (message, type) => setToast({ message, type })
 
@@ -173,15 +235,15 @@ export function AppShell() {
 
   if (isCheckingAuth) {
     return (
-      <div className='h-screen bg-gray-50 font-sans flex items-center justify-center'>
-        <div className='text-gray-500'>Loading application...</div>
+      <div className='h-screen bg-background font-sans flex items-center justify-center'>
+        <div className='text-muted-foreground'>Loading application...</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className='h-screen bg-gray-50 font-sans flex items-center justify-center'>
+      <div className='h-screen bg-background font-sans flex items-center justify-center'>
         <div className='text-red-500'>Error: {error.message}</div>
       </div>
     )
@@ -189,8 +251,8 @@ export function AppShell() {
 
   if (!config) {
     return (
-      <div className='h-screen bg-gray-50 font-sans flex items-center justify-center'>
-        <div className='text-gray-500'>Loading configuration...</div>
+      <div className='h-screen bg-background font-sans flex items-center justify-center'>
+        <div className='text-muted-foreground'>Loading configuration...</div>
       </div>
     )
   }
@@ -200,119 +262,52 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <SetupDialog open={needsSetup} />
-      <div className='flex h-screen bg-gray-50 font-sans'>
-        <aside className='flex w-56 flex-col border-r bg-white'>
-          <div className='flex h-16 items-center border-b px-5'>
-            <h1 className='text-lg font-semibold text-gray-800'>{t('app.title')}</h1>
-          </div>
-          <nav className='flex-1 space-y-1 p-3'>
-            {NAV_ITEMS.map(({ to, icon: Icon, key }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all-ease hover:scale-[1.02] ${
-                    isActive ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-                  }`
-                }
-              >
-                <Icon className='h-4 w-4' />
-                {t(key)}
-              </NavLink>
-            ))}
-            {/* Presets nav hidden (unused). Route still exists at /presets.
-            <button
-              type='button'
-              onClick={() => navigate('/presets')}
-              className='flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-700 transition-all-ease hover:scale-[1.02] hover:bg-gray-100'
-            >
-              <FileCog className='h-4 w-4' />
-              {t('app.presets')}
-            </button>
-            */}
-          </nav>
-        </aside>
-
-        <div className='flex flex-1 flex-col overflow-hidden'>
-          <header className='flex h-16 items-center justify-end gap-2 border-b bg-white px-6'>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className='flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4'>
+          <SidebarTrigger />
+          <div className='flex items-center gap-2'>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  onClick={() => setIsSettingsOpen(true)}
-                  className='transition-all-ease hover:scale-110'
-                >
-                  <Settings className='h-5 w-5' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{t('app.settings')}</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  onClick={() => setIsJsonEditorOpen(true)}
-                  className='transition-all-ease hover:scale-110'
-                >
+                <Button variant='ghost' size='icon' onClick={() => setIsJsonEditorOpen(true)}>
                   <FileJson className='h-5 w-5' />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>{t('app.json_editor')}</p>
-              </TooltipContent>
+              <TooltipContent>{t('app.json_editor')}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  onClick={() => setIsLogViewerOpen(true)}
-                  className='transition-all-ease hover:scale-110'
-                >
+                <Button variant='ghost' size='icon' onClick={() => setIsLogViewerOpen(true)}>
                   <FileText className='h-5 w-5' />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>{t('app.log_viewer')}</p>
-              </TooltipContent>
+              <TooltipContent>{t('app.log_viewer')}</TooltipContent>
             </Tooltip>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant='ghost' size='icon' className='transition-all-ease hover:scale-110'>
+                <Button variant='ghost' size='icon'>
                   <Languages className='h-5 w-5' />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className='w-32 p-2'>
                 <div className='space-y-1'>
-                  <Button
-                    variant={i18n.language.startsWith('en') ? 'default' : 'ghost'}
-                    className='w-full justify-start transition-all-ease hover:scale-[1.02]'
-                    onClick={() => i18n.changeLanguage('en')}
-                  >
-                    English
-                  </Button>
-                  <Button
-                    variant={i18n.language.startsWith('zh') ? 'default' : 'ghost'}
-                    className='w-full justify-start transition-all-ease hover:scale-[1.02]'
-                    onClick={() => i18n.changeLanguage('zh')}
-                  >
-                    中文
-                  </Button>
-                  <Button
-                    variant={i18n.language.startsWith('ja') ? 'default' : 'ghost'}
-                    className='w-full justify-start transition-all-ease hover:scale-[1.02]'
-                    onClick={() => i18n.changeLanguage('ja')}
-                  >
-                    日本語
-                  </Button>
+                  {(['en', 'zh', 'ja'] as const).map((lang) => (
+                    <Button
+                      key={lang}
+                      variant={i18n.language.startsWith(lang) ? 'default' : 'ghost'}
+                      className='w-full justify-start'
+                      onClick={() => i18n.changeLanguage(lang)}
+                    >
+                      {lang === 'en' ? 'English' : lang === 'zh' ? '中文' : '日本語'}
+                    </Button>
+                  ))}
                 </div>
               </PopoverContent>
             </Popover>
+            <Button variant='ghost' size='icon' onClick={toggleDark}>
+              {isDark ? <Sun className='h-5 w-5' /> : <Moon className='h-5 w-5' />}
+            </Button>
             {isUpdateFeatureAvailable && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -321,72 +316,59 @@ export function AppShell() {
                     size='icon'
                     onClick={() => checkForUpdates(true)}
                     disabled={isCheckingUpdate}
-                    className='transition-all-ease hover:scale-110 relative'
+                    className='relative'
                   >
-                    <div className='relative'>
-                      <CircleArrowUp className='h-5 w-5' />
-                      {isNewVersionAvailable && !isCheckingUpdate && (
-                        <div className='absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white' />
-                      )}
-                    </div>
-                    {isCheckingUpdate && (
-                      <div className='absolute inset-0 flex items-center justify-center'>
-                        <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
-                      </div>
+                    <CircleArrowUp className='h-5 w-5' />
+                    {isNewVersionAvailable && !isCheckingUpdate && (
+                      <span className='absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white' />
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t('app.check_updates')}</p>
-                </TooltipContent>
+                <TooltipContent>{t('app.check_updates')}</TooltipContent>
               </Tooltip>
             )}
-            <Button
-              onClick={saveConfig}
-              variant='outline'
-              className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
-            >
+            <Button onClick={saveConfig} variant='outline'>
               <Save className='mr-2 h-4 w-4' />
               {t('app.save')}
             </Button>
-          </header>
+          </div>
+        </header>
+        <main className='flex-1 overflow-auto'>
+          <Outlet context={outletContext} />
+        </main>
+      </SidebarInset>
 
-          <main className='flex-1 overflow-auto bg-white'>
-            <Outlet context={outletContext} />
-          </main>
-        </div>
-
-        <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
-        <JsonEditor open={isJsonEditorOpen} onOpenChange={setIsJsonEditorOpen} showToast={showToast} />
-        <LogViewer open={isLogViewerOpen} onOpenChange={setIsLogViewerOpen} showToast={showToast} />
-        <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
-          <DialogContent className='max-w-2xl'>
-            <DialogHeader>
-              <DialogTitle>
-                {t('app.new_version_available')}
-                {newVersionInfo && (
-                  <span className='ml-2 text-sm font-normal text-muted-foreground'>v{newVersionInfo.version}</span>
-                )}
-              </DialogTitle>
-              <DialogDescription>{t('app.update_description')}</DialogDescription>
-            </DialogHeader>
-            <div className='max-h-96 overflow-y-auto py-4'>
-              {newVersionInfo?.changelog ? (
-                <div className='whitespace-pre-wrap text-sm'>{newVersionInfo.changelog}</div>
-              ) : (
-                <div className='text-muted-foreground'>{t('app.no_changelog_available')}</div>
+      <SetupDialog open={needsSetup} />
+      <JsonEditor open={isJsonEditorOpen} onOpenChange={setIsJsonEditorOpen} showToast={showToast} />
+      <LogViewer open={isLogViewerOpen} onOpenChange={setIsLogViewerOpen} showToast={showToast} />
+      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+        <DialogContent className='max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>
+              {t('app.new_version_available')}
+              {newVersionInfo && (
+                <span className='ml-2 text-sm font-normal text-muted-foreground'>v{newVersionInfo.version}</span>
               )}
-            </div>
-            <DialogFooter>
-              <Button variant='outline' onClick={() => setIsUpdateDialogOpen(false)}>
-                {t('app.later')}
-              </Button>
-              <Button onClick={performUpdate}>{t('app.update_now')}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      </div>
+            </DialogTitle>
+            <DialogDescription>{t('app.update_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='max-h-96 overflow-y-auto py-4'>
+            {newVersionInfo?.changelog ? (
+              <div className='whitespace-pre-wrap text-sm'>{newVersionInfo.changelog}</div>
+            ) : (
+              <div className='text-muted-foreground'>{t('app.no_changelog_available')}</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setIsUpdateDialogOpen(false)}>
+              {t('app.later')}
+            </Button>
+            <Button onClick={performUpdate}>{t('app.update_now')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </SidebarProvider>
     </TooltipProvider>
   )
 }

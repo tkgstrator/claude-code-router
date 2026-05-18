@@ -49,7 +49,7 @@ export function ProviderList({ providers, onEdit, planByProvider }: ProviderList
   if (!providers || !Array.isArray(providers)) {
     return (
       <div className='space-y-3'>
-        <div className='flex items-center justify-center rounded-md border bg-white p-8 text-gray-500'>
+        <div className='flex items-center justify-center rounded-md border bg-background p-8 text-muted-foreground'>
           No providers configured
         </div>
       </div>
@@ -57,18 +57,18 @@ export function ProviderList({ providers, onEdit, planByProvider }: ProviderList
   }
 
   return (
-    <div className='grid gap-3 lg:grid-cols-2'>
+    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
       {providers.map((provider, index) => {
         // Handle case where individual provider might be null or undefined
         if (!provider) {
           return (
             <div
               key={index}
-              className='flex items-start justify-between rounded-md border bg-white p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
+              className='flex items-start justify-between rounded-md border bg-background p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
             >
               <div className='flex-1 space-y-1.5'>
-                <p className='text-md font-semibold text-gray-800'>Invalid Provider</p>
-                <p className='text-sm text-gray-500'>Provider data is missing</p>
+                <p className='text-md font-semibold text-foreground'>Invalid Provider</p>
+                <p className='text-sm text-muted-foreground'>Provider data is missing</p>
               </div>
               <div className='ml-4 flex flex-shrink-0 items-center gap-2'>
                 <Button
@@ -100,20 +100,20 @@ export function ProviderList({ providers, onEdit, planByProvider }: ProviderList
         return (
           <div
             key={index}
-            className='flex items-center justify-between rounded-md border bg-white p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
+            className='flex items-center justify-between rounded-md border bg-background p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
           >
             <div className='flex flex-1 items-center gap-3'>
               <ProviderIcon name={providerName} size={28} className='flex-shrink-0' />
               <div className='flex-1 space-y-1'>
                 <div className='flex items-center gap-2'>
-                  <p className='text-md font-semibold text-gray-800'>{providerName}</p>
+                  <p className='text-md font-semibold text-foreground'>{providerName}</p>
                   {planByProvider?.[providerName] && (
                     <Badge variant='secondary' className='text-xs uppercase tracking-wide'>
                       {planByProvider[providerName]}
                     </Badge>
                   )}
                 </div>
-                <p className='text-sm text-gray-500'>{apiBasePath}</p>
+                <p className='text-sm text-muted-foreground'>{apiBasePath}</p>
               </div>
             </div>
             <div className='ml-4 flex flex-shrink-0 items-center gap-2'>

@@ -1,8 +1,11 @@
 import { Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useForm, useFieldArray } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import {
   Dialog,
   DialogContent,
@@ -11,241 +14,190 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useConfig } from './ConfigProvider'
 import { TransformerList } from './TransformerList'
+
+const transformerSchema = z.object({
+  path: z.string().min(1),
+  options: z.array(z.object({ key: z.string(), value: z.string() })),
+})
+
+type TransformerFormValues = z.infer<typeof transformerSchema>
+
+function TransformerEditDialog({
+  open,
+  transformer,
+  onSave,
+  onCancel,
+}: {
+  open: boolean
+  transformer: { path: string; options?: Record<string, string> } | null
+  onSave: (values: TransformerFormValues) => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+
+  const form = useForm<TransformerFormValues>({
+    resolver: zodResolver(transformerSchema),
+    defaultValues: { path: '', options: [] },
+  })
+
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'options' })
+
+  useEffect(() => {
+    if (!open || !transformer) return
+    form.reset({
+      path: transformer.path ?? '',
+      options: Object.entries(transformer.options ?? {}).map(([key, value]) => ({ key, value })),
+    })
+  }, [open, transformer, form])
+
+  return (
+    <Dialog open={open} onOpenChange={onCancel}>
+      <DialogContent aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>{t('transformers.edit')}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSave)} className='space-y-4'>
+            <FormField
+              control={form.control}
+              name='path'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('transformers.path')}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <span className='text-sm font-medium'>{t('transformers.parameters')}</span>
+                <Button type='button' variant='outline' size='sm' onClick={() => append({ key: '', value: '' })}>
+                  <Plus className='h-4 w-4' />
+                </Button>
+              </div>
+              {fields.map((field, index) => (
+                <div key={field.id} className='flex items-center gap-2'>
+                  <FormField
+                    control={form.control}
+                    name={`options.${index}.key`}
+                    render={({ field }) => (
+                      <FormItem className='flex-1'>
+                        <FormControl>
+                          <Input {...field} placeholder='key' />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`options.${index}.value`}
+                    render={({ field }) => (
+                      <FormItem className='flex-1'>
+                        <FormControl>
+                          <Input {...field} placeholder='value' />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <Button type='button' variant='outline' size='icon' onClick={() => remove(index)}>
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <DialogFooter>
+              <Button type='button' variant='outline' onClick={onCancel}>
+                {t('app.cancel')}
+              </Button>
+              <Button type='submit'>{t('app.save')}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function Transformers() {
   const { t } = useTranslation()
   const { config, setConfig } = useConfig()
-  const [editingTransformerIndex, setEditingTransformerIndex] = useState<number | null>(null)
-  const [deletingTransformerIndex, setDeletingTransformerIndex] = useState<number | null>(null)
-  const [newTransformer, setNewTransformer] = useState<{
-    name?: string
-    path: string
-    options: { [key: string]: string }
-  } | null>(null)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null)
 
-  // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-        <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
-          <CardTitle className='text-lg'>{t('transformers.title')}</CardTitle>
-        </CardHeader>
-        <CardContent className='flex-grow flex items-center justify-center px-6 py-4'>
-          <div className='text-gray-500'>Loading transformers configuration...</div>
-        </CardContent>
-      </Card>
+      <PageContainer>
+        <PageHeader title={t('transformers.title')} />
+        <PageContent className='flex items-center justify-center'>
+          <div className='text-muted-foreground'>Loading transformers configuration...</div>
+        </PageContent>
+      </PageContainer>
     )
   }
 
-  // Validate config.Transformers to ensure it's an array
-  const validTransformers = Array.isArray(config.transformers) ? config.transformers : []
+  const transformers = Array.isArray(config.transformers) ? config.transformers : []
+  const editingTransformer = editingIndex !== null ? (transformers[editingIndex] ?? { path: '', options: {} }) : null
 
-  const handleAddTransformer = () => {
-    const newTransformer = { name: '', path: '', options: {} }
-    setNewTransformer(newTransformer)
-    setEditingTransformerIndex(validTransformers.length) // Use the length as index for the new item
-  }
-
-  const handleRemoveTransformer = (index: number) => {
-    const newTransformers = [...validTransformers]
-    newTransformers.splice(index, 1)
-    setConfig({ ...config, transformers: newTransformers })
-    setDeletingTransformerIndex(null)
-  }
-
-  const handleTransformerChange = (index: number, field: string, value: string, parameterKey?: string) => {
-    if (index < validTransformers.length) {
-      // Editing an existing transformer
-      const newTransformers = [...validTransformers]
-      if (parameterKey !== undefined) {
-        newTransformers[index].options![parameterKey] = value
-      } else {
-        ;(newTransformers[index] as unknown as Record<string, unknown>)[field] = value
-      }
-      setConfig({ ...config, transformers: newTransformers })
+  const handleSave = (values: TransformerFormValues) => {
+    const options = Object.fromEntries(values.options.map(({ key, value }) => [key, value]))
+    const updated = [...transformers]
+    if (editingIndex !== null && editingIndex < transformers.length) {
+      updated[editingIndex] = { ...updated[editingIndex], path: values.path, options }
     } else {
-      // Editing the new transformer
-      if (newTransformer) {
-        const updatedTransformer = { ...newTransformer }
-        if (parameterKey !== undefined) {
-          updatedTransformer.options![parameterKey] = value
-        } else {
-          ;(updatedTransformer as Record<string, unknown>)[field] = value
-        }
-        setNewTransformer(updatedTransformer)
-      }
+      updated.push({ path: values.path, options })
     }
+    setConfig({ ...config, transformers: updated })
+    setEditingIndex(null)
   }
 
-  const editingTransformer =
-    editingTransformerIndex !== null
-      ? editingTransformerIndex < validTransformers.length
-        ? validTransformers[editingTransformerIndex]
-        : newTransformer
-      : null
-
-  const handleSaveTransformer = () => {
-    if (newTransformer && editingTransformerIndex === validTransformers.length) {
-      // Saving a new transformer
-      const newTransformers = [...validTransformers, newTransformer]
-      setConfig({ ...config, transformers: newTransformers })
-    }
-    // Close the dialog
-    setEditingTransformerIndex(null)
-    setNewTransformer(null)
-  }
-
-  const handleCancelTransformer = () => {
-    // Close the dialog without saving
-    setEditingTransformerIndex(null)
-    setNewTransformer(null)
+  const handleRemove = (index: number) => {
+    const updated = [...transformers]
+    updated.splice(index, 1)
+    setConfig({ ...config, transformers: updated })
+    setDeletingIndex(null)
   }
 
   return (
-    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-      <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
-        <CardTitle className='text-lg'>
-          {t('transformers.title')}{' '}
-          <span className='text-sm font-normal text-gray-500'>({validTransformers.length})</span>
-        </CardTitle>
-        <Button onClick={handleAddTransformer}>{t('transformers.add')}</Button>
-      </CardHeader>
-      <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
-        <TransformerList
-          transformers={validTransformers}
-          onEdit={setEditingTransformerIndex}
-          onRemove={setDeletingTransformerIndex}
-        />
-      </CardContent>
+    <PageContainer>
+      <PageHeader title={`${t('transformers.title')} (${transformers.length})`}>
+        <Button onClick={() => setEditingIndex(transformers.length)}>{t('transformers.add')}</Button>
+      </PageHeader>
+      <PageContent>
+        <TransformerList transformers={transformers} onEdit={setEditingIndex} onRemove={setDeletingIndex} />
+      </PageContent>
 
-      {/* Edit Dialog */}
-      <Dialog open={editingTransformerIndex !== null} onOpenChange={handleCancelTransformer}>
-        <DialogContent aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle>{t('transformers.edit')}</DialogTitle>
-          </DialogHeader>
-          {editingTransformer && editingTransformerIndex !== null && (
-            <div className='space-y-4 py-4 px-6 max-h-96 overflow-y-auto'>
-              <div className='space-y-2'>
-                <Label htmlFor='transformer-path'>{t('transformers.path')}</Label>
-                <Input
-                  id='transformer-path'
-                  value={editingTransformer.path || ''}
-                  onChange={(e) => handleTransformerChange(editingTransformerIndex, 'path', e.target.value)}
-                />
-              </div>
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between'>
-                  <Label>{t('transformers.parameters')}</Label>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      const parameters = editingTransformer.options || {}
-                      const newKey = `param${Object.keys(parameters).length + 1}`
-                      if (editingTransformerIndex !== null) {
-                        const newParameters = { ...parameters, [newKey]: '' }
-                        if (editingTransformerIndex < validTransformers.length) {
-                          const newTransformers = [...validTransformers]
-                          newTransformers[editingTransformerIndex].options = newParameters
-                          setConfig({ ...config, transformers: newTransformers })
-                        } else if (newTransformer) {
-                          setNewTransformer({ ...newTransformer, options: newParameters })
-                        }
-                      }
-                    }}
-                  >
-                    <Plus className='h-4 w-4' />
-                  </Button>
-                </div>
-                {Object.entries(editingTransformer.options || {}).map(([key, value]) => (
-                  <div key={key} className='flex items-center gap-2'>
-                    <Input
-                      value={key}
-                      onChange={(e) => {
-                        const parameters = editingTransformer.options || {}
-                        const newParameters = { ...parameters }
-                        delete newParameters[key]
-                        newParameters[e.target.value] = value
-                        if (editingTransformerIndex !== null) {
-                          if (editingTransformerIndex < validTransformers.length) {
-                            const newTransformers = [...validTransformers]
-                            newTransformers[editingTransformerIndex].options = newParameters
-                            setConfig({ ...config, transformers: newTransformers })
-                          } else if (newTransformer) {
-                            setNewTransformer({ ...newTransformer, options: newParameters })
-                          }
-                        }
-                      }}
-                      className='flex-1'
-                    />
-                    <Input
-                      value={value}
-                      onChange={(e) => {
-                        if (editingTransformerIndex !== null) {
-                          handleTransformerChange(editingTransformerIndex, 'parameters', e.target.value, key)
-                        }
-                      }}
-                      className='flex-1'
-                    />
-                    <Button
-                      variant='outline'
-                      size='icon'
-                      onClick={() => {
-                        if (editingTransformerIndex !== null) {
-                          const parameters = editingTransformer.options || {}
-                          const newParameters = { ...parameters }
-                          delete newParameters[key]
-                          if (editingTransformerIndex < validTransformers.length) {
-                            const newTransformers = [...validTransformers]
-                            newTransformers[editingTransformerIndex].options = newParameters
-                            setConfig({ ...config, transformers: newTransformers })
-                          } else if (newTransformer) {
-                            setNewTransformer({ ...newTransformer, options: newParameters })
-                          }
-                        }
-                      }}
-                    >
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant='outline' onClick={handleCancelTransformer}>
-              {t('app.cancel')}
-            </Button>
-            <Button onClick={handleSaveTransformer}>{t('app.save')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TransformerEditDialog
+        open={editingIndex !== null}
+        transformer={editingTransformer}
+        onSave={handleSave}
+        onCancel={() => setEditingIndex(null)}
+      />
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deletingTransformerIndex !== null} onOpenChange={() => setDeletingTransformerIndex(null)}>
+      <Dialog open={deletingIndex !== null} onOpenChange={() => setDeletingIndex(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('transformers.delete')}</DialogTitle>
             <DialogDescription>{t('transformers.delete_transformer_confirm')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setDeletingTransformerIndex(null)}>
+            <Button variant='outline' onClick={() => setDeletingIndex(null)}>
               {t('app.cancel')}
             </Button>
-            <Button
-              variant='destructive'
-              onClick={() => deletingTransformerIndex !== null && handleRemoveTransformer(deletingTransformerIndex)}
-            >
+            <Button variant='destructive' onClick={() => deletingIndex !== null && handleRemove(deletingIndex)}>
               {t('app.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </PageContainer>
   )
 }

@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Rules
+
+- **NEVER edit `src/components/ui/*.tsx`** — these are managed by shadcn and must only be updated via `bunx shadcn@latest add <component> --overwrite`.
+
 ## Project Overview
 
 Claude Code Router is a tool that routes Claude Code requests to different LLM providers. It uses a Monorepo architecture with four main packages:

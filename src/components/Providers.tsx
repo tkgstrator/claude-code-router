@@ -6,9 +6,9 @@ import { useOutletContext } from 'react-router-dom'
 import type { ShellOutletContext } from '@/components/AppShell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { ComboInput } from '@/components/ui/combo-input'
-import { Combobox } from '@/components/ui/combobox'
+import { SelectCombobox as Combobox } from '@/components/SelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -94,14 +94,12 @@ export function Providers() {
   // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-        <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
-          <CardTitle className='text-lg'>{t('providers.title')}</CardTitle>
-        </CardHeader>
-        <CardContent className='flex-grow flex items-center justify-center px-6 py-4'>
-          <div className='text-gray-500'>Loading providers configuration...</div>
-        </CardContent>
-      </Card>
+      <PageContainer>
+        <PageHeader title={t('providers.title')} />
+        <PageContent className='flex items-center justify-center'>
+          <div className='text-muted-foreground'>Loading providers configuration...</div>
+        </PageContent>
+      </PageContainer>
     )
   }
 
@@ -606,38 +604,37 @@ export function Providers() {
   const unavailableProviders = visibleProviders.filter((p) => !isAvailable(p))
 
   return (
-    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-      <CardHeader className='flex flex-col border-b px-6 py-4 gap-3'>
-        <div className='flex flex-row items-center justify-between'>
-          <CardTitle className='text-lg'>{t('providers.title')}</CardTitle>
-          <div className='flex items-center gap-2'>
-            <Button variant='outline' onClick={refreshTemplates} disabled={refreshingTemplates}>
-              <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
-              {t('providers.refresh_templates')}
-            </Button>
-          </div>
-        </div>
-        <Tabs value={activeAuthMode} onValueChange={(v) => setActiveAuthMode(v as ProviderAuthMode)}>
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='api_key'>
-              {t('providers.auth_api')}
-              <span className='ml-2 text-xs text-gray-500'>({providersByAuth.api_key.length})</span>
-            </TabsTrigger>
-            <TabsTrigger value='subscription'>
-              {t('providers.auth_subscription')}
-              <span className='ml-2 text-xs text-gray-500'>({providersByAuth.subscription.length})</span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </CardHeader>
-      <CardContent className='flex-grow overflow-y-auto px-6 py-4'>
+    <PageContainer>
+      <PageHeader
+        title={t('providers.title')}
+        extra={
+          <Tabs value={activeAuthMode} onValueChange={(v) => setActiveAuthMode(v as ProviderAuthMode)}>
+            <TabsList className='grid w-full grid-cols-2'>
+              <TabsTrigger value='api_key'>
+                {t('providers.auth_api')}
+                <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.api_key.length})</span>
+              </TabsTrigger>
+              <TabsTrigger value='subscription'>
+                {t('providers.auth_subscription')}
+                <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.subscription.length})</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      >
+        <Button variant='outline' onClick={refreshTemplates} disabled={refreshingTemplates}>
+          <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
+          {t('providers.refresh_templates')}
+        </Button>
+      </PageHeader>
+      <PageContent>
         {visibleProviders.length === 0 ? (
           <ProviderList providers={visibleProviders} onEdit={handleEditProvider} />
         ) : (
           <div className='space-y-6'>
             {availableProviders.length > 0 && (
               <div className='space-y-2'>
-                <h3 className='text-xs font-medium uppercase tracking-wider text-gray-500'>
+                <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
                   {t('providers.available')} ({availableProviders.length})
                 </h3>
                 <ProviderList
@@ -649,7 +646,7 @@ export function Providers() {
             )}
             {unavailableProviders.length > 0 && (
               <div className='space-y-2'>
-                <h3 className='text-xs font-medium uppercase tracking-wider text-gray-500'>
+                <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
                   {t('providers.unavailable')} ({unavailableProviders.length})
                 </h3>
                 <ProviderList
@@ -661,7 +658,7 @@ export function Providers() {
             )}
           </div>
         )}
-      </CardContent>
+      </PageContent>
 
       {/* Edit Dialog */}
       <Dialog
@@ -729,9 +726,9 @@ export function Providers() {
                   const cli = preset?.cli ?? ''
                   const credentialsPath = preset?.credentialsPath ?? ''
                   return (
-                    <div className='rounded-md border bg-muted/40 p-4 text-sm text-gray-700 space-y-2'>
+                    <div className='rounded-md border bg-muted/40 p-4 text-sm text-foreground space-y-2'>
                       <p className='font-medium'>{t('providers.subscription_intro', { vendor, cli })}</p>
-                      <p className='text-gray-500'>{t('providers.subscription_hint', { credentialsPath })}</p>
+                      <p className='text-muted-foreground'>{t('providers.subscription_hint', { credentialsPath })}</p>
                     </div>
                   )
                 })()
@@ -763,7 +760,7 @@ export function Providers() {
                     {/* Display existing transformers */}
                     {editingProvider.transformer?.use && editingProvider.transformer.use.length > 0 && (
                       <div className='space-y-2 mt-2'>
-                        <div className='text-sm font-medium text-gray-700'>{t('providers.selected_transformers')}</div>
+                        <div className='text-sm font-medium text-foreground'>{t('providers.selected_transformers')}</div>
                         {editingProvider.transformer.use.map(
                           (
                             transformer: string | (string | Record<string, unknown> | { max_tokens: number })[],
@@ -771,7 +768,7 @@ export function Providers() {
                           ) => (
                             <div key={transformerIndex} className='border rounded-md p-3'>
                               <div className='flex gap-2 items-center mb-2'>
-                                <div className='flex-1 bg-gray-50 rounded p-2 text-sm'>
+                                <div className='flex-1 bg-muted rounded p-2 text-sm'>
                                   {typeof transformer === 'string'
                                     ? transformer
                                     : Array.isArray(transformer)
@@ -792,7 +789,7 @@ export function Providers() {
                               </div>
 
                               {/* Transformer-specific Parameters */}
-                              <div className='mt-2 pl-4 border-l-2 border-gray-200'>
+                              <div className='mt-2 pl-4 border-l-2 border-border'>
                                 <Label className='text-sm'>{t('providers.transformer_parameters')}</Label>
                                 <div className='space-y-2 mt-1'>
                                   <div className='flex gap-2'>
@@ -882,7 +879,7 @@ export function Providers() {
                                         {Object.entries(params).map(([key, value]) => (
                                           <div
                                             key={key}
-                                            className='flex items-center justify-between bg-gray-50 rounded p-2'
+                                            className='flex items-center justify-between bg-muted rounded p-2'
                                           >
                                             <div className='text-sm'>
                                               <span className='font-medium'>{key}:</span> {String(value)}
@@ -1087,6 +1084,6 @@ export function Providers() {
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </PageContainer>
   )
 }

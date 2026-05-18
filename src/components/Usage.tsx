@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import {
   type ChartConfig,
   ChartContainer,
@@ -166,12 +166,12 @@ function UsageBar({ label, percent, reset }: { label: string; percent: number; r
     <div className='space-y-1'>
       <div className='flex items-center justify-between text-sm'>
         <span className='font-medium'>{label}</span>
-        <span className='text-gray-500'>{percent.toFixed(1)}%</span>
+        <span className='text-muted-foreground'>{percent.toFixed(1)}%</span>
       </div>
-      <div className='h-2 w-full overflow-hidden rounded-full bg-gray-200'>
-        <div className='h-full rounded-full bg-primary' style={{ width: `${clamped}%` }} />
+      <div className='h-2 w-full overflow-hidden rounded-full bg-muted'>
+        <div className='h-full rounded-full bg-blue-500' style={{ width: `${clamped}%` }} />
       </div>
-      <div className='text-xs text-gray-500'>{reset}</div>
+      <div className='text-xs text-muted-foreground'>{reset}</div>
     </div>
   )
 }
@@ -182,7 +182,7 @@ function UsageBar({ label, percent, reset }: { label: string; percent: number; r
 // CLI), so it must not read like an error.
 function NotRegistered({ message, hint, href, cta }: { message: string; hint: string; href: string; cta: string }) {
   return (
-    <div className='space-y-1 text-sm text-gray-500'>
+    <div className='space-y-1 text-sm text-muted-foreground'>
       <p>{message}</p>
       <p className='text-xs'>{hint}</p>
       <a
@@ -246,11 +246,9 @@ export function Usage() {
   }, [history])
 
   return (
-    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-      <CardHeader className='border-b px-6 py-4'>
-        <CardTitle className='text-lg'>{t('usage.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className='flex-grow space-y-6 overflow-y-auto px-6 py-4'>
+    <PageContainer>
+      <PageHeader title={t('usage.title')} />
+      <PageContent className='space-y-6'>
         {error && <div className='text-sm text-red-500'>{t('usage.loadError')}</div>}
 
         <section className='space-y-3'>
@@ -292,7 +290,7 @@ export function Usage() {
                   reset={`${t('usage.resets')}: ${fmtReset(data.claude.sevenDayOpus.resetsAt)}`}
                 />
               )}
-              <div className='text-xs text-gray-500'>
+              <div className='text-xs text-muted-foreground'>
                 {t('usage.capturedAt')}: {fmtReset(data.claude.capturedAt)}
               </div>
             </div>
@@ -324,7 +322,7 @@ export function Usage() {
                   reset={`${t('usage.resets')}: ${fmtReset(data.codex.secondary.resetAt)}`}
                 />
               )}
-              <div className='text-xs text-gray-500'>
+              <div className='text-xs text-muted-foreground'>
                 {t('usage.capturedAt')}: {fmtReset(data.codex.capturedAt)}
               </div>
             </div>
@@ -376,7 +374,7 @@ export function Usage() {
             </ChartContainer>
           )}
         </section>
-      </CardContent>
-    </Card>
+      </PageContent>
+    </PageContainer>
   )
 }

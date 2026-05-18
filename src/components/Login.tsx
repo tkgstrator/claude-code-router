@@ -85,7 +85,7 @@ export function Login() {
 
   if (isLoading) {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-gray-50'>
+      <div className='flex min-h-screen items-center justify-center bg-background'>
         <Card className='w-full max-w-md'>
           <CardHeader className='space-y-1'>
             <CardTitle className='text-2xl'>{t('login.title')}</CardTitle>
@@ -94,7 +94,7 @@ export function Login() {
             <div className='flex justify-center py-8'>
               <div className='h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent'></div>
             </div>
-            <p className='text-center text-sm text-gray-500'>{t('login.validating')}</p>
+            <p className='text-center text-sm text-muted-foreground'>{t('login.validating')}</p>
           </CardContent>
         </Card>
       </div>
@@ -102,7 +102,7 @@ export function Login() {
   }
 
   return (
-    <div className='flex min-h-screen items-center justify-center bg-gray-50'>
+    <div className='flex min-h-screen items-center justify-center bg-background'>
       <Card className='w-full max-w-md'>
         <CardHeader className='space-y-1'>
           <CardTitle className='text-2xl'>{t('login.title')}</CardTitle>
@@ -120,7 +120,7 @@ export function Login() {
                 placeholder={t('login.apiKeyPlaceholder')}
               />
             </div>
-            <p className='text-sm text-gray-500'>{t('login.keyHint')}</p>
+            <p className='text-sm text-muted-foreground'>{t('login.keyHint')}</p>
             {error && <div className='text-sm text-red-500'>{error}</div>}
           </CardContent>
           <CardFooter>

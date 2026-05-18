@@ -1,21 +1,56 @@
 import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useOutletContext } from 'react-router-dom'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import { useConfig } from './ConfigProvider'
-import { Combobox } from './ui/combobox'
+import { SelectCombobox } from './SelectCombobox'
+import type { ShellOutletContext } from './AppShell'
 
 interface EnabledModel {
   provider: string
   model: string
 }
 
+const routerSchema = z.object({
+  default: z.string(),
+  background: z.string(),
+  think: z.string(),
+  longContext: z.string(),
+  longContextThreshold: z.coerce.number().int().positive(),
+  webSearch: z.string(),
+  image: z.string(),
+  forceUseImageAgent: z.string(),
+})
+
+type RouterFormValues = z.infer<typeof routerSchema>
+
 export function Router() {
   const { t } = useTranslation()
   const { config, setConfig } = useConfig()
+  const { showToast } = useOutletContext<ShellOutletContext>()
   const [models, setModels] = useState<EnabledModel[]>([])
+
+  const form = useForm<RouterFormValues>({
+    resolver: zodResolver(routerSchema),
+    defaultValues: {
+      default: '',
+      background: '',
+      think: '',
+      longContext: '',
+      longContextThreshold: 60000,
+      webSearch: '',
+      image: '',
+      forceUseImageAgent: 'false',
+    },
+  })
 
   // The Router only ever offers enabled models. The backend decides
   // that (GET /api/models returns Model.enabled rows only); this just
@@ -27,149 +62,230 @@ export function Router() {
       .catch((err) => console.error('Failed to load enabled models:', err))
   }, [])
 
-  // Handle case where config is null or undefined
-  if (!config) {
-    return (
-      <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-        <CardHeader className='border-b px-6 py-4'>
-          <CardTitle className='text-lg'>{t('router.title')}</CardTitle>
-        </CardHeader>
-        <CardContent className='flex-grow flex items-center justify-center px-6 py-4'>
-          <div className='text-gray-500'>Loading router configuration...</div>
-        </CardContent>
-      </Card>
-    )
-  }
+  useEffect(() => {
+    if (!config) return
+    const r = config.Router || {}
+    form.reset({
+      default: r.default || '',
+      background: r.background || '',
+      think: r.think || '',
+      longContext: r.longContext || '',
+      longContextThreshold: r.longContextThreshold || 60000,
+      webSearch: r.webSearch || '',
+      image: r.image || '',
+      forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false',
+    })
+  }, [config, form])
 
-  // Handle case where config.Router is null or undefined
-  const routerConfig = config.Router || {
-    default: '',
-    background: '',
-    think: '',
-    longContext: '',
-    longContextThreshold: 60000,
-    webSearch: '',
-    image: ''
-  }
-
-  const handleRouterChange = (field: string, value: string | number) => {
-    // Handle case where config.Router might be null or undefined
-    const currentRouter = config.Router || {}
-    const newRouter = { ...currentRouter, [field]: value }
-    setConfig({ ...config, Router: newRouter })
-  }
-
-  const handleForceUseImageAgentChange = (value: boolean) => {
-    setConfig({ ...config, forceUseImageAgent: value })
-  }
+  if (!config) return null
 
   const modelOptions = models.map(({ provider, model }) => ({
     value: `${provider},${model}`,
-    label: `${provider}, ${model}`
+    label: `${provider}, ${model}`,
   }))
 
+  const onSubmit = async (values: RouterFormValues) => {
+    const updated = {
+      ...config,
+      Router: {
+        default: values.default,
+        background: values.background,
+        think: values.think,
+        longContext: values.longContext,
+        longContextThreshold: values.longContextThreshold,
+        webSearch: values.webSearch,
+        image: values.image,
+      },
+      forceUseImageAgent: values.forceUseImageAgent === 'true',
+    }
+    setConfig(updated)
+    try {
+      const response = await api.updateConfig(updated)
+      if (response && typeof response === 'object' && 'success' in response) {
+        const res = response as { success: boolean; message?: string }
+        showToast(
+          res.message || t(res.success ? 'app.config_saved_success' : 'app.config_saved_failed'),
+          res.success ? 'success' : 'error'
+        )
+      } else {
+        showToast(t('app.config_saved_success'), 'success')
+      }
+    } catch (err) {
+      showToast(`${t('app.config_saved_failed')}: ${(err as Error).message}`, 'error')
+    }
+  }
+
   return (
-    <Card className='flex h-full flex-col border-0 bg-white shadow-none'>
-      <CardHeader className='border-b px-6 py-4'>
-        <CardTitle className='text-lg'>{t('router.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className='flex-grow space-y-5 overflow-y-auto px-6 py-4'>
-        <div className='space-y-2'>
-          <Label>{t('router.default')}</Label>
-          <Combobox
-            options={modelOptions}
-            value={routerConfig.default || ''}
-            onChange={(value) => handleRouterChange('default', value)}
-            placeholder={t('router.selectModel')}
-            searchPlaceholder={t('router.searchModel')}
-            emptyPlaceholder={t('router.noModelFound')}
-          />
-        </div>
-        <div className='space-y-2'>
-          <Label>{t('router.background')}</Label>
-          <Combobox
-            options={modelOptions}
-            value={routerConfig.background || ''}
-            onChange={(value) => handleRouterChange('background', value)}
-            placeholder={t('router.selectModel')}
-            searchPlaceholder={t('router.searchModel')}
-            emptyPlaceholder={t('router.noModelFound')}
-          />
-        </div>
-        <div className='space-y-2'>
-          <Label>{t('router.think')}</Label>
-          <Combobox
-            options={modelOptions}
-            value={routerConfig.think || ''}
-            onChange={(value) => handleRouterChange('think', value)}
-            placeholder={t('router.selectModel')}
-            searchPlaceholder={t('router.searchModel')}
-            emptyPlaceholder={t('router.noModelFound')}
-          />
-        </div>
-        <div className='space-y-2'>
-          <div className='flex items-center gap-4'>
-            <div className='flex-1'>
-              <Label>{t('router.longContext')}</Label>
-              <Combobox
-                options={modelOptions}
-                value={routerConfig.longContext || ''}
-                onChange={(value) => handleRouterChange('longContext', value)}
-                placeholder={t('router.selectModel')}
-                searchPlaceholder={t('router.searchModel')}
-                emptyPlaceholder={t('router.noModelFound')}
+    <PageContainer>
+      <PageHeader title={t('router.title')} />
+      <PageContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6'>
+              <FormField
+                control={form.control}
+                name='default'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('router.default')}</FormLabel>
+                    <FormControl>
+                      <SelectCombobox
+                        options={modelOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={t('router.selectModel')}
+                        emptyPlaceholder={t('router.noModelFound')}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className='w-48'>
-              <Label>{t('router.longContextThreshold')}</Label>
-              <Input
-                type='number'
-                value={routerConfig.longContextThreshold || 60000}
-                onChange={(e) => handleRouterChange('longContextThreshold', parseInt(e.target.value) || 60000)}
-                placeholder='60000'
+
+              <FormField
+                control={form.control}
+                name='background'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('router.background')}</FormLabel>
+                    <FormControl>
+                      <SelectCombobox
+                        options={modelOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={t('router.selectModel')}
+                        emptyPlaceholder={t('router.noModelFound')}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-          </div>
-        </div>
-        <div className='space-y-2'>
-          <Label>{t('router.webSearch')}</Label>
-          <Combobox
-            options={modelOptions}
-            value={routerConfig.webSearch || ''}
-            onChange={(value) => handleRouterChange('webSearch', value)}
-            placeholder={t('router.selectModel')}
-            searchPlaceholder={t('router.searchModel')}
-            emptyPlaceholder={t('router.noModelFound')}
-          />
-        </div>
-        <div className='space-y-2'>
-          <div className='flex items-center gap-4'>
-            <div className='flex-1'>
-              <Label>{t('router.image')} (beta)</Label>
-              <Combobox
-                options={modelOptions}
-                value={routerConfig.image || ''}
-                onChange={(value) => handleRouterChange('image', value)}
-                placeholder={t('router.selectModel')}
-                searchPlaceholder={t('router.searchModel')}
-                emptyPlaceholder={t('router.noModelFound')}
+
+              <FormField
+                control={form.control}
+                name='think'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('router.think')}</FormLabel>
+                    <FormControl>
+                      <SelectCombobox
+                        options={modelOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={t('router.selectModel')}
+                        emptyPlaceholder={t('router.noModelFound')}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
+
+              <FormField
+                control={form.control}
+                name='webSearch'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('router.webSearch')}</FormLabel>
+                    <FormControl>
+                      <SelectCombobox
+                        options={modelOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={t('router.selectModel')}
+                        emptyPlaceholder={t('router.noModelFound')}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className='flex items-end gap-3 md:col-span-2 xl:col-span-1'>
+                <FormField
+                  control={form.control}
+                  name='longContext'
+                  render={({ field }) => (
+                    <FormItem className='flex-1'>
+                      <FormLabel>{t('router.longContext')}</FormLabel>
+                      <FormControl>
+                        <SelectCombobox
+                          options={modelOptions}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder={t('router.selectModel')}
+                          emptyPlaceholder={t('router.noModelFound')}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='longContextThreshold'
+                  render={({ field }) => (
+                    <FormItem className='w-32 flex-shrink-0'>
+                      <FormLabel>{t('router.longContextThreshold')}</FormLabel>
+                      <FormControl>
+                        <Input type='number' {...field} placeholder='60000' />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className='flex items-end gap-3'>
+                <FormField
+                  control={form.control}
+                  name='image'
+                  render={({ field }) => (
+                    <FormItem className='flex-1'>
+                      <FormLabel>{t('router.image')} (beta)</FormLabel>
+                      <FormControl>
+                        <SelectCombobox
+                          options={modelOptions}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder={t('router.selectModel')}
+                          emptyPlaceholder={t('router.noModelFound')}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='forceUseImageAgent'
+                  render={({ field }) => (
+                    <FormItem className='w-36 flex-shrink-0'>
+                      <FormLabel>{t('router.forceUseImageAgent')}</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className='w-full'>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value='false'>{t('common.no')}</SelectItem>
+                          <SelectItem value='true'>{t('common.yes')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
-            <div className='w-48'>
-              <Label htmlFor='forceUseImageAgent'>{t('router.forceUseImageAgent')}</Label>
-              <select
-                id='forceUseImageAgent'
-                value={config.forceUseImageAgent ? 'true' : 'false'}
-                onChange={(e) => handleForceUseImageAgentChange(e.target.value === 'true')}
-                className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-              >
-                <option value='false'>{t('common.no')}</option>
-                <option value='true'>{t('common.yes')}</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+
+            <Button type='submit'>{t('app.save')}</Button>
+          </form>
+        </Form>
+      </PageContent>
+    </PageContainer>
   )
 }
