@@ -560,6 +560,19 @@ interface SeedRow {
   models: string[]
 }
 
+// Context window for a SUBSCRIPTION (claude-code) Claude model. The
+// docs advertise 1M for Sonnet too, but on the subscription path that
+// 1M needs extra usage the plan doesn't grant — empirically only
+// Opus 4.7 actually serves >200K; everything else is the standard
+// 200K. api_key providers get their real (1M) value from the price
+// scrape via priceSeedService, so this only touches subscription
+// Claude models; undefined leaves contextWindow null (codex/openai
+// subscription, api_key).
+const subscriptionContextWindow = (seed: SeedRow, name: string): number | undefined => {
+  if (seed.authMode !== AuthMode.subscription || !name.startsWith('claude-')) return undefined
+  return name === 'claude-opus-4-7' ? 1_000_000 : 200_000
+}
+
 export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient()): Promise<void> {
   const existing = await prisma.provider.findMany({ include: { models: true } })
   const existingByName = new Map(existing.map((p) => [p.name, p]))
@@ -609,6 +622,7 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
               // their curated default set as enabled; api_key vendor
               // catalogs stay off (DB default) until the user enables.
               enabled: seed.authMode === AuthMode.subscription && !isDeprecatedModel(name),
+              contextWindow: subscriptionContextWindow(seed, name),
               apiStyle: modelApiStyleOverride(name)
             }))
           })
@@ -627,6 +641,7 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
             name,
             deprecated: isDeprecatedModel(name),
             enabled: !isDeprecatedModel(name),
+            contextWindow: subscriptionContextWindow(seed, name),
             apiStyle: modelApiStyleOverride(name)
           }))
         })
@@ -634,6 +649,26 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
       // Resync deprecation flag for already-seeded rows so new entries
       // added to DEPRECATED_MODELS on upgrade reach existing DBs.
       await syncDeprecationFlags(tx, current.id, seed.models)
+      // Same for the subscription Claude context-window rule, so it
+      // reaches DBs whose claude-code models were seeded before the
+      // column existed (Opus 4.7 → 1M, every other Claude → 200K).
+      if (seed.authMode === AuthMode.subscription) {
+        const claudeModels = seed.models.filter((n) => n.startsWith('claude-'))
+        const opus = claudeModels.filter((n) => n === 'claude-opus-4-7')
+        const rest = claudeModels.filter((n) => n !== 'claude-opus-4-7')
+        if (opus.length > 0) {
+          await tx.model.updateMany({
+            where: { providerId: current.id, name: { in: opus } },
+            data: { contextWindow: 1_000_000 }
+          })
+        }
+        if (rest.length > 0) {
+          await tx.model.updateMany({
+            where: { providerId: current.id, name: { in: rest } },
+            data: { contextWindow: 200_000 }
+          })
+        }
+      }
     }
   })
 }
