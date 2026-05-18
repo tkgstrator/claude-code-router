@@ -255,7 +255,7 @@ const DEFAULT_THEME: StatusLineThemeConfig = {
     },
     {
       type: 'speed',
-      icon: '⚡',
+      icon: '',
       text: '{{tokenSpeed}} t/s',
       color: 'bright_red'
     }
@@ -302,7 +302,7 @@ const POWERLINE_THEME: StatusLineThemeConfig = {
     },
     {
       type: 'speed',
-      icon: '⚡',
+      icon: '',
       text: '{{tokenSpeed}} t/s',
       color: 'white',
       background: 'bg_bright_red'
@@ -345,7 +345,7 @@ const SIMPLE_THEME: StatusLineThemeConfig = {
     },
     {
       type: 'speed',
-      icon: '⚡',
+      icon: '',
       text: '{{tokenSpeed}} t/s',
       color: 'bright_red'
     }
