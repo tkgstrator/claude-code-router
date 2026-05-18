@@ -188,18 +188,30 @@ export async function mergeConfig(
 
   // Merge Providers
   if (presetConfig.Providers) {
-    result.Providers = mergeProviders(result.Providers || [], presetConfig.Providers)
+    let baseProviders = result.Providers
+    if (!baseProviders) {
+      baseProviders = []
+    }
+    result.Providers = mergeProviders(baseProviders, presetConfig.Providers)
   }
 
   // Merge Router
   if (presetConfig.Router) {
-    result.Router = await mergeRouter(result.Router || {}, presetConfig.Router, strategy, callbacks?.onRouterConflict)
+    let baseRouter = result.Router
+    if (!baseRouter) {
+      baseRouter = {}
+    }
+    result.Router = await mergeRouter(baseRouter, presetConfig.Router, strategy, callbacks?.onRouterConflict)
   }
 
   // Merge transformers
   if (presetConfig.transformers) {
+    let baseTransformers = result.transformers
+    if (!baseTransformers) {
+      baseTransformers = []
+    }
     result.transformers = await mergeTransformers(
-      result.transformers || [],
+      baseTransformers,
       presetConfig.transformers,
       strategy,
       callbacks?.onTransformerConflict

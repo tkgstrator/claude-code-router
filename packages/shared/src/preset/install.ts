@@ -158,7 +158,8 @@ export async function extractPreset(sourceZip: string, targetDir: string): Promi
 export async function readManifestFromDir(presetDir: string): Promise<ManifestFile> {
   const manifestPath = path.join(presetDir, 'manifest.json')
   const content = await fs.readFile(manifestPath, 'utf-8')
-  return JSON5.parse(content) as ManifestFile
+  const manifest: ManifestFile = JSON5.parse(content)
+  return manifest
 }
 
 /**
@@ -248,7 +249,7 @@ export async function loadPreset(source: string): Promise<PresetFile> {
     // Directory path - read manifest from directory
     const manifestPath = path.join(source, 'manifest.json')
     const content = await fs.readFile(manifestPath, 'utf-8')
-    const manifest = JSON5.parse(content) as ManifestFile
+    const manifest: ManifestFile = JSON5.parse(content)
     return manifestToPresetFile(manifest)
   }
 
@@ -388,7 +389,7 @@ export async function listPresets(): Promise<PresetInfo[]> {
 
         // Read manifest.json
         const content = await fs.readFile(manifestPath, 'utf-8')
-        const manifest = JSON5.parse(content) as ManifestFile
+        const manifest: ManifestFile = JSON5.parse(content)
 
         // Get directory creation time
         const _stats = await fs.stat(presetDir)
