@@ -43,20 +43,26 @@ export function Router() {
   const form = useForm<RouterFormValues>({
     resolver: zodResolver(routerSchema),
     defaultValues: {
+      default: '',
+      background: '',
+      think: '',
+      longContext: '',
       longContextThreshold: 60000,
+      webSearch: '',
+      image: '',
       forceUseImageAgent: 'false'
     },
     values: config
       ? (() => {
           const r = config.Router || {}
           return {
-            default: r.default,
-            background: r.background,
-            think: r.think,
-            longContext: r.longContext,
+            default: r.default || '',
+            background: r.background || '',
+            think: r.think || '',
+            longContext: r.longContext || '',
             longContextThreshold: r.longContextThreshold || 60000,
-            webSearch: r.webSearch,
-            image: r.image,
+            webSearch: r.webSearch || '',
+            image: r.image || '',
             forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
           }
         })()

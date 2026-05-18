@@ -45,19 +45,25 @@ export function SettingsPage() {
     defaultValues: {
       LOG: false,
       LOG_LEVEL: 'info',
-      PORT: 3000
+      CLAUDE_PATH: '',
+      HOST: '',
+      PORT: 3000,
+      API_TIMEOUT_MS: '',
+      PROXY_URL: '',
+      APIKEY: '',
+      CUSTOM_ROUTER_PATH: ''
     },
     values: config
       ? {
           LOG: config.LOG || false,
           LOG_LEVEL: config.LOG_LEVEL || 'info',
-          CLAUDE_PATH: config.CLAUDE_PATH,
-          HOST: config.HOST,
+          CLAUDE_PATH: config.CLAUDE_PATH || '',
+          HOST: config.HOST || '',
           PORT: config.PORT || 3000,
-          API_TIMEOUT_MS: config.API_TIMEOUT_MS,
-          PROXY_URL: config.PROXY_URL,
-          APIKEY: config.APIKEY,
-          CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH
+          API_TIMEOUT_MS: config.API_TIMEOUT_MS || '',
+          PROXY_URL: config.PROXY_URL || '',
+          APIKEY: config.APIKEY || '',
+          CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH || ''
         }
       : undefined
   })
