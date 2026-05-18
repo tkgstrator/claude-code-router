@@ -23,6 +23,8 @@ export interface OfficialPricingEntry {
   outputPer1M: number
   /** True when the model appears under the vendor's "legacy" / "deprecated" surface on its pricing page. */
   legacy?: boolean
+  /** Max context window in tokens, when the vendor publishes it. */
+  contextWindow?: number
 }
 
 export interface VendorPriceFile {
@@ -30,7 +32,7 @@ export interface VendorPriceFile {
   source: string
   lastChecked: string
   notes?: string[]
-  prices: Record<string, { input: number; output: number; legacy?: boolean }>
+  prices: Record<string, { input: number; output: number; legacy?: boolean; context?: number }>
 }
 
 const FILES: VendorPriceFile[] = [openai, anthropic, google] as VendorPriceFile[]
@@ -42,6 +44,7 @@ const buildLookup = (): Record<string, Record<string, OfficialPricingEntry>> => 
     for (const [id, entry] of Object.entries(file.prices)) {
       const out: OfficialPricingEntry = { inputPer1M: entry.input, outputPer1M: entry.output }
       if (entry.legacy) out.legacy = true
+      if (entry.context != null) out.contextWindow = entry.context
       vendorMap[id] = out
     }
     out[file.vendor] = vendorMap

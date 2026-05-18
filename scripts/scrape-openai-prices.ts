@@ -98,7 +98,7 @@ const tables = await page.evaluate((): RawTable[] => {
   return out
 }, undefined)
 
-await browser.close()
+// browser stays open — per-model context windows are fetched below.
 
 // --- Parsers ---------------------------------------------------------------
 
@@ -280,6 +280,7 @@ interface OutEntry {
   input: number
   output: number
   legacy?: boolean
+  context?: number
 }
 
 const prices: Record<string, OutEntry> = {}
@@ -299,6 +300,37 @@ if (Object.keys(prices).length === 0) {
 
 const sorted: Record<string, OutEntry> = {}
 for (const id of Object.keys(prices).sort()) sorted[id] = prices[id]
+
+// Context window is not on the pricing page — each model has a detail
+// page at /api/docs/models/<id> whose body shows e.g.
+// "1,050,000 context window". Fetch it for current (non-legacy) models;
+// pages that 404 or omit the figure are skipped (context is optional).
+const ctxRe = /([0-9][0-9,]*)\s*context window/i
+let ctxHits = 0
+for (const id of Object.keys(sorted)) {
+  if (sorted[id].legacy) continue
+  try {
+    const resp = await page.goto(`https://developers.openai.com/api/docs/models/${id}`, {
+      waitUntil: 'networkidle',
+      timeout: 30_000
+    })
+    if (!resp || !resp.ok()) continue
+    const body = await page.evaluate(() => document.body.innerText || '')
+    const m = body.match(ctxRe)
+    if (m) {
+      const n = Number(m[1].replace(/,/g, ''))
+      if (Number.isFinite(n) && n > 0) {
+        sorted[id].context = n
+        ctxHits++
+      }
+    }
+  } catch {
+    // Missing page / nav timeout — leave context unset for this model.
+  }
+}
+console.error(`Resolved context window for ${ctxHits} model id(s)`)
+
+await browser.close()
 
 const payload = {
   vendor: 'openai',
