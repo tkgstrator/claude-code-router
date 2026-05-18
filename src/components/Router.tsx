@@ -19,15 +19,17 @@ interface EnabledModel {
   model: string
 }
 
+const optionalStr = z.preprocess((v) => (v === '' ? undefined : v), z.string().nonempty().optional())
+
 const routerSchema = z.object({
-  default: z.string(),
-  background: z.string(),
-  think: z.string(),
-  longContext: z.string(),
+  default: optionalStr,
+  background: optionalStr,
+  think: optionalStr,
+  longContext: optionalStr,
   longContextThreshold: z.number().int().positive(),
-  webSearch: z.string(),
-  image: z.string(),
-  forceUseImageAgent: z.string()
+  webSearch: optionalStr,
+  image: optionalStr,
+  forceUseImageAgent: z.string().nonempty()
 })
 
 type RouterFormValues = z.infer<typeof routerSchema>
@@ -41,15 +43,24 @@ export function Router() {
   const form = useForm<RouterFormValues>({
     resolver: zodResolver(routerSchema),
     defaultValues: {
-      default: '',
-      background: '',
-      think: '',
-      longContext: '',
       longContextThreshold: 60000,
-      webSearch: '',
-      image: '',
       forceUseImageAgent: 'false'
-    }
+    },
+    values: config
+      ? (() => {
+          const r = config.Router || {}
+          return {
+            default: r.default,
+            background: r.background,
+            think: r.think,
+            longContext: r.longContext,
+            longContextThreshold: r.longContextThreshold || 60000,
+            webSearch: r.webSearch,
+            image: r.image,
+            forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
+          }
+        })()
+      : undefined
   })
 
   // The Router only ever offers enabled models. The backend decides
@@ -61,21 +72,6 @@ export function Router() {
       .then((data) => setModels(data.models))
       .catch((err) => console.error('Failed to load enabled models:', err))
   }, [])
-
-  useEffect(() => {
-    if (!config) return
-    const r = config.Router || {}
-    form.reset({
-      default: r.default || '',
-      background: r.background || '',
-      think: r.think || '',
-      longContext: r.longContext || '',
-      longContextThreshold: r.longContextThreshold || 60000,
-      webSearch: r.webSearch || '',
-      image: r.image || '',
-      forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
-    })
-  }, [config, form])
 
   if (!config) return null
 
@@ -229,7 +225,7 @@ export function Router() {
                     <FormItem className='w-32 flex-shrink-0'>
                       <FormLabel>{t('router.longContextThreshold')}</FormLabel>
                       <FormControl>
-                        <Input type='number' {...field} placeholder='60000' valueAsNumber onChange={(e) => field.onChange(e.target.valueAsNumber)} />
+                        <Input type='number' {...field} placeholder='60000' onChange={(e) => field.onChange(e.target.valueAsNumber)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

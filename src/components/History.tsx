@@ -118,7 +118,7 @@ export function HistoryPage() {
                 const isActive = selected?.sessionId === session.sessionId
                 return (
                   <li
-                    key={session.sessionId ?? '_null_'}
+                    key={session.sessionId}
                     className={`group relative px-4 py-2.5 cursor-pointer border-b transition-colors ${
                       isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
                     }`}
@@ -173,7 +173,6 @@ function SessionDetail({ session }: { session: SessionSummary }) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!session.sessionId) return
     setLoadingLogs(true)
     api
       .getSessionLogs(session.sessionId)
@@ -204,7 +203,7 @@ function SessionDetail({ session }: { session: SessionSummary }) {
       <div className='flex items-start justify-between'>
         <div>
           <p className='text-xs text-muted-foreground font-mono truncate max-w-xs'>
-            {session.sessionId ?? '(no session)'}
+            {session.sessionId}
           </p>
           <h2 className='text-xl font-semibold text-foreground'>{dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}</h2>
         </div>
@@ -249,8 +248,7 @@ function SessionDetail({ session }: { session: SessionSummary }) {
       </div>
 
       {/* Individual requests */}
-      {session.sessionId && (
-        <div>
+      <div>
           <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.requests_list')}</h3>
           {loadingLogs ? (
             <p className='text-sm text-muted-foreground'>{t('history.loading')}</p>
@@ -315,7 +313,6 @@ function SessionDetail({ session }: { session: SessionSummary }) {
             </div>
           )}
         </div>
-      )}
     </div>
   )
 }

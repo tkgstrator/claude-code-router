@@ -7,7 +7,7 @@ interface Option {
 
 interface SelectComboboxProps {
   options: Option[]
-  value: string
+  value: string | undefined
   onChange: (value: string) => void
   placeholder?: string
   emptyPlaceholder?: string
@@ -16,7 +16,7 @@ interface SelectComboboxProps {
 
 export function SelectCombobox({ options, value, onChange, placeholder, disabled }: SelectComboboxProps) {
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
+    <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger className='w-full'>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>

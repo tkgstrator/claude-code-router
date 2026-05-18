@@ -6,6 +6,7 @@ import {
 } from "fastify";
 import { RegisterProviderRequest, LLMProvider } from "@/llms/types/llm";
 import { sendUnifiedRequest } from "@/llms/utils/request";
+import { cacheGet, cacheSet, hashRequest } from "@/llms/utils/responseCache";
 import { createApiError } from "./middleware";
 import { version } from "../../../package.json";
 import { ConfigService } from "@/llms/services/config";
@@ -13,6 +14,7 @@ import { ProviderService } from "@/llms/services/provider";
 import { TransformerService } from "@/llms/services/transformer";
 import { Transformer } from "@/llms/types/transformer";
 import { randomUUID } from "crypto";
+import { getPrismaClient } from "@/db/client";
 
 // Extend FastifyInstance to include custom services
 declare module "fastify" {
@@ -51,7 +53,32 @@ export async function handleTransformerEndpoint(
     );
   }
 
+  // Provider-level response cache (opt-in: set transformer.response_cache_ttl
+  // in the provider config). Cache key is computed from the original body
+  // BEFORE transformers. The cached value is the FINAL (already-transformed)
+  // response so it can be returned verbatim without re-running the pipeline.
+  const rawProviders = (fastify.configService?.get?.("providers") ?? []) as any[];
+  const rawProvider = rawProviders.find((p: any) => p.name === providerName);
+  const cacheTtl = Number(rawProvider?.transformer?.response_cache_ttl || 0);
+  const cacheKey = cacheTtl > 0 ? hashRequest(body) : null;
+
   try {
+    if (cacheKey) {
+      const hit = await cacheGet(cacheKey);
+      if (hit) {
+        const log = (fastify.log ?? console) as any;
+        log.debug?.(
+          { type: "response", provider: provider.name, model: body?.model, fromCache: true },
+          `${provider.name}/${body?.model} (cached)`
+        );
+        return formatResponse(
+          new Response(hit.body, { status: 200, headers: { "content-type": hit.contentType } }),
+          reply,
+          body
+        );
+      }
+    }
+
     // Process request transformer chain
     const { requestBody, config, bypass } = await processRequestTransformers(
       body,
@@ -87,6 +114,15 @@ export async function handleTransformerEndpoint(
         req,
       }
     );
+
+    // Populate cache with the fully-transformed response so cache hits
+    // can be returned directly without re-running the pipeline.
+    if (cacheKey && typeof finalResponse?.clone === "function") {
+      void finalResponse.clone().text().then((text) => {
+        const ct = finalResponse.headers?.get?.("content-type") || "text/event-stream";
+        void cacheSet(cacheKey, { contentType: ct, body: text }, cacheTtl);
+      });
+    }
 
     // Format and return response
     return formatResponse(finalResponse, reply, body);
@@ -296,16 +332,23 @@ function shouldBypassTransformers(
 
 // Best-effort token-usage extraction from a *cloned* response so the
 // completion log can report usage + cache without touching the stream
-// the client consumes. Covers non-stream JSON (`.usage`) and Anthropic
-// SSE (message_start carries input_tokens + cache_*; message_delta the
-// final output_tokens). Never throws.
+// the client consumes. Covers:
+//  - Non-stream JSON: top-level `.usage`
+//  - Anthropic SSE: message_start (input_tokens + cache_*), message_delta (output_tokens)
+//  - OpenAI Responses API SSE: response.completed carries response.usage
+//  - OpenAI chat completions SSE: last chunk may carry top-level usage
+// Never throws.
 async function extractResponseUsage(resp: any): Promise<any | null> {
   try {
     const ct = (resp.headers?.get?.("content-type") || "").toLowerCase();
-    if (!ct.includes("text/event-stream")) {
+    // Explicit JSON response — parse directly.
+    if (ct.includes("application/json")) {
       const j = await resp.json().catch(() => null);
       return j?.usage ?? null;
     }
+    // For SSE (text/event-stream) or unknown content-type (e.g. the codex
+    // backend streams SSE without setting content-type), parse as SSE.
+    // Falls back to JSON if no SSE usage events are found.
     const text = await resp.text();
     let usage: any = null;
     for (const block of text.split("\n\n")) {
@@ -313,17 +356,35 @@ async function extractResponseUsage(resp: any): Promise<any | null> {
         .split("\n")
         .find((l: string) => l.startsWith("data:"));
       if (!dataLine) continue;
+      const raw = dataLine.slice(5).trim();
+      if (raw === "[DONE]") continue;
       let obj: any;
       try {
-        obj = JSON.parse(dataLine.slice(5).trim());
+        obj = JSON.parse(raw);
       } catch {
         continue;
       }
+      // Anthropic SSE
       if (obj?.type === "message_start" && obj.message?.usage) {
         usage = { ...obj.message.usage };
       } else if (obj?.type === "message_delta" && obj.usage) {
         usage = { ...(usage || {}), ...obj.usage };
       }
+      // OpenAI Responses API SSE
+      else if (obj?.type === "response.completed" && obj.response?.usage) {
+        usage = { ...obj.response.usage };
+      }
+      // OpenAI chat completions SSE (usage in last chunk)
+      else if (obj?.usage && typeof obj.usage.prompt_tokens === "number") {
+        usage = { ...obj.usage };
+      }
+    }
+    // JSON fallback: if SSE parsing found nothing but the body is JSON.
+    if (!usage) {
+      try {
+        const j = JSON.parse(text);
+        if (j?.usage) usage = j.usage;
+      } catch {}
     }
     return usage;
   } catch {
@@ -356,6 +417,13 @@ async function sendRequestToProvider(
     fastify.log && typeof fastify.log.child === "function"
       ? fastify.log.child({ reqId })
       : fastify.log;
+
+  // Codex sends `thread_id`; Claude Code sends `x-claude-code-session-id`.
+  const h = context.req?.headers || {};
+  const sessionId: string =
+    (typeof h['thread_id'] === 'string' ? h['thread_id'] : null) ||
+    (typeof h['x-claude-code-session-id'] === 'string' ? h['x-claude-code-session-id'] : null) ||
+    crypto.randomUUID();
   const startedAt = Date.now();
 
   // Metadata only — never the prompt/response bodies. `type: 'request
@@ -489,10 +557,9 @@ async function sendRequestToProvider(
     throw createApiError(message, response.status, "provider_response_error");
   }
 
-  // Completion log with provider / model / token usage / cache. Parse a
-  // clone so the client's stream is untouched, and do it async so the
-  // response isn't delayed; fall back to the basic line if usage can't
-  // be parsed (non-Anthropic shapes, parse errors, no clone support).
+  // Log the response immediately so it always appears in the log even
+  // before the stream is fully consumed. Usage is extracted from a clone
+  // asynchronously and logged separately once the stream ends.
   const baseLog = {
     type: "response",
     provider: provider.name,
@@ -500,26 +567,73 @@ async function sendRequestToProvider(
     status: response.status,
     durationMs,
   };
+  reqLog.debug(
+    baseLog,
+    `${provider.name}/${requestBody?.model} ${response.status} ${durationMs}ms`
+  );
+
   const usageProbe =
     typeof response.clone === "function" ? response.clone() : null;
   if (usageProbe) {
     void extractResponseUsage(usageProbe).then((usage) => {
       if (usage) {
+        // Anthropic: cache_read_input_tokens / cache_creation_input_tokens
+        // OpenAI:    input_tokens_details.cached_tokens
+        // Anthropic: cache_read_input_tokens / cache_creation_input_tokens
+        // OpenAI:    input_tokens_details.cached_tokens
+        const cachedTokens =
+          Number(usage.cache_read_input_tokens || 0) ||
+          Number(usage.input_tokens_details?.cached_tokens || 0);
+        const writtenTokens = Number(usage.cache_creation_input_tokens || 0);
+        const outputTokens =
+          Number(usage.output_tokens || 0) ||
+          Number(usage.completion_tokens || 0);
+        // For Anthropic, input_tokens is only the non-cached portion.
+        // Total = input + cache_creation + cache_read.
+        const rawInput =
+          Number(usage.input_tokens || 0) ||
+          Number(usage.prompt_tokens || 0);
+        const totalInputTokens = rawInput + writtenTokens + cachedTokens;
+        const cacheHitPct =
+          totalInputTokens > 0
+            ? Math.round((cachedTokens / totalInputTokens) * 100)
+            : 0;
         reqLog.debug(
           {
             ...baseLog,
             usage,
-            cacheRead: Number(usage.cache_read_input_tokens || 0) > 0,
-            cacheWrite: Number(usage.cache_creation_input_tokens || 0) > 0,
+            cacheRead: cachedTokens > 0,
+            cacheWrite: writtenTokens > 0,
+            cacheHitPct,
           },
-          "llm response"
+          `${provider.name}/${requestBody?.model} in=${totalInputTokens} out=${outputTokens} cache=${cacheHitPct}%`
         );
-      } else {
-        reqLog.debug(baseLog, "llm response");
+        const prisma = getPrismaClient();
+        const writeLog = async () => {
+          await prisma.session.upsert({
+            where: { id: sessionId },
+            create: { id: sessionId },
+            update: { updatedAt: new Date() },
+          });
+          await prisma.requestLog.create({
+            data: {
+              sessionId,
+              provider: provider.name,
+              model: requestBody?.model ?? 'unknown',
+              inputTokens: rawInput,
+              outputTokens,
+              cacheReadTokens: cachedTokens,
+              cacheWriteTokens: writtenTokens,
+              totalInputTokens,
+              cacheHitPct,
+              durationMs,
+              status: response.status,
+            },
+          });
+        };
+        void writeLog().catch(() => {});
       }
     });
-  } else {
-    reqLog.debug(baseLog, "llm response");
   }
 
   return response;

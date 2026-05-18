@@ -1,5 +1,41 @@
 import type { Config, Provider, Transformer } from '@/types'
 
+export interface RequestLogItem {
+  id: string
+  sessionId: string
+  provider: string
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalInputTokens: number
+  cacheHitPct: number
+  durationMs: number
+  status: number
+  createdAt: string
+  inputCostUsd: number | null
+  outputCostUsd: number | null
+  cacheReadCostUsd: number | null
+  totalCostUsd: number | null
+}
+
+export interface SessionSummary {
+  sessionId: string
+  requestCount: number
+  providers: string[]
+  models: string[]
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCacheReadTokens: number
+  totalCacheWriteTokens: number
+  avgCacheHitPct: number
+  totalDurationMs: number
+  totalCostUsd: number | null
+  firstAt: string
+  lastAt: string
+}
+
 // 日志聚合响应类型
 interface GroupedLogsResponse {
   grouped: boolean
@@ -323,6 +359,42 @@ class ApiClient {
   // Install preset from GitHub repository
   async installPresetFromGitHub(repo: string, name?: string): Promise<any> {
     return this.post<any>('/presets/install/github', { repo, name })
+  }
+
+  // ========== Request log API methods ==========
+
+  async getRequestLogSessions(params?: { limit?: number; offset?: number }): Promise<{
+    sessions: SessionSummary[]
+    total: number
+  }> {
+    const q = new URLSearchParams()
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    if (params?.offset != null) q.set('offset', String(params.offset))
+    const qs = q.toString()
+    return this.get<{ sessions: SessionSummary[]; total: number }>(`/request-logs/sessions${qs ? `?${qs}` : ''}`)
+  }
+
+  async getSessionLogs(sessionId: string): Promise<{ items: RequestLogItem[] }> {
+    return this.get<{ items: RequestLogItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}`)
+  }
+
+  async getRequestLogs(params?: { limit?: number; offset?: number }): Promise<{
+    items: RequestLogItem[]
+    total: number
+  }> {
+    const q = new URLSearchParams()
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    if (params?.offset != null) q.set('offset', String(params.offset))
+    const qs = q.toString()
+    return this.get<{ items: RequestLogItem[]; total: number }>(`/request-logs${qs ? `?${qs}` : ''}`)
+  }
+
+  async deleteRequestLog(id: string): Promise<void> {
+    return this.delete<void>(`/request-logs/${id}`)
+  }
+
+  async deleteAllRequestLogs(): Promise<void> {
+    return this.delete<void>('/request-logs')
   }
 }
 

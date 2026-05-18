@@ -155,6 +155,41 @@ model RouterSlot {
   updatedAt DateTime    @updatedAt
 }
 
+// One row per client session. The id is the raw session token from
+// the upstream client (Codex: thread_id, Claude Code: x-claude-session-id).
+// Using the external ID as PK avoids a surrogate key round-trip on every
+// request: the proxy can upsert by id without fetching first.
+model Session {
+  id        String       @id
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  logs      RequestLog[]
+}
+
+// Per-LLM-request stats: one row per upstream call that reaches the provider.
+// Stored for the History view (model, tokens, cost, cache).
+// No message content is ever stored here.
+model RequestLog {
+  id               String   @id @default(cuid())
+  sessionId        String
+  session          Session  @relation(fields: [sessionId], references: [id])
+  provider         String
+  model            String
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  totalInputTokens Int      @default(0)
+  cacheHitPct      Int      @default(0)
+  durationMs       Int      @default(0)
+  status           Int      @default(200)
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sessionId])
+  @@index([provider, model])
+}
+
 // Time series of subscription utilization, captured on an interval so
 // the Usage view can chart the past week. `metric` is the window key
 // (e.g. claude.five_hour, claude.seven_day, codex.primary). `percent`

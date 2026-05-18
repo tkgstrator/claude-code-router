@@ -105,7 +105,7 @@ export function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogProps) {
                 { label: 'debug', value: 'debug' },
                 { label: 'trace', value: 'trace' }
               ]}
-              value={config.LOG_LEVEL ?? ''}
+              value={config.LOG_LEVEL || ''}
               onChange={(value) => setConfig({ ...config, LOG_LEVEL: value })}
             />
           </div>
