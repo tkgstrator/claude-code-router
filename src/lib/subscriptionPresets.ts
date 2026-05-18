@@ -14,5 +14,6 @@ export const buildSubscriptionProvider = (preset: SubscriptionPreset, name: stri
   api_base_url: preset.apiBaseUrl,
   api_key: '',
   auth_mode: 'subscription',
-  models: [...preset.defaultEnabledModels]
+  models: [...preset.defaultEnabledModels],
+  deprecatedModels: []
 })

@@ -1,85 +1,102 @@
-export interface ProviderTransformer {
-  use: (string | (string | Record<string, unknown> | { max_tokens: number })[])[]
-  // biome-ignore lint/suspicious/noExplicitAny: index signature for model-specific transformers
-  [key: string]: any
-}
+import { z } from 'zod'
 
-export type ProviderAuthMode = 'api_key' | 'subscription'
+export const ProviderTransformerSchema = z
+  .object({
+    use: z.array(
+      z.union([
+        z.string().nonempty(),
+        z.array(z.union([z.string().nonempty(), z.record(z.string().nonempty(), z.unknown())]))
+      ])
+    )
+  })
+  .catchall(z.any())
 
-export interface Provider {
-  name: string
-  api_base_url: string
-  api_key: string
-  auth_mode?: ProviderAuthMode
-  models: string[]
-  // Subset of `models` flagged deprecated server-side. Read-only from
-  // the UI — the server derives it from a vendor-specific registry.
-  deprecatedModels?: string[]
-  // Per-model last real-inference test outcome, keyed by model name.
-  // Populated by the server; updated client-side after a test run.
-  modelTestStatus?: Record<string, { status: 'unknown' | 'ok' | 'fail'; passedAt: string | null }>
-  // Per-model max context window in tokens, keyed by model name.
-  // Server-derived (DB Model.contextWindow).
-  modelContextWindows?: Record<string, number>
-  transformer?: ProviderTransformer
-}
+export const ProviderAuthModeSchema = z.enum(['api_key', 'subscription'])
 
-export interface RouterConfig {
-  default: string
-  background: string
-  think: string
-  longContext: string
-  longContextThreshold: number
-  webSearch: string
-  image: string
-  // biome-ignore lint/suspicious/noExplicitAny: free-form custom router slot
-  custom?: any
-}
+export const ProviderSchema = z.object({
+  name: z.string().nonempty(),
+  api_base_url: z.url(),
+  api_key: z.string().nonempty(),
+  auth_mode: ProviderAuthModeSchema.optional(),
+  models: z.array(z.string().nonempty()),
+  deprecatedModels: z.array(z.string().nonempty()).default([]),
+  modelTestStatus: z
+    .record(
+      z.string().nonempty(),
+      z.object({
+        status: z.enum(['unknown', 'ok', 'fail']),
+        passedAt: z.string().nullable()
+      })
+    )
+    .optional(),
+  modelContextWindows: z.record(z.string().nonempty(), z.number()).optional(),
+  transformer: ProviderTransformerSchema.optional()
+})
 
-export interface Transformer {
-  name?: string
-  path: string
-  // biome-ignore lint/suspicious/noExplicitAny: transformer options are free-form
-  options?: Record<string, any>
-}
+export const RouterConfigSchema = z.object({
+  default: z.string().nonempty(),
+  background: z.string().nonempty(),
+  think: z.string().nonempty(),
+  longContext: z.string().nonempty(),
+  longContextThreshold: z.number(),
+  webSearch: z.string().nonempty(),
+  image: z.string().nonempty(),
+  custom: z.unknown().optional()
+})
 
-export interface StatusLineModuleConfig {
-  type: string
-  icon?: string
-  text: string
-  color?: string
-  background?: string
-  scriptPath?: string // 用于script类型的模块，指定要执行的Node.js脚本文件路径
-}
+export const TransformerSchema = z.object({
+  name: z.string().optional(),
+  path: z.string().nonempty(),
+  options: z.record(z.string().nonempty(), z.any()).optional()
+})
 
-export interface StatusLineThemeConfig {
-  modules: StatusLineModuleConfig[]
-}
+export const StatusLineModuleConfigSchema = z.object({
+  type: z.string().nonempty(),
+  icon: z.string().nonempty().optional(),
+  text: z.string().nonempty(),
+  color: z.string().nonempty().optional(),
+  background: z.string().nonempty().optional(),
+  scriptPath: z.string().nonempty().optional()
+})
 
-export interface StatusLineConfig {
-  enabled: boolean
-  currentStyle: string
-  default: StatusLineThemeConfig
-  powerline: StatusLineThemeConfig
-  fontFamily?: string
-}
+export const StatusLineThemeConfigSchema = z.object({
+  modules: z.array(StatusLineModuleConfigSchema)
+})
 
-export interface Config {
-  Providers: Provider[]
-  Router: RouterConfig
-  transformers: Transformer[]
-  StatusLine?: StatusLineConfig
-  forceUseImageAgent?: boolean
-  // Top-level settings
-  LOG: boolean
-  LOG_LEVEL: string
-  CLAUDE_PATH: string
-  HOST: string
-  PORT: number
-  APIKEY: string
-  API_TIMEOUT_MS: string
-  PROXY_URL: string
-  CUSTOM_ROUTER_PATH?: string
-}
+export const StatusLineConfigSchema = z.object({
+  enabled: z.boolean(),
+  currentStyle: z.string().nonempty(),
+  default: StatusLineThemeConfigSchema,
+  powerline: StatusLineThemeConfigSchema,
+  fontFamily: z.string().nonempty().optional()
+})
 
-export type AccessLevel = 'restricted' | 'full'
+export const ConfigSchema = z.object({
+  Providers: z.array(ProviderSchema),
+  Router: RouterConfigSchema,
+  transformers: z.array(TransformerSchema),
+  StatusLine: StatusLineConfigSchema.optional(),
+  forceUseImageAgent: z.boolean().optional(),
+  LOG: z.boolean(),
+  LOG_LEVEL: z.string().nonempty(),
+  CLAUDE_PATH: z.string().nonempty(),
+  HOST: z.string().nonempty(),
+  PORT: z.number(),
+  APIKEY: z.string().nonempty(),
+  API_TIMEOUT_MS: z.string().nonempty(),
+  PROXY_URL: z.url(),
+  CUSTOM_ROUTER_PATH: z.string().nonempty().optional()
+})
+
+export const AccessLevelSchema = z.enum(['restricted', 'full'])
+
+export type ProviderTransformer = z.infer<typeof ProviderTransformerSchema>
+export type ProviderAuthMode = z.infer<typeof ProviderAuthModeSchema>
+export type Provider = z.infer<typeof ProviderSchema>
+export type RouterConfig = z.infer<typeof RouterConfigSchema>
+export type Transformer = z.infer<typeof TransformerSchema>
+export type StatusLineModuleConfig = z.infer<typeof StatusLineModuleConfigSchema>
+export type StatusLineThemeConfig = z.infer<typeof StatusLineThemeConfigSchema>
+export type StatusLineConfig = z.infer<typeof StatusLineConfigSchema>
+export type Config = z.infer<typeof ConfigSchema>
+export type AccessLevel = z.infer<typeof AccessLevelSchema>

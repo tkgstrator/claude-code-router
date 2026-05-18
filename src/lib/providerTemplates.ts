@@ -30,6 +30,7 @@ const toUiProvider = (seed: SeedProvider): Provider => ({
   api_base_url: seed.apiBaseUrl,
   api_key: '',
   models: seed.models,
+  deprecatedModels: [],
   ...(seed.transformer ? { transformer: seed.transformer } : {})
 })
 
