@@ -63,7 +63,7 @@
     "provider": "Provider",
     "model": "Model",
     "status": "Status",
-    "routes": "Routes",
+    "context_window": "Context",
     "test": "Test",
     "test_all": "Test all",
     "filter_provider": "Provider",

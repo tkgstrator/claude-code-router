@@ -22,6 +22,7 @@ import type { Provider } from '@/types'
 export interface ModelPricing {
   inputPer1M: number
   outputPer1M: number
+  contextWindow?: number
 }
 
 const toUiProvider = (seed: SeedProvider): Provider => ({

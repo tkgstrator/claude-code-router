@@ -63,7 +63,7 @@
     "provider": "供应商",
     "model": "模型",
     "status": "状态",
-    "routes": "路由",
+    "context_window": "上下文",
     "test": "测试",
     "test_all": "全部测试",
     "filter_provider": "供应商",
