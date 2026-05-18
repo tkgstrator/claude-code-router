@@ -17,6 +17,9 @@ export interface Provider {
   // Per-model last real-inference test outcome, keyed by model name.
   // Populated by the server; updated client-side after a test run.
   modelTestStatus?: Record<string, { status: 'unknown' | 'ok' | 'fail'; passedAt: string | null }>
+  // Per-model max context window in tokens, keyed by model name.
+  // Server-derived (DB Model.contextWindow).
+  modelContextWindows?: Record<string, number>
   transformer?: ProviderTransformer
 }
 
