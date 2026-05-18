@@ -45,7 +45,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: ./node_modules/.bin/biome check
+      - run: ./node_modules/.bin/biome check --max-diagnostics=100
 
   typecheck:
     name: Type Check
