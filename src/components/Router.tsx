@@ -24,7 +24,7 @@ const routerSchema = z.object({
   background: z.string(),
   think: z.string(),
   longContext: z.string(),
-  longContextThreshold: z.coerce.number().int().positive(),
+  longContextThreshold: z.number().int().positive(),
   webSearch: z.string(),
   image: z.string(),
   forceUseImageAgent: z.string()
@@ -229,7 +229,7 @@ export function Router() {
                     <FormItem className='w-32 flex-shrink-0'>
                       <FormLabel>{t('router.longContextThreshold')}</FormLabel>
                       <FormControl>
-                        <Input type='number' {...field} placeholder='60000' />
+                        <Input type='number' {...field} placeholder='60000' valueAsNumber onChange={(e) => field.onChange(e.target.valueAsNumber)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

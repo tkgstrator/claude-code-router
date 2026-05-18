@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SelectCombobox as Combobox } from '@/components/SelectCombobox'
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -105,7 +105,7 @@ export function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogProps) {
                 { label: 'debug', value: 'debug' },
                 { label: 'trace', value: 'trace' }
               ]}
-              value={config.LOG_LEVEL}
+              value={config.LOG_LEVEL ?? ''}
               onChange={(value) => setConfig({ ...config, LOG_LEVEL: value })}
             />
           </div>

@@ -2,7 +2,7 @@ import { ChevronRight, Clock, History, Layers, RefreshCw, Trash2, Zap } from 'lu
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { api, type RequestLogItem, type SessionSummary } from '@/lib/api'
+import { type RequestLogItem, type SessionSummary, api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 
 function fmtTokens(n: number): string {

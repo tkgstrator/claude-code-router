@@ -1,31 +1,31 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
+import { useOutletContext } from 'react-router-dom'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SelectCombobox } from './SelectCombobox'
-import type { StatusLineConfig } from '@/types'
-import { useConfig } from './ConfigProvider'
-import { StatusLineConfigDialog } from './StatusLineConfigDialog'
-import { useOutletContext } from 'react-router-dom'
-import type { ShellOutletContext } from './AppShell'
 import { api } from '@/lib/api'
+import type { StatusLineConfig } from '@/types'
+import type { ShellOutletContext } from './AppShell'
+import { useConfig } from './ConfigProvider'
 import { PageContainer, PageContent, PageHeader } from './PageLayout'
+import { SelectCombobox } from './SelectCombobox'
+import { StatusLineConfigDialog } from './StatusLineConfigDialog'
 
 const settingsSchema = z.object({
   LOG: z.boolean(),
   LOG_LEVEL: z.string(),
   CLAUDE_PATH: z.string(),
   HOST: z.string(),
-  PORT: z.coerce.number().int().positive(),
+  PORT: z.number().int().positive(),
   API_TIMEOUT_MS: z.string(),
   PROXY_URL: z.string(),
   APIKEY: z.string(),
-  CUSTOM_ROUTER_PATH: z.string(),
+  CUSTOM_ROUTER_PATH: z.string()
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
@@ -49,8 +49,8 @@ export function SettingsPage() {
       API_TIMEOUT_MS: '',
       PROXY_URL: '',
       APIKEY: '',
-      CUSTOM_ROUTER_PATH: '',
-    },
+      CUSTOM_ROUTER_PATH: ''
+    }
   })
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function SettingsPage() {
       API_TIMEOUT_MS: config.API_TIMEOUT_MS ?? '',
       PROXY_URL: config.PROXY_URL ?? '',
       APIKEY: config.APIKEY ?? '',
-      CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH ?? '',
+      CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH ?? ''
     })
   }, [config, form])
 
@@ -75,7 +75,7 @@ export function SettingsPage() {
       enabled: checked,
       currentStyle: config.StatusLine?.currentStyle || 'default',
       default: config.StatusLine?.default || { modules: [] },
-      powerline: config.StatusLine?.powerline || { modules: [] },
+      powerline: config.StatusLine?.powerline || { modules: [] }
     }
     setConfig({ ...config, StatusLine: newStatusLine })
   }
@@ -105,7 +105,6 @@ export function SettingsPage() {
       <PageContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='max-w-2xl space-y-6'>
-
             <FormField
               control={form.control}
               name='LOG'
@@ -183,7 +182,7 @@ export function SettingsPage() {
                 <FormItem>
                   <FormLabel>{t('toplevel.port')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} />
+                    <Input type='number' {...field} valueAsNumber onChange={(e) => field.onChange(e.target.valueAsNumber)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
