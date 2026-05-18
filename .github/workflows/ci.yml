@@ -45,7 +45,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bunx @biomejs/biome check
+      - run: ./node_modules/.bin/biome check
 
   typecheck:
     name: Type Check
