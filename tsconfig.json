@@ -15,7 +15,7 @@
       // More specific than @/* — routes the vendored llms imports to
       // an `any` stub for typecheck only (Vite resolves the real
       // source at runtime). Keeps llms' loose types out of `tsc`.
-      "@/llms/*": ["src/llms-vendor.d.ts"],
+      "@/llms/*": ["src/llms-vendor.ts"],
       "@/*": ["src/*"]
     },
     "noEmit": true

@@ -53,7 +53,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.background).toBe('openai,gpt-5-nano')
     expect(ui.Router.longContext).toBe('openai,gpt-5')
     expect(ui.Router.longContextThreshold).toBe(60_000)
-    expect(ui.Router.think).toBe('')
+    expect(ui.Router.think).toBeNull()
   })
 
   test('removing a model nulls any RouterSlot that referenced it and warns', async () => {
@@ -83,7 +83,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
 
     expect(result.warnings.some((w) => w.includes('gpt-5-nano'))).toBe(true)
     const ui = await composeUiConfig()
-    expect(ui.Router.default).toBe('')
+    expect(ui.Router.default).toBeNull()
   })
 
   test('deleting a provider cascades models and nulls bound slots', async () => {
@@ -128,7 +128,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
     const ui = await composeUiConfig()
     expect(ui.Providers.map((p) => p.name)).toEqual(['openai'])
     expect(ui.Router.default).toBe('openai,gpt-5')
-    expect(ui.Router.background).toBe('')
+    expect(ui.Router.background).toBeNull()
 
     // Cascade should have removed gemini and gemini's models. Only the
     // single openai model remains, attached to openai.
