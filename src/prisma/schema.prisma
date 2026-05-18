@@ -117,6 +117,11 @@ model Model {
   // didn't cover.
   inputPer1M  Float?
   outputPer1M Float?
+  // Max context window in tokens, scraped from the vendor's model
+  // pages alongside pricing. Null when the vendor doesn't publish it
+  // (older Anthropic ids absent from the comparison table, Gemini
+  // pending, subscription-only models).
+  contextWindow Int?
   // Last real-inference connectivity test outcome + timestamps.
   // testCheckedAt is set on every attempt; testPassedAt only on the
   // most recent success (kept even after a later failure so the UI can
