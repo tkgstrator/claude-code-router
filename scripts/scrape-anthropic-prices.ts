@@ -65,16 +65,30 @@ const overview = await page.evaluate(() => {
   return { headerCells, rows }
 })
 
+// "200K" → 200000, "1M" → 1000000, "200,000 tokens" → 200000. Takes the
+// first number so "200K (1M with beta)" resolves to the standard window.
+const parseContext = (raw: string): number | null => {
+  const m = raw.replace(/,/g, '').match(/([0-9]+(?:\.[0-9]+)?)\s*([KM])?/i)
+  if (!m) return null
+  const n = Number(m[1])
+  const unit = (m[2] ?? '').toUpperCase()
+  return Math.round(unit === 'M' ? n * 1e6 : unit === 'K' ? n * 1e3 : n)
+}
+
 const displayToApiId: Record<string, string> = {}
+const displayToContext: Record<string, number> = {}
 if (overview) {
   const apiIdRow = overview.rows.find((r) => /^claude api id$/i.test(r[0] ?? ''))
-  if (apiIdRow) {
-    // headerCells[0] is "Feature"; columns 1..N are display names.
-    for (let i = 1; i < overview.headerCells.length; i++) {
-      const display = overview.headerCells[i]
-      const apiId = apiIdRow[i]
-      if (display && apiId) displayToApiId[display] = apiId
-    }
+  // The comparison table also carries a "Context window" feature row.
+  const ctxRow = overview.rows.find((r) => /context\s*window/i.test(r[0] ?? ''))
+  // headerCells[0] is "Feature"; columns 1..N are display names.
+  for (let i = 1; i < overview.headerCells.length; i++) {
+    const display = overview.headerCells[i]
+    if (!display) continue
+    const apiId = apiIdRow?.[i]
+    if (apiId) displayToApiId[display] = apiId
+    const ctx = ctxRow ? parseContext(ctxRow[i] ?? '') : null
+    if (ctx != null) displayToContext[display] = ctx
   }
 }
 
@@ -144,6 +158,7 @@ interface OutEntry {
   input: number
   output: number
   legacy?: boolean
+  context?: number
 }
 
 // Display names like "Claude Opus 4 (deprecated)" /
@@ -169,9 +184,11 @@ for (const row of pricing.rows) {
     continue
   }
   const legacy = isLegacyDisplay(display)
+  const context = displayToContext[display] ?? displayToContext[cleaned]
   if (!prices[apiId]) {
     const entry: OutEntry = { input, output }
     if (legacy) entry.legacy = true
+    if (context != null) entry.context = context
     prices[apiId] = entry
   }
   // For dated Haiku-style ids, also emit the alias so users routing
@@ -188,6 +205,7 @@ for (const row of pricing.rows) {
       if (!prices[alias]) {
         const aliasEntry: OutEntry = { input, output }
         if (legacy) aliasEntry.legacy = true
+        if (context != null) aliasEntry.context = context
         prices[alias] = aliasEntry
       }
     }
