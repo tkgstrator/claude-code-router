@@ -28,7 +28,8 @@ const settingsSchema = z.object({
   CUSTOM_ROUTER_PATH: z.string().default('')
 })
 
-type SettingsFormValues = z.infer<typeof settingsSchema>
+type SettingsFormInput = z.input<typeof settingsSchema>
+type SettingsFormOutput = z.output<typeof settingsSchema>
 
 const LOG_LEVEL_OPTIONS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'].map((v) => ({ label: v, value: v }))
 
@@ -38,7 +39,7 @@ export function SettingsPage() {
   const { showToast } = useOutletContext<ShellOutletContext>()
   const [isStatusLineConfigOpen, setIsStatusLineConfigOpen] = useState(false)
 
-  const form = useForm<SettingsFormValues>({
+  const form = useForm<SettingsFormInput, unknown, SettingsFormOutput>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       LOG: false,
@@ -78,7 +79,7 @@ export function SettingsPage() {
     setConfig({ ...config, StatusLine: newStatusLine })
   }
 
-  const onSubmit = async (values: SettingsFormValues) => {
+  const onSubmit = async (values: SettingsFormOutput) => {
     const updated = { ...config, ...values }
     setConfig(updated)
     try {

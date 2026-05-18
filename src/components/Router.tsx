@@ -30,7 +30,8 @@ const routerSchema = z.object({
   forceUseImageAgent: z.string().nonempty()
 })
 
-type RouterFormValues = z.infer<typeof routerSchema>
+type RouterFormInput = z.input<typeof routerSchema>
+type RouterFormOutput = z.output<typeof routerSchema>
 
 export function Router() {
   const { t } = useTranslation()
@@ -38,7 +39,7 @@ export function Router() {
   const { showToast } = useOutletContext<ShellOutletContext>()
   const [models, setModels] = useState<EnabledModel[]>([])
 
-  const form = useForm<RouterFormValues>({
+  const form = useForm<RouterFormInput, unknown, RouterFormOutput>({
     resolver: zodResolver(routerSchema),
     defaultValues: {
       default: '',
@@ -84,7 +85,7 @@ export function Router() {
     label: `${provider}, ${model}`
   }))
 
-  const onSubmit = async (values: RouterFormValues) => {
+  const onSubmit = async (values: RouterFormOutput) => {
     const updated = {
       ...config,
       Router: {
@@ -229,7 +230,12 @@ export function Router() {
                     <FormItem className='w-32 flex-shrink-0'>
                       <FormLabel>{t('router.longContextThreshold')}</FormLabel>
                       <FormControl>
-                        <Input type='number' {...field} placeholder='60000' onChange={(e) => field.onChange(e.target.valueAsNumber)} />
+                        <Input
+                          type='number'
+                          {...field}
+                          placeholder='60000'
+                          onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

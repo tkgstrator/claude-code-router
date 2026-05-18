@@ -2,7 +2,7 @@ import { ChevronRight, Clock, History, Layers, RefreshCw, Trash2, Zap } from 'lu
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { type RequestLogItem, type SessionSummary, api } from '@/lib/api'
+import { api, type RequestLogItem, type SessionSummary } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 
 function fmtTokens(n: number): string {
@@ -202,9 +202,7 @@ function SessionDetail({ session }: { session: SessionSummary }) {
       {/* Header */}
       <div className='flex items-start justify-between'>
         <div>
-          <p className='text-xs text-muted-foreground font-mono truncate max-w-xs'>
-            {session.sessionId}
-          </p>
+          <p className='text-xs text-muted-foreground font-mono truncate max-w-xs'>{session.sessionId}</p>
           <h2 className='text-xl font-semibold text-foreground'>{dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}</h2>
         </div>
         <div className='text-right'>
@@ -249,70 +247,68 @@ function SessionDetail({ session }: { session: SessionSummary }) {
 
       {/* Individual requests */}
       <div>
-          <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.requests_list')}</h3>
-          {loadingLogs ? (
-            <p className='text-sm text-muted-foreground'>{t('history.loading')}</p>
-          ) : (
-            <div className='space-y-1'>
-              {logs.map((log) => (
-                <div key={log.id} className='border rounded-lg overflow-hidden'>
-                  <button
-                    type='button'
-                    className='w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted transition-colors'
-                    onClick={() => setExpanded(expanded === log.id ? null : log.id)}
-                  >
-                    <div className='flex items-center gap-2'>
-                      <Clock className='h-3.5 w-3.5 text-muted-foreground' />
-                      <span className='text-muted-foreground text-[11px]'>
-                        {dayjs(log.createdAt).format('HH:mm:ss')}
-                      </span>
-                      <span className='font-mono text-xs text-foreground'>{log.model}</span>
+        <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.requests_list')}</h3>
+        {loadingLogs ? (
+          <p className='text-sm text-muted-foreground'>{t('history.loading')}</p>
+        ) : (
+          <div className='space-y-1'>
+            {logs.map((log) => (
+              <div key={log.id} className='border rounded-lg overflow-hidden'>
+                <button
+                  type='button'
+                  className='w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted transition-colors'
+                  onClick={() => setExpanded(expanded === log.id ? null : log.id)}
+                >
+                  <div className='flex items-center gap-2'>
+                    <Clock className='h-3.5 w-3.5 text-muted-foreground' />
+                    <span className='text-muted-foreground text-[11px]'>{dayjs(log.createdAt).format('HH:mm:ss')}</span>
+                    <span className='font-mono text-xs text-foreground'>{log.model}</span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-xs text-muted-foreground'>
+                      {fmtTokens(log.totalInputTokens)}↑ {fmtTokens(log.outputTokens)}↓
+                    </span>
+                    <StatusBadge status={log.status} />
+                    <ChevronRight
+                      className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded === log.id ? 'rotate-90' : ''}`}
+                    />
+                  </div>
+                </button>
+                {expanded === log.id && (
+                  <div className='border-t bg-muted px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-1.5 text-xs'>
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>{t('history.detail.input_tokens')}</span>
+                      <span className='font-mono'>{fmtTokens(log.inputTokens)}</span>
                     </div>
-                    <div className='flex items-center gap-2'>
-                      <span className='text-xs text-muted-foreground'>
-                        {fmtTokens(log.totalInputTokens)}↑ {fmtTokens(log.outputTokens)}↓
-                      </span>
-                      <StatusBadge status={log.status} />
-                      <ChevronRight
-                        className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded === log.id ? 'rotate-90' : ''}`}
-                      />
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>{t('history.detail.output_tokens')}</span>
+                      <span className='font-mono'>{fmtTokens(log.outputTokens)}</span>
                     </div>
-                  </button>
-                  {expanded === log.id && (
-                    <div className='border-t bg-muted px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-1.5 text-xs'>
-                      <div className='flex justify-between'>
-                        <span className='text-muted-foreground'>{t('history.detail.input_tokens')}</span>
-                        <span className='font-mono'>{fmtTokens(log.inputTokens)}</span>
-                      </div>
-                      <div className='flex justify-between'>
-                        <span className='text-muted-foreground'>{t('history.detail.output_tokens')}</span>
-                        <span className='font-mono'>{fmtTokens(log.outputTokens)}</span>
-                      </div>
-                      <div className='flex justify-between'>
-                        <span className='text-muted-foreground'>{t('history.detail.cache_read')}</span>
-                        <span className='font-mono'>{fmtTokens(log.cacheReadTokens)}</span>
-                      </div>
-                      <div className='flex justify-between'>
-                        <span className='text-muted-foreground'>{t('history.detail.cache_write')}</span>
-                        <span className='font-mono'>{fmtTokens(log.cacheWriteTokens)}</span>
-                      </div>
-                      <div className='flex justify-between'>
-                        <span className='text-muted-foreground'>{t('history.detail.duration')}</span>
-                        <span className='font-mono'>{fmtMs(log.durationMs)}</span>
-                      </div>
-                      {log.totalCostUsd != null && (
-                        <div className='flex justify-between'>
-                          <span className='text-muted-foreground'>{t('history.detail.estimated_cost')}</span>
-                          <span className='font-mono'>{fmtCost(log.totalCostUsd)}</span>
-                        </div>
-                      )}
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>{t('history.detail.cache_read')}</span>
+                      <span className='font-mono'>{fmtTokens(log.cacheReadTokens)}</span>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>{t('history.detail.cache_write')}</span>
+                      <span className='font-mono'>{fmtTokens(log.cacheWriteTokens)}</span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>{t('history.detail.duration')}</span>
+                      <span className='font-mono'>{fmtMs(log.durationMs)}</span>
+                    </div>
+                    {log.totalCostUsd != null && (
+                      <div className='flex justify-between'>
+                        <span className='text-muted-foreground'>{t('history.detail.estimated_cost')}</span>
+                        <span className='font-mono'>{fmtCost(log.totalCostUsd)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
