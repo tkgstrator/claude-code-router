@@ -134,17 +134,24 @@ const CLAUDE_CODE_IDENTITY =
 // Anthropic system is a string or an array of text blocks. Normalise
 // to an array and guarantee the first block is the Claude Code
 // identity, without duplicating it if the caller already sent it.
-function withClaudeCodeIdentity(system: unknown): { type: "text"; text: string }[] {
-  const blocks: { type: "text"; text: string }[] = [];
-  if (typeof system === "string" && system.length > 0) {
-    blocks.push({ type: "text", text: system });
-  } else if (Array.isArray(system)) {
-    for (const b of system) {
-      if (typeof b === "string") blocks.push({ type: "text", text: b });
-      else if (b && typeof b.text === "string") blocks.push({ type: "text", text: b.text });
-    }
-  }
-  if (blocks[0]?.text === CLAUDE_CODE_IDENTITY) return blocks;
+//
+// Blocks are kept verbatim (only bare strings are wrapped) so any
+// `cache_control` Claude Code attached survives: Anthropic prompt
+// caching is prefix-based, and rebuilding blocks as plain {type,text}
+// dropped the cache breakpoints, re-billing the whole system/tools
+// prefix as fresh input every turn. Claude Code already sends the
+// identity as its first system block, so the normal path is a no-op.
+function withClaudeCodeIdentity(system: unknown): any[] {
+  const blocks: any[] =
+    typeof system === "string"
+      ? system.length > 0
+        ? [{ type: "text", text: system }]
+        : []
+      : Array.isArray(system)
+        ? system.map((b) => (typeof b === "string" ? { type: "text", text: b } : b))
+        : [];
+  const firstText = typeof blocks[0]?.text === "string" ? blocks[0].text : "";
+  if (firstText.startsWith(CLAUDE_CODE_IDENTITY)) return blocks;
   return [{ type: "text", text: CLAUDE_CODE_IDENTITY }, ...blocks];
 }
 
