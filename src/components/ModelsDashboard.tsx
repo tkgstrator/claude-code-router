@@ -28,6 +28,7 @@ interface ModelRow {
   enabled: boolean
   isSubscription: boolean
   deprecated: boolean
+  contextWindow?: number
 }
 
 // 1_000_000 → "1M", 200_000 → "200K", else the raw count. Null when the
@@ -101,11 +102,12 @@ export function ModelsDashboard() {
         : []
       const isSubscription = provider.auth_mode === 'subscription'
       const deprecatedSet = new Set(provider.deprecatedModels ?? [])
+      const ctxMap = provider.modelContextWindows ?? {}
       return models.map((model) => {
         const key = `${providerName},${model}`
         const enabled = !disabledList.includes(model)
         const deprecated = deprecatedSet.has(model)
-        return { provider: providerName, model, key, enabled, isSubscription, deprecated }
+        return { provider: providerName, model, key, enabled, isSubscription, deprecated, contextWindow: ctxMap[model] }
       })
     })
     // No active sort: keep the natural order — providers in config order,
@@ -384,8 +386,8 @@ export function ModelsDashboard() {
                     </div>
                   </td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
-                    {formatContext(MODEL_PRICING[row.model]?.contextWindow) ? (
-                      <span>{formatContext(MODEL_PRICING[row.model]?.contextWindow)}</span>
+                    {formatContext(row.contextWindow) ? (
+                      <span>{formatContext(row.contextWindow)}</span>
                     ) : (
                       <span className='text-gray-300'>—</span>
                     )}

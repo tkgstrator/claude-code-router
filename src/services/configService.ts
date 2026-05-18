@@ -69,6 +69,9 @@ type UiProvider = {
   // Parallel map so `models` stays a plain string[]; absent when no
   // model has been tested.
   modelTestStatus?: Record<string, { status: 'unknown' | 'ok' | 'fail'; passedAt: string | null }>
+  // Per-model max context window in tokens, keyed by model name.
+  // Parallel map (like the two above); absent when no model has one.
+  modelContextWindows?: Record<string, number>
   transformer?: Record<string, unknown>
 }
 
@@ -162,6 +165,8 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
       }
     ])
   )
+  const withContext = p.models.filter((m) => m.contextWindow != null)
+  const modelContextWindows = Object.fromEntries(withContext.map((m) => [m.name, m.contextWindow as number]))
   return {
     name: p.name,
     api_base_url: p.apiBaseUrl,
@@ -171,6 +176,7 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
     models: p.models.map((m) => m.name),
     ...(deprecatedModels.length > 0 ? { deprecatedModels } : {}),
     ...(tested.length > 0 ? { modelTestStatus } : {}),
+    ...(withContext.length > 0 ? { modelContextWindows } : {}),
     // transformer is stored as JSONB; we re-derive _disabledModels from
     // Model.enabled so the UI sees the DB truth (the column on disk no
     // longer carries _disabledModels — see applyProviders).
