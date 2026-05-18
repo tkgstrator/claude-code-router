@@ -350,6 +350,16 @@ async function sendRequestToProvider(
       requestBody = auth.body;
       let headers = config.headers || {};
       if (auth.config?.headers) {
+        // The client authenticated to THIS proxy (x-api-key or
+        // Authorization: Bearer <gateway key>). Drop every case variant
+        // before merging the transformer's upstream auth — otherwise the
+        // inbound lowercase `authorization` survives alongside the
+        // capitalized one and, because Headers.set() is case-insensitive,
+        // the gateway key overwrites the OAuth bearer and 401s upstream.
+        for (const k of Object.keys(headers)) {
+          const lk = k.toLowerCase();
+          if (lk === "authorization" || lk === "x-api-key") delete headers[k];
+        }
         headers = {
           ...headers,
           ...auth.config.headers,
@@ -404,7 +414,7 @@ async function sendRequestToProvider(
     const errorText = await response.text();
     const isSubscription =
       typeof transformer?.name === "string" &&
-      transformer.name.endsWith("-credentials");
+      transformer.name.endsWith("-oauth");
     // Keep this message byte-for-byte: v1Route's PROVIDER_ERR_RE parses
     // exactly "Error from provider(<name>,<model>: <status>): <rawBody>"
     // to forward the genuine upstream error to Claude Code verbatim.
@@ -420,9 +430,12 @@ async function sendRequestToProvider(
       },
       `[provider_response_error] ${message}`
     );
-    // A 401/403 from a subscription (*-credentials) provider is almost
-    // always an expired/absent OAuth token, not a real API error. Spell
-    // that out instead of leaving a bare "Invalid bearer token".
+    // A 401/403 from a subscription (*-oauth) provider is an
+    // upstream auth rejection. Don't assert a single cause: it can be
+    // absent/expired OAuth creds OR the request reaching the provider
+    // with the wrong bearer (e.g. an inbound gateway credential leaking
+    // upstream). The credentials file is re-read per request, so no
+    // `ccr restart` is needed after re-auth.
     if (
       (response.status === 401 || response.status === 403) &&
       isSubscription
@@ -430,10 +443,10 @@ async function sendRequestToProvider(
       reqLog.error(
         { provider: provider.name, status: response.status },
         `Subscription auth rejected by '${provider.name}' (${response.status}). ` +
-          "The OAuth credentials are missing or expired — re-authenticate " +
-          "the underlying CLI (run `claude` and sign in for claude-code, or " +
-          "`codex login` for codex) so the credentials file is refreshed, " +
-          "then `ccr restart`."
+          "If the OAuth credentials are absent/expired, re-authenticate " +
+          "the underlying CLI (run `claude` and sign in for claude-code, " +
+          "or `codex login` for codex) to refresh the credentials file " +
+          "(re-read per request, no `ccr restart` needed)."
       );
     }
     throw createApiError(message, response.status, "provider_response_error");
