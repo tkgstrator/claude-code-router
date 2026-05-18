@@ -294,6 +294,43 @@ function shouldBypassTransformers(
   );
 }
 
+// Best-effort token-usage extraction from a *cloned* response so the
+// completion log can report usage + cache without touching the stream
+// the client consumes. Covers non-stream JSON (`.usage`) and Anthropic
+// SSE (message_start carries input_tokens + cache_*; message_delta the
+// final output_tokens). Never throws.
+async function extractResponseUsage(resp: any): Promise<any | null> {
+  try {
+    const ct = (resp.headers?.get?.("content-type") || "").toLowerCase();
+    if (!ct.includes("text/event-stream")) {
+      const j = await resp.json().catch(() => null);
+      return j?.usage ?? null;
+    }
+    const text = await resp.text();
+    let usage: any = null;
+    for (const block of text.split("\n\n")) {
+      const dataLine = block
+        .split("\n")
+        .find((l: string) => l.startsWith("data:"));
+      if (!dataLine) continue;
+      let obj: any;
+      try {
+        obj = JSON.parse(dataLine.slice(5).trim());
+      } catch {
+        continue;
+      }
+      if (obj?.type === "message_start" && obj.message?.usage) {
+        usage = { ...obj.message.usage };
+      } else if (obj?.type === "message_delta" && obj.usage) {
+        usage = { ...(usage || {}), ...obj.usage };
+      }
+    }
+    return usage;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Send request to LLM provider
  * Handle authentication, build request config, send request and handle errors
@@ -452,16 +489,38 @@ async function sendRequestToProvider(
     throw createApiError(message, response.status, "provider_response_error");
   }
 
-  reqLog.debug(
-    {
-      type: "response",
-      provider: provider.name,
-      model: requestBody?.model,
-      status: response.status,
-      durationMs,
-    },
-    "llm response"
-  );
+  // Completion log with provider / model / token usage / cache. Parse a
+  // clone so the client's stream is untouched, and do it async so the
+  // response isn't delayed; fall back to the basic line if usage can't
+  // be parsed (non-Anthropic shapes, parse errors, no clone support).
+  const baseLog = {
+    type: "response",
+    provider: provider.name,
+    model: requestBody?.model,
+    status: response.status,
+    durationMs,
+  };
+  const usageProbe =
+    typeof response.clone === "function" ? response.clone() : null;
+  if (usageProbe) {
+    void extractResponseUsage(usageProbe).then((usage) => {
+      if (usage) {
+        reqLog.debug(
+          {
+            ...baseLog,
+            usage,
+            cacheRead: Number(usage.cache_read_input_tokens || 0) > 0,
+            cacheWrite: Number(usage.cache_creation_input_tokens || 0) > 0,
+          },
+          "llm response"
+        );
+      } else {
+        reqLog.debug(baseLog, "llm response");
+      }
+    });
+  } else {
+    reqLog.debug(baseLog, "llm response");
+  }
 
   return response;
 }
