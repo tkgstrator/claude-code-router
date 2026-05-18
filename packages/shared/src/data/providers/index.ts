@@ -25,6 +25,8 @@ export interface OfficialPricingEntry {
   legacy?: boolean
   /** Max context window in tokens, when the vendor publishes it. */
   contextWindow?: number
+  /** USD per 1M cached-input (cache-read) tokens, when published. */
+  cachedInputPer1M?: number
 }
 
 export interface VendorPriceFile {
@@ -32,7 +34,7 @@ export interface VendorPriceFile {
   source: string
   lastChecked: string
   notes?: string[]
-  prices: Record<string, { input: number; output: number; legacy?: boolean; context?: number }>
+  prices: Record<string, { input: number; output: number; legacy?: boolean; context?: number; cachedInput?: number }>
 }
 
 const FILES: VendorPriceFile[] = [openai, anthropic, google] as VendorPriceFile[]
@@ -45,6 +47,7 @@ const buildLookup = (): Record<string, Record<string, OfficialPricingEntry>> => 
       const out: OfficialPricingEntry = { inputPer1M: entry.input, outputPer1M: entry.output }
       if (entry.legacy) out.legacy = true
       if (entry.context != null) out.contextWindow = entry.context
+      if (entry.cachedInput != null) out.cachedInputPer1M = entry.cachedInput
       vendorMap[id] = out
     }
     out[file.vendor] = vendorMap

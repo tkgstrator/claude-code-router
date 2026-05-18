@@ -146,6 +146,9 @@ const headerIdx = (label: string): number =>
 
 const inputIdx = headerIdx('base input')
 const outputIdx = headerIdx('output tokens')
+// "Cache Hits & Refreshes" is the cached-read rate. Optional: if the
+// column is gone we still emit input/output rather than aborting.
+const cacheReadIdx = headerIdx('cache hits')
 
 if (inputIdx < 0 || outputIdx < 0) {
   console.error(`Pricing table headers don't match expectation: ${pricing.headers.join(' | ')}`)
@@ -159,6 +162,7 @@ interface OutEntry {
   output: number
   legacy?: boolean
   context?: number
+  cachedInput?: number
 }
 
 // Display names like "Claude Opus 4 (deprecated)" /
@@ -185,10 +189,12 @@ for (const row of pricing.rows) {
   }
   const legacy = isLegacyDisplay(display)
   const context = displayToContext[display] ?? displayToContext[cleaned]
+  const cachedInput = cacheReadIdx >= 0 ? parsePrice(row[cacheReadIdx] ?? '') : null
   if (!prices[apiId]) {
     const entry: OutEntry = { input, output }
     if (legacy) entry.legacy = true
     if (context != null) entry.context = context
+    if (cachedInput != null) entry.cachedInput = cachedInput
     prices[apiId] = entry
   }
   // For dated Haiku-style ids, also emit the alias so users routing
@@ -206,6 +212,7 @@ for (const row of pricing.rows) {
         const aliasEntry: OutEntry = { input, output }
         if (legacy) aliasEntry.legacy = true
         if (context != null) aliasEntry.context = context
+        if (cachedInput != null) aliasEntry.cachedInput = cachedInput
         prices[alias] = aliasEntry
       }
     }

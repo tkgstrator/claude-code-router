@@ -97,6 +97,7 @@ export async function seedScrapedPricesIntoDb(prisma: PrismaClient = getPrismaCl
           legacy: Boolean(entry.legacy),
           inputPer1M: entry.inputPer1M,
           outputPer1M: entry.outputPer1M,
+          cachedInputPer1M: entry.cachedInputPer1M === undefined ? null : entry.cachedInputPer1M,
           contextWindow: entry.contextWindow === undefined ? null : entry.contextWindow,
           apiStyle: modelApiStyleOverride(id)
         }
