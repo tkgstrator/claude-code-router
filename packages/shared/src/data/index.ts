@@ -27,7 +27,7 @@ export interface PriceSnapshot {
   prices: PriceEntry[]
 }
 
-export const LLM_PRICES_SEED = seed as PriceSnapshot
+export const LLM_PRICES_SEED: PriceSnapshot = seed
 
 export type VendorAuth = 'bearer' | 'x-api-key' | 'google-key-param'
 
@@ -108,7 +108,10 @@ export function buildSeedProviders(prices: PriceEntry[] = LLM_PRICES_SEED.prices
   // DB's Model.(providerId, name) unique constraint rejects dups.
   const byVendor = new Map<string, Set<string>>()
   for (const p of prices) {
-    const set = byVendor.get(p.vendor) ?? new Set<string>()
+    let set = byVendor.get(p.vendor)
+    if (!set) {
+      set = new Set<string>()
+    }
     set.add(p.id)
     byVendor.set(p.vendor, set)
   }

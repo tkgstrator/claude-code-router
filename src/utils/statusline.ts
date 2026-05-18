@@ -1,5 +1,5 @@
 import dayjs from '@/lib/dayjs'
-import type { StatusLineConfig, StatusLineModuleConfig } from '@/types'
+import type { StatusLineConfig } from '@/types'
 
 // Stub kept for callers that still import this surface. Validation
 // was removed; the result type is preserved but the array is always
@@ -133,8 +133,9 @@ export function backupConfig(config: StatusLineConfig): string {
 export function restoreConfig(backupStr: string): StatusLineConfig | null {
   try {
     const backup = JSON.parse(backupStr)
-    if (backup && backup.config && backup.timestamp) {
-      return backup.config as StatusLineConfig
+    if (backup?.config && backup?.timestamp) {
+      const config: StatusLineConfig = backup.config
+      return config
     }
     return null
   } catch (error) {

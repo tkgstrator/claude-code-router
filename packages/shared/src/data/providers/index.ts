@@ -37,7 +37,7 @@ export interface VendorPriceFile {
   prices: Record<string, { input: number; output: number; legacy?: boolean; context?: number; cachedInput?: number }>
 }
 
-const FILES: VendorPriceFile[] = [openai, anthropic, google] as VendorPriceFile[]
+const FILES: VendorPriceFile[] = [openai, anthropic, google]
 
 const buildLookup = (): Record<string, Record<string, OfficialPricingEntry>> => {
   const out: Record<string, Record<string, OfficialPricingEntry>> = {}
