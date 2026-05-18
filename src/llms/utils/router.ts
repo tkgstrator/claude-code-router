@@ -194,7 +194,7 @@ const getUseModel = async (
   }
   // if exits thinking, use the think model
   if (req.body.thinking && Router?.think) {
-    req.log.info(`Using think model for ${req.body.thinking}`);
+    req.log.info({ thinking: req.body.thinking }, "Using think model");
     return { model: Router.think, scenarioType: 'think' };
   }
   return { model: Router?.default, scenarioType: 'default' };
