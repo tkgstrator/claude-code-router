@@ -54,11 +54,6 @@
       "resolved": "ghcr.io/shyim/devcontainers-features/bun@sha256:689eae681aa08981175829a59953ba67a7d311f6a05c15d1bbbcb2da2839827e",
       "integrity": "sha256:689eae681aa08981175829a59953ba67a7d311f6a05c15d1bbbcb2da2839827e"
     },
-    "ghcr.io/sliekens/devcontainer-features/codex:1": {
-      "version": "1.1.1",
-      "resolved": "ghcr.io/sliekens/devcontainer-features/codex@sha256:e9f1a2b35fd788d08451e8471464de8b2efee03c2769e455acbc0776dd1469d0",
-      "integrity": "sha256:e9f1a2b35fd788d08451e8471464de8b2efee03c2769e455acbc0776dd1469d0"
-    },
     "ghcr.io/stu-bell/devcontainer-features/claude-code:0": {
       "version": "0.1.0",
       "resolved": "ghcr.io/stu-bell/devcontainer-features/claude-code@sha256:f87b4da3f8648db9111cb25c6bd3817d096018d81f3fb596340f7ffdba14409a",
