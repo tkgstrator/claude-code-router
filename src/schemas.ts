@@ -174,7 +174,8 @@ export const UsageHistoryResponseSchema = z
       z.object({
         metric: z.string().nonempty(),
         percent: z.number(),
-        t: z.string().nonempty()
+        t: z.string().nonempty(),
+        resetAt: z.string().nullable()
       })
     )
   })

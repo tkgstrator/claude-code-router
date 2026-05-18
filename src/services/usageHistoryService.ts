@@ -97,6 +97,7 @@ export interface UsageSample {
   metric: string
   percent: number
   t: string
+  resetAt: string | null
 }
 
 export interface UsageHistory {
@@ -108,13 +109,14 @@ export async function getUsageHistory(days: number): Promise<UsageHistory> {
   const rows = await getPrismaClient().usageSnapshot.findMany({
     where: { capturedAt: { gte: since } },
     orderBy: { capturedAt: 'asc' },
-    select: { metric: true, percent: true, capturedAt: true }
+    select: { metric: true, percent: true, capturedAt: true, resetAt: true }
   })
   return {
     samples: rows.map((r) => ({
       metric: r.metric,
       percent: r.percent,
-      t: dayjs(r.capturedAt).toISOString()
+      t: dayjs(r.capturedAt).toISOString(),
+      resetAt: r.resetAt ? dayjs(r.resetAt).toISOString() : null
     }))
   }
 }

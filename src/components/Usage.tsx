@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   type ChartConfig,
@@ -26,49 +26,106 @@ interface UsageSample {
   metric: string
   percent: number
   t: string
+  resetAt: string | null
 }
 interface HistoryResponse {
   samples: UsageSample[]
 }
 
-interface ConsumptionPoint {
+interface SeriesPoint {
   t: string
   v: number
 }
 
-// Per-metric burn rate: positive 5-min deltas (window resets drop the
-// %, so negatives clamp to 0) summed over a trailing 1-hour window =
-// "% of the window consumed in the last hour".
-function hourlyConsumption(samples: UsageSample[], metric: string): ConsumptionPoint[] {
-  const pts = samples.filter((s) => s.metric === metric).map((s) => ({ at: dayjs(s.t), pct: s.percent, t: s.t }))
-  const deltas = pts.map((p, i) => (i === 0 ? 0 : Math.max(0, p.pct - pts[i - 1].pct)))
-  return pts.map((p, i) => {
-    const cutoff = p.at.subtract(1, 'hour')
-    const v = deltas.slice(0, i + 1).reduce((acc, d, j) => (pts[j].at.isAfter(cutoff) ? acc + d : acc), 0)
-    return { t: p.t, v: Math.round(v * 10) / 10 }
+// Display cap. Aggressive early usage extrapolates to a huge number;
+// clamp the line here so the axis stays readable — anything pinned at
+// the cap just reads as "well past sustainable".
+const CAP_PCT = 200
+
+// Trailing sample count for the smoothing pass below (~30 min at the
+// 5-min capture cadence). Count-based by request; it does blend across
+// capture gaps (a long outage averages points from either side).
+const SMOOTH_N = 6
+
+// A reset is the counter refilling: it drops below this fraction of its
+// prior value. Loose enough to catch every real reset in the data
+// (15->1, 99->1, 40->3, 29->2) yet immune to ±1 vendor jitter.
+const RESET_DROP_RATIO = 0.5
+
+// Projected utilization at the window's next reset, from the average
+// pace since the window last reset: pct * C / elapsed (C = cycle
+// length). 100% = exactly exhausted at reset, >100% = locked out
+// before it resets, <100% = headroom.
+//
+// `elapsed` is the LONGER of two estimates: time since the last
+// detected refill (counter dropping past RESET_DROP_RATIO of its prior
+// value) and the resetAt-implied window age (C - hoursToReset). Taking
+// the max makes it robust to both vendor quirks: Codex reports two
+// different windows under codex.secondary and switches between them
+// (pct steps down with no real refill — a spurious short anchor that
+// the resetAt age overrides), while codex.primary's 5h window is
+// rolling so its resetAt slides every sample and C - hoursToReset
+// reads ~0 (would pin at the cap unless the refill anchor floors it).
+// elapsed is capped at C. At the exact reset sample elapsed is 0 (no pace yet),
+// so we just show the actual pct there — no special boundary value;
+// the formula resumes once a little time has elapsed. A trailing
+// SMOOTH_N-sample average evens out the reactive early-cycle values
+// and the integer-pct staircase.
+function projectedUsage(samples: UsageSample[], metric: string): SeriesPoint[] {
+  const cycle = metaFor(metric).windowHours
+  let lastResetT: ReturnType<typeof dayjs> | null = null
+  let prevPct: number | null = null
+  const raw = samples
+    .filter((s) => s.metric === metric)
+    .map((s) => {
+      const at = dayjs(s.t)
+      if (prevPct !== null && s.percent < prevPct * RESET_DROP_RATIO) lastResetT = at
+      prevPct = s.percent
+      const fromDrop = lastResetT ? at.diff(lastResetT, 'hour', true) : null
+      const fromReset = s.resetAt ? cycle - Math.max(0, dayjs(s.resetAt).diff(at, 'hour', true)) : null
+      const elapsedRaw =
+        fromDrop !== null && fromReset !== null
+          ? Math.max(fromDrop, fromReset)
+          : fromDrop !== null
+            ? fromDrop
+            : fromReset !== null
+              ? fromReset
+              : Number.NaN
+      if (cycle <= 0 || !Number.isFinite(elapsedRaw)) return { t: s.t, p: Math.min(CAP_PCT, Math.max(0, s.percent)) }
+      const elapsed = Math.min(cycle, elapsedRaw)
+      const projected = elapsed > 0 ? (s.percent * cycle) / elapsed : s.percent
+      return { t: s.t, p: Math.min(CAP_PCT, Math.max(0, projected)) }
+    })
+  // Plain trailing N-sample moving average of the projected value.
+  return raw.map((r, i) => {
+    const win = raw.slice(Math.max(0, i - SMOOTH_N + 1), i + 1)
+    return { t: r.t, v: Math.round((win.reduce((acc, w) => acc + w.p, 0) / win.length) * 10) / 10 }
   })
 }
 
 interface MetricMeta {
   label: string
   color: string
+  // Reset cadence in hours (5h vs 7d window). Needed to turn the next
+  // resetAt into elapsed-since-last-reset for the average-pace projection.
+  windowHours: number
 }
 
 // Stable color + readable label per known window metric.
 const METRIC_META: Record<string, MetricMeta> = {
-  'claude.five_hour': { label: 'Claude 5h', color: '#d97757' },
-  'claude.seven_day': { label: 'Claude 7d', color: '#b35a3f' },
-  'claude.seven_day_sonnet': { label: 'Claude 7d Sonnet', color: '#e6a08c' },
-  'claude.seven_day_opus': { label: 'Claude 7d Opus', color: '#8c3d28' },
-  'codex.primary': { label: 'Codex 5h', color: '#10a37f' },
-  'codex.secondary': { label: 'Codex 7d', color: '#0a6f57' }
+  'claude.five_hour': { label: 'Claude 5h', color: '#d97757', windowHours: 5 },
+  'claude.seven_day': { label: 'Claude 7d', color: '#b35a3f', windowHours: 168 },
+  'claude.seven_day_sonnet': { label: 'Claude 7d Sonnet', color: '#e6a08c', windowHours: 168 },
+  'claude.seven_day_opus': { label: 'Claude 7d Opus', color: '#8c3d28', windowHours: 168 },
+  'codex.primary': { label: 'Codex 5h', color: '#10a37f', windowHours: 5 },
+  'codex.secondary': { label: 'Codex 7d', color: '#0a6f57', windowHours: 168 }
 }
 
 // Definite lookup with an explicit default — no nullish/or fallback.
 function metaFor(metric: string): MetricMeta {
   const meta = METRIC_META[metric]
   if (meta) return meta
-  return { label: metric, color: '#888888' }
+  return { label: metric, color: '#888888', windowHours: 0 }
 }
 
 interface ClaudeWindow {
@@ -169,7 +226,7 @@ export function Usage() {
     const metrics = [...new Set(history.samples.map((s) => s.metric))].sort()
     const byT = new Map<string, Record<string, number | string>>()
     for (const m of metrics) {
-      for (const p of hourlyConsumption(history.samples, m)) {
+      for (const p of projectedUsage(history.samples, m)) {
         const existing = byT.get(p.t)
         const row = existing ? existing : { t: p.t }
         row[m] = p.v
@@ -290,7 +347,15 @@ export function Usage() {
                   axisLine={false}
                   minTickGap={40}
                 />
-                <YAxis tickLine={false} axisLine={false} unit='%/h' width={48} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={48}
+                  unit='%'
+                  domain={[0, CAP_PCT]}
+                  ticks={[0, 50, 100, 150, 200]}
+                />
+                <ReferenceLine y={100} stroke='#ef4444' strokeDasharray='4 4' />
                 <ChartTooltip
                   content={<ChartTooltipContent labelFormatter={(l) => dayjs(String(l)).format('M/D HH:mm')} />}
                 />
