@@ -129,6 +129,8 @@ export function buildSeedProviders(prices: PriceEntry[] = LLM_PRICES_SEED.prices
 export interface PricingEntry {
   inputPer1M: number
   outputPer1M: number
+  /** Max context window in tokens (vendor-official entries only). */
+  contextWindow?: number
 }
 
 export function buildSeedPricing(prices: PriceEntry[] = LLM_PRICES_SEED.prices): Record<string, PricingEntry> {

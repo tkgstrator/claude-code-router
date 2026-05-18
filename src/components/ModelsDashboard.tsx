@@ -1,11 +1,10 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, Pencil, XCircle } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
@@ -23,23 +21,29 @@ import { MODEL_PRICING } from '@/lib/providerTemplates'
 
 type Reachability = 'unknown' | 'testing' | 'ok' | 'fail'
 
-const ROUTE_KEYS = ['default', 'background', 'think', 'longContext', 'webSearch', 'image'] as const
-
 interface ModelRow {
   provider: string
   model: string
   key: string
-  routes: string[]
   enabled: boolean
   isSubscription: boolean
   deprecated: boolean
+}
+
+// 1_000_000 → "1M", 200_000 → "200K", else the raw count. Null when the
+// vendor doesn't publish a context window for the model.
+const formatContext = (n?: number): string | null => {
+  if (!n || n <= 0) return null
+  if (n >= 1_000_000) return `${n % 1_000_000 === 0 ? n / 1_000_000 : (n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`
+  return String(n)
 }
 
 type SortKey = 'provider' | 'model' | 'input' | 'output'
 
 export function ModelsDashboard() {
   const { t } = useTranslation()
-  const { config, setConfig } = useConfig()
+  const { config } = useConfig()
   const [status, setStatus] = useState<Record<string, Reachability>>({})
   const [passedAt, setPassedAt] = useState<Record<string, string | null>>({})
   const [isTestingAll, setIsTestingAll] = useState(false)
@@ -81,15 +85,8 @@ export function ModelsDashboard() {
     setSortKey(null)
   }
 
-  const assignToRoute = (route: (typeof ROUTE_KEYS)[number], key: string, checked: boolean) => {
-    if (!config) return
-    const currentRouter = config.Router || {}
-    setConfig({ ...config, Router: { ...currentRouter, [route]: checked ? key : '' } })
-  }
-
   const rows = useMemo<ModelRow[]>(() => {
     const providers = Array.isArray(config?.Providers) ? config.Providers : []
-    const routerConfig = config?.Router
     const raw = providers.flatMap((provider) => {
       if (!provider) return []
       const providerName = provider.name || 'unknown'
@@ -106,10 +103,9 @@ export function ModelsDashboard() {
       const deprecatedSet = new Set(provider.deprecatedModels ?? [])
       return models.map((model) => {
         const key = `${providerName},${model}`
-        const routes = ROUTE_KEYS.filter((routeKey) => routerConfig && routerConfig[routeKey] === key)
         const enabled = !disabledList.includes(model)
         const deprecated = deprecatedSet.has(model)
-        return { provider: providerName, model, key, routes, enabled, isSubscription, deprecated }
+        return { provider: providerName, model, key, enabled, isSubscription, deprecated }
       })
     })
     // No active sort: keep the natural order — providers in config order,
@@ -330,7 +326,7 @@ export function ModelsDashboard() {
                   <SortHeader label={t('models.output')} sortKey='output' align='right' />
                 </th>
                 <th className='px-2 py-2 font-medium text-center'>{t('models.status')}</th>
-                <th className='px-6 py-2 font-medium'>{t('models.routes')}</th>
+                <th className='px-6 py-2 font-medium text-right'>{t('models.context_window')}</th>
               </tr>
             </thead>
             <tbody>
@@ -387,46 +383,12 @@ export function ModelsDashboard() {
                       </button>
                     </div>
                   </td>
-                  <td className='px-6 py-2'>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type='button'
-                          className='flex flex-wrap items-center gap-1 rounded-md px-2 py-1 transition-all-ease hover:bg-gray-100'
-                          title={t('models.assign_routes')}
-                        >
-                          {row.routes.length === 0 ? (
-                            <span className='text-gray-300'>—</span>
-                          ) : (
-                            row.routes.map((route) => (
-                              <Badge key={route} variant='secondary'>
-                                {t(`router.${route}`)}
-                              </Badge>
-                            ))
-                          )}
-                          <Pencil className='h-3 w-3 text-gray-400' />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className='w-56 p-2'>
-                        <p className='px-1 pb-2 text-xs font-medium text-gray-500'>{t('models.assign_routes')}</p>
-                        <div className='space-y-1'>
-                          {ROUTE_KEYS.map((routeKey) => (
-                            <label
-                              key={routeKey}
-                              htmlFor={`${row.key}-${routeKey}`}
-                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all-ease hover:bg-gray-100'
-                            >
-                              <Checkbox
-                                id={`${row.key}-${routeKey}`}
-                                checked={config?.Router?.[routeKey] === row.key}
-                                onCheckedChange={(checked) => assignToRoute(routeKey, row.key, checked === true)}
-                              />
-                              {t(`router.${routeKey}`)}
-                            </label>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-gray-600'>
+                    {formatContext(MODEL_PRICING[row.model]?.contextWindow) ? (
+                      <span>{formatContext(MODEL_PRICING[row.model]?.contextWindow)}</span>
+                    ) : (
+                      <span className='text-gray-300'>—</span>
+                    )}
                   </td>
                 </tr>
               ))}

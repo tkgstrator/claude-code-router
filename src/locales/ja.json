@@ -63,7 +63,7 @@
     "provider": "プロバイダー",
     "model": "モデル",
     "status": "疎通状態",
-    "routes": "ルート",
+    "context_window": "コンテキスト",
     "test": "テスト",
     "test_all": "すべてテスト",
     "filter_provider": "プロバイダー",
