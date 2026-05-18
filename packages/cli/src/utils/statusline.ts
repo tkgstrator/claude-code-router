@@ -252,6 +252,12 @@ const DEFAULT_THEME: StatusLineThemeConfig = {
       icon: '↓', // Down arrow
       text: '{{outputTokens}}',
       color: 'bright_yellow'
+    },
+    {
+      type: 'speed',
+      icon: '⚡',
+      text: '{{tokenSpeed}} t/s',
+      color: 'bright_red'
     }
   ]
 }
@@ -293,6 +299,13 @@ const POWERLINE_THEME: StatusLineThemeConfig = {
       text: '{{outputTokens}}',
       color: 'white',
       background: 'bg_bright_yellow'
+    },
+    {
+      type: 'speed',
+      icon: '⚡',
+      text: '{{tokenSpeed}} t/s',
+      color: 'white',
+      background: 'bg_bright_red'
     }
   ]
 }
@@ -329,6 +342,12 @@ const SIMPLE_THEME: StatusLineThemeConfig = {
       icon: '↓',
       text: '{{outputTokens}}',
       color: 'bright_yellow'
+    },
+    {
+      type: 'speed',
+      icon: '⚡',
+      text: '{{tokenSpeed}} t/s',
+      color: 'bright_red'
     }
   ]
 }
@@ -513,7 +532,7 @@ async function getProjectThemeConfig(): Promise<{ theme: StatusLineThemeConfig |
       const currentStyle = config.StatusLine.currentStyle || 'default'
 
       // Check if there's configuration for the corresponding style
-      if (config.StatusLine[currentStyle]?.modules) {
+      if (config.StatusLine[currentStyle]?.modules?.length) {
         return { theme: config.StatusLine[currentStyle], style: currentStyle }
       }
     }
@@ -546,7 +565,7 @@ async function getPresetThemeConfig(
       const currentStyle = config.StatusLine.currentStyle || 'default'
 
       // Check if there's configuration for the corresponding style
-      if (config.StatusLine[currentStyle]?.modules) {
+      if (config.StatusLine[currentStyle]?.modules?.length) {
         return { theme: config.StatusLine[currentStyle], style: currentStyle }
       }
     }
