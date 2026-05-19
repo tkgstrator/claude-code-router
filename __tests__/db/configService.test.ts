@@ -18,6 +18,8 @@ const tmpHome = `/tmp/ccr-db-test-${process.pid}`
 process.env.HOME = tmpHome
 
 describe.skipIf(!HAS_DB)('configService', () => {
+  // TODO(phase-1): Add API-route level tests for /api/config error contracts
+  // (auth failures, validation errors, and normalized 5xx payload shape).
   beforeEach(async () => {
     await resetDbTables()
     await ensureRouterSlots()

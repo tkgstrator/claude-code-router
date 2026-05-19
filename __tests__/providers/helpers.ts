@@ -14,6 +14,9 @@ export const CCR_URL = `${CCR_BASE}/v1/messages`;
 export const CCR_CONFIG_URL = `${CCR_BASE}/api/config`;
 export const TEST_TIMEOUT = 60_000;
 
+// TODO(phase-1): Add offline contract tests for provider transformers
+// (request/response mapping) so regressions are caught without live keys/server.
+
 export interface SubscriptionModel {
   provider: string;
   model: string;
