@@ -96,13 +96,36 @@ export const ConfigSchema = z
   .openapi('Config')
 export type Config = z.infer<typeof ConfigSchema>
 
+// Coerces '' → null before the nonempty check. The UI sends an empty
+// string for unset Router slots; the DB stores null.
+export const EmptyStringToNullSchema = z
+  .string()
+  .nullable()
+  .transform((v) => (v === '' ? null : v))
+  .pipe(z.string().nonempty().nullable())
+
+// POST-body Router: same slots as RouterSchema but accepts '' (coerced
+// → null). All fields partial so callers can omit unchanged slots.
+const RouterPayloadSchema = z
+  .object({
+    default: EmptyStringToNullSchema,
+    background: EmptyStringToNullSchema,
+    think: EmptyStringToNullSchema,
+    longContext: EmptyStringToNullSchema,
+    webSearch: EmptyStringToNullSchema,
+    image: EmptyStringToNullSchema,
+    longContextThreshold: z.number().int().positive().optional()
+  })
+  .partial()
+  .catchall(z.union([z.string(), z.number(), z.null()]))
+
 // applyUiConfig accepts a Partial-ish shape — Providers/Router optional,
 // envelope keys free-form. Mirror that without dropping into z.any.
 export const ApplyConfigPayloadSchema = z
   .object({
     Providers: z.array(ProviderSchema).optional(),
     providers: z.array(ProviderSchema).optional(),
-    Router: RouterSchema.partial().optional()
+    Router: RouterPayloadSchema.optional()
   })
   .catchall(JsonValueSchema)
   .openapi('ApplyConfigPayload')
