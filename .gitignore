@@ -26,6 +26,8 @@ scripts/*.d.ts
 # Personal Claude Code overrides — settings.local.json lives outside the team
 # settings.json so individual permission tweaks stay out of git.
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
 
 # Local self-host runtime state: compose.yaml bind-mounts the config
 # envelope here, including the minted APIKEY, rotating backups and logs.

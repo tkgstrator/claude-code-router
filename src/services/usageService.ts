@@ -35,6 +35,15 @@ export interface UsageResponse {
   codex: CodexUsage | null
 }
 
+export interface GetUsageInput {
+  // Reserved for future route-level controls.
+  forceRefresh?: boolean
+}
+
+export interface GetUsageOutput {
+  usage: UsageResponse
+}
+
 const claudeToken = async (): Promise<string | null> => {
   try {
     const raw = await readFile(join(homedir(), '.claude', '.credentials.json'), 'utf-8')
@@ -294,7 +303,13 @@ const fetchCodexUsage = async (): Promise<CodexUsage | null> => {
 
 // Both providers via their official usage endpoints, cached and
 // stale-tolerant (each self-rate-limits to varying degrees).
-export async function getUsage(): Promise<UsageResponse> {
+export async function fetchUsageSnapshot(_input: GetUsageInput = {}): Promise<GetUsageOutput> {
   const [claude, codex] = await Promise.all([fetchClaudeUsage(), fetchCodexUsage()])
-  return { claude, codex }
+  return { usage: { claude, codex } }
+}
+
+// Backward-compatible facade used by existing callers.
+export async function getUsage(): Promise<UsageResponse> {
+  const { usage } = await fetchUsageSnapshot()
+  return usage
 }

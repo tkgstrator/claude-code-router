@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -9,17 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
 import { RouterSchema } from '@/schemas'
 import type { Config } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { SelectCombobox } from './SelectCombobox'
-
-interface EnabledModel {
-  provider: string
-  model: string
-}
 
 const formSchema = RouterSchema.extend({
   forceUseImageAgent: z.string().nonempty()
@@ -38,7 +33,7 @@ function RouterForm({ config }: { config: Config }) {
   const { t } = useTranslation()
   const { setConfig } = useConfig()
   const { showToast } = useOutletContext<ShellOutletContext>()
-  const [models, setModels] = useState<EnabledModel[]>([])
+  const modelOptions = useEnabledModelOptions()
 
   const form = useForm<RouterFormInput, unknown, RouterFormOutput>({
     resolver: zodResolver(formSchema),
@@ -53,21 +48,6 @@ function RouterForm({ config }: { config: Config }) {
       forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
     }
   })
-
-  // The Router only ever offers enabled models. The backend decides
-  // that (GET /api/models returns Model.enabled rows only); this just
-  // renders the list — no client-side filtering.
-  useEffect(() => {
-    api
-      .get<{ models: EnabledModel[] }>('/models')
-      .then((data) => setModels(data.models))
-      .catch((err) => console.error('Failed to load enabled models:', err))
-  }, [])
-
-  const modelOptions = models.map(({ provider, model }) => ({
-    value: `${provider},${model}`,
-    label: `${provider}, ${model}`
-  }))
 
   const onSubmit = async (values: RouterFormOutput) => {
     const updated = {
