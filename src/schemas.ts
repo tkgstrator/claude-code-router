@@ -1,10 +1,21 @@
-import { JsonValueSchema } from '@ccr/shared'
+import { JsonValueSchema } from '@ccr/shared/preset/types'
 import { z } from '@hono/zod-openapi'
 
 // Zod schemas for the @hono/zod-openapi routes in src/index.ts. These
 // mirror the shapes returned by @ccr/server/{config,subscriptions,
 // providers,models,update} so the Hono root validates the same wire
 // shape the legacy Fastify server emitted.
+
+// --- Common ----------------------------------------------------------------
+
+// React Hook Form uses '' for unset fields; this coerces '' → null so DB-level
+// "nonempty or null" constraints are satisfied without client-side workarounds.
+// preprocess keeps input type as string | null; pipe validates the result.
+export const EmptyStringToNullSchema = z
+  .string()
+  .nullable()
+  .transform((v) => (v === '' ? null : v))
+  .pipe(z.string().nonempty().nullable())
 
 // --- Provider --------------------------------------------------------------
 
@@ -14,6 +25,7 @@ export type ProviderAuthMode = z.infer<typeof ProviderAuthModeSchema>
 
 export const ProviderTransformerSchema = z
   .object({
+    // Optional: toUiProvider may emit { _disabledModels: [...] } without use.
     use: z
       .array(
         z.union([
@@ -55,16 +67,16 @@ export const RouterSchema = z
     // Values are "providerName,modelName", or null when the slot is
     // unassigned. Kept in literal form (not derived from SCENARIO_KEYS)
     // so the generated OpenAPI schema lists each slot explicitly.
-    default: z.string().nonempty().nullable(),
-    background: z.string().nonempty().nullable(),
-    think: z.string().nonempty().nullable(),
-    longContext: z.string().nonempty().nullable(),
-    webSearch: z.string().nonempty().nullable(),
-    image: z.string().nonempty().nullable(),
+    default: EmptyStringToNullSchema,
+    background: EmptyStringToNullSchema,
+    think: EmptyStringToNullSchema,
+    longContext: EmptyStringToNullSchema,
+    webSearch: EmptyStringToNullSchema,
+    image: EmptyStringToNullSchema,
     // Genuinely optional: composeUiConfig omits the key entirely when
     // there's no threshold (it is not emitted as null), so .optional()
     // matches the wire — .nullable() would reject the absent key.
-    longContextThreshold: z.number().int().positive().optional()
+    longContextThreshold: z.number().int().positive().default(60000)
   })
   .catchall(z.union([z.string().nonempty(), z.number(), z.null()]))
   .openapi('Router')
@@ -98,36 +110,13 @@ export const ConfigSchema = z
   .openapi('Config')
 export type Config = z.infer<typeof ConfigSchema>
 
-// Coerces '' → null before the nonempty check. The UI sends an empty
-// string for unset Router slots; the DB stores null.
-export const EmptyStringToNullSchema = z
-  .string()
-  .nullable()
-  .transform((v) => (v === '' ? null : v))
-  .pipe(z.string().nonempty().nullable())
-
-// POST-body Router: same slots as RouterSchema but accepts '' (coerced
-// → null). All fields partial so callers can omit unchanged slots.
-const RouterPayloadSchema = z
-  .object({
-    default: EmptyStringToNullSchema,
-    background: EmptyStringToNullSchema,
-    think: EmptyStringToNullSchema,
-    longContext: EmptyStringToNullSchema,
-    webSearch: EmptyStringToNullSchema,
-    image: EmptyStringToNullSchema,
-    longContextThreshold: z.number().int().positive().optional()
-  })
-  .partial()
-  .catchall(z.union([z.string(), z.number(), z.null()]))
-
 // applyUiConfig accepts a Partial-ish shape — Providers/Router optional,
 // envelope keys free-form. Mirror that without dropping into z.any.
 export const ApplyConfigPayloadSchema = z
   .object({
     Providers: z.array(ProviderSchema).optional(),
     providers: z.array(ProviderSchema).optional(),
-    Router: RouterPayloadSchema.optional()
+    Router: RouterSchema.partial().optional()
   })
   .catchall(JsonValueSchema)
   .openapi('ApplyConfigPayload')

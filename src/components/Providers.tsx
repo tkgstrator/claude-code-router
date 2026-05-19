@@ -254,6 +254,9 @@ export function Providers() {
     if (!updatedProvider.transformer) {
       updatedProvider.transformer = { use: [] }
     }
+    if (!updatedProvider.transformer.use) {
+      updatedProvider.transformer.use = []
+    }
 
     // Add transformer to the use array
     updatedProvider.transformer.use = [...updatedProvider.transformer.use, transformerPath]
@@ -266,6 +269,9 @@ export function Providers() {
     const updatedProvider = { ...editingProviderData }
 
     if (updatedProvider.transformer) {
+      if (!updatedProvider.transformer.use) {
+        updatedProvider.transformer.use = []
+      }
       const newUseArray = [...updatedProvider.transformer.use]
       newUseArray.splice(transformerIndex, 1)
       updatedProvider.transformer.use = newUseArray

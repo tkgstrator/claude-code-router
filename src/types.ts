@@ -5,13 +5,13 @@ export type { Provider, ProviderAuthMode, ProviderTransformer } from '@/schemas'
 export { ProviderAuthModeSchema, ProviderSchema, ProviderTransformerSchema } from '@/schemas'
 
 export const RouterConfigSchema = z.object({
-  default: z.string().nonempty(),
-  background: z.string().nonempty(),
-  think: z.string().nonempty(),
-  longContext: z.string().nonempty(),
+  default: z.string().nullable(),
+  background: z.string().nullable(),
+  think: z.string().nullable(),
+  longContext: z.string().nullable(),
   longContextThreshold: z.number(),
-  webSearch: z.string().nonempty(),
-  image: z.string().nonempty(),
+  webSearch: z.string().nullable(),
+  image: z.string().nullable(),
   custom: z.unknown().optional()
 })
 

@@ -10,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
+import { RouterSchema } from '@/schemas'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { SelectCombobox } from './SelectCombobox'
@@ -19,19 +20,12 @@ interface EnabledModel {
   model: string
 }
 
-const routerSchema = z.object({
-  default: z.string().default(''),
-  background: z.string().default(''),
-  think: z.string().default(''),
-  longContext: z.string().default(''),
-  longContextThreshold: z.number().int().positive(),
-  webSearch: z.string().default(''),
-  image: z.string().default(''),
+const formSchema = RouterSchema.extend({
   forceUseImageAgent: z.string().nonempty()
 })
 
-type RouterFormInput = z.input<typeof routerSchema>
-type RouterFormOutput = z.output<typeof routerSchema>
+type RouterFormInput = z.input<typeof formSchema>
+type RouterFormOutput = z.output<typeof formSchema>
 
 export function Router() {
   const { t } = useTranslation()
@@ -40,7 +34,7 @@ export function Router() {
   const [models, setModels] = useState<EnabledModel[]>([])
 
   const form = useForm<RouterFormInput, unknown, RouterFormOutput>({
-    resolver: zodResolver(routerSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       default: '',
       background: '',
@@ -52,19 +46,16 @@ export function Router() {
       forceUseImageAgent: 'false'
     },
     values: config
-      ? (() => {
-          const r = config.Router || {}
-          return {
-            default: r.default || '',
-            background: r.background || '',
-            think: r.think || '',
-            longContext: r.longContext || '',
-            longContextThreshold: r.longContextThreshold || 60000,
-            webSearch: r.webSearch || '',
-            image: r.image || '',
-            forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
-          }
-        })()
+      ? {
+          default: config.Router.default,
+          background: config.Router.background,
+          think: config.Router.think,
+          longContext: config.Router.longContext,
+          longContextThreshold: config.Router.longContextThreshold,
+          webSearch: config.Router.webSearch,
+          image: config.Router.image,
+          forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
+        }
       : undefined
   })
 
