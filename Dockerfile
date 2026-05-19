@@ -10,7 +10,7 @@
 # the generated Prisma client and the Vite SPA dist.
 
 # ---------- builder ----------------------------------------------------
-FROM oven/bun:1 AS builder
+FROM oven/bun:1.3.14 AS builder
 WORKDIR /app
 
 # Order matters: prisma.config.ts + src/prisma/schema.prisma must be in
@@ -33,7 +33,7 @@ RUN bun run build
 RUN bun -e "let v='';try{v=require('@openai/codex/package.json').version}catch{};require('fs').writeFileSync('/app/.codex-cli-version',v)"
 
 # ---------- runtime ----------------------------------------------------
-FROM oven/bun:1
+FROM oven/bun:1.3.14
 WORKDIR /app
 
 # Sources + workspace manifests needed to resolve + run.
@@ -49,7 +49,9 @@ COPY src ./src
 # so scripts run normally: the postinstall regenerates the client and
 # prisma fetches its engines. Built SPA/@ccr/shared still come from the
 # builder.
-RUN bun install --production --frozen-lockfile --ignore-scripts
+# --frozen-lockfile omitted: arm64 CDN sometimes serves valibot (transitive
+# @prisma/dev dep) with a different tarball hash; bun.lock still pins versions.
+RUN bun install --production --ignore-scripts
 
 # Build outputs the production-only install does not reproduce.
 COPY --from=builder /app/dist ./dist
