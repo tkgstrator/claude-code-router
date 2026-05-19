@@ -8,8 +8,8 @@
  * incoming UI payload against DB state in a single transaction.
  */
 
-import { buildSeedProviders, type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKey } from '@ccr/shared'
-import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS } from '@ccr/shared/data'
+import { buildSeedProviders, type ConfigEnvelope, SCENARIO_KEYS, type ScenarioKey } from '@/shared'
+import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import {
   ApiStyle,
@@ -28,7 +28,7 @@ import { getSubscriptionsInfo } from './subscriptionInfoService'
 // Explicit per-provider request shape. No runtime fallback — every
 // seeded provider gets a concrete value written to the DB.
 export const apiStyleForVendor = (name: string): ApiStyle => {
-  if (name === 'anthropic' || name === 'claude-code') return ApiStyle.anthropic
+  if (name === 'anthropic' || name.startsWith('claude-code')) return ApiStyle.anthropic
   if (name === 'google') return ApiStyle.gemini
   if (name === 'codex') return ApiStyle.openai_responses
   return ApiStyle.openai_chat
@@ -55,6 +55,7 @@ const disabledSet = (transformer: unknown): Set<string> => {
 // Mirrors packages/ui/src/types.ts Provider.
 type UiProvider = {
   name: string
+  enabled: boolean
   api_base_url: string
   // null when unset (no key supplied / cleared). Never '' — "no key"
   // is always null end to end.
@@ -74,6 +75,10 @@ type UiProvider = {
   // Parallel map (like the two above); absent when no model has one.
   modelContextWindows?: Record<string, number>
   transformer?: Record<string, unknown>
+  // Per-account enable/disable for subscription providers. Absent on
+  // api_key providers. The sync service owns row creation/deletion;
+  // applyProviders only flips the enabled flag on rows the user toggled.
+  subscription_accounts?: Array<{ id: string; enabled: boolean }>
 }
 
 // Mirrors packages/ui/src/types.ts RouterConfig. Slot values are
@@ -141,7 +146,15 @@ const envelopeStringOrNull = (raw: unknown): string | null => {
   return raw
 }
 
-type ProviderWithModels = DbProvider & { models: DbModel[] }
+type ProviderWithModels = DbProvider & {
+  models: DbModel[]
+  subscriptionAccounts?: { id: string; enabled: boolean }[]
+}
+
+const providerEnabledFromTransformer = (transformer: unknown): boolean => {
+  if (!transformer || typeof transformer !== 'object') return true
+  return (transformer as { providerEnabled?: unknown }).providerEnabled !== false
+}
 
 const toUiProvider = (p: ProviderWithModels): UiProvider => {
   const deprecatedModels = p.models.filter((m) => m.deprecated).map((m) => m.name)
@@ -170,6 +183,7 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
   const modelContextWindows = Object.fromEntries(withContext.map((m) => [m.name, m.contextWindow as number]))
   return {
     name: p.name,
+    enabled: providerEnabledFromTransformer(baseTransformer),
     api_base_url: p.apiBaseUrl,
     // DB value verbatim: null when unset. Never coerced to ''.
     api_key: p.apiKey,
@@ -181,7 +195,18 @@ const toUiProvider = (p: ProviderWithModels): UiProvider => {
     // transformer is stored as JSONB; we re-derive _disabledModels from
     // Model.enabled so the UI sees the DB truth (the column on disk no
     // longer carries _disabledModels — see applyProviders).
-    ...(transformerOut ? { transformer: transformerOut } : {})
+    ...(transformerOut ? { transformer: transformerOut } : {}),
+    // Subscription providers expose each discovered SubAccount's
+    // enable/disable state so the editor can render a switch list and
+    // round-trip the user's toggles through applyUiConfig.
+    ...(p.authMode === AuthMode.subscription && p.subscriptionAccounts
+      ? {
+          subscription_accounts: p.subscriptionAccounts.map((a) => ({
+            id: a.id,
+            enabled: a.enabled
+          }))
+        }
+      : {})
   }
 }
 
@@ -195,7 +220,7 @@ export async function composeUiConfig(): Promise<LegacyConfig> {
   const prisma = getPrismaClient()
   const [providers, slots] = await Promise.all([
     prisma.provider.findMany({
-      include: { models: true },
+      include: { models: true, subscriptionAccounts: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'asc' }
     }),
     prisma.routerSlot.findMany({
@@ -332,7 +357,7 @@ async function syncToConfigFile(): Promise<void> {
 
 export async function getProviders(prisma: PrismaClient = getPrismaClient()): Promise<UiProvider[]> {
   const providers = await prisma.provider.findMany({
-    include: { models: true },
+    include: { models: true, subscriptionAccounts: { orderBy: { createdAt: 'asc' } } },
     orderBy: { createdAt: 'asc' }
   })
   return providers.map(toUiProvider)
@@ -348,7 +373,7 @@ export async function upsertProvider(incoming: UiProvider): Promise<{ provider: 
   resetLlmsContext()
   const p = await prisma.provider.findUniqueOrThrow({
     where: { name: incoming.name },
-    include: { models: true }
+    include: { models: true, subscriptionAccounts: { orderBy: { createdAt: 'asc' } } }
   })
   return { provider: toUiProvider(p), warnings }
 }
@@ -424,8 +449,13 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
     const incTransformer =
       inc.transformer && typeof inc.transformer === 'object' ? (inc.transformer as Record<string, unknown>) : undefined
     const storedTransformer = (() => {
-      if (!incTransformer) return undefined
-      const { _disabledModels: _omit, ...rest } = incTransformer
+      const base = { ...(incTransformer ?? {}) }
+      delete base._disabledModels
+      // Provider-level enable/disable persisted in transformer JSON until
+      // Provider.enabled is promoted to a dedicated DB column.
+      if (inc.enabled === false) base.providerEnabled = false
+      else delete base.providerEnabled
+      const rest = base
       return Object.keys(rest).length > 0 ? (rest as Prisma.InputJsonValue) : undefined
     })()
     const apiKey = apiKeyForStorage(inc.api_key)
@@ -446,6 +476,52 @@ async function applyProviders(tx: Tx, incoming: UiProvider[], warnings: string[]
       },
       include: { models: true }
     })
+
+    // subscription_accounts only carries enable/disable flips — row
+    // creation and deletion is owned by the sync service. We validate
+    // ownership per id so a stale UI payload can't toggle some other
+    // provider's account. api_key providers ignore the field entirely.
+    if (authMode === AuthMode.subscription && inc.subscription_accounts !== undefined) {
+      const ownedRows = await tx.subAccount.findMany({
+        where: { providerId: provider.id },
+        select: { id: true, enabled: true }
+      })
+      const currentEnabled = new Map(ownedRows.map((a) => [a.id, a.enabled]))
+      const toEnable: string[] = []
+      const toDisable: string[] = []
+      for (const entry of inc.subscription_accounts) {
+        const current = currentEnabled.get(entry.id)
+        if (current === undefined) {
+          warnings.push(
+            `Subscription account "${entry.id}" does not belong to provider "${provider.name}"; toggle ignored.`
+          )
+          continue
+        }
+        if (current === entry.enabled) continue
+        if (entry.enabled) toEnable.push(entry.id)
+        else toDisable.push(entry.id)
+      }
+      if (toEnable.length > 0) {
+        await tx.subAccount.updateMany({
+          where: { id: { in: toEnable } },
+          data: { enabled: true }
+        })
+      }
+      if (toDisable.length > 0) {
+        await tx.subAccount.updateMany({
+          where: { id: { in: toDisable } },
+          data: { enabled: false }
+        })
+        // If the active account just got disabled, drop the binding so
+        // the next sync picks a fresh one from the still-enabled pool.
+        if (provider.activeSubscriptionAccountId !== null && toDisable.includes(provider.activeSubscriptionAccountId)) {
+          await tx.provider.update({
+            where: { id: provider.id },
+            data: { activeSubscriptionAccountId: null }
+          })
+        }
+      }
+    }
 
     const desired = new Set(inc.models)
     const existingNames = new Set(provider.models.map((m) => m.name))
@@ -597,7 +673,7 @@ export async function getEnabledModels(
 ): Promise<{ provider: string; model: string }[]> {
   const rows = await prisma.model.findMany({
     where: { enabled: true },
-    select: { name: true, provider: { select: { name: true, apiKey: true, authMode: true } } },
+    select: { name: true, provider: { select: { name: true, apiKey: true, authMode: true, transformer: true } } },
     orderBy: [{ provider: { name: 'asc' } }, { name: 'asc' }]
   })
   // Only providers that can actually authenticate are routable: an
@@ -606,12 +682,14 @@ export async function getEnabledModels(
   // dashboard's availability gate so the Router never lists models
   // from unconfigured seed providers (e.g. an empty-key google).
   const subs = await getSubscriptionsInfo()
-  const subPlan = new Map(subs.map((s) => [s.providerName, s.plan]))
+  const subPlan = new Map(subs.map((s) => [s.providerName, s.enabled ? (s.activeAccount?.plan ?? null) : null]))
   return rows
-    .filter((r) =>
-      r.provider.authMode === AuthMode.subscription
-        ? Boolean(subPlan.get(r.provider.name))
-        : r.provider.apiKey !== null && r.provider.apiKey.trim().length > 0
+    .filter(
+      (r) =>
+        providerEnabledFromTransformer(r.provider.transformer) &&
+        (r.provider.authMode === AuthMode.subscription
+          ? Boolean(subPlan.get(r.provider.name))
+          : r.provider.apiKey !== null && r.provider.apiKey.trim().length > 0)
     )
     .map((r) => ({ provider: r.provider.name, model: r.name }))
 }

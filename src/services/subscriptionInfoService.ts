@@ -1,106 +1,73 @@
-import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { composeUiConfig } from './configService'
+import { getPrismaClient } from '../db/client'
+import type { PrismaClient } from '../generated/prisma/client'
+
+export interface SubscriptionAccountInfo {
+  id: string
+  label: string
+  sourcePath: string
+  enabled: boolean
+  userName: string | null
+  userEmail: string | null
+  userId: string | null
+  plan: string | null
+  rateLimitTier: string | null
+  expiresAt: number | null
+  scopes: string[] | null
+}
 
 export interface SubscriptionInfo {
   providerName: string
+  enabled: boolean
+  accounts: SubscriptionAccountInfo[]
+  activeAccount: SubscriptionAccountInfo | null
+}
+
+const providerEnabled = (enabled: unknown, transformer: unknown): boolean =>
+  enabled !== false && (transformer as { providerEnabled?: unknown } | null | undefined)?.providerEnabled !== false
+
+const toAccountInfo = (a: {
+  id: string
+  label: string
+  sourcePath: string
+  enabled: boolean
+  userName: string | null
+  userEmail: string | null
+  userId: string | null
   plan: string | null
   rateLimitTier: string | null
-  expiresAt: number | null
-  scopes: string[] | null
-}
+  expiresAt: Date | null
+  scopes: unknown
+}): SubscriptionAccountInfo => ({
+  id: a.id,
+  label: a.label,
+  sourcePath: a.sourcePath,
+  enabled: a.enabled,
+  userName: a.userName,
+  userEmail: a.userEmail,
+  userId: a.userId,
+  plan: a.plan,
+  rateLimitTier: a.rateLimitTier,
+  expiresAt: a.expiresAt ? a.expiresAt.valueOf() : null,
+  scopes: Array.isArray(a.scopes) ? a.scopes.filter((s): s is string => typeof s === 'string') : null
+})
 
-interface CredentialFileShape {
-  plan: string | null
-  rateLimitTier: string | null
-  expiresAt: number | null
-  scopes: string[] | null
-}
-
-const readJson = async <T>(path: string): Promise<T | null> => {
-  try {
-    const raw = await readFile(path, 'utf-8')
-    return JSON.parse(raw) as T
-  } catch {
-    return null
-  }
-}
-
-const readClaudeCredentials = async (): Promise<CredentialFileShape | null> => {
-  const data = await readJson<{ claudeAiOauth?: Record<string, unknown> }>(
-    join(homedir(), '.claude', '.credentials.json')
-  )
-  const oauth = data?.claudeAiOauth
-  if (!oauth) return null
-  return {
-    plan: typeof oauth.subscriptionType === 'string' ? oauth.subscriptionType : null,
-    rateLimitTier: typeof oauth.rateLimitTier === 'string' ? oauth.rateLimitTier : null,
-    expiresAt: typeof oauth.expiresAt === 'number' ? oauth.expiresAt : null,
-    scopes: Array.isArray(oauth.scopes) ? (oauth.scopes as string[]) : null
-  }
-}
-
-// Decode a JWT payload without verifying the signature — we only need
-// the public claims and the file came from the user's own filesystem.
-const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
-  const parts = token.split('.')
-  if (parts.length < 2) return null
-  try {
-    const padded = parts[1]
-      .replace(/-/g, '+')
-      .replace(/_/g, '/')
-      .padEnd(parts[1].length + ((4 - (parts[1].length % 4)) % 4), '=')
-    return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'))
-  } catch {
-    return null
-  }
-}
-
-const readCodexCredentials = async (): Promise<CredentialFileShape | null> => {
-  const data = await readJson<{
-    tokens?: { id_token?: string; access_token?: string }
-    OPENAI_API_KEY?: string | null
-  }>(join(homedir(), '.codex', 'auth.json'))
-  const idToken = data?.tokens?.id_token
-  const claims = idToken ? decodeJwtPayload(idToken) : null
-  const auth = (claims?.['https://api.openai.com/auth'] ?? {}) as Record<string, unknown>
-  const activeUntil =
-    typeof auth.chatgpt_subscription_active_until === 'string' ? auth.chatgpt_subscription_active_until : null
-  return {
-    plan: typeof auth.chatgpt_plan_type === 'string' ? auth.chatgpt_plan_type : null,
-    rateLimitTier: null,
-    expiresAt: activeUntil ? Date.parse(activeUntil) : null,
-    scopes: null
-  }
-}
-
-const credentialReaderForBaseUrl = (apiBaseUrl: string): (() => Promise<CredentialFileShape | null>) | null => {
-  if (apiBaseUrl.includes('anthropic.com')) return readClaudeCredentials
-  if (apiBaseUrl.includes('chatgpt.com') || apiBaseUrl.includes('openai.com/v1')) return readCodexCredentials
-  return null
-}
-
-export const getSubscriptionsInfo = async (): Promise<SubscriptionInfo[]> => {
-  const config = await composeUiConfig()
-  const providers = Array.isArray(config?.Providers) ? config.Providers : []
-  const subscriptions = providers.filter((p: { auth_mode?: string }) => p.auth_mode === 'subscription')
-  const cache = new Map<string, CredentialFileShape | null>()
-  const out: SubscriptionInfo[] = []
-  for (const provider of subscriptions) {
-    const apiBaseUrl = String((provider as { api_base_url: string }).api_base_url ?? '')
-    const reader = credentialReaderForBaseUrl(apiBaseUrl)
-    if (!cache.has(apiBaseUrl)) {
-      cache.set(apiBaseUrl, reader ? await reader() : null)
+export async function getSubscriptionsInfo(prisma: PrismaClient = getPrismaClient()): Promise<SubscriptionInfo[]> {
+  const providers = await prisma.provider.findMany({
+    where: { authMode: 'subscription' },
+    include: {
+      subscriptionAccounts: { orderBy: { createdAt: 'asc' } },
+      activeSubscriptionAccount: true
+    },
+    orderBy: { createdAt: 'asc' }
+  })
+  return providers.map((p) => {
+    const accounts = p.subscriptionAccounts.map(toAccountInfo)
+    const active = p.activeSubscriptionAccount ? toAccountInfo(p.activeSubscriptionAccount) : null
+    return {
+      providerName: p.name,
+      enabled: providerEnabled(true, p.transformer),
+      accounts,
+      activeAccount: active
     }
-    const creds = cache.get(apiBaseUrl) ?? null
-    out.push({
-      providerName: String((provider as { name: string }).name ?? ''),
-      plan: creds?.plan ?? null,
-      rateLimitTier: creds?.rateLimitTier ?? null,
-      expiresAt: creds?.expiresAt ?? null,
-      scopes: creds?.scopes ?? null
-    })
-  }
-  return out
+  })
 }

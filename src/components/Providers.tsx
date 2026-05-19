@@ -1,4 +1,3 @@
-import { isDeprecatedModel } from '@ccr/shared/data'
 import { Eye, EyeOff, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,11 +16,32 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
 import { findSubscriptionPreset } from '@/lib/subscriptionPresets'
+import { isDeprecatedModel } from '@/shared/data'
 import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
 
 interface ProviderType extends Provider {}
+type SubscriptionAccountView = {
+  id: string
+  label: string
+  sourcePath: string
+  enabled: boolean
+  userName: string | null
+  userEmail: string | null
+  userId: string | null
+  plan: string | null
+}
+
+const accountSummary = (a: SubscriptionAccountView): string =>
+  [a.userName, a.userEmail, a.userId].filter(Boolean).join(' / ') || a.label
+
+type SubscriptionView = {
+  providerName: string
+  enabled: boolean
+  accounts: SubscriptionAccountView[]
+  activeAccount: SubscriptionAccountView | null
+}
 
 export function Providers() {
   const { t } = useTranslation()
@@ -58,6 +78,7 @@ export function Providers() {
   const comboInputRef = useRef<HTMLInputElement>(null)
 
   const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
+  const [subscriptionByProvider, setSubscriptionByProvider] = useState<Record<string, SubscriptionView>>({})
 
   // Fetch available transformers when component mounts
   useEffect(() => {
@@ -77,13 +98,16 @@ export function Providers() {
     const fetchSubscriptions = async () => {
       try {
         const response = await api.get<{
-          subscriptions: { providerName: string; plan: string | null }[]
+          subscriptions: SubscriptionView[]
         }>('/subscriptions')
         const map: Record<string, string | null> = {}
+        const subMap: Record<string, SubscriptionView> = {}
         for (const entry of response.subscriptions) {
-          map[entry.providerName] = entry.plan
+          map[entry.providerName] = entry.activeAccount?.plan ?? null
+          subMap[entry.providerName] = entry
         }
         setPlanByProvider(map)
+        setSubscriptionByProvider(subMap)
       } catch (error) {
         console.error('Failed to fetch subscriptions:', error)
       }
@@ -111,7 +135,7 @@ export function Providers() {
     const actualIndex = validProviders.indexOf(visibleProviders[index])
     const provider = config.Providers[actualIndex]
     setEditingProviderIndex(actualIndex)
-    setEditingProviderData(JSON.parse(JSON.stringify(provider))) // 深拷贝
+    setEditingProviderData({ enabled: true, ...JSON.parse(JSON.stringify(provider)) }) // 深拷贝
     // Reset API key visibility and error when opening edit dialog
     setShowApiKey((prev) => ({
       ...prev,
@@ -603,6 +627,7 @@ export function Providers() {
   }
   const visibleProviders = providersByAuth[activeAuthMode]
   const isAvailable = (p: Provider) => {
+    if (p.enabled === false) return false
     if (p.auth_mode === 'subscription') return Boolean(planByProvider[p.name])
     return (p.api_key?.trim().length ?? 0) > 0
   }
@@ -682,6 +707,18 @@ export function Providers() {
           </DialogHeader>
           {editingProvider && editingProviderIndex !== null && (
             <div className='space-y-4 p-4 overflow-y-auto flex-grow'>
+              <div className='flex items-center justify-between rounded-md border p-3'>
+                <div className='space-y-0.5'>
+                  <Label>{t('providers.provider_enabled')}</Label>
+                </div>
+                <Switch
+                  checked={editingProvider.enabled !== false}
+                  onCheckedChange={(checked) => {
+                    if (!editingProviderData) return
+                    setEditingProviderData({ ...editingProviderData, enabled: checked })
+                  }}
+                />
+              </div>
               {(editingProvider.auth_mode ?? 'api_key') === 'api_key' ? (
                 <div className='space-y-4'>
                   <div className='space-y-2'>
@@ -731,10 +768,64 @@ export function Providers() {
                   const vendor = preset?.vendor ?? 'subscription'
                   const cli = preset?.cli ?? ''
                   const credentialsPath = preset?.credentialsPath ?? ''
+                  const sub = subscriptionByProvider[editingProvider.name]
+                  const accounts = sub?.accounts ?? []
+                  // In-flight edits win; otherwise fall back to the live
+                  // SubAccount.enabled from /subscriptions.
+                  const editsById = new Map(
+                    (editingProvider.subscription_accounts ?? []).map((entry) => [entry.id, entry.enabled])
+                  )
+                  const isEnabled = (account: SubscriptionAccountView): boolean =>
+                    editsById.has(account.id) ? (editsById.get(account.id) as boolean) : account.enabled
                   return (
-                    <div className='rounded-md border bg-muted/40 p-4 text-sm text-foreground space-y-2'>
-                      <p className='font-medium'>{t('providers.subscription_intro', { vendor, cli })}</p>
-                      <p className='text-muted-foreground'>{t('providers.subscription_hint', { credentialsPath })}</p>
+                    <div className='space-y-3'>
+                      <div className='rounded-md border bg-muted/40 p-4 text-sm text-foreground space-y-1'>
+                        <p className='font-medium'>{t('providers.subscription_intro', { vendor, cli })}</p>
+                        <p className='text-muted-foreground'>{t('providers.subscription_hint', { credentialsPath })}</p>
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>{t('providers.subscription_accounts')}</Label>
+                        {accounts.length === 0 ? (
+                          <p className='text-sm text-muted-foreground'>{t('providers.subscription_no_accounts')}</p>
+                        ) : (
+                          <div className='divide-y rounded-md border'>
+                            {accounts.map((account) => {
+                              const enabled = isEnabled(account)
+                              return (
+                                <div key={account.id} className='flex items-center gap-3 px-3 py-2'>
+                                  <Switch
+                                    checked={enabled}
+                                    onCheckedChange={(next) => {
+                                      if (!editingProviderData) return
+                                      const baseline: Array<{ id: string; enabled: boolean }> =
+                                        editingProviderData.subscription_accounts ??
+                                        accounts.map((a) => ({ id: a.id, enabled: a.enabled }))
+                                      const merged = baseline.some((e) => e.id === account.id)
+                                        ? baseline.map((e) => (e.id === account.id ? { ...e, enabled: next } : e))
+                                        : [...baseline, { id: account.id, enabled: next }]
+                                      setEditingProviderData({
+                                        ...editingProviderData,
+                                        subscription_accounts: merged
+                                      })
+                                    }}
+                                  />
+                                  <div className='min-w-0 flex-1'>
+                                    <div className='font-medium text-sm truncate'>{account.label}</div>
+                                    <div className='text-xs text-muted-foreground truncate'>
+                                      {accountSummary(account)}
+                                    </div>
+                                  </div>
+                                  {account.plan && (
+                                    <Badge variant='outline' className='text-xs'>
+                                      {account.plan}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )
                 })()
