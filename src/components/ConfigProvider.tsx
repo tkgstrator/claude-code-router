@@ -73,23 +73,23 @@ function normalizeConfig(data: Config): Config {
     Router:
       data.Router && typeof data.Router === 'object'
         ? {
-            default: typeof data.Router.default === 'string' ? data.Router.default : '',
-            background: typeof data.Router.background === 'string' ? data.Router.background : '',
-            think: typeof data.Router.think === 'string' ? data.Router.think : '',
-            longContext: typeof data.Router.longContext === 'string' ? data.Router.longContext : '',
+            default: typeof data.Router.default === 'string' ? data.Router.default : null,
+            background: typeof data.Router.background === 'string' ? data.Router.background : null,
+            think: typeof data.Router.think === 'string' ? data.Router.think : null,
+            longContext: typeof data.Router.longContext === 'string' ? data.Router.longContext : null,
             longContextThreshold:
               typeof data.Router.longContextThreshold === 'number' ? data.Router.longContextThreshold : 60000,
-            webSearch: typeof data.Router.webSearch === 'string' ? data.Router.webSearch : '',
-            image: typeof data.Router.image === 'string' ? data.Router.image : ''
+            webSearch: typeof data.Router.webSearch === 'string' ? data.Router.webSearch : null,
+            image: typeof data.Router.image === 'string' ? data.Router.image : null
           }
         : {
-            default: '',
-            background: '',
-            think: '',
-            longContext: '',
+            default: null,
+            background: null,
+            think: null,
+            longContext: null,
             longContextThreshold: 60000,
-            webSearch: '',
-            image: ''
+            webSearch: null,
+            image: null
           },
     CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : ''
   }
