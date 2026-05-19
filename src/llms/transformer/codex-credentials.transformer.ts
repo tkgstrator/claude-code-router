@@ -40,7 +40,7 @@ const CODEX_USER_AGENT: string = (() => {
   return `codex_cli/${codexVer} (${osStr}; ${arch()})`;
 })();
 
-const CODEX_AUTH_PATH = join(homedir(), ".codex", "auth.json");
+const DEFAULT_CODEX_AUTH_PATH = join(homedir(), ".codex", "auth.json");
 
 interface CodexAuthFile {
   tokens?: {
@@ -49,13 +49,13 @@ interface CodexAuthFile {
   };
 }
 
-function readCodexAuth(): { token: string; accountId?: string } {
+function readCodexAuth(codexAuthPath: string): { token: string; accountId?: string } {
   let data: CodexAuthFile;
   try {
-    data = JSON.parse(readFileSync(CODEX_AUTH_PATH, "utf-8"));
+    data = JSON.parse(readFileSync(codexAuthPath, "utf-8"));
   } catch {
     throw new Error(
-      `Cannot read Codex credentials from ${CODEX_AUTH_PATH}. ` +
+      `Cannot read Codex credentials from ${codexAuthPath}. ` +
         "Authenticate the Codex CLI first."
     );
   }
@@ -83,7 +83,22 @@ export class CodexCredentialsTransformer {
   name = "codex-oauth";
 
   async transformRequestIn(request: any, provider: any) {
-    const { token, accountId } = readCodexAuth();
+    const dbToken =
+      typeof provider?.transformer?.subscriptionAuth?.accessToken === "string"
+        ? provider.transformer.subscriptionAuth.accessToken
+        : "";
+    const dbAccountId =
+      typeof provider?.transformer?.subscriptionAuth?.accountId === "string"
+        ? provider.transformer.subscriptionAuth.accountId
+        : undefined;
+    const codexAuthPath =
+      typeof provider?.transformer?.subscriptionCredentialPath === "string" &&
+      provider.transformer.subscriptionCredentialPath.length > 0
+        ? provider.transformer.subscriptionCredentialPath
+        : DEFAULT_CODEX_AUTH_PATH;
+    const fallback = readCodexAuth(codexAuthPath);
+    const token = dbToken.length > 0 ? dbToken : fallback.token;
+    const accountId = dbAccountId ?? fallback.accountId;
 
     // chatgpt.com/backend-api/codex requires `instructions`, `input`
     // as a list, store=false and stream=true. openai-responses already

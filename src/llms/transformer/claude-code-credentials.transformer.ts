@@ -3,7 +3,7 @@ import { join } from "path";
 import { readFileSync, writeFileSync } from "fs";
 import { logger } from "../../lib/logger";
 
-const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
+const DEFAULT_CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
 
 const REFRESH_URL = "https://platform.claude.com/v1/oauth/token";
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
@@ -20,18 +20,21 @@ interface ClaudeCredentials {
   organizationUuid?: string;
 }
 
-function readCredentials(): ClaudeCredentials {
+function readCredentials(credentialsPath: string): ClaudeCredentials {
   try {
-    return JSON.parse(readFileSync(CREDENTIALS_PATH, "utf-8"));
+    return JSON.parse(readFileSync(credentialsPath, "utf-8"));
   } catch {
     throw new Error(
-      `Cannot read Claude Code credentials from ${CREDENTIALS_PATH}. ` +
+      `Cannot read Claude Code credentials from ${credentialsPath}. ` +
         "Please authenticate Claude Code first."
     );
   }
 }
 
-async function refreshToken(refreshTokenValue: string): Promise<string> {
+async function refreshToken(
+  refreshTokenValue: string,
+  credentialsPath: string
+): Promise<string> {
   const response = await fetch(REFRESH_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -53,14 +56,14 @@ async function refreshToken(refreshTokenValue: string): Promise<string> {
   }
 
   const data = (await response.json()) as any;
-  const credentials = readCredentials();
+  const credentials = readCredentials(credentialsPath);
   credentials.claudeAiOauth.accessToken = data.access_token;
   credentials.claudeAiOauth.expiresAt =
     Date.now() + (data.expires_in ?? 3600) * 1000;
   if (data.refresh_token) {
     credentials.claudeAiOauth.refreshToken = data.refresh_token;
   }
-  writeFileSync(CREDENTIALS_PATH, JSON.stringify(credentials));
+  writeFileSync(credentialsPath, JSON.stringify(credentials));
   return data.access_token;
 }
 
@@ -74,10 +77,10 @@ async function refreshToken(refreshTokenValue: string): Promise<string> {
 // is exactly why Opus (won the refresh) works while Sonnet (lost it)
 // fails. Collapsing concurrent refreshes into one promise means every
 // waiter gets the same fresh token (or the same consistent fallback).
-let refreshInFlight: Promise<string> | null = null;
+const refreshInFlightByPath = new Map<string, Promise<string>>();
 
-async function getValidToken(): Promise<string> {
-  const credentials = readCredentials();
+async function getValidToken(credentialsPath: string): Promise<string> {
+  const credentials = readCredentials(credentialsPath);
   const { accessToken, refreshToken: rt, expiresAt } =
     credentials.claudeAiOauth;
 
@@ -86,8 +89,8 @@ async function getValidToken(): Promise<string> {
     return accessToken;
   }
 
-  if (!refreshInFlight) {
-    refreshInFlight = refreshToken(rt)
+  if (!refreshInFlightByPath.has(credentialsPath)) {
+    const inFlight = refreshToken(rt, credentialsPath)
       .catch((e: unknown) => {
         // Surface WHY (status + body) to the file logger + console so
         // it shows up in the LogViewer, then fall back to the existing
@@ -107,11 +110,12 @@ async function getValidToken(): Promise<string> {
         return accessToken;
       })
       .finally(() => {
-        refreshInFlight = null;
+        refreshInFlightByPath.delete(credentialsPath);
       });
+    refreshInFlightByPath.set(credentialsPath, inFlight);
   }
 
-  return refreshInFlight;
+  return refreshInFlightByPath.get(credentialsPath)!;
 }
 
 // A Claude subscription OAuth token only gets the subscription's
@@ -159,8 +163,17 @@ export class ClaudeCodeCredentialsTransformer {
   name = "claude-code-oauth";
   endPoint = "/v1/messages";
 
-  async auth(request: any, _provider: any) {
-    const token = await getValidToken();
+  async auth(request: any, provider: any) {
+    const dbToken =
+      typeof provider?.transformer?.subscriptionAuth?.accessToken === "string"
+        ? provider.transformer.subscriptionAuth.accessToken
+        : "";
+    const credentialsPath =
+      typeof provider?.transformer?.subscriptionCredentialPath === "string" &&
+      provider.transformer.subscriptionCredentialPath.length > 0
+        ? provider.transformer.subscriptionCredentialPath
+        : DEFAULT_CREDENTIALS_PATH;
+    const token = dbToken.length > 0 ? dbToken : await getValidToken(credentialsPath);
     request.system = withClaudeCodeIdentity(request.system);
 
     // Remove thinking blocks that lack a valid Anthropic signature.

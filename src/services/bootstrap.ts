@@ -1,7 +1,8 @@
 import { initConfig, initDir } from '../lib/configEnvelope'
-import { syncLevelFromEnv } from '../lib/logger'
+import { logger, syncLevelFromEnv } from '../lib/logger'
 import { ensureRouterSlots, ensureSeedProviders } from './configService'
 import { seedScrapedPricesIntoDb } from './priceSeedService'
+import { syncSubAccountsToDb } from './subscriptionAccountSyncService'
 import { startUsageCapture } from './usageJob'
 
 // One-shot bootstrap for hosts that don't go through the legacy
@@ -19,12 +20,13 @@ export async function bootstrapServer(): Promise<void> {
   await seedScrapedPricesIntoDb()
   await ensureRouterSlots()
   await initConfig()
+  await syncSubAccountsToDb()
   // Re-apply LOG_LEVEL to the already-initialized logger. The pino
   // instance is created at import time before the config envelope has
   // been read, so the level must be updated once initConfig() has
   // mirrored config.json's LOG_LEVEL onto process.env.
   syncLevelFromEnv()
-  console.info(`[ccr] APIKEY=${process.env.APIKEY}`)
+  logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
   // Fire-and-forget: never block server boot on Redis. The job setup
   // is resilient and registers the schedule once Redis is reachable.
   void startUsageCapture()

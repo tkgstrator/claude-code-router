@@ -21,6 +21,8 @@ import { TransformerService } from '@/llms/services/transformer'
 import { router } from '@/llms/utils/router'
 import { logger } from './lib/logger'
 import { loadFullConfig } from './services/configService'
+import { getActiveSubAccountAuth } from './services/subscriptionAccountSyncService'
+import { getSubscriptionsInfo } from './services/subscriptionInfoService'
 
 // Re-export the pipeline entrypoints through this @ts-nocheck module so
 // the strict Hono adapter can import them as `any` (the @/llms/* stub
@@ -64,17 +66,63 @@ const SUBSCRIPTION_TRANSFORMER_CHAIN: Record<string, string[]> = {
   'claude-code': ['claude-code-oauth'],
   codex: ['openai-responses', 'codex-oauth']
 }
-const withSubscriptionAuth = (providers: any[]): any[] =>
+
+const subscriptionTransformerChainForProvider = (p: any): string[] | undefined => {
+  if (!p) return undefined
+  if (typeof p.name === 'string' && SUBSCRIPTION_TRANSFORMER_CHAIN[p.name]) {
+    return SUBSCRIPTION_TRANSFORMER_CHAIN[p.name]
+  }
+  const base = String(p.api_base_url ?? p.apiBaseUrl ?? '')
+  if (base.includes('anthropic.com')) return ['claude-code-oauth']
+  if (base.includes('chatgpt.com') || base.includes('openai.com/v1')) return ['openai-responses', 'codex-oauth']
+  return undefined
+}
+
+const withSubscriptionAuth = (
+  providers: any[],
+  activeAccountPathByProvider: Map<string, string>,
+  authByProvider: Map<
+    string,
+    { accessToken: string | null; refreshToken: string | null; idToken: string | null; accountId: string | null }
+  >
+): any[] =>
   providers.map((p) => {
     if (p?.auth_mode !== 'subscription') return p
-    const use = SUBSCRIPTION_TRANSFORMER_CHAIN[p.name]
+    if (p?.enabled === false) return p
+    const use = subscriptionTransformerChainForProvider(p)
     if (!use) return p
-    return { ...p, api_key: 'oauth', transformer: { ...(p.transformer ?? {}), use } }
+    const subscriptionCredentialPath = activeAccountPathByProvider.get(String(p.name))
+    const dbAuth = authByProvider.get(String(p.name))
+    return {
+      ...p,
+      api_key: 'oauth',
+      transformer: {
+        ...(p.transformer ?? {}),
+        use,
+        ...(subscriptionCredentialPath ? { subscriptionCredentialPath } : {}),
+        ...(dbAuth ? { subscriptionAuth: dbAuth } : {})
+      }
+    }
   })
 
 async function build(): Promise<LlmsContext> {
   const cfg = await loadFullConfig()
-  const providers = withSubscriptionAuth((cfg as any).Providers ?? [])
+  const subscriptions = await getSubscriptionsInfo()
+  const activeAccountPathByProvider = new Map(
+    subscriptions
+      .filter((s) => s.activeAccount?.sourcePath)
+      .map((s) => [s.providerName, s.activeAccount?.sourcePath as string])
+  )
+  const authByProvider = new Map<
+    string,
+    { accessToken: string | null; refreshToken: string | null; idToken: string | null; accountId: string | null }
+  >()
+  for (const p of (cfg as any).Providers ?? []) {
+    if (p?.auth_mode !== 'subscription') continue
+    const auth = await getActiveSubAccountAuth(String(p.name)).catch(() => null)
+    if (auth) authByProvider.set(String(p.name), auth)
+  }
+  const providers = withSubscriptionAuth((cfg as any).Providers ?? [], activeAccountPathByProvider, authByProvider)
   // router.ts reads configService.get("providers") (lowercase) and
   // get("Router"); loadFullConfig returns capital Providers. Provide
   // both so explicit "provider,model" routing also works.
