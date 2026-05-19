@@ -149,8 +149,9 @@ export function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogProps) {
             </Label>
             <Input
               id='timeout'
+              type='number'
               value={config.API_TIMEOUT_MS}
-              onChange={(e) => setConfig({ ...config, API_TIMEOUT_MS: e.target.value })}
+              onChange={(e) => setConfig({ ...config, API_TIMEOUT_MS: parseInt(e.target.value, 10) })}
               className='transition-all-ease focus:scale-[1.01]'
             />
           </div>
