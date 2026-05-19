@@ -37,12 +37,12 @@ interface ConfigProviderProps {
 function normalizeConfig(data: Config): Config {
   return {
     LOG: typeof data.LOG === 'boolean' ? data.LOG : false,
-    LOG_LEVEL: typeof data.LOG_LEVEL === 'string' ? data.LOG_LEVEL : 'debug',
+    LOG_LEVEL: typeof data.LOG_LEVEL === 'string' && data.LOG_LEVEL !== '' ? data.LOG_LEVEL : 'info',
     CLAUDE_PATH: typeof data.CLAUDE_PATH === 'string' ? data.CLAUDE_PATH : '',
     HOST: typeof data.HOST === 'string' ? data.HOST : '127.0.0.1',
     PORT: typeof data.PORT === 'number' ? data.PORT : 3456,
     APIKEY: typeof data.APIKEY === 'string' ? data.APIKEY : '',
-    API_TIMEOUT_MS: typeof data.API_TIMEOUT_MS === 'string' ? data.API_TIMEOUT_MS : '600000',
+    API_TIMEOUT_MS: typeof data.API_TIMEOUT_MS === 'number' ? data.API_TIMEOUT_MS : 600000,
     PROXY_URL: typeof data.PROXY_URL === 'string' ? data.PROXY_URL : '',
     transformers: Array.isArray(data.transformers) ? data.transformers : [],
     Providers: Array.isArray(data.Providers) ? data.Providers : [],
@@ -97,12 +97,12 @@ function normalizeConfig(data: Config): Config {
 
 const emptyConfig = (): Config => ({
   LOG: false,
-  LOG_LEVEL: 'debug',
+  LOG_LEVEL: 'info',
   CLAUDE_PATH: '',
   HOST: '127.0.0.1',
   PORT: 3456,
   APIKEY: '',
-  API_TIMEOUT_MS: '600000',
+  API_TIMEOUT_MS: 600000,
   PROXY_URL: '',
   transformers: [],
   Providers: [],
@@ -123,6 +123,7 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
   const [config, setConfig] = useState<Config | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [hasFetched, setHasFetched] = useState<boolean>(false)
+  const [authFailed, setAuthFailed] = useState<boolean>(false)
   const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem('apiKey'))
 
   // Listen for localStorage changes
@@ -143,10 +144,21 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
       setHasFetched(false)
       setConfig(null)
       setError(null)
+      setAuthFailed(false)
     }
 
     fetchConfig()
   }, [apiKey])
+
+  // api.ts strips the stored key and emits this on an auth failure.
+  // The 401 path never resolves the fetch (config stays null), so this
+  // is what releases the loading gate below and lets the router show
+  // the login screen.
+  useEffect(() => {
+    const onUnauthorized = () => setAuthFailed(true)
+    window.addEventListener('unauthorized', onUnauthorized)
+    return () => window.removeEventListener('unauthorized', onUnauthorized)
+  }, [])
 
   const reloadConfig = useCallback(async () => {
     try {
@@ -177,6 +189,18 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
 
     fetchConfig()
   }, [hasFetched, apiKey, reloadConfig])
+
+  // Hold the whole app on a single loading screen until the first
+  // config fetch settles, so no page ever renders against a null or
+  // half-loaded config. On auth failure authFailed flips (above) so
+  // the router can still reach /login.
+  if (config === null && error === null && !authFailed) {
+    return (
+      <div className='h-screen bg-background font-sans flex items-center justify-center'>
+        <div className='text-muted-foreground'>Loading configuration...</div>
+      </div>
+    )
+  }
 
   return <ConfigContext.Provider value={{ config, setConfig, reloadConfig, error }}>{children}</ConfigContext.Provider>
 }

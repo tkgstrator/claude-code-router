@@ -21,7 +21,7 @@ configRoute.post('/api/config', async (c) => {
   const raw = await c.req.json().catch(() => null)
   const parsed = ApplyConfigPayloadSchema.safeParse(raw)
   if (!parsed.success) {
-    return c.json({ success: false as const, error: 'invalid config payload' }, 400)
+    return c.json({ success: false as const, error: parsed.error }, 400)
   }
   const result = await applyUiConfig(parsed.data)
   // The /v1 proxy caches the llms services (incl. Router/providers)

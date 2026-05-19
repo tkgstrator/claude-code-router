@@ -96,7 +96,7 @@ export const ConfigSchema = z
     Router: RouterSchema,
     HOST: z.string().optional(),
     PORT: z.number().optional(),
-    APIKEY: z.string().optional(),
+    APIKEY: z.string().nonempty(),
     LOG: z.boolean().optional(),
     LOG_LEVEL: z.string().optional(),
     // composeUiConfig always emits these optional path/url scalars, as

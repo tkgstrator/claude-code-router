@@ -630,6 +630,8 @@ async function sendRequestToProvider(
               status: response.status,
             },
           });
+          const { requestLogEmitter } = await import('../../lib/requestLogEvents');
+          requestLogEmitter.emit('new_log', { sessionId });
         };
         void writeLog().catch(() => {});
       }

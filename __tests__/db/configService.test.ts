@@ -32,7 +32,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5', 'gpt-5-nano']
         }
@@ -61,7 +61,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5', 'gpt-5-nano']
         }
@@ -73,7 +73,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5']
         }
@@ -91,7 +91,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5']
         },
@@ -113,7 +113,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5']
         }
@@ -137,12 +137,52 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(allModels.map((m) => m.provider.name)).toEqual(['openai'])
   })
 
+  test('API_TIMEOUT_MS number is written to disk and read back via composeUiConfig', async () => {
+    // APIKEY must be present in the envelope; applyUiConfig writes only what is
+    // passed, and readConfigFile requires a non-empty APIKEY to pass schema validation.
+    await applyUiConfig({
+      Providers: [],
+      Router: {},
+      APIKEY: 'test-key',
+      API_TIMEOUT_MS: 30000
+    })
+    const ui = await composeUiConfig()
+    expect(ui.API_TIMEOUT_MS).toBe(30000)
+  })
+
+  test('API_TIMEOUT_MS is preserved alongside Providers and Router changes', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: 'openai,gpt-5' },
+      APIKEY: 'test-key',
+      API_TIMEOUT_MS: 45000
+    })
+    const ui = await composeUiConfig()
+    expect(ui.API_TIMEOUT_MS).toBe(45000)
+    expect(ui.Router.default).toBe('openai,gpt-5')
+  })
+
+  test('omitting API_TIMEOUT_MS from payload removes it from disk', async () => {
+    await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key', API_TIMEOUT_MS: 30000 })
+    // Second write without the field — envelope strips it.
+    await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key' })
+    const ui = await composeUiConfig()
+    expect(ui.API_TIMEOUT_MS).toBeUndefined()
+  })
+
   test('unknown router scenarios are dropped with a warning', async () => {
     await applyUiConfig({
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5']
         }

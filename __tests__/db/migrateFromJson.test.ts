@@ -60,7 +60,7 @@ describe.skipIf(!HAS_DB)('runJsonToDbMigration', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5', 'gpt-5-nano']
         }
@@ -93,7 +93,7 @@ describe.skipIf(!HAS_DB)('runJsonToDbMigration', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5']
         }
@@ -111,7 +111,7 @@ describe.skipIf(!HAS_DB)('runJsonToDbMigration', () => {
       Providers: [
         {
           name: 'openai',
-          api_base_url: 'https://api.openai.com/v1',
+          api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
           models: ['gpt-5']
         }
