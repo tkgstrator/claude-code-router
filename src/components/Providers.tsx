@@ -254,6 +254,9 @@ export function Providers() {
     if (!updatedProvider.transformer) {
       updatedProvider.transformer = { use: [] }
     }
+    if (!updatedProvider.transformer.use) {
+      updatedProvider.transformer.use = []
+    }
 
     // Add transformer to the use array
     updatedProvider.transformer.use = [...updatedProvider.transformer.use, transformerPath]
