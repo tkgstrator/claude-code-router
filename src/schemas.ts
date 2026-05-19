@@ -14,12 +14,14 @@ export type ProviderAuthMode = z.infer<typeof ProviderAuthModeSchema>
 
 export const ProviderTransformerSchema = z
   .object({
-    use: z.array(
-      z.union([
-        z.string().nonempty(),
-        z.array(z.union([z.string().nonempty(), z.record(z.string().nonempty(), z.unknown())]))
-      ])
-    )
+    use: z
+      .array(
+        z.union([
+          z.string().nonempty(),
+          z.array(z.union([z.string().nonempty(), z.record(z.string().nonempty(), z.unknown())]))
+        ])
+      )
+      .optional()
   })
   .catchall(z.any())
 export type ProviderTransformer = z.infer<typeof ProviderTransformerSchema>
