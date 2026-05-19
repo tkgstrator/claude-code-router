@@ -25,6 +25,7 @@ export default defineConfig({
       // runner doesn't try to evaluate the bun-target minified bundle
       // in packages/shared/dist.
       '@ccr/shared/data': resolve(__dirname, './packages/shared/src/data/index.ts'),
+      '@ccr/shared/preset/types': resolve(__dirname, './packages/shared/src/preset/types.ts'),
       '@ccr/shared': resolve(__dirname, './packages/shared/src/index.ts')
     }
   },

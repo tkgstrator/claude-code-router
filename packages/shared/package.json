@@ -15,6 +15,12 @@
       "types": "./dist/data/index.d.ts",
       "import": "./dist/data/index.js",
       "require": "./dist/data/index.js"
+    },
+    "./preset/types": {
+      "bun": "./src/preset/types.ts",
+      "types": "./dist/preset/types.d.ts",
+      "import": "./dist/preset/types.js",
+      "require": "./dist/preset/types.js"
     }
   },
   "scripts": {
