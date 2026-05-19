@@ -1,0 +1,9 @@
+language js
+
+`let $_ = $_` as $match where {
+  register_diagnostic(
+    span=$match,
+    message="Avoid `let`. Use `const` instead — declare variables as immutable unless reassignment is required.",
+    severity="warn"
+  )
+}

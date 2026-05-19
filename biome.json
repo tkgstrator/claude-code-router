@@ -7,19 +7,24 @@
     "./biome-plugins/prefer-z-uuid.grit",
     "./biome-plugins/prefer-z-url.grit",
     "./biome-plugins/prefer-z-nonempty.grit",
-    "./biome-plugins/no-bare-z-string.grit"
+    "./biome-plugins/no-bare-z-string.grit",
+    "./biome-plugins/no-while-loop.grit",
+    "./biome-plugins/no-let.grit"
   ],
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "files": {
     "includes": [
       "src/**/*.{ts,tsx}",
+      "ccr-auth/**/*.json",
       "vite.config.ts",
-      "packages/shared/src/**/*.{ts,tsx}",
-      "!src/llms",
-      "!src/llms-vendor.d.ts",
       "!src/generated",
       "!src/components/ui/**/*.{ts,tsx}",
-      "!src/locales",
       "!**/node_modules",
       "!**/dist"
     ]
@@ -32,21 +37,14 @@
       "a11y": {},
       "style": {
         "useImportType": "error",
-        "noParameterAssign": "error",
-        "noRestrictedGlobals": {
-          "level": "warn",
-          "options": {
-            "deniedGlobals": {
-              "Date": "Use dayjs() instead",
-              "globalThis": "Avoid globalThis; pass dependencies explicitly"
-            }
-          }
-        }
+        "noParameterAssign": "error"
       },
       "suspicious": {
         "noConsole": {
           "level": "warn",
-          "options": { "allow": ["error", "warn"] }
+          "options": {
+            "allow": ["error", "warn"]
+          }
         }
       },
       "complexity": {
