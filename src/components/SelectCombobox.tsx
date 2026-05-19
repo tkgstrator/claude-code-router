@@ -7,7 +7,7 @@ interface Option {
 
 interface SelectComboboxProps {
   options: Option[]
-  value: string | undefined
+  value: string | null | undefined
   onChange: (value: string) => void
   placeholder?: string
   emptyPlaceholder?: string
