@@ -1,4 +1,4 @@
-import { VENDOR_DEFAULTS } from '@ccr/shared'
+import { VENDOR_DEFAULTS } from '@/shared'
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
 import { getSubscriptionsInfo } from './subscriptionInfoService'
@@ -40,17 +40,28 @@ export async function testProvider(name: string): Promise<ProviderTestResult> {
   if (!provider) {
     return { success: false, latencyMs: dayjs().diff(start), error: `provider "${name}" not found` }
   }
+  if (
+    provider.transformer &&
+    typeof provider.transformer === 'object' &&
+    (provider.transformer as { providerEnabled?: unknown }).providerEnabled === false
+  ) {
+    return { success: false, latencyMs: dayjs().diff(start), error: 'provider is disabled' }
+  }
   if (provider.authMode === 'subscription') {
     const subs = await getSubscriptionsInfo()
     const match = subs.find((s) => s.providerName === name)
-    if (!match || !match.plan) {
+    if (match && !match.enabled) {
+      return { success: false, latencyMs: dayjs().diff(start), error: 'provider is disabled' }
+    }
+    const account = match?.activeAccount
+    if (!account || !account.plan) {
       return {
         success: false,
         latencyMs: dayjs().diff(start),
         error: 'no subscription credentials on disk — log in with the vendor CLI first'
       }
     }
-    if (match.expiresAt && match.expiresAt < dayjs().valueOf()) {
+    if (account.expiresAt && account.expiresAt < dayjs().valueOf()) {
       return {
         success: false,
         latencyMs: dayjs().diff(start),

@@ -368,7 +368,14 @@ export async function testAllModels(
   // Which subscription providers actually have valid, unexpired creds.
   const subs = await getSubscriptionsInfo()
   const validSubscription = new Set(
-    subs.filter((s) => s.plan && !(s.expiresAt && s.expiresAt < dayjs().valueOf())).map((s) => s.providerName)
+    subs
+      .filter(
+        (s) =>
+          s.enabled &&
+          s.activeAccount?.plan &&
+          !(s.activeAccount.expiresAt && s.activeAccount.expiresAt < dayjs().valueOf())
+      )
+      .map((s) => s.providerName)
   )
   const hasCredentials = (p: { name: string; apiKey: string | null; authMode: AuthMode }): boolean =>
     p.authMode === AuthMode.subscription

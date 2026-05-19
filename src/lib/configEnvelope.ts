@@ -2,16 +2,11 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline'
-import {
-  CONFIG_FILE,
-  ConfigEnvelopeSchema,
-  DEFAULT_CONFIG,
-  ENVELOPE_ENV_KEYS,
-  HOME_DIR,
-  PLUGINS_DIR
-} from '@ccr/shared'
 import JSON5 from 'json5'
+import { ConfigEnvelopeSchema, ENVELOPE_ENV_KEYS } from '@/shared'
+import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
 import dayjs from './dayjs'
+import { logger } from './logger'
 
 // Function to interpolate environment variables in config values
 const interpolateEnvVars = (obj: any): any => {
@@ -80,7 +75,7 @@ const createDefaultConfig = async () => {
     Router: {}
   }
   await writeConfigFile(config)
-  console.log(`Created default configuration file at ~/.claude-code-router/config.json`)
+  logger.info({ path: CONFIG_FILE }, 'Created default configuration file')
   return config
 }
 
@@ -91,14 +86,14 @@ export const readConfigFile = async () => {
     try {
       parsed = JSON5.parse(raw)
     } catch (parseError) {
-      console.error(`Failed to parse config file at ${CONFIG_FILE}: ${(parseError as Error).message}`)
+      logger.error({ path: CONFIG_FILE, err: parseError }, 'Failed to parse config file')
       await fs.unlink(CONFIG_FILE)
       return createDefaultConfig()
     }
 
     const result = ConfigEnvelopeSchema.safeParse(parsed)
     if (!result.success) {
-      console.error(`Config file failed schema validation: ${result.error.message}`)
+      logger.error({ err: result.error }, 'Config file failed schema validation')
       await fs.unlink(CONFIG_FILE)
       return createDefaultConfig()
     }
@@ -109,11 +104,11 @@ export const readConfigFile = async () => {
       try {
         return await createDefaultConfig()
       } catch (error: any) {
-        console.error('Failed to create default configuration:', error.message)
+        logger.fatal({ err: error }, 'Failed to create default configuration')
         process.exit(1)
       }
     } else {
-      console.error(`Failed to read config file at ${CONFIG_FILE}: ${readError.message}`)
+      logger.fatal({ path: CONFIG_FILE, err: readError }, 'Failed to read config file')
       process.exit(1)
     }
   }

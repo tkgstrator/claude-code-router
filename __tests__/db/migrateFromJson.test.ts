@@ -9,7 +9,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { CONFIG_FILE } from '../../packages/shared/src/constants'
+import { CONFIG_FILE } from '../../src/shared/constants'
 import { runJsonToDbMigration } from '../../src/db/migrateFromJson'
 import { composeUiConfig } from '../../src/services/configService'
 import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'

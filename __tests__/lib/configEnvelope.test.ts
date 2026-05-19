@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { CONFIG_FILE } from '../../packages/shared/src/constants'
+import { CONFIG_FILE } from '../../src/shared/constants'
 import { applyEnvelopeToEnv, readConfigFile } from '../../src/lib/configEnvelope'
 
 async function writeConfig(content: string): Promise<void> {

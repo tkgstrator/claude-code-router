@@ -2,6 +2,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import dayjs from '../lib/dayjs'
+import { logger } from '../lib/logger'
 
 export interface ClaudeUsageWindow {
   utilization: number
@@ -179,12 +180,12 @@ const refreshCodexToken = async (auth: CodexAuthFile, refreshToken: string): Pro
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      console.warn(`[codex] token refresh failed: HTTP ${res.status} ${body.slice(0, 200)}`)
+      logger.warn({ status: res.status, body: body.slice(0, 200) }, '[codex] token refresh failed')
       return null
     }
     const j = (await res.json()) as { access_token?: unknown; refresh_token?: unknown; id_token?: unknown }
     if (typeof j.access_token !== 'string' || j.access_token.length === 0) {
-      console.warn('[codex] token refresh: response had no access_token')
+      logger.warn('[codex] token refresh: response had no access_token')
       return null
     }
     const prev = auth.tokens && typeof auth.tokens === 'object' ? auth.tokens : {}
@@ -201,7 +202,7 @@ const refreshCodexToken = async (auth: CodexAuthFile, refreshToken: string): Pro
     await rename(tmp, CODEX_AUTH_PATH)
     return j.access_token
   } catch (e) {
-    console.warn(`[codex] token refresh threw: ${e instanceof Error ? e.message : String(e)}`)
+    logger.warn({ err: e }, '[codex] token refresh threw')
     return null
   }
 }
@@ -219,7 +220,7 @@ const codexAuth = async (): Promise<{ token: string; accountId: string | null } 
     const tokens = auth.tokens && typeof auth.tokens === 'object' ? auth.tokens : {}
     const access = typeof tokens.access_token === 'string' ? tokens.access_token : ''
     if (access.length === 0) {
-      console.warn('[codex] auth.json has no tokens.access_token')
+      logger.warn('[codex] auth.json has no tokens.access_token')
       return null
     }
     const accountId = typeof tokens.account_id === 'string' ? tokens.account_id : null
@@ -230,13 +231,14 @@ const codexAuth = async (): Promise<{ token: string; accountId: string | null } 
     const stale = exp !== null && exp - dayjs().unix() <= REFRESH_SKEW_S && refreshToken.length > 0
     if (!stale) return { token: access, accountId }
     const fresh = await refreshCodexToken(auth, refreshToken)
-    console.warn(fresh !== null ? '[codex] token refreshed ok' : '[codex] token refresh failed; using existing token')
+    if (fresh !== null) logger.info('[codex] token refreshed ok')
+    else logger.warn('[codex] token refresh failed; using existing token')
     return { token: fresh !== null ? fresh : access, accountId }
   } catch (e) {
     // Not-yet-registered (no auth.json) is normal and must not warn on
     // every poll; only real read/parse failures are worth surfacing.
     if (!isFileNotFound(e)) {
-      console.warn(`[codex] auth.json unreadable: ${e instanceof Error ? e.message : String(e)}`)
+      logger.warn({ err: e }, '[codex] auth.json unreadable')
     }
     return null
   }
@@ -271,7 +273,7 @@ const requestCodexUsage = async (): Promise<CodexUsage | null> => {
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      console.warn(`[codex] wham/usage HTTP ${res.status} ${body.slice(0, 200)}`)
+      logger.warn({ status: res.status, body: body.slice(0, 200) }, '[codex] wham/usage non-OK')
       return null
     }
     const j = (await res.json()) as Record<string, unknown>
@@ -284,7 +286,7 @@ const requestCodexUsage = async (): Promise<CodexUsage | null> => {
       capturedAt: dayjs().toISOString()
     }
   } catch (e) {
-    console.warn(`[codex] wham/usage threw: ${e instanceof Error ? e.message : String(e)}`)
+    logger.warn({ err: e }, '[codex] wham/usage threw')
     return null
   }
 }
