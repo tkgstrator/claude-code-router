@@ -1,7 +1,18 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { getPrismaClient } from '../../db/client'
 import { type RequestLogEvent, requestLogEmitter } from '../../lib/requestLogEvents'
+import {
+  RequestLogIdParamSchema,
+  RequestLogsDeleteAllResponseSchema,
+  RequestLogsDeleteOneResponseSchema,
+  RequestLogsListQuerySchema,
+  RequestLogsListResponseSchema,
+  RequestLogsSessionsQuerySchema,
+  SessionIdParamSchema,
+  SessionLogsResponseSchema,
+  SessionsResponseSchema
+} from '../../schemas'
 
 export const requestLogsRoute = new OpenAPIHono()
 
@@ -84,36 +95,17 @@ function computeCosts(
 
 // ── GET /api/request-logs/sessions ───────────────────────────────────────────
 
-const SessionSummarySchema = z.object({
-  sessionId: z.string().nonempty(),
-  requestCount: z.number(),
-  providers: z.array(z.string().nonempty()),
-  models: z.array(z.string().nonempty()),
-  totalInputTokens: z.number(),
-  totalOutputTokens: z.number(),
-  totalCacheReadTokens: z.number(),
-  totalCacheWriteTokens: z.number(),
-  avgCacheHitPct: z.number(),
-  totalDurationMs: z.number(),
-  totalCostUsd: z.number().nullable(),
-  firstAt: z.string().nonempty(),
-  lastAt: z.string().nonempty()
-})
-
 const getSessionsRoute = createRoute({
   method: 'get',
   path: '/api/request-logs/sessions',
   request: {
-    query: z.object({
-      limit: z.coerce.number().int().min(1).max(200).default(100),
-      offset: z.coerce.number().int().min(0).default(0)
-    })
+    query: RequestLogsSessionsQuerySchema
   },
   responses: {
     200: {
       description: 'LLM request sessions with aggregated stats.',
       content: {
-        'application/json': { schema: z.object({ sessions: z.array(SessionSummarySchema), total: z.number() }) }
+        'application/json': { schema: SessionsResponseSchema }
       }
     }
   }
@@ -196,34 +188,14 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
 
 // ── GET /api/request-logs/sessions/:sessionId ─────────────────────────────────
 
-const RequestLogItemSchema = z.object({
-  id: z.string().nonempty(),
-  sessionId: z.string().nonempty(),
-  provider: z.string().nonempty(),
-  model: z.string().nonempty(),
-  inputTokens: z.number(),
-  outputTokens: z.number(),
-  cacheReadTokens: z.number(),
-  cacheWriteTokens: z.number(),
-  totalInputTokens: z.number(),
-  cacheHitPct: z.number(),
-  durationMs: z.number(),
-  status: z.number(),
-  createdAt: z.string().nonempty(),
-  inputCostUsd: z.number().nullable(),
-  outputCostUsd: z.number().nullable(),
-  cacheReadCostUsd: z.number().nullable(),
-  totalCostUsd: z.number().nullable()
-})
-
 const getSessionLogsRoute = createRoute({
   method: 'get',
   path: '/api/request-logs/sessions/:sessionId',
-  request: { params: z.object({ sessionId: z.string().nonempty() }) },
+  request: { params: SessionIdParamSchema },
   responses: {
     200: {
       description: 'All request logs for a specific session.',
-      content: { 'application/json': { schema: z.object({ items: z.array(RequestLogItemSchema) }) } }
+      content: { 'application/json': { schema: SessionLogsResponseSchema } }
     }
   }
 })
@@ -252,15 +224,12 @@ const getRequestLogsRoute = createRoute({
   method: 'get',
   path: '/api/request-logs',
   request: {
-    query: z.object({
-      limit: z.coerce.number().int().min(1).max(500).default(200),
-      offset: z.coerce.number().int().min(0).default(0)
-    })
+    query: RequestLogsListQuerySchema
   },
   responses: {
     200: {
       description: 'Paginated list of LLM request stats.',
-      content: { 'application/json': { schema: z.object({ items: z.array(RequestLogItemSchema), total: z.number() }) } }
+      content: { 'application/json': { schema: RequestLogsListResponseSchema } }
     }
   }
 })
@@ -292,7 +261,7 @@ requestLogsRoute.openapi(
     responses: {
       200: {
         description: 'All deleted.',
-        content: { 'application/json': { schema: z.object({ deleted: z.number() }) } }
+        content: { 'application/json': { schema: RequestLogsDeleteAllResponseSchema } }
       }
     }
   }),
@@ -311,11 +280,11 @@ requestLogsRoute.openapi(
   createRoute({
     method: 'delete',
     path: '/api/request-logs/:id',
-    request: { params: z.object({ id: z.string().nonempty() }) },
+    request: { params: RequestLogIdParamSchema },
     responses: {
       200: {
         description: 'Deleted.',
-        content: { 'application/json': { schema: z.object({ id: z.string().nonempty() }) } }
+        content: { 'application/json': { schema: RequestLogsDeleteOneResponseSchema } }
       }
     }
   }),

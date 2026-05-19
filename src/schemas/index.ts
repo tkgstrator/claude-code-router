@@ -1,0 +1,14 @@
+// Barrel: re-export every dto so existing `from '@/schemas'` imports keep
+// working. Direct imports from `@/schemas/<domain>.dto` also work for new code.
+export * from './common.dto'
+export * from './config.dto'
+export * from './model.dto'
+export * from './price.dto'
+export * from './provider.dto'
+export * from './request-log.dto'
+export * from './router.dto'
+export * from './status-line.dto'
+export * from './subscription.dto'
+export * from './transformer.dto'
+export * from './update.dto'
+export * from './usage.dto'

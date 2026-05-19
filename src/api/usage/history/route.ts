@@ -1,5 +1,5 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { UsageHistoryResponseSchema } from '../../../schemas'
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
+import { UsageHistoryQuerySchema, UsageHistoryResponseSchema } from '../../../schemas'
 import { getUsageHistory } from '../../../services/usageHistoryService'
 
 export const usageHistoryRoute = new OpenAPIHono()
@@ -8,9 +8,7 @@ const getUsageHistoryRoute = createRoute({
   method: 'get',
   path: '/api/usage/history',
   request: {
-    query: z.object({
-      days: z.coerce.number().int().min(1).max(30).default(7)
-    })
+    query: UsageHistoryQuerySchema
   },
   responses: {
     200: {
