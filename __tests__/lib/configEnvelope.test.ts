@@ -27,7 +27,7 @@ describe('readConfigFile', () => {
   afterEach(deleteConfig)
 
   test('parses standard JSON', async () => {
-    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false }))
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' }))
     const cfg = await readConfigFile()
     expect(cfg.PORT).toBe(3456)
     expect(cfg.LOG).toBe(false)
@@ -38,6 +38,8 @@ describe('readConfigFile', () => {
       // server port
       PORT: 3456,
       LOG: true, // trailing comma
+      LOG_LEVEL: 'info',
+      APIKEY: 'test-key',
     }`)
     const cfg = await readConfigFile()
     expect(cfg.PORT).toBe(3456)
@@ -46,7 +48,7 @@ describe('readConfigFile', () => {
 
   test('interpolates $VAR_NAME', async () => {
     process.env.TEST_CCR_KEY = 'sk-real'
-    await writeConfig(JSON.stringify({ APIKEY: '$TEST_CCR_KEY' }))
+    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$TEST_CCR_KEY' }))
     const cfg = await readConfigFile()
     expect(cfg.APIKEY).toBe('sk-real')
     delete process.env.TEST_CCR_KEY
@@ -54,7 +56,7 @@ describe('readConfigFile', () => {
 
   test('interpolates ${VAR_NAME}', async () => {
     process.env.TEST_CCR_HOST = '0.0.0.0'
-    await writeConfig(JSON.stringify({ HOST: '${TEST_CCR_HOST}' }))
+    await writeConfig(JSON.stringify({ HOST: '${TEST_CCR_HOST}', LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' }))
     const cfg = await readConfigFile()
     expect(cfg.HOST).toBe('0.0.0.0')
     delete process.env.TEST_CCR_HOST
@@ -62,7 +64,7 @@ describe('readConfigFile', () => {
 
   test('keeps literal when env var is unset', async () => {
     delete process.env.UNSET_CCR_VAR
-    await writeConfig(JSON.stringify({ APIKEY: '$UNSET_CCR_VAR' }))
+    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$UNSET_CCR_VAR' }))
     const cfg = await readConfigFile()
     expect(cfg.APIKEY).toBe('$UNSET_CCR_VAR')
   })
@@ -71,6 +73,9 @@ describe('readConfigFile', () => {
     process.env.TEST_CCR_BASE = 'https://api.example.com'
     await writeConfig(
       JSON.stringify({
+        LOG: false,
+        LOG_LEVEL: 'info',
+        APIKEY: 'test-key',
         Providers: [{ name: 'test', api_base_url: '$TEST_CCR_BASE' }]
       })
     )

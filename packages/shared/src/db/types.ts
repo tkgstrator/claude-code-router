@@ -43,11 +43,11 @@ const LogLevelSchema = z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace
 
 export const ConfigEnvelopeSchema = z
   .object({
-    HOST: z.string().default(''),
-    PORT: z.number().int().positive().optional(),
-    APIKEY: z.string().nonempty().optional(),
-    LOG: z.boolean().optional(),
-    LOG_LEVEL: LogLevelSchema.optional(),
+    HOST: z.string().default('127.0.0.1'),
+    PORT: z.number().int().positive().default(3456),
+    APIKEY: z.string().nonempty(),
+    LOG: z.boolean().default(false),
+    LOG_LEVEL: LogLevelSchema.default('info'),
     PROXY_URL: z.string().default(''),
     API_TIMEOUT_MS: z.coerce.number().int().nonnegative().optional(),
     CLAUDE_PATH: z.string().default(''),
