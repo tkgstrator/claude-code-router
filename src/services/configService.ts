@@ -559,9 +559,9 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
 // of available models are non-empty out of the box. api_key is left
 // unset (NULL) — the user fills it in from the UI. Behaviour is top-up: any
 // seed whose `name` isn't already in the table gets inserted, so a
-// partial DB (e.g. only the openai row lifted by runJsonToDbMigration)
-// gains the remaining vendors on next boot. Existing rows are never
-// overwritten.
+// partial DB gains the remaining vendors on next boot. Existing rows
+// keep their api_key / models; the official vendors' apiBaseUrl is
+// reconciled to VENDOR_DEFAULTS in seedScrapedPricesIntoDb.
 interface SeedRow {
   name: string
   apiBaseUrl: string

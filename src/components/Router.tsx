@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import { RouterSchema } from '@/schemas'
+import type { Config } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { SelectCombobox } from './SelectCombobox'
@@ -28,35 +29,29 @@ type RouterFormInput = z.input<typeof formSchema>
 type RouterFormOutput = z.output<typeof formSchema>
 
 export function Router() {
+  const { config } = useConfig()
+  if (!config) return null
+  return <RouterForm config={config} />
+}
+
+function RouterForm({ config }: { config: Config }) {
   const { t } = useTranslation()
-  const { config, setConfig } = useConfig()
+  const { setConfig } = useConfig()
   const { showToast } = useOutletContext<ShellOutletContext>()
   const [models, setModels] = useState<EnabledModel[]>([])
 
   const form = useForm<RouterFormInput, unknown, RouterFormOutput>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      default: '',
-      background: '',
-      think: '',
-      longContext: '',
-      longContextThreshold: 60000,
-      webSearch: '',
-      image: '',
-      forceUseImageAgent: 'false'
-    },
-    values: config
-      ? {
-          default: config.Router.default,
-          background: config.Router.background,
-          think: config.Router.think,
-          longContext: config.Router.longContext,
-          longContextThreshold: config.Router.longContextThreshold,
-          webSearch: config.Router.webSearch,
-          image: config.Router.image,
-          forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
-        }
-      : undefined
+      default: config.Router.default,
+      background: config.Router.background,
+      think: config.Router.think,
+      longContext: config.Router.longContext,
+      longContextThreshold: config.Router.longContextThreshold,
+      webSearch: config.Router.webSearch,
+      image: config.Router.image,
+      forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
+    }
   })
 
   // The Router only ever offers enabled models. The backend decides
@@ -68,8 +63,6 @@ export function Router() {
       .then((data) => setModels(data.models))
       .catch((err) => console.error('Failed to load enabled models:', err))
   }, [])
-
-  if (!config) return null
 
   const modelOptions = models.map(({ provider, model }) => ({
     value: `${provider},${model}`,
@@ -113,7 +106,7 @@ export function Router() {
       <PageContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6'>
+            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-end'>
               <FormField
                 control={form.control}
                 name='default'
