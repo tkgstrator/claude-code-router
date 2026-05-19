@@ -45,11 +45,11 @@ export const ConfigEnvelopeSchema = z
   .object({
     HOST: z.string().default(''),
     PORT: z.number().int().positive().optional(),
-    APIKEY: z.string().default(''),
+    APIKEY: z.string().nonempty().optional(),
     LOG: z.boolean().optional(),
     LOG_LEVEL: LogLevelSchema.optional(),
     PROXY_URL: z.string().default(''),
-    API_TIMEOUT_MS: z.number().int().nonnegative().optional(),
+    API_TIMEOUT_MS: z.coerce.number().int().nonnegative().optional(),
     CLAUDE_PATH: z.string().default(''),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
 
