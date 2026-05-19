@@ -13,6 +13,8 @@
     "release:docker": "bash scripts/release.sh docker",
     "dev:cli": "bun run --filter @ccr/cli dev",
     "dev:ui": "vite",
+    "test": "bun test __tests__/lib __tests__/db __tests__/preset",
+    "test:coverage": "bun test --coverage __tests__/lib __tests__/db __tests__/preset",
     "test:providers": "bun test __tests__/providers",
     "scrape:openai-prices": "bun run scripts/scrape-openai-prices.ts",
     "scrape:anthropic-prices": "bun run scripts/scrape-anthropic-prices.ts",

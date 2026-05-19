@@ -3,6 +3,7 @@ node_modules
 log.txt
 .idea
 dist
+coverage
 .DS_Store
 tsconfig.tsbuildinfo
 tsconfig.*.tsbuildinfo
