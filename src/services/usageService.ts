@@ -36,7 +36,8 @@ export interface UsageResponse {
 }
 
 export interface GetUsageInput {
-  // Reserved for future route-level controls (e.g. force refresh).
+  // Reserved for future route-level controls.
+  forceRefresh?: boolean
 }
 
 export interface GetUsageOutput {
