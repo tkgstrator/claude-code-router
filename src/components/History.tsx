@@ -261,7 +261,9 @@ function SessionDetail({ session }: { session: SessionSummary }) {
                 >
                   <div className='flex items-center gap-2'>
                     <Clock className='h-3.5 w-3.5 text-muted-foreground' />
-                    <span className='text-muted-foreground text-[11px]'>{dayjs(log.createdAt).format('HH:mm:ss')}</span>
+                    <span className='tabular-nums text-muted-foreground text-[11px]'>
+                      {dayjs(log.createdAt).format('HH:mm:ss')}
+                    </span>
                     <span className='font-mono text-xs text-foreground'>{log.model}</span>
                   </div>
                   <div className='flex items-center gap-2'>
