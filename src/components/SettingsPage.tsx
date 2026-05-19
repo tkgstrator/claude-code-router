@@ -22,7 +22,7 @@ const settingsSchema = z.object({
   CLAUDE_PATH: z.string().default(''),
   HOST: z.string().default(''),
   PORT: z.number().int().positive(),
-  API_TIMEOUT_MS: z.string().default(''),
+  API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.string().default(''),
   APIKEY: z.string().default(''),
   CUSTOM_ROUTER_PATH: z.string().default('')
@@ -186,7 +186,7 @@ function SettingsForm({ config }: { config: Config }) {
                 <FormItem>
                   <FormLabel>{t('toplevel.timeout')}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input type='number' {...field} onChange={(e) => field.onChange(e.target.valueAsNumber)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

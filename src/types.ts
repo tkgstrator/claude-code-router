@@ -54,7 +54,7 @@ export const ConfigSchema = z.object({
   HOST: z.string().nonempty(),
   PORT: z.number(),
   APIKEY: z.string().nonempty(),
-  API_TIMEOUT_MS: z.string().nonempty(),
+  API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.url(),
   CUSTOM_ROUTER_PATH: z.string().nonempty().optional()
 })
