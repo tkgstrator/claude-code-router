@@ -338,7 +338,8 @@
       "cache_hit_rate": "缓存命中率",
       "estimated_cost": "预估费用",
       "requests": "请求数",
-      "requests_list": "单次请求"
+      "requests_list": "单次请求",
+      "model_breakdown": "按模型费用"
     }
   },
   "presets": {

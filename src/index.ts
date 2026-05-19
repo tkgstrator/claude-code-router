@@ -31,8 +31,16 @@ import { bootstrapServer } from './services/bootstrap'
 // Mirror what the legacy Fastify server did at boot: lift any
 // pre-existing config.json into Postgres, seed default Providers + the
 // six RouterSlot rows, and copy the envelope scalars onto process.env.
-// Idempotent — re-running it on a populated DB is a no-op.
-await bootstrapServer()
+//
+// Guard against Vite HMR re-evaluating this module on every file save:
+// bootstrapServer() seeds the DB and may delete models/reset config, so
+// it must run exactly once per process lifetime, not once per HMR cycle.
+// globalThis survives module re-evaluation within the same Node process.
+const _g = globalThis as Record<string, unknown>
+if (!_g.__ccrBootstrapped) {
+  _g.__ccrBootstrapped = true
+  await bootstrapServer()
+}
 
 const app = new OpenAPIHono()
 

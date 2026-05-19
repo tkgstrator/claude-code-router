@@ -1,5 +1,5 @@
 import { ChevronRight, Clock, History, Layers, RefreshCw, Trash2, Zap } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { api, type RequestLogItem, type SessionSummary } from '@/lib/api'
@@ -50,6 +50,7 @@ export function HistoryPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<SessionSummary | null>(null)
+  const [detailRefresh, setDetailRefresh] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -57,6 +58,8 @@ export function HistoryPage() {
       const res = await api.getRequestLogSessions({ limit: 100 })
       setSessions(res.sessions)
       setTotal(res.total)
+      // Keep selected in sync with latest aggregated stats.
+      setSelected((prev) => (prev ? (res.sessions.find((s) => s.sessionId === prev.sessionId) ?? prev) : null))
     } catch {
       // silently ignore
     } finally {
@@ -66,6 +69,25 @@ export function HistoryPage() {
 
   useEffect(() => {
     load()
+  }, [load])
+
+  // SSE: reload sessions whenever a new RequestLog is written.
+  useEffect(() => {
+    const apiKey = localStorage.getItem('apiKey') ?? ''
+    if (!apiKey) return
+    const es = new EventSource(`/api/request-logs/events?apikey=${encodeURIComponent(apiKey)}`)
+    es.onmessage = (e) => {
+      void load()
+      try {
+        const { sessionId } = JSON.parse(e.data) as { sessionId: string }
+        setSelected((prev) => {
+          if (prev?.sessionId === sessionId) setDetailRefresh((n) => n + 1)
+          return prev
+        })
+      } catch {}
+    }
+    es.onerror = () => es.close()
+    return () => es.close()
   }, [load])
 
   const handleClearAll = async () => {
@@ -159,14 +181,14 @@ export function HistoryPage() {
             <p className='text-sm'>{t('history.select_session')}</p>
           </div>
         ) : (
-          <SessionDetail session={selected} />
+          <SessionDetail session={selected} refreshTrigger={detailRefresh} />
         )}
       </main>
     </div>
   )
 }
 
-function SessionDetail({ session }: { session: SessionSummary }) {
+function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; refreshTrigger?: number }) {
   const { t } = useTranslation()
   const [logs, setLogs] = useState<RequestLogItem[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
@@ -179,7 +201,31 @@ function SessionDetail({ session }: { session: SessionSummary }) {
       .then((res) => setLogs(res.items))
       .catch(() => {})
       .finally(() => setLoadingLogs(false))
-  }, [session.sessionId])
+  }, [session.sessionId, refreshTrigger])
+
+  const modelBreakdown = useMemo(() => {
+    const map = new Map<
+      string,
+      { requests: number; inputTokens: number; outputTokens: number; cost: number | null; cacheHitPctSum: number }
+    >()
+    for (const log of logs) {
+      const prev = map.get(log.model) ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: null, cacheHitPctSum: 0 }
+      prev.requests += 1
+      prev.inputTokens += log.totalInputTokens
+      prev.outputTokens += log.outputTokens
+      prev.cacheHitPctSum += log.cacheHitPct
+      if (log.totalCostUsd != null) prev.cost = (prev.cost ?? 0) + log.totalCostUsd
+      map.set(log.model, prev)
+    }
+    return [...map.entries()]
+      .map(([model, { cacheHitPctSum, requests, ...rest }]) => ({
+        model,
+        requests,
+        ...rest,
+        avgCacheHitPct: requests > 0 ? Math.round(cacheHitPctSum / requests) : 0
+      }))
+      .sort((a, b) => b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens))
+  }, [logs])
 
   const summaryRows = [
     {
@@ -245,6 +291,35 @@ function SessionDetail({ session }: { session: SessionSummary }) {
         </div>
       </div>
 
+      {/* Per-model breakdown */}
+      {modelBreakdown.length > 0 && (
+        <div>
+          <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.model_breakdown')}</h3>
+          <div className='bg-muted rounded-lg divide-y'>
+            {modelBreakdown.map((entry) => (
+              <div key={entry.model} className='flex items-center gap-2 px-4 py-2 text-[11px]'>
+                <span className='font-mono text-foreground flex-1 min-w-0 truncate'>{entry.model}</span>
+                <span className='text-muted-foreground tabular-nums w-10 text-right shrink-0'>
+                  {entry.requests} req
+                </span>
+                <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0'>
+                  {fmtTokens(entry.inputTokens)}↑
+                </span>
+                <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0'>
+                  {fmtTokens(entry.outputTokens)}↓
+                </span>
+                <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0'>
+                  {entry.avgCacheHitPct}%
+                </span>
+                <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0'>
+                  {fmtCost(entry.cost)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Individual requests */}
       <div>
         <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.requests_list')}</h3>
@@ -256,25 +331,28 @@ function SessionDetail({ session }: { session: SessionSummary }) {
               <div key={log.id} className='border rounded-lg overflow-hidden'>
                 <button
                   type='button'
-                  className='w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted transition-colors'
+                  className='w-full flex items-center gap-2 px-4 py-2.5 text-[11px] hover:bg-muted transition-colors'
                   onClick={() => setExpanded(expanded === log.id ? null : log.id)}
                 >
-                  <div className='flex items-center gap-2'>
-                    <Clock className='h-3.5 w-3.5 text-muted-foreground' />
-                    <span className='tabular-nums text-muted-foreground text-[11px]'>
-                      {dayjs(log.createdAt).format('HH:mm:ss')}
-                    </span>
-                    <span className='font-mono text-xs text-foreground'>{log.model}</span>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <span className='text-xs text-muted-foreground'>
-                      {fmtTokens(log.totalInputTokens)}↑ {fmtTokens(log.outputTokens)}↓
-                    </span>
-                    <StatusBadge status={log.status} />
-                    <ChevronRight
-                      className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded === log.id ? 'rotate-90' : ''}`}
-                    />
-                  </div>
+                  <Clock className='h-3 w-3 text-muted-foreground shrink-0' />
+                  <span className='tabular-nums text-muted-foreground w-14 shrink-0'>
+                    {dayjs(log.createdAt).format('HH:mm:ss')}
+                  </span>
+                  <span className='font-mono text-foreground flex-1 min-w-0 truncate text-left'>{log.model}</span>
+                  <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0'>
+                    {fmtTokens(log.totalInputTokens)}↑
+                  </span>
+                  <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0'>
+                    {fmtTokens(log.outputTokens)}↓
+                  </span>
+                  <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0'>{log.cacheHitPct}%</span>
+                  <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0'>
+                    {fmtCost(log.totalCostUsd)}
+                  </span>
+                  <StatusBadge status={log.status} />
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0 ${expanded === log.id ? 'rotate-90' : ''}`}
+                  />
                 </button>
                 {expanded === log.id && (
                   <div className='border-t bg-muted px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-1.5 text-xs'>
