@@ -11,11 +11,8 @@ import { getPrismaClient } from '../../src/db/client'
 import { applyUiConfig, composeUiConfig, ensureRouterSlots } from '../../src/services/configService'
 import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
 
-const tmpHome = `/tmp/ccr-db-test-${process.pid}`
-
-// Point the disk-backed envelope at a tmp dir so we don't trample the
-// real ~/.claude-code-router/config.json during local runs.
-process.env.HOME = tmpHome
+// HOME and DATABASE_URL are redirected by __tests__/setup.ts (preload),
+// so CONFIG_FILE points at a tmp dir and the DB writes hit the test DB.
 
 describe.skipIf(!HAS_DB)('configService', () => {
   // TODO(phase-1): Add API-route level tests for /api/config error contracts
