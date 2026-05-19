@@ -21,7 +21,7 @@ import {
   type PrismaClient
 } from '../generated/prisma/client'
 
-import { backupConfigFile, readConfigFile, writeConfigFile } from '../lib/configEnvelope'
+import { readConfigFile, writeConfigFile } from '../lib/configEnvelope'
 import { resetLlmsContext } from '../llmsContext'
 import { getSubscriptionsInfo } from './subscriptionInfoService'
 
@@ -299,17 +299,93 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // failing the file write after a DB commit is no worse than failing
   // the DB write after a file write — and the file is the smaller of
   // the two surfaces.
-  await backupConfigFile()
   // Don't persist null / '' for the optional path scalars — drop the
   // key so "unset" stays absent on disk (composeUiConfig re-derives
   // null). A real value is written through unchanged.
-  await writeConfigFile(pruneUnsetEnvelopePaths(envelope as Record<string, unknown>))
+  await writeConfigFile({
+    ...pruneUnsetEnvelopePaths(envelope as Record<string, unknown>),
+    Providers: incomingProviders,
+    Router: incomingRouter
+  })
 
   // Force the llms context to rebuild on the next request so Router /
   // provider changes take effect immediately without a server restart.
   resetLlmsContext()
 
   return { success: true, warnings }
+}
+
+// --- Provider / Model CRUD --------------------------------------------------
+
+// Re-read DB state and write Providers + Router back to config.json so the
+// file stays in sync after individual CRUD operations.
+async function syncToConfigFile(): Promise<void> {
+  const raw = await readConfigFile()
+  const { Providers: _p, providers: _pl, Router: _r, ...envelopeOnly } = raw as Record<string, unknown>
+  const full = await composeUiConfig()
+  await writeConfigFile({
+    ...pruneUnsetEnvelopePaths(envelopeOnly as Record<string, unknown>),
+    Providers: full.Providers,
+    Router: full.Router
+  })
+}
+
+export async function getProviders(prisma: PrismaClient = getPrismaClient()): Promise<UiProvider[]> {
+  const providers = await prisma.provider.findMany({
+    include: { models: true },
+    orderBy: { createdAt: 'asc' }
+  })
+  return providers.map(toUiProvider)
+}
+
+export async function upsertProvider(incoming: UiProvider): Promise<{ provider: UiProvider; warnings: string[] }> {
+  const warnings: string[] = []
+  const prisma = getPrismaClient()
+  await prisma.$transaction(async (tx) => {
+    await applyProviders(tx, [incoming], warnings)
+  })
+  await syncToConfigFile()
+  resetLlmsContext()
+  const p = await prisma.provider.findUniqueOrThrow({
+    where: { name: incoming.name },
+    include: { models: true }
+  })
+  return { provider: toUiProvider(p), warnings }
+}
+
+export async function deleteProviderByName(name: string): Promise<void> {
+  const prisma = getPrismaClient()
+  await prisma.$transaction(async (tx) => {
+    const p = await tx.provider.findUnique({ where: { name } })
+    if (!p) throw new Error(`Provider "${name}" not found`)
+    await tx.routerSlot.updateMany({
+      where: { model: { providerId: p.id } },
+      data: { modelId: null }
+    })
+    await tx.provider.delete({ where: { id: p.id } })
+  })
+  await syncToConfigFile()
+  resetLlmsContext()
+}
+
+export async function setModelEnabled(providerName: string, modelName: string, enabled: boolean): Promise<void> {
+  const prisma = getPrismaClient()
+  const model = await prisma.model.findFirst({
+    where: { name: modelName, provider: { name: providerName } }
+  })
+  if (!model) throw new Error(`Model "${modelName}" not found under provider "${providerName}"`)
+  const flipped = model.enabled !== enabled
+  await prisma.model.update({
+    where: { id: model.id },
+    data: {
+      enabled,
+      ...(flipped
+        ? { testStatus: ModelTestStatus.unknown, testCheckedAt: null, testPassedAt: null, testError: null }
+        : {})
+    }
+  })
+  await syncToConfigFile()
+  resetLlmsContext()
 }
 
 // --- Apply: providers / models ---------------------------------------------
@@ -559,9 +635,9 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
 // of available models are non-empty out of the box. api_key is left
 // unset (NULL) — the user fills it in from the UI. Behaviour is top-up: any
 // seed whose `name` isn't already in the table gets inserted, so a
-// partial DB (e.g. only the openai row lifted by runJsonToDbMigration)
-// gains the remaining vendors on next boot. Existing rows are never
-// overwritten.
+// partial DB gains the remaining vendors on next boot. Existing rows
+// keep their api_key / models; the official vendors' apiBaseUrl is
+// reconciled to VENDOR_DEFAULTS in seedScrapedPricesIntoDb.
 interface SeedRow {
   name: string
   apiBaseUrl: string

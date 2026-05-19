@@ -180,6 +180,11 @@ export function AppShell() {
       }
       const apiKey = localStorage.getItem('apiKey')
       if (!apiKey) {
+        // No key (or api.ts just stripped it on a 401). Redirect here
+        // rather than relying on the 'unauthorized' event, which can
+        // fire before this listener is registered now that
+        // ConfigProvider gates rendering until the fetch settles.
+        navigate('/login')
         setIsCheckingAuth(false)
         return
       }

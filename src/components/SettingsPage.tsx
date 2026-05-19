@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
-import type { StatusLineConfig } from '@/types'
+import type { Config, StatusLineConfig } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { PageContainer, PageContent, PageHeader } from './PageLayout'
@@ -34,40 +34,31 @@ type SettingsFormOutput = z.output<typeof settingsSchema>
 const LOG_LEVEL_OPTIONS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'].map((v) => ({ label: v, value: v }))
 
 export function SettingsPage() {
+  const { config } = useConfig()
+  if (!config) return null
+  return <SettingsForm config={config} />
+}
+
+function SettingsForm({ config }: { config: Config }) {
   const { t } = useTranslation()
-  const { config, setConfig } = useConfig()
+  const { setConfig } = useConfig()
   const { showToast } = useOutletContext<ShellOutletContext>()
   const [isStatusLineConfigOpen, setIsStatusLineConfigOpen] = useState(false)
 
   const form = useForm<SettingsFormInput, unknown, SettingsFormOutput>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      LOG: false,
-      LOG_LEVEL: 'info',
-      CLAUDE_PATH: '',
-      HOST: '',
-      PORT: 3000,
-      API_TIMEOUT_MS: '',
-      PROXY_URL: '',
-      APIKEY: '',
-      CUSTOM_ROUTER_PATH: ''
-    },
-    values: config
-      ? {
-          LOG: config.LOG || false,
-          LOG_LEVEL: config.LOG_LEVEL || 'info',
-          CLAUDE_PATH: config.CLAUDE_PATH,
-          HOST: config.HOST,
-          PORT: config.PORT || 3000,
-          API_TIMEOUT_MS: config.API_TIMEOUT_MS,
-          PROXY_URL: config.PROXY_URL,
-          APIKEY: config.APIKEY,
-          CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH || ''
-        }
-      : undefined
+      LOG: config.LOG,
+      LOG_LEVEL: config.LOG_LEVEL,
+      CLAUDE_PATH: config.CLAUDE_PATH,
+      HOST: config.HOST,
+      PORT: config.PORT,
+      API_TIMEOUT_MS: config.API_TIMEOUT_MS,
+      PROXY_URL: config.PROXY_URL,
+      APIKEY: config.APIKEY,
+      CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH
+    }
   })
-
-  if (!config) return null
 
   const handleStatusLineEnabledChange = (checked: boolean) => {
     const newStatusLine: StatusLineConfig = {
