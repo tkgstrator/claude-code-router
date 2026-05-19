@@ -1,6 +1,6 @@
 /**
  * Load the scraped official vendor prices
- * (packages/shared/src/data/providers/<vendor>/prices.json, surfaced as
+ * (src/shared/data/providers/<vendor>/prices.json, surfaced as
  * OFFICIAL_VENDOR_PRICES) into the Model table for the three
  * first-party API vendors.
  *
@@ -17,7 +17,7 @@
  * per-token, and the user manages those separately.
  */
 
-import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, VENDOR_DEFAULTS } from '@ccr/shared/data'
+import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, VENDOR_DEFAULTS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, Prisma, type PrismaClient } from '../generated/prisma/client'
 import { apiStyleForVendor, modelApiStyleOverride } from './configService'

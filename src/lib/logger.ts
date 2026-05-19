@@ -10,7 +10,7 @@
  */
 import { appendFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
-import { HOME_DIR } from '@ccr/shared'
+import { HOME_DIR } from '@/shared/constants'
 import pino from 'pino'
 import pinoPretty from 'pino-pretty'
 import { z } from 'zod'

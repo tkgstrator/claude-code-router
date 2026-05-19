@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { ConfigEnvelopeSchema } from '../../packages/shared/src/db/types'
+import { ConfigEnvelopeSchema } from '../../src/shared/db/types'
 
 const BASE = { APIKEY: 'test-key' } as const
 

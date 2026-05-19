@@ -11,8 +11,8 @@
  * Providers with no api key, are skipped with a reason.
  */
 
-import { VENDOR_DEFAULTS } from '@ccr/shared'
-import { isDeprecatedModel } from '@ccr/shared/data'
+import { VENDOR_DEFAULTS } from '@/shared'
+import { isDeprecatedModel } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 
 export interface RefreshOutcome {

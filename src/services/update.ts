@@ -1,3 +1,5 @@
+import { logger } from '../lib/logger'
+
 // The published package this deployment tracks for update checks.
 const NPM_PACKAGE = '@musistudio/claude-code-router'
 // npm registry dist-tag endpoint: returns the manifest of the
@@ -24,7 +26,7 @@ export async function checkForUpdates(currentVersion: string) {
     const hasUpdate = compareVersions(latestVersion, currentVersion) > 0
     return { hasUpdate, latestVersion, changelog: '' }
   } catch (error) {
-    console.error('Error checking for updates:', error)
+    logger.error({ err: error }, 'Error checking for updates')
     return { hasUpdate: false, latestVersion: currentVersion, changelog: '' }
   }
 }

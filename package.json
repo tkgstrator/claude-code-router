@@ -4,14 +4,9 @@
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
     "dev": "vite --host --port 16173",
-    "build": "bun run build:shared && bun run build:ui",
-    "build:shared": "bun run --filter @ccr/shared build",
-    "build:cli": "bun run --filter @ccr/cli build",
-    "build:ui": "vite build",
-    "release": "bun run build && bash scripts/release.sh all",
-    "release:npm": "bash scripts/release.sh npm",
+    "build": "vite build",
+    "release": "bun run build && bash scripts/release.sh docker",
     "release:docker": "bash scripts/release.sh docker",
-    "dev:cli": "bun run --filter @ccr/cli dev",
     "dev:ui": "vite",
     "test": "bun test __tests__/lib __tests__/db __tests__/preset",
     "test:coverage": "bun test --coverage __tests__/lib __tests__/db __tests__/preset",
@@ -28,9 +23,6 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "knip": "knip"
-  },
-  "bin": {
-    "ccr": "dist/cli.js"
   },
   "keywords": [
     "claude",
@@ -67,13 +59,9 @@
   "overrides": {
     "@types/react": "18"
   },
-  "workspaces": [
-    "packages/*"
-  ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
     "@base-ui/react": "^1.4.1",
-    "@ccr/shared": "workspace:*",
     "@fastify/cors": "^11.2.0",
     "@fontsource-variable/figtree": "^5.2.10",
     "@fontsource-variable/geist": "^5.2.9",

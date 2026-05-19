@@ -1,5 +1,6 @@
 import { Queue, Worker } from 'bullmq'
 import IORedis from 'ioredis'
+import { logger } from '../lib/logger'
 import { pruneOldSnapshots, recordUsageSnapshots } from './usageHistoryService'
 
 const QUEUE = 'usage'
@@ -24,8 +25,7 @@ let warnedOnce = false
 const onRedisError = (err: unknown): void => {
   if (warnedOnce) return
   warnedOnce = true
-  const msg = err instanceof Error ? err.message : String(err)
-  console.warn(`[usage-job] Redis unavailable — usage history will not update until it is reachable: ${msg}`)
+  logger.warn({ err }, '[usage-job] Redis unavailable — usage history will not update until it is reachable')
 }
 
 // BullMQ requires maxRetriesPerRequest: null on the connection it uses
@@ -41,7 +41,7 @@ export async function startUsageCapture(): Promise<void> {
   if (globalThis.__ccrUsageJobStarted) return
   const url = process.env.REDIS_URL
   if (!url || url.length === 0) {
-    console.warn('[usage-job] REDIS_URL is not set — skipping the usage-capture job')
+    logger.warn('[usage-job] REDIS_URL is not set — skipping the usage-capture job')
     return
   }
   globalThis.__ccrUsageJobStarted = true

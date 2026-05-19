@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Scrape Anthropic's pricing + models overview pages and emit
- * packages/shared/src/data/vendor-prices/anthropic.json.
+ * src/shared/data/vendor-prices/anthropic.json.
  *
  *   bun run scripts/scrape-anthropic-prices.ts          # write the JSON
  *   bun run scripts/scrape-anthropic-prices.ts --dry    # print + count only
@@ -32,7 +32,7 @@ import { chromium } from 'playwright'
 
 const PRICING_URL = 'https://platform.claude.com/docs/en/about-claude/pricing'
 const OVERVIEW_URL = 'https://platform.claude.com/docs/en/about-claude/models/overview'
-const OUT = join(import.meta.dir, '../packages/shared/src/data/providers/anthropic/prices.json')
+const OUT = join(import.meta.dir, '../src/shared/data/providers/anthropic/prices.json')
 
 // Legacy Claude 3.x ids (dated snapshots) keyed by trimmed display
 // name. Update when Anthropic publishes more 3.x rows or retires them

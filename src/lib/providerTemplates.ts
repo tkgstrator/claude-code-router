@@ -4,14 +4,14 @@ import {
   LLM_PRICES_URL,
   type PriceEntry,
   type SeedProvider
-} from '@ccr/shared/data'
+} from '@/shared/data'
 import type { Provider } from '@/types'
 
 /**
  * Provider templates / model pricing surfaced to the UI.
  *
  * Sourced from the shared llm-prices snapshot
- * (packages/shared/src/data/llm-prices.json). The same data is used by
+ * (src/shared/data/llm-prices.json). The same data is used by
  * the server-side seed routine, so the UI Add-Provider dropdown and the
  * initial DB contents always agree.
  *
@@ -27,6 +27,7 @@ export interface ModelPricing {
 
 const toUiProvider = (seed: SeedProvider): Provider => ({
   name: seed.name,
+  enabled: true,
   api_base_url: seed.apiBaseUrl,
   api_key: '',
   auth_mode: 'api_key',

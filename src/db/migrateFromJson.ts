@@ -10,8 +10,9 @@
  */
 
 import fs from 'node:fs/promises'
-import { CONFIG_FILE, ProviderConfigSchema, RouterConfigSchema, SCENARIO_KEYS } from '@ccr/shared'
-import { isDeprecatedModel } from '@ccr/shared/data'
+import { ProviderConfigSchema, RouterConfigSchema, SCENARIO_KEYS } from '@/shared'
+import { CONFIG_FILE } from '@/shared/constants'
+import { isDeprecatedModel } from '@/shared/data'
 import JSON5 from 'json5'
 import { z } from 'zod'
 import { Prisma } from '../generated/prisma/client'

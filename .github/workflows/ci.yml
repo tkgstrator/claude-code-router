@@ -56,11 +56,6 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      # src/ imports @ccr/shared, whose exports map types at
-      # ./dist/...d.ts, so shared's dist has to exist before tsc walks
-      # into it. (@musistudio/llms is now vendored under src/llms and
-      # stub-typed via tsconfig — no build needed.)
-      - run: bun run build:shared
       - run: bunx tsc -b --noEmit
 
   test:
