@@ -1,0 +1,68 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "src/index.ts",
+        "src/server.ts",
+        "src/app/main.tsx",
+        "vite.config.ts",
+        "scripts/**/*.ts",
+        "__tests__/**/*.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "__tests__/**/*.ts"],
+      "ignore": ["src/llms/**"]
+    },
+    "packages/cli": {
+      "entry": ["src/cli.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/shared": {
+      "entry": ["src/index.ts", "src/data/index.ts"],
+      "project": ["src/**/*.ts"]
+    }
+  },
+  "ignoreFiles": [
+    "src/hooks/use-mobile.tsx"
+  ],
+  "ignoreDependencies": [
+    "tw-animate-css",
+    "tailwindcss-animate",
+    "@fontsource-variable/figtree",
+    "@fontsource-variable/geist",
+    "@fontsource-variable/inter",
+    "@fontsource-variable/noto-sans",
+    "@fontsource-variable/playfair-display",
+    "tailwindcss",
+    "shadcn",
+    "@anthropic-ai/sdk",
+    "@google/genai",
+    "@huggingface/tokenizers",
+    "@openai/codex",
+    "fastify",
+    "fastify-plugin",
+    "@fastify/cors",
+    "google-auth-library",
+    "jsonrepair",
+    "lru-cache",
+    "openai",
+    "tiktoken",
+    "undici",
+    "uuid",
+    "@prisma/client",
+    "pg",
+    "@radix-ui/react-accordion",
+    "@radix-ui/react-checkbox",
+    "@radix-ui/react-collapsible",
+    "@radix-ui/react-dialog",
+    "@radix-ui/react-label",
+    "@radix-ui/react-popover",
+    "@radix-ui/react-select",
+    "@radix-ui/react-separator",
+    "@radix-ui/react-switch",
+    "@radix-ui/react-tabs",
+    "@radix-ui/react-tooltip",
+    "@base-ui/react"
+  ],
+  "ignoreExportsUsedInFile": true
+}
