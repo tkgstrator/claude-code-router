@@ -24,10 +24,7 @@ export async function bootstrapServer(): Promise<void> {
   // been read, so the level must be updated once initConfig() has
   // mirrored config.json's LOG_LEVEL onto process.env.
   syncLevelFromEnv()
-  const apiKey = process.env.APIKEY
-  if (apiKey) {
-    console.info(`[ccr] APIKEY=${apiKey}`)
-  }
+  console.info(`[ccr] APIKEY=${process.env.APIKEY}`)
   // Fire-and-forget: never block server boot on Redis. The job setup
   // is resilient and registers the schedule once Redis is reachable.
   void startUsageCapture()
