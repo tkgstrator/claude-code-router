@@ -5,6 +5,9 @@ import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
 import { modelTestAllRoute } from './api/models/test-all/route'
+import { providerModelRoute } from './api/providers/[name]/models/[model]/route'
+import { providerByNameRoute } from './api/providers/[name]/route'
+import { providersRoute } from './api/providers/route'
 import { providersTestRoute } from './api/providers/test/route'
 import { refreshModelsRoute } from './api/refresh-models/route'
 import { requestLogsRoute } from './api/request-logs/route'
@@ -51,6 +54,9 @@ app.route('/', usageHistoryRoute)
 app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
 app.route('/', refreshModelsRoute)
+app.route('/', providersRoute)
+app.route('/', providerByNameRoute)
+app.route('/', providerModelRoute)
 app.route('/', providersTestRoute)
 app.route('/', modelsRoute)
 app.route('/', modelTestRoute)
