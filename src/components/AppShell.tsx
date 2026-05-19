@@ -13,9 +13,11 @@ import {
   Shuffle,
   Sun
 } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { toast as sonnerToast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
 import { JsonEditor } from '@/components/JsonEditor'
 import { LogViewer } from '@/components/LogViewer'
@@ -43,7 +45,7 @@ import {
   SidebarRail,
   SidebarTrigger
 } from '@/components/ui/sidebar'
-import { Toast } from '@/components/ui/toast'
+import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
 import '@/styles/animations.css'
@@ -100,7 +102,6 @@ export function AppShell() {
   const [isJsonEditorOpen, setIsJsonEditorOpen] = useState(false)
   const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
   const [isNewVersionAvailable, setIsNewVersionAvailable] = useState(false)
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
   const [newVersionInfo, setNewVersionInfo] = useState<{ version: string; changelog: string } | null>(null)
@@ -108,44 +109,33 @@ export function AppShell() {
   const [hasCheckedUpdate, setHasCheckedUpdate] = useState(false)
   const [isUpdateFeatureAvailable, setIsUpdateFeatureAvailable] = useState(true)
   const hasAutoCheckedUpdate = useRef(false)
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
-  const toggleDark = () => {
-    const next = !isDark
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
-    setIsDark(next)
+  const showToast: ToastFn = (message, type) => {
+    if (type === 'success') sonnerToast.success(message)
+    else if (type === 'error') sonnerToast.error(message)
+    else sonnerToast.warning(message)
   }
-
-  useEffect(() => {
-    const stored = localStorage.getItem('theme')
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const dark = stored ? stored === 'dark' : prefersDark
-    document.documentElement.classList.toggle('dark', dark)
-    setIsDark(dark)
-  }, [])
-
-  const showToast: ToastFn = (message, type) => setToast({ message, type })
 
   const saveConfig = async () => {
     if (!config) {
-      setToast({ message: t('app.config_missing'), type: 'error' })
+      showToast(t('app.config_missing'), 'error')
       return
     }
     try {
       const response = await api.updateConfig(config)
       if (response && typeof response === 'object' && 'success' in response) {
         const apiResponse = response as { success: boolean; message?: string }
-        setToast({
-          message:
-            apiResponse.message || t(apiResponse.success ? 'app.config_saved_success' : 'app.config_saved_failed'),
-          type: apiResponse.success ? 'success' : 'error'
-        })
+        showToast(
+          apiResponse.message || t(apiResponse.success ? 'app.config_saved_success' : 'app.config_saved_failed'),
+          apiResponse.success ? 'success' : 'error'
+        )
       } else {
-        setToast({ message: t('app.config_saved_success'), type: 'success' })
+        showToast(t('app.config_saved_success'), 'success')
       }
     } catch (err) {
-      setToast({ message: `${t('app.config_saved_failed')}: ${(err as Error).message}`, type: 'error' })
+      showToast(`${t('app.config_saved_failed')}: ${(err as Error).message}`, 'error')
     }
   }
 
@@ -163,13 +153,13 @@ export function AppShell() {
           setNewVersionInfo({ version: updateInfo.latestVersion, changelog: updateInfo.changelog })
           if (showDialog) setIsUpdateDialogOpen(true)
         } else if (showDialog) {
-          setToast({ message: t('app.no_updates_available'), type: 'success' })
+          showToast(t('app.no_updates_available'), 'success')
         }
         setHasCheckedUpdate(true)
       } catch (err) {
         setIsUpdateFeatureAvailable(false)
         if (showDialog) {
-          setToast({ message: `${t('app.update_check_failed')}: ${(err as Error).message}`, type: 'error' })
+          showToast(`${t('app.update_check_failed')}: ${(err as Error).message}`, 'error')
         }
       } finally {
         setIsCheckingUpdate(false)
@@ -219,15 +209,15 @@ export function AppShell() {
     try {
       const result = await api.performUpdate()
       if (result.success) {
-        setToast({ message: t('app.update_successful'), type: 'success' })
+        showToast(t('app.update_successful'), 'success')
         setIsNewVersionAvailable(false)
         setIsUpdateDialogOpen(false)
         setHasCheckedUpdate(false)
       } else {
-        setToast({ message: `${t('app.update_failed')}: ${result.message}`, type: 'error' })
+        showToast(`${t('app.update_failed')}: ${result.message}`, 'error')
       }
     } catch (err) {
-      setToast({ message: `${t('app.update_failed')}: ${(err as Error).message}`, type: 'error' })
+      showToast(`${t('app.update_failed')}: ${(err as Error).message}`, 'error')
     }
   }
 
@@ -303,7 +293,7 @@ export function AppShell() {
                   </div>
                 </PopoverContent>
               </Popover>
-              <Button variant='ghost' size='icon' onClick={toggleDark}>
+              <Button variant='ghost' size='icon' onClick={() => setTheme(isDark ? 'light' : 'dark')}>
                 {isDark ? <Sun className='h-5 w-5' /> : <Moon className='h-5 w-5' />}
               </Button>
               {isUpdateFeatureAvailable && (
@@ -365,7 +355,7 @@ export function AppShell() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        <Toaster />
       </SidebarProvider>
     </TooltipProvider>
   )
