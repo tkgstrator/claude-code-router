@@ -7,6 +7,7 @@
  * conversion is reused by vertex-gemini.
  */
 
+import { HTTPException } from 'hono/http-exception'
 import {
   RecordSchema,
   type RuntimeProvider,
@@ -42,7 +43,13 @@ export class GeminiTransformer extends Transformer {
   }
 
   async transformRequestOut(request: unknown, _context: TransformerContext): Promise<UnifiedChatRequest> {
-    return transformRequestOut(RecordSchema.parse(request))
+    const parsed = RecordSchema.safeParse(request)
+    if (!parsed.success) {
+      throw new HTTPException(400, {
+        message: 'Gemini request body must be a JSON object'
+      })
+    }
+    return transformRequestOut(parsed.data)
   }
 
   async transformResponseOut(response: Response, _context: TransformerContext): Promise<Response> {
