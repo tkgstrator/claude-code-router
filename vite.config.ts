@@ -21,12 +21,13 @@ export default defineConfig({
     viteSingleFile(),
     devServer({
       entry: './src/index.ts',
-      // Hono only owns /api/* and /v1/* — every other path (the SPA at
-      // /, Vite's /@... module shims, /src/..., favicons, static
-      // assets) goes through Vite. The negative lookahead is the
-      // simplest way to express "exclude from Hono unless the path is
-      // an API surface".
-      exclude: [/^(?!\/api\/|\/v1\/).*$/]
+      // Hono owns /api/*, /v1/*, and /callback — every other path (the
+      // SPA at /, Vite's /@... module shims, /src/..., favicons, static
+      // assets) goes through Vite. /callback is the OAuth loopback
+      // redirect target the Claude Code OAuth client whitelists; it
+      // must be served by the backend so the auto-exchange + sync runs
+      // server-side instead of bouncing through the SPA.
+      exclude: [/^(?!\/api\/|\/v1\/|\/callback(?:\?|$)).*$/]
     })
   ]
 })

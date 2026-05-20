@@ -7,6 +7,7 @@ import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
 import { modelTestAllRoute } from './api/models/test-all/route'
+import { oauthRoute } from './api/oauth/route'
 import { providerModelRoute } from './api/providers/[name]/models/[model]/route'
 import { providerByNameRoute } from './api/providers/[name]/route'
 import { providersRoute } from './api/providers/route'
@@ -65,6 +66,12 @@ const app = new OpenAPIHono()
 // behind the envelope APIKEY (seed mints one on first run). The static
 // SPA at `/` stays open so the UI can load and prompt for the key; its
 // own /api calls then carry it.
+//
+// The OAuth callback lives at the root path `/callback` (not under
+// /api/*) because Anthropic's OAuth client only whitelists the
+// loopback `http://localhost:<port>/callback` pattern. It is therefore
+// naturally outside this gate; CSRF protection lives on the single-use
+// `state` issued at POST /api/oauth/initiate/* (still gated).
 app.use('/api/*', apiKeyAuth)
 app.use('/v1/*', apiKeyAuth)
 
@@ -106,6 +113,7 @@ app.route('/', modelTestRoute)
 app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)
 app.route('/', requestLogsRoute)
+app.route('/', oauthRoute)
 
 // Native /v1/* LLM proxy — drives the llms pipeline without Fastify.
 app.route('/', v1Route)
