@@ -1,0 +1,278 @@
+/**
+ * Scenario-based model routing.
+ *
+ * Reads the inbound request and the configured `Router` map (default /
+ * background / think / longContext / webSearch) and rewrites
+ * `body.model` to the model the request should actually hit. The
+ * scenario the router landed on is stamped onto the request so the
+ * pipeline can shape its log lines (and, historically, pick a fallback
+ * model — fallback was removed when we cut handleFallback).
+ *
+ * Port of vendor utils/router.ts, tightened to strict types: the
+ * request body is now `RouterRequestBody` and the router config is
+ * `RouterConfig` (mirrors AppConfig.Router from src/schemas).
+ */
+
+import { opendir, readFile, stat } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { Logger } from 'pino'
+import { ProjectRouterFileSchema, type ScenarioRouterConfig as RouterConfig, type ScenarioType } from '@/schemas'
+import { CLAUDE_PROJECTS_DIR, HOME_DIR } from '@/shared/constants'
+import type { ConfigStore } from './registry/config'
+import type { TokenizerRegistry } from './registry/tokenizer'
+import type { TokenizeMessage, TokenizeRequest, TokenizeSystem, TokenizeTool } from './tokenizers/base'
+
+export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas'
+
+export type RouterRequestBody = {
+  model: string
+  messages?: TokenizeMessage[]
+  system?: TokenizeSystem
+  tools?: TokenizeTool[]
+  thinking?: unknown
+  metadata?: { user_id?: string }
+  [extra: string]: unknown
+}
+
+export type RouterRequest = {
+  body: RouterRequestBody
+  log: Logger
+  sessionId?: string
+  scenarioType?: ScenarioType
+  tokenCount?: number
+}
+
+export type RouterContext = {
+  config: ConfigStore
+  tokenizers: TokenizerRegistry
+}
+
+type ConfigProvider = {
+  name: string
+  models?: string[]
+}
+
+const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
+
+/**
+ * Mutates `req.body.model` to the selected target model and stamps
+ * `req.scenarioType`. Errors fall back to `Router.default` so the
+ * router never aborts the pipeline.
+ */
+export async function routeScenario(req: RouterRequest, ctx: RouterContext): Promise<void> {
+  // metadata.user_id may carry "<user>_session_<id>" — strip the session
+  // out so project-specific config can pick the matching profile.
+  const userId = req.body.metadata?.user_id
+  if (userId) {
+    const parts = userId.split('_session_')
+    if (parts.length > 1) req.sessionId = parts[1]
+  }
+
+  try {
+    const tokenCount = await countRequestTokens(ctx.tokenizers, req.body)
+    req.tokenCount = tokenCount
+
+    const project = await getProjectRouter(req, ctx.config)
+    const globalRouter = ctx.config.get<RouterConfig>('Router')
+    // Project-level override wins; fall through to the global Router map
+    // when no per-project file applies.
+    const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
+
+    const { model, scenarioType } = selectModel(req, tokenCount, router, ctx.config)
+    req.body.model = model
+    req.scenarioType = scenarioType
+  } catch (err) {
+    req.log.error({ err }, 'scenario router failed; falling back to default model')
+    const fallback = ctx.config.get<RouterConfig>('Router')?.default
+    if (fallback) req.body.model = fallback
+    req.scenarioType = 'default'
+  }
+}
+
+async function countRequestTokens(tokenizers: TokenizerRegistry, body: RouterRequestBody): Promise<number> {
+  const tokenize: TokenizeRequest = {
+    messages: Array.isArray(body.messages) ? body.messages : [],
+    system: body.system,
+    tools: body.tools
+  }
+  const result = await tokenizers.countTokens(tokenize)
+  return result.tokenCount
+}
+
+function selectModel(
+  req: RouterRequest,
+  tokenCount: number,
+  router: RouterConfig | undefined,
+  config: ConfigStore
+): { model: string; scenarioType: ScenarioType } {
+  // Explicit "provider,model" override — short-circuit, no scenario routing.
+  if (req.body.model.includes(',')) {
+    return resolveExplicitProviderModel(req.body.model, config)
+  }
+
+  // Long context — token count exceeds threshold AND Router.longContext set.
+  if (router) {
+    const longContext = pickLongContext(req, tokenCount, router)
+    if (longContext) return longContext
+  }
+
+  // <CCR-SUBAGENT-MODEL> tag in the second system block — explicit
+  // per-call model override Claude Code's subagent flow uses.
+  const subagentModel = extractSubagentModel(req.body.system)
+  if (subagentModel) return { model: subagentModel, scenarioType: 'default' }
+
+  // Any Claude Haiku variant → background model.
+  if (isHaikuBackground(req.body.model, router)) {
+    req.log.info(`Using background model for ${req.body.model}`)
+    return { model: router.background, scenarioType: 'background' }
+  }
+
+  // Web search tools — higher priority than `thinking`. body.tools may
+  // carry vendor-specific shapes (Anthropic's `{ type: 'web_search_*' }`
+  // block) that TokenizeTool doesn't model.
+  if (router?.webSearch && Array.isArray(req.body.tools) && req.body.tools.some(isWebSearchTool)) {
+    return { model: router.webSearch, scenarioType: 'webSearch' }
+  }
+
+  // `thinking` field present → think model.
+  if (req.body.thinking && router?.think) {
+    req.log.info({ thinking: req.body.thinking }, 'Using think model')
+    return { model: router.think, scenarioType: 'think' }
+  }
+
+  const fallback = router?.default
+  return { model: fallback ? fallback : req.body.model, scenarioType: 'default' }
+}
+
+function resolveExplicitProviderModel(
+  rawModel: string,
+  config: ConfigStore
+): { model: string; scenarioType: ScenarioType } {
+  const [providerInput, modelInput] = rawModel.split(',')
+  const providers = config.get<ConfigProvider[]>('providers', [])
+  const provider = providers.find((p) => p.name.toLowerCase() === providerInput.toLowerCase())
+  const model = provider?.models?.find((m) => m.toLowerCase() === modelInput.toLowerCase())
+  if (provider && model) return { model: `${provider.name},${model}`, scenarioType: 'default' }
+  return { model: rawModel, scenarioType: 'default' }
+}
+
+function pickLongContext(
+  req: RouterRequest,
+  tokenCount: number,
+  router: RouterConfig
+): { model: string; scenarioType: ScenarioType } | undefined {
+  const threshold =
+    typeof router.longContextThreshold === 'number' ? router.longContextThreshold : DEFAULT_LONG_CONTEXT_THRESHOLD
+  if (tokenCount > threshold && router.longContext) {
+    req.log.info(`Using long context model due to token count: ${tokenCount}, threshold: ${threshold}`)
+    return { model: router.longContext, scenarioType: 'longContext' }
+  }
+  return undefined
+}
+
+function isHaikuBackground(
+  model: string,
+  router: RouterConfig | undefined
+): router is RouterConfig & { background: string } {
+  return (
+    typeof model === 'string' &&
+    model.includes('claude') &&
+    model.includes('haiku') &&
+    typeof router?.background === 'string' &&
+    router.background.length > 0
+  )
+}
+
+function isWebSearchTool(tool: unknown): tool is { type: string } {
+  if (tool === null || typeof tool !== 'object' || !('type' in tool)) return false
+  const type: unknown = Reflect.get(tool, 'type')
+  return typeof type === 'string' && type.startsWith('web_search')
+}
+
+function extractSubagentModel(system: TokenizeSystem | undefined): string | undefined {
+  if (!Array.isArray(system) || system.length < 2) return undefined
+  const block = system[1]
+  const text = typeof block?.text === 'string' ? block.text : undefined
+  if (!text?.startsWith('<CCR-SUBAGENT-MODEL>')) return undefined
+  const match = text.match(/<CCR-SUBAGENT-MODEL>(.*?)<\/CCR-SUBAGENT-MODEL>/s)
+  if (!match) return undefined
+  // Strip the tag so it doesn't reach the upstream provider.
+  block.text = text.replace(`<CCR-SUBAGENT-MODEL>${match[1]}</CCR-SUBAGENT-MODEL>`, '')
+  return match[1]
+}
+
+// ─── Project-specific router override ──────────────────────────────────
+
+async function getProjectRouter(req: RouterRequest, _config: ConfigStore): Promise<RouterConfig | undefined> {
+  if (!req.sessionId) return undefined
+  const project = await searchProjectBySession(req.sessionId)
+  if (!project) return undefined
+
+  // Per-session override wins over per-project override. Both files are
+  // optional — missing files / bad JSON / unknown shape silently fall
+  // through to the next candidate (no HTTPException here because the
+  // global Router is the always-available fallback).
+  const sessionPath = join(HOME_DIR, project, `${req.sessionId}.json`)
+  const projectPath = join(HOME_DIR, project, 'config.json')
+  for (const path of [sessionPath, projectPath]) {
+    let text: string
+    try {
+      text = await readFile(path, 'utf8')
+    } catch {
+      continue
+    }
+    let raw: unknown
+    try {
+      raw = JSON.parse(text)
+    } catch {
+      req.log.warn({ path }, 'Project router file is not valid JSON; skipping')
+      continue
+    }
+    const result = ProjectRouterFileSchema.safeParse(raw)
+    if (!result.success) {
+      req.log.warn({ path, err: result.error.message }, 'Project router file does not match schema; skipping')
+      continue
+    }
+    if (result.data.Router) return result.data.Router
+  }
+  return undefined
+}
+
+const sessionProjectCache = new Map<string, string | null>()
+
+async function searchProjectBySession(sessionId: string): Promise<string | null> {
+  const cached = sessionProjectCache.get(sessionId)
+  if (cached !== undefined) return cached
+
+  try {
+    const dir = await opendir(CLAUDE_PROJECTS_DIR)
+    const folderNames: string[] = []
+    for await (const dirent of dir) {
+      if (dirent.isDirectory()) folderNames.push(dirent.name)
+    }
+
+    const checks = await Promise.all(
+      folderNames.map(async (folder) => {
+        try {
+          const filePath = join(CLAUDE_PROJECTS_DIR, folder, `${sessionId}.jsonl`)
+          const s = await stat(filePath)
+          return s.isFile() ? folder : null
+        } catch {
+          return null
+        }
+      })
+    )
+
+    for (const r of checks) {
+      if (r) {
+        sessionProjectCache.set(sessionId, r)
+        return r
+      }
+    }
+    sessionProjectCache.set(sessionId, null)
+    return null
+  } catch {
+    sessionProjectCache.set(sessionId, null)
+    return null
+  }
+}

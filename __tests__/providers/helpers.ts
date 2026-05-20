@@ -1,21 +1,21 @@
 /**
  * Shared helpers for provider integration tests.
- * Tests call the running CCR server with Anthropic-format bodies.
- * Using "provider,model" in the model field routes directly to that provider.
  *
- * Base URL defaults to the consolidated Vite+Hono dev server
- * (http://127.0.0.1:16173); override with CCR_TEST_URL for a different
- * host/port.
+ * By default the suite runs in *replay* mode against fixtures captured
+ * via `scripts/capture-fixtures.ts` — no live server needed. Set
+ * `CCR_FIXTURE_MODE=live` to bypass fixtures and hit the running CCR
+ * server (default http://127.0.0.1:16173, override with CCR_TEST_URL).
+ * "provider,model" routing in the body still applies in either mode.
  */
+
+import { FIXTURE_MODE, cachedFetch } from "./fixtures";
 
 const CCR_BASE = process.env.CCR_TEST_URL ?? "http://127.0.0.1:16173";
 const CCR_APIKEY = process.env.CCR_TEST_APIKEY ?? "test";
 export const CCR_URL = `${CCR_BASE}/v1/messages`;
 export const CCR_CONFIG_URL = `${CCR_BASE}/api/config`;
 export const TEST_TIMEOUT = 60_000;
-
-// TODO(phase-1): Add offline contract tests for provider transformers
-// (request/response mapping) so regressions are caught without live keys/server.
+export const IS_REPLAY = FIXTURE_MODE === "replay";
 
 export interface SubscriptionModel {
   provider: string;
@@ -33,7 +33,7 @@ export interface SubscriptionModel {
 export async function fetchSubscriptionModels(
   nameMatch: RegExp
 ): Promise<SubscriptionModel[]> {
-  const res = await fetch(CCR_CONFIG_URL, { headers: { "x-api-key": CCR_APIKEY } });
+  const res = await cachedFetch(CCR_CONFIG_URL, { headers: { "x-api-key": CCR_APIKEY } });
   if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`);
   const cfg = (await res.json()) as {
     Providers?: {
@@ -91,7 +91,11 @@ export async function smokeSubscriptionModel(model: string): Promise<string> {
 
 export interface AnthropicMessage {
   role: "user" | "assistant";
-  content: string;
+  // Anthropic accepts a plain string or a structured content-block array
+  // (text + tool_use + tool_result …). Tests use the string form; the
+  // wider type is here so the helpers don't reject richer shapes that
+  // future scenarios might need.
+  content: string | unknown[];
 }
 
 export interface AnthropicRequest {
@@ -100,6 +104,11 @@ export interface AnthropicRequest {
   messages: AnthropicMessage[];
   stream?: boolean;
   system?: string;
+  // Optional Anthropic features used by the scenario tests. Typed as
+  // unknown here so the test surface doesn't have to mirror every
+  // upstream schema — CCR forwards these to the upstream provider.
+  tools?: unknown[];
+  thinking?: { type: "enabled"; budget_tokens: number };
 }
 
 export interface SSEEvent {
@@ -109,7 +118,7 @@ export interface SSEEvent {
 
 /** Send a request to CCR and return the raw Response. */
 export async function sendMessage(body: AnthropicRequest): Promise<Response> {
-  const res = await fetch(CCR_URL, {
+  const res = await cachedFetch(CCR_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -184,6 +193,25 @@ export async function streamMessage(body: Omit<AnthropicRequest, "stream">): Pro
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
   return parseSSEStream(res);
+}
+
+/**
+ * Heuristic for "this model can't be exercised through CCR right now"
+ * — used by individual tests to skip rather than fail. Covers:
+ *   - 404 / model_not_found: model isn't registered upstream.
+ *   - unsupported_parameter: OpenAI gpt-5.x rejects `max_tokens`; CCR's
+ *     openai transformer hasn't been taught to rewrite it to
+ *     `max_completion_tokens` yet, so the fixtures lock in a 400.
+ *     Drop this branch once that's fixed.
+ * Accepts an Error.message OR an HTTP response body.
+ */
+export function isUnavailableModelSignal(text: string | undefined): boolean {
+  if (!text) return false;
+  return (
+    text.includes("404") ||
+    text.includes("model_not_found") ||
+    text.includes("unsupported_parameter")
+  );
 }
 
 /**

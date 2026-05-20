@@ -1,0 +1,30 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_1779261522052","type":"message","role":"assistant","content":[],"model":"gemini-3.1-pro-preview","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"thinking","thinking":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"thinking_delta","thinking":"(no content)"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"signature_delta","signature":"EsIECr8EAQw51sdJcg9kxTesZUqYp/s6vlfuPJAio71UuRQo51EV7vV9JocZ8Brdns9jDauv3I0xyF2vvZ0eBUM3A0/tSyMHrMNAR0OHpUnXCAa49HvMMOiKHrVbFfR6mZBFnrkbBHAMAXPeUFcyHR8Que4+LOKN72OUcKEJdUOKcM1Trs00O2N+cIOHT9J5i4L3iluiHWIFMSBdjlB+sRFh7nZ+laF1zl/5iqWfAwDGQBHEqTUT+aVGqs9xi+rFaK4/80YSHOnGjYLnerVX2iGAQ7FgMVedAUGuQG3wOEyX88lLCpGWrGD6RqQOFHnBeVf9yg2PGBTXlw847aUjFh5vhmMBhtw3D1QDpfixlLBqnzZ2KThYRC61srIegXh5Sm3kCUU6Hp7dtWDVOQ6QfnHm6NtGlpxxUlQulzxvkjgQ7nHkr8eU9rdTVfJZD6C5FEKtCuPqw3Fkmo7xtA/rogLhwrIf31RUiNbDDYPf+erp1ZgzFngMEnGJvUTsNeGZGHCxmKfEc9TqR+ls1PgxK8GrOEZxqKNltyzgj436FDAiNfEb5Sc7VZx93DAYSrnxcLZugy5hkvSG1rxbF3pNnUUpgUE/FYThMZiISXpeFte+DfUHH99+MKWs7roM4uTtcgQgAMihwBMmoPF3iTzy+P5NEuzSlJWpD9CqKNQkTLsn7rYL+S/dsBNMfoWsofvsN10ThH4hbkgy1C9jLa5+Hthv22IKnJ/g6YJPfGEum843Xcjyyv1gdUfzrwuGKH3OULyhDgE="}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":5,"output_tokens":1,"cache_read_input_tokens":0}}
+
+event: message_stop
+data: {"type":"message_stop"}
+

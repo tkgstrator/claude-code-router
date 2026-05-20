@@ -1,6 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { ProviderSchema } from '../../schemas'
-import { getProviders, upsertProvider } from '../../services/configService'
+import { getProviders, upsertProvider } from '../../services/config'
 
 export const providersRoute = new OpenAPIHono()
 

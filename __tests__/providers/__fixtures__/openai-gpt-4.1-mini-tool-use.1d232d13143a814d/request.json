@@ -1,0 +1,34 @@
+{
+  "label": "openai/gpt-4.1-mini: tool-use weather",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "openai,gpt-4.1-mini",
+    "max_tokens": 256,
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the weather in Tokyo right now? You must call the get_weather tool — do not answer in text."
+      }
+    ],
+    "tools": [
+      {
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City name, e.g. Tokyo"
+            }
+          },
+          "required": [
+            "location"
+          ]
+        }
+      }
+    ],
+    "stream": true
+  }
+}

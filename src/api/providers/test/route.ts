@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { ProviderTestRequestSchema, ProviderTestResponseSchema, ValidationErrorSchema } from '../../../schemas'
-import { testProvider } from '../../../services/providerTestService'
+import { testProvider } from '../../../services/provider-test-service'
 
 export const providersTestRoute = new OpenAPIHono()
 

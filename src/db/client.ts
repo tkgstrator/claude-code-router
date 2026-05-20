@@ -25,13 +25,6 @@ export function getPrismaClient(): PrismaClient {
   return client
 }
 
-export async function disconnectPrisma(): Promise<void> {
-  if (client) {
-    await client.$disconnect()
-    client = null
-  }
-}
-
 // Exposed only for tests that need to swap in a fresh client (e.g. after
 // truncating tables between cases). Never call this in app code.
 export function __resetPrismaClientForTests(): void {

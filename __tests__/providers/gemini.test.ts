@@ -11,18 +11,21 @@ import {
   extractTextFromEvents,
   assertAnthropicSSEShape,
   TEST_TIMEOUT,
+  IS_REPLAY,
   type SSEEvent,
 } from "./helpers";
 
+// Replay mode never needs an upstream key — see openai.test.ts.
 const hasApiKey =
-  Boolean(process.env.GEMINI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS;
+  IS_REPLAY ||
+  (Boolean(process.env.GEMINI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS);
 
 describe.skipIf(!hasApiKey)("gemini / gemini-2.5-flash", () => {
   test(
     "streaming response has correct Anthropic SSE shape",
     async () => {
       const events = await streamMessage({
-        model: "gemini,gemini-2.5-flash",
+        model: "google,gemini-2.5-flash",
         max_tokens: 100,
         messages: [{ role: "user", content: "Say exactly: hello" }],
       });
@@ -38,7 +41,7 @@ describe.skipIf(!hasApiKey)("gemini / gemini-2.5-flash", () => {
     "response contains expected text",
     async () => {
       const events = await streamMessage({
-        model: "gemini,gemini-2.5-flash",
+        model: "google,gemini-2.5-flash",
         max_tokens: 50,
         messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
       });
@@ -53,7 +56,7 @@ describe.skipIf(!hasApiKey)("gemini / gemini-2.5-flash", () => {
     "non-streaming response returns Anthropic message format",
     async () => {
       const res = await sendMessage({
-        model: "gemini,gemini-2.5-flash",
+        model: "google,gemini-2.5-flash",
         max_tokens: 50,
         messages: [{ role: "user", content: "Reply with only the number 42." }],
         stream: false,
@@ -78,7 +81,7 @@ describe.skipIf(!hasApiKey)("gemini / gemini-2.5-pro", () => {
       let events: SSEEvent[];
       try {
         events = await streamMessage({
-          model: "gemini,gemini-2.5-pro",
+          model: "google,gemini-2.5-pro",
           max_tokens: 100,
           messages: [{ role: "user", content: "Say exactly: hello" }],
         });
@@ -105,7 +108,7 @@ describe.skipIf(!hasApiKey)("gemini / gemini-3.1-pro-preview", () => {
       let events: SSEEvent[];
       try {
         events = await streamMessage({
-          model: "gemini,gemini-3.1-pro-preview",
+          model: "google,gemini-3.1-pro-preview",
           max_tokens: 100,
           messages: [{ role: "user", content: "Say exactly: hello" }],
         });
@@ -130,7 +133,7 @@ describe.skipIf(!hasApiKey)("gemini / gemini-3.1-pro-preview", () => {
       let events: SSEEvent[];
       try {
         events = await streamMessage({
-          model: "gemini,gemini-3.1-pro-preview",
+          model: "google,gemini-3.1-pro-preview",
           max_tokens: 50,
           messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
         });

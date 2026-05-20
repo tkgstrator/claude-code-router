@@ -19,7 +19,7 @@ const DEFAULT_MODULE: StatusLineModuleConfig = {
   color: 'bright_blue'
 }
 
-// Nerd Font选项
+// Nerd Font options
 const NERD_FONTS = [
   { label: 'Hack Nerd Font Mono', value: 'Hack Nerd Font Mono' },
   { label: 'FiraCode Nerd Font Mono', value: 'FiraCode Nerd Font Mono' },
@@ -31,7 +31,7 @@ const NERD_FONTS = [
   { label: 'UbuntuMono Nerd Font', value: 'UbuntuMono Nerd Font' }
 ]
 
-// 模块类型选项
+// Module type options
 const MODULE_TYPES = [
   { label: 'workDir', value: 'workDir' },
   { label: 'gitBranch', value: 'gitBranch' },
@@ -41,9 +41,9 @@ const MODULE_TYPES = [
   { label: 'script', value: 'script' }
 ]
 
-// ANSI颜色代码映射
+// ANSI color code mapping
 const ANSI_COLORS: Record<string, string> = {
-  // 标准颜色
+  // Standard colors
   black: 'text-black',
   red: 'text-red-600',
   green: 'text-green-600',
@@ -52,7 +52,7 @@ const ANSI_COLORS: Record<string, string> = {
   magenta: 'text-purple-500',
   cyan: 'text-cyan-500',
   white: 'text-white',
-  // 亮色
+  // Bright colors
   bright_black: 'text-gray-500',
   bright_red: 'text-red-400',
   bright_green: 'text-green-400',
@@ -61,7 +61,7 @@ const ANSI_COLORS: Record<string, string> = {
   bright_magenta: 'text-purple-300',
   bright_cyan: 'text-cyan-300',
   bright_white: 'text-white',
-  // 背景颜色
+  // Background colors
   bg_black: 'bg-black',
   bg_red: 'bg-red-600',
   bg_green: 'bg-green-600',
@@ -70,7 +70,7 @@ const ANSI_COLORS: Record<string, string> = {
   bg_magenta: 'bg-purple-500',
   bg_cyan: 'bg-cyan-500',
   bg_white: 'bg-white',
-  // 亮背景色
+  // Bright background colors
   bg_bright_black: 'bg-gray-800',
   bg_bright_red: 'bg-red-400',
   bg_bright_green: 'bg-green-400',
@@ -79,12 +79,12 @@ const ANSI_COLORS: Record<string, string> = {
   bg_bright_magenta: 'bg-purple-300',
   bg_bright_cyan: 'bg-cyan-300',
   bg_bright_white: 'bg-gray-100',
-  // Powerline样式需要的额外背景色
+  // Extra background colors required by the Powerline style
   bg_bright_orange: 'bg-orange-400',
   bg_bright_purple: 'bg-purple-400'
 }
 
-// 图标搜索输入组件
+// Icon search input component
 interface IconData {
   className: string
   unicode: string
@@ -106,16 +106,16 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
   const [isLoading, setIsLoading] = useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  // 加载Nerdfonts图标数据
+  // Load Nerd Fonts icon data
   const loadIcons = useCallback(async () => {
-    if (icons.length > 0) return // 已经加载过了
+    if (icons.length > 0) return // Already loaded
 
     setIsLoading(true)
     try {
       const response = await fetch('https://www.nerdfonts.com/assets/css/combo.css')
       const cssText = await response.text()
 
-      // 解析CSS中的图标类名和Unicode
+      // Parse icon class names and Unicode codepoints from the CSS
       const iconRegex = /\.nf-([a-zA-Z0-9_-]+):before\s*\{\s*content:\s*"\\([0-9a-fA-F]+)";?\s*\}/g
       const iconData: IconData[] = []
       let match: RegExpExecArray | null = iconRegex.exec(cssText)
@@ -139,27 +139,27 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
     }
   }, [icons.length])
 
-  // 模糊搜索图标
+  // Fuzzy-search icons
   useEffect(() => {
     if (searchTerm.trim() === '') {
-      setFilteredIcons(icons.slice(0, 100)) // 显示前100个图标
+      setFilteredIcons(icons.slice(0, 100)) // Show the first 100 icons
       return
     }
 
     const term = searchTerm.toLowerCase()
     let filtered = icons
 
-    // 如果输入的是特殊字符（可能是粘贴的图标），则搜索对应图标
+    // If the input is a special character (likely a pasted icon glyph), look up the matching icon
     if (term.length === 1 || /[\u{2000}-\u{2FFFF}]/u.test(searchTerm)) {
       const pastedIcon = icons.find((icon) => icon.char === searchTerm)
       if (pastedIcon) {
         filtered = [pastedIcon]
       } else {
-        // 搜索包含该字符的图标
+        // Search icons that contain this character
         filtered = icons.filter((icon) => icon.char === searchTerm)
       }
     } else {
-      // 模糊搜索：类名、简化后的名称匹配
+      // Fuzzy search: match against the class name and a simplified form
       filtered = icons.filter((icon) => {
         const className = icon.className.toLowerCase()
         const simpleClassName = className.replace(/[_-]/g, '')
@@ -168,33 +168,33 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
         return (
           className.includes(term) ||
           simpleClassName.includes(simpleTerm) ||
-          // 关键词匹配
+          // Keyword match
           term.split(' ').every((keyword) => className.includes(keyword) || simpleClassName.includes(keyword))
         )
       })
     }
 
-    setFilteredIcons(filtered.slice(0, 120)) // 显示更多结果
+    setFilteredIcons(filtered.slice(0, 120)) // Show more results
   }, [searchTerm, icons])
 
-  // 处理输入变化
+  // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
     setSearchTerm(newValue)
     onChange(newValue)
 
-    // 始终打开下拉框，让用户搜索或确认粘贴的内容
+    // Always open the dropdown so the user can search or confirm pasted content
     setIsOpen(true)
     if (icons.length === 0) {
       loadIcons()
     }
   }
 
-  // 处理粘贴事件
+  // Handle paste events
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData('text')
 
-    // 如果是单个字符（可能是图标），直接接受并打开下拉框显示相应图标
+    // If a single character (likely an icon glyph), accept it and open the dropdown to show matches
     if (pastedText && pastedText.length === 1) {
       setTimeout(() => {
         setIsOpen(true)
@@ -202,7 +202,7 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
     }
   }
 
-  // 选择图标
+  // Select an icon
   const handleIconSelect = (iconChar: string) => {
     setSearchTerm(iconChar)
     onChange(iconChar)
@@ -210,7 +210,7 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
     inputRef.current?.focus()
   }
 
-  // 处理焦点事件
+  // Handle focus events
   const handleFocus = () => {
     setIsOpen(true)
     if (icons.length === 0) {
@@ -218,7 +218,7 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
     }
   }
 
-  // 处理失去焦点（延迟关闭以便点击图标）
+  // Handle blur (delay closing so icon clicks still register)
   const handleBlur = () => {
     setTimeout(() => setIsOpen(false), 200)
   }
@@ -258,7 +258,7 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
                     key={icon.className}
                     className='flex items-center justify-center p-3 text-2xl cursor-pointer hover:bg-secondary rounded transition-colors'
                     onClick={() => handleIconSelect(icon.char)}
-                    onMouseDown={(e) => e.preventDefault()} // 防止失去焦点
+                    onMouseDown={(e) => e.preventDefault()} // Prevent the input from losing focus
                     title={`${icon.char} - ${icon.className}`}
                     style={{ fontFamily: fontFamily + ', monospace' }}
                   >
@@ -295,16 +295,16 @@ const IconSearchInput = React.memo(({ value, onChange, fontFamily, t }: IconSear
   )
 })
 
-// 变量替换函数
+// Variable substitution helper
 function replaceVariables(text: string, variables: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
     return variables[varName] || match
   })
 }
 
-// 渲染单个模块预览
+// Render a preview for a single module
 function renderModulePreview(module: StatusLineModuleConfig, isPowerline: boolean = false): React.ReactNode {
-  // 模拟变量数据
+  // Mock variable data
   const variables = {
     workDirName: 'project',
     gitBranch: 'main',
@@ -316,24 +316,24 @@ function renderModulePreview(module: StatusLineModuleConfig, isPowerline: boolea
   const text = replaceVariables(module.text, variables)
   const icon = module.icon || ''
 
-  // 如果text为空且不是usage类型，则跳过该模块
+  // Skip the module when text is empty and the type is not usage
   if (!text && module.type !== 'usage') {
     return null
   }
 
-  // 检查是否为十六进制颜色值
+  // Detect a hex color value
   const isHexColor = (color: string) => /^#[0-9A-F]{6}$/i.test(color)
 
-  // 如果是Powerline样式，添加背景色和分隔符
+  // For the Powerline style, apply background colors and separators
   if (isPowerline) {
-    // 处理背景色 - 支持ANSI颜色和十六进制颜色
+    // Resolve the background color - supports ANSI names and hex values
     let bgColorStyle = {}
     let bgColorClass = ''
     let separatorDataBg = ''
     if (module.background) {
       if (isHexColor(module.background)) {
         bgColorStyle = { backgroundColor: module.background }
-        // 对于十六进制颜色，我们直接使用颜色值作为data属性
+        // For hex colors, use the value directly as the data attribute
         separatorDataBg = module.background
       } else {
         bgColorClass = ANSI_COLORS[module.background] || ''
@@ -341,7 +341,7 @@ function renderModulePreview(module: StatusLineModuleConfig, isPowerline: boolea
       }
     }
 
-    // 处理文字颜色 - 支持ANSI颜色和十六进制颜色
+    // Resolve the text color - supports ANSI names and hex values
     let textColorStyle = {}
     let textColorClass = ''
     if (module.color) {
@@ -368,7 +368,7 @@ function renderModulePreview(module: StatusLineModuleConfig, isPowerline: boolea
     )
   }
 
-  // 处理默认样式下的颜色
+  // Resolve colors for the default style
   let textStyle = {}
   let textClass = ''
   if (module.color) {
@@ -406,13 +406,13 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
     config?.StatusLine || createDefaultStatusLineConfig()
   )
 
-  // 字体状态
+  // Font state
   const [fontFamily, setFontFamily] = useState<string>(config?.StatusLine?.fontFamily || 'Hack Nerd Font Mono')
 
   const [selectedModuleIndex, setSelectedModuleIndex] = useState<number | null>(null)
   const [hexBackgroundColors, setHexBackgroundColors] = useState<Set<string>>(new Set())
 
-  // 添加Powerline分隔符样式
+  // Inject Powerline separator styles
   useEffect(() => {
     const styleElement = document.createElement('style')
     styleElement.innerHTML = `
@@ -444,7 +444,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
         display: block;
       }
       
-      /* 使用层级确保每个模块的三角形覆盖在下一个模块上方 */
+      /* Use z-index so each module's triangle overlays the next module */
       .cursor-pointer:nth-child(1) .powerline-separator { z-index: 10; }
       .cursor-pointer:nth-child(2) .powerline-separator { z-index: 9; }
       .cursor-pointer:nth-child(3) .powerline-separator { z-index: 8; }
@@ -460,7 +460,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
         display: none;
       }
       
-      /* 根据data属性动态设置颜色，确保与模块背景色一致 */
+      /* Drive separator color from the data attribute to match the module background */
       .powerline-separator[data-current-bg="bg_black"] { border-left-color: #000000; }
       .powerline-separator[data-current-bg="bg_red"] { border-left-color: #dc2626; }
       .powerline-separator[data-current-bg="bg_green"] { border-left-color: #16a34a; }
@@ -482,15 +482,15 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
     `
     document.head.appendChild(styleElement)
 
-    // 清理函数
+    // Cleanup
     return () => {
       document.head.removeChild(styleElement)
     }
   }, [])
 
-  // 动态更新十六进制背景颜色的样式
+  // Dynamically update the hex background color styles
   useEffect(() => {
-    // 收集所有模块中使用的十六进制背景颜色
+    // Collect every hex background color in use across modules
     const hexColors = new Set<string>()
     Object.keys(statusLineConfig).forEach((key) => {
       const themeConfig = statusLineConfig[key as keyof StatusLineConfig]
@@ -506,14 +506,14 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
 
     setHexBackgroundColors(hexColors)
 
-    // 创建动态样式元素
+    // Create the dynamic style element
     const styleElement = document.createElement('style')
     styleElement.id = 'hex-powerline-styles'
 
-    // 生成十六进制颜色的CSS规则
+    // Build CSS rules for each hex color
     let cssRules = ''
     hexColors.forEach((color) => {
-      // 将十六进制颜色转换为RGB值
+      // Convert the hex color to RGB
       const r = parseInt(color.slice(1, 3), 16)
       const g = parseInt(color.slice(3, 5), 16)
       const b = parseInt(color.slice(5, 7), 16)
@@ -523,7 +523,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
     styleElement.innerHTML = cssRules
     document.head.appendChild(styleElement)
 
-    // 清理函数
+    // Cleanup
     return () => {
       const existingStyle = document.getElementById('hex-powerline-styles')
       if (existingStyle) {
@@ -532,7 +532,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
     }
   }, [statusLineConfig])
 
-  // 模块类型选项
+  // Module type options
   const MODULE_TYPES_OPTIONS = MODULE_TYPES.map((item) => ({
     ...item,
     label: t(`statusline.${item.label}`)
@@ -562,17 +562,17 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
   const [validationErrors, setValidationErrors] = useState<string[]>([])
 
   const handleSave = () => {
-    // 验证配置
+    // Validate the configuration
     const validationResult = validateStatusLineConfig(statusLineConfig)
 
     if (!validationResult.isValid) {
-      // 格式化错误信息
+      // Format the error messages
       const errorMessages = validationResult.errors.map((error) => formatValidationError(error, t))
       setValidationErrors(errorMessages)
       return
     }
 
-    // 清除之前的错误
+    // Clear previous errors
     setValidationErrors([])
 
     if (config) {
@@ -587,7 +587,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
     }
   }
 
-  // 创建自定义Alert组件
+  // Inline custom Alert component
   const CustomAlert = ({
     title,
     description,
@@ -645,7 +645,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
       ? currentModules[selectedModuleIndex]
       : null
 
-  // 删除选中模块的函数
+  // Delete the currently selected module
   const deleteSelectedModule = useCallback(() => {
     if (selectedModuleIndex === null) return
 
@@ -668,25 +668,25 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
     }
   }, [selectedModuleIndex, statusLineConfig])
 
-  // 字体样式
+  // Font style
   const fontStyle = fontFamily ? { fontFamily } : {}
 
-  // 键盘事件监听器，支持删除选中的模块
+  // Keyboard listener that supports deleting the selected module
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 检查是否选中了模块
+      // Is a module selected?
       if (selectedModuleIndex === null) return
 
-      // 检查是否按下了删除键 (Delete 或 Backspace)
+      // Did the user press a delete key (Delete or Backspace)?
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        // 检查当前焦点元素是否是预览区域的模块
+        // Inspect the currently focused element
         const activeElement = document.activeElement as HTMLElement
 
-        // 检查焦点元素是否是预览区域的模块（有 cursor-pointer 类和 tabIndex）
+        // Check whether focus is on a preview-area module (has the cursor-pointer class and a tabIndex)
         const isPreviewModule =
           activeElement?.classList.contains('cursor-pointer') && activeElement?.hasAttribute('tabIndex')
 
-        // 只有当焦点在预览区域的组件上时，才执行删除操作
+        // Only delete when focus is on a preview-area module
         if (isPreviewModule) {
           e.preventDefault()
           deleteSelectedModule()
@@ -694,16 +694,16 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
       }
     }
 
-    // 添加事件监听器
+    // Register the listener
     document.addEventListener('keydown', handleKeyDown)
 
-    // 清理函数
+    // Cleanup
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [selectedModuleIndex, deleteSelectedModule])
 
-  // 当字体或主题变化时强制重新渲染
+  // Force a re-render when the font or theme changes
   const fontKey = `${fontFamily}-${statusLineConfig.currentStyle}`
 
   return (
@@ -734,7 +734,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
           </DialogTitle>
         </DialogHeader>
 
-        {/* 错误显示区域 */}
+        {/* Error display area */}
         {validationErrors.length > 0 && (
           <div className='px-6'>
             <CustomAlert
@@ -752,9 +752,9 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
         )}
 
         <div className='flex flex-col gap-6 flex-1 overflow-hidden'>
-          {/* 配置面板 */}
+          {/* Configuration panel */}
           <div className='space-y-6'>
-            {/* 主题样式和字体选择 */}
+            {/* Theme style and font selection */}
             <div className='grid grid-cols-2 gap-4'>
               <div className='space-y-2'>
                 <Label htmlFor='theme-style' className='text-sm font-medium'>
@@ -787,9 +787,9 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
             </div>
           </div>
 
-          {/* 三栏布局：组件列表 | 预览区域 | 属性配置 */}
+          {/* Three-column layout: component list | preview area | property panel */}
           <div className='grid grid-cols-5 gap-6 overflow-hidden flex-1'>
-            {/* 左侧：支持的组件 */}
+            {/* Left: supported components */}
             <div className='border rounded-lg flex flex-col overflow-hidden col-span-1'>
               <h3 className='text-sm font-medium p-4 pb-0 mb-3'>{t('statusline.components')}</h3>
               <div className='space-y-2 overflow-y-auto px-4 pb-4 flex-1'>
@@ -808,7 +808,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
               </div>
             </div>
 
-            {/* 中间：预览区域 */}
+            {/* Middle: preview area */}
             <div className='border rounded-lg p-4 flex flex-col col-span-3'>
               <h3 className='text-sm font-medium mb-3'>{t('statusline.preview')}</h3>
               <div
@@ -825,7 +825,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
                   e.preventDefault()
                   const moduleType = e.dataTransfer.getData('moduleType')
                   if (moduleType) {
-                    // 添加新模块
+                    // Add a new module
                     const currentTheme = statusLineConfig.currentStyle as keyof StatusLineConfig
                     const themeConfig = statusLineConfig[currentTheme]
                     const modules =
@@ -833,7 +833,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
                         ? [...((themeConfig as StatusLineThemeConfig).modules || [])]
                         : []
 
-                    // 根据模块类型设置默认值
+                    // Pick default values based on the module type
                     let newModule: StatusLineModuleConfig
                     switch (moduleType) {
                       case 'workDir':
@@ -923,7 +923,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
                           e.preventDefault()
                           const dragIndex = parseInt(e.dataTransfer.getData('dragIndex'))
                           if (!isNaN(dragIndex) && dragIndex !== index) {
-                            // 重新排序模块
+                            // Reorder modules
                             const currentTheme = statusLineConfig.currentStyle as keyof StatusLineConfig
                             const themeConfig = statusLineConfig[currentTheme]
                             const modules =
@@ -940,7 +940,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
                                 [currentTheme]: { modules }
                               }))
 
-                              // 更新选中项的索引
+                              // Update the selected index
                               if (selectedModuleIndex === dragIndex) {
                                 setSelectedModuleIndex(index)
                               } else if (selectedModuleIndex === index) {
@@ -978,7 +978,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
               </div>
             </div>
 
-            {/* 右侧：属性配置 */}
+            {/* Right: property panel */}
             <div className='border rounded-lg flex flex-col overflow-hidden col-span-1'>
               <h3 className='text-sm font-medium p-4 pb-0 mb-3'>{t('statusline.properties')}</h3>
               <div className='overflow-y-auto px-4 pb-4 flex-1'>
@@ -1044,7 +1044,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
                       <p className='text-xs text-muted-foreground'>{t('statusline.module_background_description')}</p>
                     </div>
 
-                    {/* Script Path 输入框 - 仅在type为script时显示 */}
+                    {/* Script Path input - only shown when type is "script" */}
                     {selectedModule.type === 'script' && (
                       <div className='space-y-2'>
                         <Label htmlFor='module-script-path'>{t('statusline.module_script_path')}</Label>

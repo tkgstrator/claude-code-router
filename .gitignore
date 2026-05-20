@@ -33,3 +33,8 @@ scripts/*.d.ts
 # envelope here, including the minted APIKEY, rotating backups and logs.
 # Never commit it (already excluded from the image via .dockerignore).
 ccr-config/
+
+# Local subscription credential mirrors fed to the dev server. Both
+# directories hold OAuth tokens / IDE configs and must never be committed.
+ccr-auth/
+.codex/

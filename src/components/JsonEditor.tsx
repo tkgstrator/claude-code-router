@@ -73,7 +73,7 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
   }, [open])
 
   const handleSaveResponse = (response: unknown, successMessage: string, errorMessage: string) => {
-    // 根据响应信息进行提示
+    // Surface a toast based on the response payload
     if (response && typeof response === 'object' && 'success' in response) {
       const apiResponse = response as { success: boolean; message?: string }
       if (apiResponse.success) {
@@ -88,7 +88,7 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
         return false
       }
     } else {
-      // 默认成功提示
+      // Default to success toast
       if (showToast) {
         showToast(successMessage, 'success')
       }

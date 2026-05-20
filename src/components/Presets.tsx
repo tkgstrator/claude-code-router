@@ -136,7 +136,7 @@ export function Presets() {
   const [marketLoading, setMarketLoading] = useState(false)
   const [installingFromMarket, setInstallingFromMarket] = useState<string | null>(null)
 
-  // 返回上一页
+  // Go back to the previous page
   const handleGoBack = () => {
     navigate('/models')
   }
@@ -259,11 +259,11 @@ export function Presets() {
       setSelectedPreset({ ...preset, ...detail })
       setDetailDialogOpen(true)
 
-      // 初始化表单值：优先使用已保存的 userValues，否则使用 defaultValue
+      // Initialize form values: prefer saved userValues, otherwise fall back to defaultValue
       if (detail.schema && detail.schema.length > 0) {
         const initialValues: Record<string, any> = {}
         for (const input of detail.schema) {
-          // 优先使用已保存的值
+          // Prefer the saved value
           if (detail.userValues && detail.userValues[input.id] !== undefined) {
             initialValues[input.id] = detail.userValues[input.id]
           } else {
@@ -279,12 +279,12 @@ export function Presets() {
     }
   }
 
-  // 安装预设
+  // Install a preset
   const handleInstall = async () => {
     try {
       setIsInstalling(true)
 
-      // 验证输入
+      // Validate inputs
       if (installMethod === 'url' && !installUrl) {
         setToast({ message: t('presets.please_provide_url'), type: 'warning' })
         return
@@ -294,7 +294,7 @@ export function Presets() {
         return
       }
 
-      // 确定预设名称
+      // Resolve the preset name
       const presetName = installName || ''
 
       // Step 1: Install preset from GitHub repository
@@ -309,7 +309,7 @@ export function Presets() {
 
       // Step 2: Get preset details (check if configuration is required)
       try {
-        // 使用服务器返回的实际预设名称
+        // Use the actual preset name returned by the server
         const actualPresetName = installResult?.presetName || presetName
         const detail = await api.getPreset(actualPresetName)
 
@@ -389,7 +389,7 @@ export function Presets() {
       // Verify all required fields are filled
       if (selectedPreset?.schema && selectedPreset.schema.length > 0) {
         // Validation completed in DynamicConfigForm
-        // 这里只做简单检查（对于 confirm 类型，false 是有效值）
+        // Only a sanity check here (for the confirm type, false is a valid value)
         for (const input of selectedPreset.schema) {
           const value = inputValues[input.id]
           const isEmpty =

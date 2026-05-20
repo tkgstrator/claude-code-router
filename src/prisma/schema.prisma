@@ -80,9 +80,46 @@ model Provider {
   // { use: string[] | [string, opts][], [modelName]: { use: ... } } —
   // PR #2 will normalize this into a Transformer table.
   transformer Json?
+  // Selected account for subscription-auth providers. Null for api_key providers.
+  activeSubscriptionAccountId String?
+  activeSubscriptionAccount   SubAccount? @relation("ProviderActiveSubscriptionAccount", fields: [activeSubscriptionAccountId], references: [id], onDelete: SetNull)
+  subscriptionAccounts        SubAccount[] @relation("ProviderSubscriptionAccounts")
   models      Model[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model SubAccount {
+  id          String   @id @default(cuid())
+  providerId  String
+  provider    Provider @relation("ProviderSubscriptionAccounts", fields: [providerId], references: [id], onDelete: Cascade)
+  sourcePath  String
+  // User-facing on/off switch. The sync service treats only enabled
+  // accounts as candidates for activeSubscriptionAccountId, so a disabled
+  // row is effectively ignored at request time even though its tokens
+  // remain on disk.
+  enabled     Boolean  @default(true)
+  label       String
+  userName    String?
+  userEmail   String?
+  userId      String?
+  accountId   String?
+  plan        String?
+  rateLimitTier String?
+  expiresAt   DateTime?
+  scopes      Json?
+  // Encrypted token payloads. Plain tokens are never persisted.
+  accessTokenEnc  String?
+  refreshTokenEnc String?
+  idTokenEnc      String?
+  lastSyncedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  activeForProviders Provider[] @relation("ProviderActiveSubscriptionAccount")
+
+  @@unique([providerId, sourcePath])
+  @@index([providerId])
 }
 
 model Model {
@@ -103,7 +140,7 @@ model Model {
   // for the models that need a different endpoint.
   apiStyle    ApiStyle?
   // True when the vendor has marked this model as deprecated upstream.
-  // The flag is seeded from packages/shared/src/data/deprecations.ts at
+  // The flag is seeded from src/shared/data/deprecations.ts at
   // boot and on the UI refresh-models action; we never delete the row
   // because the user may still be routing to it.
   deprecated  Boolean      @default(false)
@@ -112,7 +149,7 @@ model Model {
   // a model can be legacy-priced but not formally deprecated.
   legacy      Boolean      @default(false)
   // Official per-1M-token USD prices scraped from the vendor pricing
-  // page (packages/shared/src/data/providers/<vendor>/prices.json).
+  // page (src/shared/data/providers/<vendor>/prices.json).
   // Null for subscription-auth models and any api_key model the scrape
   // didn't cover.
   inputPer1M  Float?

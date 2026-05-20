@@ -7,7 +7,7 @@
  *
  * Every enabled codex subscription model from /api/config is smoke
  * tested through /v1 (codex routes via the openai-responses +
- * codex-credentials chain to the ChatGPT backend). Any non-200 — incl.
+ * codex-oauth chain to the ChatGPT backend). Any non-200 — incl.
  * a 429 — is a hard failure, same policy as the claude-code matrix.
  */
 
@@ -16,6 +16,7 @@ import {
   smokeSubscriptionModel,
   fetchSubscriptionModels,
   TEST_TIMEOUT,
+  IS_REPLAY,
   type SubscriptionModel,
 } from "./helpers";
 import { existsSync } from "fs";
@@ -23,8 +24,11 @@ import { join } from "path";
 import { homedir } from "os";
 
 const AUTH_PATH = join(homedir(), ".codex", "auth.json");
+// Replay mode doesn't need real OAuth creds — fixtures supply the
+// subscription smokes.
 const hasCredentials =
-  existsSync(AUTH_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
+  IS_REPLAY ||
+  (existsSync(AUTH_PATH) && !process.env.CCR_SKIP_LIVE_TESTS);
 
 const result = await (async (): Promise<
   { models: SubscriptionModel[] } | { error: string }

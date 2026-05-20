@@ -1,0 +1,178 @@
+/**
+ * Database seeding: ensure all six RouterSlot rows exist, and top-up
+ * the Provider table from the bundled llm-prices snapshot / subscription
+ * presets so the UI's Add-Provider dropdown is non-empty out of the box.
+ */
+
+import { buildSeedProviders, SCENARIO_KEYS } from '@/shared'
+import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS } from '@/shared/data'
+import { getPrismaClient } from '../../db/client'
+import {
+  type ApiStyle,
+  AuthMode,
+  type Model as DbModel,
+  type Provider as DbProvider,
+  Prisma,
+  type PrismaClient
+} from '../../generated/prisma/client'
+import { apiStyleForVendor, modelApiStyleOverride } from './api-style'
+import { syncDeprecationFlags, type Tx } from './apply'
+
+// Seed the 6 RouterSlot rows with null modelId if they're missing. Used
+// by the JSON-to-DB migration and as a safety net for fresh databases.
+export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()): Promise<void> {
+  await Promise.all(
+    SCENARIO_KEYS.map((scenario) =>
+      prisma.routerSlot.upsert({
+        where: { scenario },
+        update: {},
+        create: { scenario, modelId: null }
+      })
+    )
+  )
+}
+
+// First-run convenience: populate the Provider table from the
+// llm-prices snapshot so the UI's Add-Provider dropdown and the catalog
+// of available models are non-empty out of the box. api_key is left
+// unset (NULL) — the user fills it in from the UI. Behaviour is top-up: any
+// seed whose `name` isn't already in the table gets inserted, so a
+// partial DB gains the remaining vendors on next boot. Existing rows
+// keep their api_key / models; the official vendors' apiBaseUrl is
+// reconciled to VENDOR_DEFAULTS in seedScrapedPricesIntoDb.
+export interface SeedRow {
+  name: string
+  apiBaseUrl: string
+  authMode: AuthMode
+  apiStyle: ApiStyle
+  transformer: Prisma.InputJsonValue | typeof Prisma.DbNull
+  models: string[]
+}
+
+// Context window for a SUBSCRIPTION model (priceSeedService skips
+// subscription providers, so it must be set here).
+//  - Claude: the docs advertise 1M for Sonnet too, but on the
+//    subscription path that 1M needs extra usage the plan doesn't
+//    grant — empirically only Opus 4.7 serves >200K; everything else
+//    is the standard 200K.
+//  - codex (and any other non-Claude subscription model): the same as
+//    the API — reuse the vendor-official scraped value for that model
+//    id (OpenAI sub/API share the window).
+// undefined → contextWindow stays null (api_key handled by the scrape).
+export const subscriptionContextWindow = (seed: SeedRow, name: string): number | undefined => {
+  if (seed.authMode !== AuthMode.subscription) return undefined
+  if (name.startsWith('claude-')) return name === 'claude-opus-4-7' ? 1_000_000 : 200_000
+  const openaiVendor = OFFICIAL_VENDOR_PRICES.openai
+  if (!openaiVendor) return undefined
+  const entry = openaiVendor[name]
+  return entry ? entry.contextWindow : undefined
+}
+
+// Insert one brand-new seed provider with all its models.
+export async function insertSeedProvider(tx: Tx, seed: SeedRow): Promise<void> {
+  const provider = await tx.provider.create({
+    data: {
+      name: seed.name,
+      apiBaseUrl: seed.apiBaseUrl,
+      // Unset: the user fills the key in from the UI. NULL (not
+      // '') so "no key" is represented consistently end to end.
+      apiKey: null,
+      authMode: seed.authMode,
+      apiStyle: seed.apiStyle,
+      transformer: seed.transformer
+    }
+  })
+  if (seed.models.length === 0) return
+  await tx.model.createMany({
+    data: seed.models.map((name) => ({
+      providerId: provider.id,
+      name,
+      deprecated: isDeprecatedModel(name),
+      // Registered != routable. Only subscription presets seed
+      // their curated default set as enabled; api_key vendor
+      // catalogs stay off (DB default) until the user enables.
+      enabled: seed.authMode === AuthMode.subscription && !isDeprecatedModel(name),
+      contextWindow: subscriptionContextWindow(seed, name),
+      apiStyle: modelApiStyleOverride(name)
+    }))
+  })
+}
+
+// Top-up an existing provider with any newly-seeded models, resync the
+// deprecation flag, and (for subscription providers) refresh
+// contextWindow on already-seeded rows.
+export async function topUpSeedProvider(
+  tx: Tx,
+  seed: SeedRow,
+  current: DbProvider & { models: DbModel[] }
+): Promise<void> {
+  const existingModelNames = new Set(current.models.map((m) => m.name))
+  const newModels = seed.models.filter((name) => !existingModelNames.has(name))
+  if (newModels.length > 0) {
+    await tx.model.createMany({
+      data: newModels.map((name) => ({
+        providerId: current.id,
+        name,
+        deprecated: isDeprecatedModel(name),
+        enabled: !isDeprecatedModel(name),
+        contextWindow: subscriptionContextWindow(seed, name),
+        apiStyle: modelApiStyleOverride(name)
+      }))
+    })
+  }
+  // Resync deprecation flag for already-seeded rows so new entries
+  // added to DEPRECATED_MODELS on upgrade reach existing DBs.
+  await syncDeprecationFlags(tx, current.id, seed.models)
+  // Resync the subscription context window onto already-seeded rows so
+  // DBs seeded before the column existed get it too. Group by value so
+  // it's a handful of updateManys.
+  if (seed.authMode !== AuthMode.subscription) return
+  const byCtx = new Map<number, string[]>()
+  for (const name of seed.models) {
+    const ctx = subscriptionContextWindow(seed, name)
+    if (ctx === undefined) continue
+    const bucket = byCtx.get(ctx)
+    if (bucket) bucket.push(name)
+    else byCtx.set(ctx, [name])
+  }
+  for (const [ctx, names] of byCtx) {
+    await tx.model.updateMany({
+      where: { providerId: current.id, name: { in: names } },
+      data: { contextWindow: ctx }
+    })
+  }
+}
+
+export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient()): Promise<void> {
+  const existing = await prisma.provider.findMany({ include: { models: true } })
+  const existingByName = new Map(existing.map((p) => [p.name, p]))
+
+  const apiSeeds: SeedRow[] = buildSeedProviders().map((seed) => ({
+    name: seed.name,
+    apiBaseUrl: seed.apiBaseUrl,
+    authMode: AuthMode.api_key,
+    apiStyle: apiStyleForVendor(seed.name),
+    transformer: seed.transformer ? seed.transformer : Prisma.DbNull,
+    models: seed.models
+  }))
+  const subscriptionSeeds: SeedRow[] = SUBSCRIPTION_PRESETS.map((preset) => ({
+    name: preset.id,
+    apiBaseUrl: preset.apiBaseUrl,
+    authMode: AuthMode.subscription,
+    apiStyle: apiStyleForVendor(preset.id),
+    transformer: Prisma.DbNull,
+    models: preset.defaultEnabledModels
+  }))
+  const allSeeds = [...apiSeeds, ...subscriptionSeeds]
+
+  await prisma.$transaction(async (tx) => {
+    for (const seed of allSeeds) {
+      const current = existingByName.get(seed.name)
+      if (current) {
+        await topUpSeedProvider(tx, seed, current)
+      } else {
+        await insertSeedProvider(tx, seed)
+      }
+    }
+  })
+}
