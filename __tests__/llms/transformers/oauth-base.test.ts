@@ -18,7 +18,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { type OauthCredentials, OAuthTransformer } from '../../../src/llms/transformers/oauth-base'
-import type { RuntimeProvider } from '../../../src/llms/types'
+import type { RuntimeProvider } from '../../../src/schemas'
 
 const DEFAULT_PATH = '/default/creds.json'
 

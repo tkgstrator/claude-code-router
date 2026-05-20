@@ -333,9 +333,7 @@ function appendIncomingMessage(messages: UnifiedMessage[], msg: AnthropicIncomin
 function buildToolChoice(toolChoice: AnthropicIncomingRequest['tool_choice']): UnifiedChatRequest['tool_choice'] {
   if (!toolChoice) return undefined
   if (toolChoice.type === 'tool') {
-    if (toolChoice.name === undefined) {
-      throw new HTTPException(500, { message: 'Anthropic tool_choice missing name for type=tool' })
-    }
+    // Discriminated union guarantees `name` here — see AnthropicToolChoiceSchema.
     return {
       type: 'function',
       function: { name: toolChoice.name }

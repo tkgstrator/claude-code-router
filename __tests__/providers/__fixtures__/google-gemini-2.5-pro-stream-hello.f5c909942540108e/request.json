@@ -1,0 +1,16 @@
+{
+  "label": "google/gemini-2.5-pro: stream-hello",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "google,gemini-2.5-pro",
+    "max_tokens": 100,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say exactly: hello"
+      }
+    ],
+    "stream": true
+  }
+}

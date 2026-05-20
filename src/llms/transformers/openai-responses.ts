@@ -16,7 +16,9 @@ import type {
   ResponsesStreamEvent,
   ResponsesStreamItem,
   ResponsesUnifiedChatRequest,
+  RuntimeProvider,
   TransformerContext,
+  TransformerHookResult,
   UnifiedChatRequest
 } from '@/schemas'
 import { ResponsesAPIPayloadSchema, ResponsesStreamEventSchema } from '@/schemas'
@@ -93,11 +95,18 @@ export class OpenAIResponsesTransformer extends Transformer {
   readonly name = 'openai-responses'
   readonly endPoint = '/v1/responses'
 
-  async transformRequestIn(request: UnifiedChatRequest): Promise<UnifiedChatRequest> {
+  async transformRequestIn(
+    request: UnifiedChatRequest,
+    provider?: RuntimeProvider
+  ): Promise<TransformerHookResult | UnifiedChatRequest> {
     // biome-ignore plugin: structural widening — Responses augments UnifiedChatRequest with optional fields (instructions/input/parallel_tool_calls) that we mutate in-place; the unified schema cannot model these without breaking other transformers.
     const responsesReq = request as ResponsesUnifiedChatRequest
     delete responsesReq.temperature
     delete responsesReq.max_tokens
+    // Defence in depth — an earlier chain step (OpenAITransformer) may have
+    // renamed max_tokens to max_completion_tokens for newer gpt-5.x models.
+    // Responses API uses neither; drop it.
+    delete (responsesReq as { max_completion_tokens?: unknown }).max_completion_tokens
 
     this.rewriteReasoning(responsesReq)
 
@@ -120,6 +129,17 @@ export class OpenAIResponsesTransformer extends Transformer {
     }
 
     responsesReq.parallel_tool_calls = false
+
+    // Redirect to the Responses endpoint when the provider's
+    // api_base_url points at /chat/completions. The codex subscription
+    // provider's base URL is the ChatGPT backend root (no /chat/completions
+    // segment), so this is a no-op there and codex-oauth still appends
+    // /responses itself further down the chain.
+    const base = provider?.api_base_url ?? ''
+    if (base.includes('/chat/completions')) {
+      const url = base.replace('/chat/completions', '/responses')
+      return { body: responsesReq, config: { url } }
+    }
 
     return responsesReq
   }

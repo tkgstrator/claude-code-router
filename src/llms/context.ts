@@ -12,6 +12,7 @@ import type { Logger } from 'pino'
 import type { Provider, ProviderConfigShape } from '@/schemas'
 import { logger } from '../logger'
 import { loadFullConfig } from '../services/config'
+import { applyOpenAIOverlay } from '../services/openai-overlay'
 import { getActiveSubAccountAuth } from '../services/subscription-account-sync-service'
 import { getSubscriptionsInfo } from '../services/subscription-info-service'
 import { applySubscriptionAuth, type SubscriptionAuthOverlay } from '../services/subscription-overlay'
@@ -53,7 +54,11 @@ async function buildLlmsContext(): Promise<LlmsContext> {
   //    providers so the OAuth transformers can read them at request time.
   //    AppConfig.Providers is non-optional per the schema, so no nullish
   //    fallback is needed here.
-  const rawProviders: Provider[] = cfg.Providers
+  // api_key openai providers get OpenAITransformer mounted on the chain
+  // (max_tokens → max_completion_tokens for gpt-5.x) plus a per-model
+  // openai-responses override for codex models. Stays on the raw
+  // payload — subscription overlay applies next on top.
+  const rawProviders: Provider[] = applyOpenAIOverlay(cfg.Providers)
   const [activeAccountPaths, authByProvider] = await Promise.all([
     collectActiveAccountPaths(),
     collectAuthByProvider(rawProviders)

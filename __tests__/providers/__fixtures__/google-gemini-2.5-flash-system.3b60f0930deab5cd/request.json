@@ -1,0 +1,17 @@
+{
+  "label": "google/gemini-2.5-flash: system prompt",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "google,gemini-2.5-flash",
+    "max_tokens": 50,
+    "system": "You ONLY ever reply with the single word: pizza. No punctuation, no other text.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is your favorite food?"
+      }
+    ],
+    "stream": true
+  }
+}

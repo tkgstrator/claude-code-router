@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "statusText": "OK",
+  "headers": {
+    "cache-control": "no-cache",
+    "connection": "keep-alive",
+    "content-type": "text/event-stream",
+    "date": "Wed, 20 May 2026 07:41:22 GMT",
+    "transfer-encoding": "chunked",
+    "vary": "Origin"
+  }
+}

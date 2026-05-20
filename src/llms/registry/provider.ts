@@ -9,7 +9,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { ProviderConfigShape, RuntimeProvider, TransformerUseEntry } from '@/schemas'
+import { type ProviderConfigShape, RecordSchema, type RuntimeProvider, type TransformerUseEntry } from '@/schemas'
 import type { Transformer, TransformerConstructor } from '../transformers/base'
 import type { TransformerRegistry } from './transformer'
 
@@ -134,7 +134,7 @@ function isUseEntryList(value: unknown): value is TransformerUseEntry[] {
 }
 
 function isModelOverride(value: unknown): value is { use: unknown[] } {
-  if (typeof value !== 'object' || value === null) return false
-  const obj: Record<string, unknown> = value as Record<string, unknown>
-  return 'use' in obj && Array.isArray(obj.use)
+  const parsed = RecordSchema.safeParse(value)
+  if (!parsed.success) return false
+  return 'use' in parsed.data && Array.isArray(parsed.data.use)
 }

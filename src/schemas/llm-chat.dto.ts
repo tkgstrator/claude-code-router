@@ -156,23 +156,38 @@ export type UnifiedChatResponse = z.input<typeof UnifiedChatResponseSchema>
 // instead of `as`-cast structural types.
 
 export const AnthropicCacheControlSchema = z.object({
-  type: z.string().nonempty().optional()
+  // When a cache_control block is present, Anthropic mandates the
+  // discriminator (currently always "ephemeral"). Optional removed.
+  type: z.string().nonempty()
 })
 export type AnthropicCacheControl = z.input<typeof AnthropicCacheControlSchema>
 
 export const AnthropicSystemBlockSchema = z.object({
-  type: z.string().nonempty().optional(),
-  text: z.string().nonempty().optional(),
+  // A system block is always `{ type: "text", text: "..." }` on the
+  // wire — both fields are required when the block is present.
+  type: z.string().nonempty(),
+  text: z.string().nonempty(),
   cache_control: AnthropicCacheControlSchema.optional()
 })
 export type AnthropicSystemBlock = z.input<typeof AnthropicSystemBlockSchema>
 
-export const AnthropicImageSourceSchema = z.object({
-  type: z.string().nonempty().optional(),
-  data: z.string().nonempty().optional(),
-  media_type: z.string().nonempty().optional(),
-  url: z.string().nonempty().optional()
+// Anthropic image blocks come in two shapes — base64 (data + media_type)
+// or url (url + media_type). Discriminated by `type` so consumers narrow
+// without re-checking each subfield.
+export const AnthropicBase64ImageSourceSchema = z.object({
+  type: z.literal('base64'),
+  media_type: z.string().nonempty(),
+  data: z.string().nonempty()
 })
+export const AnthropicUrlImageSourceSchema = z.object({
+  type: z.literal('url'),
+  media_type: z.string().nonempty(),
+  url: z.string().nonempty()
+})
+export const AnthropicImageSourceSchema = z.discriminatedUnion('type', [
+  AnthropicBase64ImageSourceSchema,
+  AnthropicUrlImageSourceSchema
+])
 export type AnthropicImageSource = z.input<typeof AnthropicImageSourceSchema>
 
 export const AnthropicContentBlockSchema = z.object({
@@ -198,20 +213,36 @@ export type AnthropicIncomingMessage = z.input<typeof AnthropicIncomingMessageSc
 
 export const AnthropicToolDefSchema = z.object({
   name: z.string().nonempty(),
-  description: z.string().nonempty().optional(),
+  // Anthropic API requires `description` on every tool definition —
+  // the docs treat it as load-bearing for model tool selection.
+  description: z.string().nonempty(),
   input_schema: UnifiedToolSchema.shape.function.shape.parameters
 })
 export type AnthropicToolDef = z.input<typeof AnthropicToolDefSchema>
 
-export const AnthropicToolChoiceSchema = z.object({
-  type: z.string().nonempty(),
-  name: z.string().nonempty().optional()
+// Anthropic tool_choice is one of: `auto` / `any` / `none` (no extra
+// fields) or `tool` (which mandates the target `name`). Modelling as a
+// discriminated union pulls the `name === undefined` defensive guard
+// in the consumer up to schema-time.
+export const AnthropicAutoToolChoiceSchema = z.object({ type: z.literal('auto') })
+export const AnthropicAnyToolChoiceSchema = z.object({ type: z.literal('any') })
+export const AnthropicNoneToolChoiceSchema = z.object({ type: z.literal('none') })
+export const AnthropicSpecificToolChoiceSchema = z.object({
+  type: z.literal('tool'),
+  name: z.string().nonempty()
 })
+export const AnthropicToolChoiceSchema = z.discriminatedUnion('type', [
+  AnthropicAutoToolChoiceSchema,
+  AnthropicAnyToolChoiceSchema,
+  AnthropicNoneToolChoiceSchema,
+  AnthropicSpecificToolChoiceSchema
+])
 export type AnthropicToolChoice = z.input<typeof AnthropicToolChoiceSchema>
 
 export const AnthropicIncomingRequestSchema = z.object({
   model: z.string().nonempty(),
-  max_tokens: z.number().optional(),
+  // max_tokens is required by the Anthropic Messages API spec.
+  max_tokens: z.number(),
   temperature: z.number().optional(),
   stream: z.boolean().default(false),
   system: z.union([z.string().nonempty(), z.array(AnthropicSystemBlockSchema)]).optional(),
@@ -220,8 +251,10 @@ export const AnthropicIncomingRequestSchema = z.object({
   tool_choice: AnthropicToolChoiceSchema.optional(),
   thinking: z
     .object({
-      type: z.string().nonempty().optional(),
-      budget_tokens: z.number().optional()
+      // When thinking is enabled, Anthropic mandates both fields —
+      // type is the discriminator and budget_tokens is the ceiling.
+      type: z.string().nonempty(),
+      budget_tokens: z.number()
     })
     .optional()
 })

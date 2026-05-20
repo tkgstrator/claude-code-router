@@ -8,7 +8,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import type { PipelineRequest } from '@/schemas'
+import { type PipelineRequest, RecordSchema } from '@/schemas'
 import { getPrismaClient } from '../../db/client'
 import {
   getLlmsContext,
@@ -167,7 +167,7 @@ async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response |
   // we may swap it below if the routed-to provider has a bypass single-use.
   let transformer: Transformer = transformersByName.values().next().value!
 
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const body = RecordSchema.parse(await c.req.json().catch(() => ({})))
   const headers: Record<string, string> = {}
   c.req.raw.headers.forEach((v, k) => {
     headers[k] = v
