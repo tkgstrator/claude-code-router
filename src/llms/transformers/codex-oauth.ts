@@ -65,9 +65,10 @@ export class CodexOauthTransformer extends OAuthTransformer {
   async transformRequestIn(
     request: UnifiedChatRequest,
     provider: RuntimeProvider,
-    _context: TransformerContext
+    context: TransformerContext
   ): Promise<TransformerHookResult> {
-    const { token, accountId } = await this.resolveSubscriptionAuth(provider)
+    const sessionId = (context?.req?.headers?.['x-claude-code-session-id'] as string | undefined) ?? undefined
+    const { token, accountId } = await this.resolveSubscriptionAuth(provider, sessionId, 'codex')
     // biome-ignore plugin: CodexRequestShape adds optional Responses-API-specific fields (store/instructions/input/prompt_cache_key) on top of UnifiedChatRequest; the unified schema cannot model these without leaking codex-specific shape into the shared type.
     const req = request as CodexRequestShape
 
@@ -101,7 +102,12 @@ export class CodexOauthTransformer extends OAuthTransformer {
     const base = (provider.api_base_url ? provider.api_base_url : '').replace(/\/+$/, '')
     const url = /\/responses$/.test(base) ? base : `${base}/responses`
 
-    const sessionId = randomUUID()
+    // Reuse the inbound session ID so ChatGPT sees a stable session for
+    // the lifetime of the Claude Code session (aids server-side caching).
+    // Fall back to a fresh UUID only when the client didn't send one.
+    const upstreamSessionId = sessionId ?? randomUUID()
+    const threadId = upstreamSessionId
+    const windowId = `${upstreamSessionId}:0`
 
     return {
       body: req,
@@ -113,11 +119,11 @@ export class CodexOauthTransformer extends OAuthTransformer {
           accept: 'text/event-stream',
           originator: 'codex_cli',
           'user-agent': CODEX_USER_AGENT,
-          session_id: sessionId,
-          thread_id: sessionId,
+          session_id: upstreamSessionId,
+          thread_id: threadId,
           'x-client-request-id': randomUUID(),
           'x-codex-beta-features': 'terminal_resize_reflow',
-          'x-codex-window-id': `${sessionId}:0`,
+          'x-codex-window-id': windowId,
           ...(accountId ? { 'chatgpt-account-id': accountId } : {})
         }
       }

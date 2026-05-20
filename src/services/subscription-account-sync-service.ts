@@ -365,6 +365,49 @@ export async function updateSubAccountAccessToken(
   await prisma.subAccount.update({ where: { id: subAccountId }, data })
 }
 
+export interface SubAccountTokenInfo {
+  subAccountId: string
+  displayName: string
+  accessToken: string
+  refreshToken: string | null
+  accountId: string | null
+  expiresAt: Date | null
+}
+
+// Return decrypted tokens for all enabled SubAccounts of the given
+// vendor kind. Used by usage-service to poll per-account usage APIs
+// without going through the proxy hot path.
+export async function getSubAccountTokensForKind(
+  kind: 'claude' | 'codex',
+  prisma: PrismaClient = getPrismaClient()
+): Promise<SubAccountTokenInfo[]> {
+  const all = await prisma.provider.findMany({
+    where: { authMode: AuthMode.subscription },
+    include: { subscriptionAccounts: { where: { enabled: true } } }
+  })
+  const matched = all.filter((p) => {
+    if (kind === 'claude') return p.apiBaseUrl.includes('anthropic.com')
+    return p.apiBaseUrl.includes('chatgpt.com') || p.apiBaseUrl.includes('openai.com/v1')
+  })
+  const key = encryptionKey()
+  const out: SubAccountTokenInfo[] = []
+  for (const provider of matched) {
+    for (const account of provider.subscriptionAccounts) {
+      const accessToken = decryptString(account.accessTokenEnc, key)
+      if (!accessToken) continue
+      out.push({
+        subAccountId: account.id,
+        displayName: account.userName ?? account.userEmail ?? account.userId ?? 'Account',
+        accessToken,
+        refreshToken: decryptString(account.refreshTokenEnc, key),
+        accountId: account.accountId,
+        expiresAt: account.expiresAt
+      })
+    }
+  }
+  return out
+}
+
 // pickActive is unused outside this file now, but keep it exported for
 // future per-test seeding; intentionally empty body otherwise.
 export { pickActive }

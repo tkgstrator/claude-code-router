@@ -113,12 +113,9 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
     }
   }
 
-  async auth(
-    request: unknown,
-    provider: RuntimeProvider,
-    _context: TransformerContext
-  ): Promise<TransformerAuthResult> {
-    const { token } = await this.resolveSubscriptionAuth(provider)
+  async auth(request: unknown, provider: RuntimeProvider, context: TransformerContext): Promise<TransformerAuthResult> {
+    const sessionId = (context?.req?.headers?.['x-claude-code-session-id'] as string | undefined) ?? undefined
+    const { token } = await this.resolveSubscriptionAuth(provider, sessionId, 'claude')
     // biome-ignore plugin: the OAuth auth hook receives the inbound Anthropic body verbatim (unknown by design); narrowing to a Zod schema would re-encode the whole request, defeating the bypass-mode passthrough.
     const req = request as ClaudeCodeRequestShape
     req.system = withClaudeCodeIdentity(req.system)
