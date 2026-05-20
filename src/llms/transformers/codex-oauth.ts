@@ -13,19 +13,16 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { arch, homedir } from 'node:os'
-import { join } from 'node:path'
-import { HTTPException } from 'hono/http-exception'
+import { arch } from 'node:os'
 import {
   type CodexRequestShape,
-  OauthCodexAuthFileSchema,
   PackageJsonSchema,
   type RuntimeProvider,
   type TransformerContext,
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
-import { OAuthTransformer, type OauthCredentials } from './oauth-base'
+import { OAuthTransformer } from './oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
 // request as "CLI" (subscription allotment) vs "Other" (overage) by
@@ -62,33 +59,8 @@ const CODEX_USER_AGENT: string = (() => {
   return `codex_cli/${codexVer} (${osStr}; ${arch()})`
 })()
 
-const DEFAULT_CODEX_AUTH_PATH = join(homedir(), '.codex', 'auth.json')
-
-function readCodexAuth(codexAuthPath: string): OauthCredentials {
-  let raw: unknown
-  try {
-    raw = JSON.parse(readFileSync(codexAuthPath, 'utf-8'))
-  } catch {
-    throw new HTTPException(500, {
-      message: `Cannot read Codex credentials from ${codexAuthPath}. Authenticate the Codex CLI first.`
-    })
-  }
-  const result = OauthCodexAuthFileSchema.safeParse(raw)
-  if (!result.success) {
-    throw new HTTPException(500, {
-      message: `Invalid Codex credentials at ${codexAuthPath}: ${result.error.message}`
-    })
-  }
-  return { token: result.data.tokens.access_token, accountId: result.data.tokens.account_id }
-}
-
 export class CodexOauthTransformer extends OAuthTransformer {
   readonly name = 'codex-oauth'
-  protected readonly defaultCredentialPath = DEFAULT_CODEX_AUTH_PATH
-
-  protected async readFromDisk(path: string): Promise<OauthCredentials> {
-    return readCodexAuth(path)
-  }
 
   async transformRequestIn(
     request: UnifiedChatRequest,

@@ -24,7 +24,6 @@ import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
 import { logger, syncLevelFromEnv } from './logger'
 import { initConfig, initDir } from './services/config/envelope'
-import { syncSubAccountsToDb } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
 import { APP_VERSION } from './version'
 
@@ -50,10 +49,6 @@ const envelope = await initConfig()
 // instance is constructed at import time before initConfig() has
 // mirrored config.json's LOG_LEVEL onto process.env.
 syncLevelFromEnv()
-// Re-sync OAuth credentials from disk into the DB on every boot —
-// users can re-authenticate (claude login / codex login) between
-// restarts, so this isn't seed-time work.
-await syncSubAccountsToDb()
 logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
 // Fire-and-forget: never block server boot on Redis. The job setup
 // is resilient and registers the BullMQ schedule once Redis is reachable;

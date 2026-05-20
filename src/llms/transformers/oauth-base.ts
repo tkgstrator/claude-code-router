@@ -1,76 +1,97 @@
 /**
  * Shared scaffolding for subscription-OAuth transformers (claude-code,
- * codex, …). Concrete subclasses implement the vendor's credential
- * file format (and any refresh policy); this base handles:
- *
- *   1. Credential file path resolution: honour
- *      `provider.transformer.subscriptionCredentialPath` when present,
- *      otherwise fall back to the vendor's default location.
- *   2. Token source preference: when the DB has already synced an
- *      access token (`provider.transformer.subscriptionAuth.accessToken`),
- *      use it; otherwise read from disk via `readFromDisk`.
+ * codex, …). All credential reads come from the DB-synced overlay on
+ * `provider.transformer.subscriptionAuth` — there is no disk fallback.
+ * Concrete subclasses opt into a near-expiry refresh by overriding
+ * `refresh()`; the base owns the in-flight dedup so concurrent requests
+ * don't race the upstream refresh endpoint with the same single-use
+ * refresh_token.
  */
 
-import type { OauthCredentials, OauthProviderTransformer, RuntimeProvider } from '@/schemas'
+import { HTTPException } from 'hono/http-exception'
+import { type OauthCredentials, OauthSubscriptionAuthBlockSchema, type RuntimeProvider } from '@/schemas'
+import { updateSubAccountAccessToken } from '../../services/subscription-account-sync-service'
 import { Transformer } from './base'
 
-// Re-export the schema-derived credential type for transformer
-// implementations that work in terms of "what readFromDisk returns".
 export type { OauthCredentials } from '@/schemas'
 
-export abstract class OAuthTransformer extends Transformer {
-  protected abstract readonly defaultCredentialPath: string
-
-  /**
-   * Vendor-specific reader: parse the on-disk credential file and
-   * return the access token (+ optional accountId). Claude's impl also
-   * refreshes near-expiry tokens; codex's is a plain read.
-   */
-  protected abstract readFromDisk(path: string): Promise<OauthCredentials>
-
-  protected resolveCredentialsPath(provider: RuntimeProvider | null | undefined): string {
-    const tx = readOauthTransformer(provider)
-    const override = tx?.subscriptionCredentialPath
-    if (typeof override === 'string' && override.length > 0) return override
-    return this.defaultCredentialPath
-  }
-
-  /**
-   * Resolve credentials for THIS request. DB-synced token wins
-   * (kept current by subscription-account-sync-service); disk fallback
-   * handles the boot-time / unmigrated case.
-   */
-  protected async resolveSubscriptionAuth(provider: RuntimeProvider | null | undefined): Promise<OauthCredentials> {
-    const tx = readOauthTransformer(provider)
-    const auth = tx?.subscriptionAuth
-    const dbToken = typeof auth?.accessToken === 'string' ? auth.accessToken : ''
-    if (dbToken.length > 0) {
-      const dbAccountId = typeof auth?.accountId === 'string' ? auth.accountId : undefined
-      return { token: dbToken, accountId: dbAccountId }
-    }
-    return this.readFromDisk(this.resolveCredentialsPath(provider))
-  }
+export interface OAuthRefreshResult {
+  accessToken: string
+  refreshToken?: string | null
+  expiresAt?: Date | null
 }
 
-function readOauthTransformer(provider: RuntimeProvider | null | undefined): OauthProviderTransformer | undefined {
-  const tx = provider?.transformer
-  if (tx === undefined || tx === null || typeof tx !== 'object') return undefined
-  // The pipeline / overlay layer always populates `transformer` as a
-  // plain object with optional `subscriptionCredentialPath` /
-  // `subscriptionAuth` siblings (alongside the resolved `use[]`).
-  // OauthProviderTransformer narrows just those fields without
-  // re-asserting at every access site.
-  const out: OauthProviderTransformer = {}
-  const path = Reflect.get(tx, 'subscriptionCredentialPath')
-  if (path !== undefined) out.subscriptionCredentialPath = path
-  const auth = Reflect.get(tx, 'subscriptionAuth')
-  if (auth !== null && typeof auth === 'object') {
-    out.subscriptionAuth = {
-      accessToken: Reflect.get(auth, 'accessToken'),
-      refreshToken: Reflect.get(auth, 'refreshToken'),
-      idToken: Reflect.get(auth, 'idToken'),
-      accountId: Reflect.get(auth, 'accountId')
-    }
+// Refresh ~5 minutes before the upstream-stated expiry so a long-running
+// request started right at the threshold doesn't 401 mid-flight.
+const REFRESH_LEEWAY_MS = 5 * 60 * 1000
+
+const refreshInFlight = new Map<string, Promise<string>>()
+
+export abstract class OAuthTransformer extends Transformer {
+  /**
+   * Vendor-specific refresh hook. Default is "no refresh" — the
+   * transformer relies on the user re-running OAuth before the token
+   * expires. Override to hit the vendor's refresh endpoint with the
+   * stored refresh_token and return the rotated grant.
+   */
+  protected async refresh(_input: { refreshToken: string }): Promise<OAuthRefreshResult | null> {
+    return null
   }
-  return out
+
+  protected async resolveSubscriptionAuth(provider: RuntimeProvider | null | undefined): Promise<OauthCredentials> {
+    const parsed = OauthSubscriptionAuthBlockSchema.safeParse(
+      // biome-ignore plugin: provider.transformer is the pipeline-owned `Record<string, unknown>` overlay; safeParse narrows the subscriptionAuth block from there.
+      (provider?.transformer as Record<string, unknown> | undefined)?.subscriptionAuth
+    )
+    if (!parsed.success) {
+      throw new HTTPException(401, {
+        message:
+          'No active subscription account for this provider. Sign in via Settings → Providers → Connect, then retry.'
+      })
+    }
+    const auth = parsed.data
+    const live = await this.refreshIfNearExpiry({
+      subAccountId: auth.subAccountId,
+      accessToken: auth.accessToken,
+      refreshToken: typeof auth.refreshToken === 'string' ? auth.refreshToken : '',
+      expiresAt: auth.expiresAt ?? null
+    })
+    const accountId = typeof auth.accountId === 'string' ? auth.accountId : undefined
+    return accountId ? { token: live, accountId } : { token: live }
+  }
+
+  private async refreshIfNearExpiry(auth: {
+    subAccountId: string
+    accessToken: string
+    refreshToken: string
+    expiresAt: Date | null
+  }): Promise<string> {
+    if (auth.expiresAt === null) return auth.accessToken
+    if (auth.expiresAt.valueOf() - Date.now() > REFRESH_LEEWAY_MS) return auth.accessToken
+    if (auth.refreshToken.length === 0) return auth.accessToken
+
+    const existing = refreshInFlight.get(auth.subAccountId)
+    if (existing) return existing
+
+    const inFlight = (async () => {
+      try {
+        const next = await this.refresh({ refreshToken: auth.refreshToken })
+        if (!next) return auth.accessToken
+        await updateSubAccountAccessToken(auth.subAccountId, {
+          accessToken: next.accessToken,
+          refreshToken: next.refreshToken,
+          expiresAt: next.expiresAt
+        })
+        return next.accessToken
+      } catch {
+        // Refresh failures fall back to the existing access token; the
+        // upstream call will likely 401 and the user re-authenticates.
+        return auth.accessToken
+      } finally {
+        refreshInFlight.delete(auth.subAccountId)
+      }
+    })()
+    refreshInFlight.set(auth.subAccountId, inFlight)
+    return inFlight
+  }
 }

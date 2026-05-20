@@ -23,27 +23,18 @@
  * the top-level redirect from the IdP isn't subject to apiKeyAuth.
  */
 
-import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { logger } from '../../logger'
-import {
-  buildClaudeAuthorizeUrl,
-  exchangeClaudeCode,
-  writeClaudeCredentialsFromExchange
-} from '../../services/claude-oauth-service'
-import {
-  buildCodexAuthorizeUrl,
-  CODEX_CALLBACK_PATH,
-  exchangeCodexCode,
-  writeCodexCredentialsFromExchange
-} from '../../services/codex-oauth-service'
+import { buildClaudeAuthorizeUrl, CLAUDE_SCOPES, exchangeClaudeCode } from '../../services/claude-oauth-service'
+import { CODEX_CALLBACK_PORT, ensureCodexCallbackListener } from '../../services/codex-callback-listener'
+import { buildCodexAuthorizeUrl, CODEX_CALLBACK_PATH } from '../../services/codex-oauth-service'
 import {
   consumePendingFlow,
   generatePkcePair,
   generateState,
   storePendingFlow
 } from '../../services/oauth-flow-service'
-import { syncSubAccountsToDb } from '../../services/subscription-account-sync-service'
+import { recordClaudeOAuthAccount } from '../../services/subscription-account-sync-service'
 
 export const oauthRoute = new Hono()
 
@@ -56,17 +47,29 @@ const PROVIDER_CALLBACK_PATH: Record<string, string> = {
 
 const isSupportedProvider = (p: string): p is 'claude' | 'codex' => p === 'claude' || p === 'codex'
 
-oauthRoute.post('/api/oauth/initiate/:provider', (c) => {
+oauthRoute.post('/api/oauth/initiate/:provider', async (c) => {
   const provider = c.req.param('provider')
   if (!isSupportedProvider(provider)) {
     return c.json({ success: false as const, error: `unsupported provider "${provider}"` }, 400)
   }
 
-  const url = new URL(c.req.url)
   const callbackPath = PROVIDER_CALLBACK_PATH[provider]
-  // `localhost` (not `127.0.0.1`) to match the CLI flows verbatim —
-  // both upstream OAuth clients allow the same hostname.
-  const redirectUri = `http://localhost:${url.port}${callbackPath}`
+  const initiateUrl = new URL(c.req.url)
+  const ccrBaseUrl = `${initiateUrl.protocol}//${initiateUrl.host}`
+  let redirectUri: string
+  if (provider === 'codex') {
+    // OpenAI's OAuth client only allows http://localhost:1455/auth/callback —
+    // confirmed: any other loopback port returns unknown_error.
+    try {
+      await ensureCodexCallbackListener({ resultBaseUrl: ccrBaseUrl })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'failed to bind codex callback listener on :1455'
+      return c.json({ success: false as const, error: message }, 500)
+    }
+    redirectUri = `http://localhost:${CODEX_CALLBACK_PORT}${callbackPath}`
+  } else {
+    redirectUri = `http://localhost:${initiateUrl.port}${callbackPath}`
+  }
 
   const state = generateState()
   const { codeVerifier, codeChallenge } = generatePkcePair()
@@ -80,83 +83,50 @@ oauthRoute.post('/api/oauth/initiate/:provider', (c) => {
   return c.json({ success: true as const, authorizeUrl, state })
 })
 
-const handleCallback = async (c: Context, expectedProvider: 'claude' | 'codex') => {
+// claude only — codex's callback is served by the standalone listener on
+// port 1455 (see codex-callback-listener.ts) because its OAuth client
+// doesn't allow any other loopback port.
+oauthRoute.get(CLAUDE_CALLBACK_PATH, async (c) => {
   const code = c.req.query('code')
   const state = c.req.query('state')
   const errorParam = c.req.query('error')
 
-  if (errorParam) {
-    return c.html(renderCallbackPage('error', `Upstream returned error: ${errorParam}`), 400)
+  const url = new URL(c.req.url)
+  const baseUrl = `${url.protocol}//${url.host}`
+  const resultUrl = (status: 'ok' | 'error', message?: string): string => {
+    const p = new URLSearchParams({ status, provider: 'claude' })
+    if (message) p.set('message', message)
+    return `${baseUrl}/oauth-result?${p.toString()}`
   }
-  if (typeof code !== 'string' || code.length === 0) {
-    return c.html(renderCallbackPage('error', 'Missing `code` in callback URL.'), 400)
-  }
-  if (typeof state !== 'string' || state.length === 0) {
-    return c.html(renderCallbackPage('error', 'Missing `state` in callback URL.'), 400)
-  }
+
+  if (errorParam) return c.redirect(resultUrl('error', `Upstream returned error: ${errorParam}`))
+  if (typeof code !== 'string' || code.length === 0)
+    return c.redirect(resultUrl('error', 'Missing `code` in callback URL.'))
+  if (typeof state !== 'string' || state.length === 0)
+    return c.redirect(resultUrl('error', 'Missing `state` in callback URL.'))
 
   const pending = consumePendingFlow(state)
-  if (!pending) {
-    return c.html(renderCallbackPage('error', 'Unknown or expired `state`. Start the flow again.'), 400)
-  }
-  if (pending.provider !== expectedProvider) {
-    return c.html(
-      renderCallbackPage('error', `State belongs to provider "${pending.provider}", not "${expectedProvider}".`),
-      400
-    )
-  }
+  if (!pending) return c.redirect(resultUrl('error', 'Unknown or expired `state`. Start the flow again.'))
+  if (pending.provider !== 'claude')
+    return c.redirect(resultUrl('error', `State belongs to provider "${pending.provider}", not "claude".`))
 
   try {
-    if (expectedProvider === 'claude') {
-      const tokens = await exchangeClaudeCode({
-        code,
-        codeVerifier: pending.codeVerifier,
-        redirectUri: pending.redirectUri,
-        state
-      })
-      await writeClaudeCredentialsFromExchange(tokens)
-    } else {
-      const tokens = await exchangeCodexCode({
-        code,
-        codeVerifier: pending.codeVerifier,
-        redirectUri: pending.redirectUri
-      })
-      await writeCodexCredentialsFromExchange(tokens)
-    }
-    await syncSubAccountsToDb()
-    return c.html(renderCallbackPage('ok', 'You can close this tab and return to the Claude Code Router UI.'))
+    const tokens = await exchangeClaudeCode({
+      code,
+      codeVerifier: pending.codeVerifier,
+      redirectUri: pending.redirectUri,
+      state
+    })
+    await recordClaudeOAuthAccount({
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiresAt: Date.now() + tokens.expires_in * 1000,
+      scopes: CLAUDE_SCOPES
+    })
+    return c.redirect(resultUrl('ok'))
   } catch (err) {
-    logger.error({ err, provider: expectedProvider }, '[oauth] callback failed')
+    logger.error({ err, provider: 'claude' }, '[oauth] callback failed')
     const message = err instanceof Error ? err.message : 'Unknown error during token exchange.'
-    return c.html(renderCallbackPage('error', message), 500)
+    return c.redirect(resultUrl('error', message))
   }
-}
-
-oauthRoute.get(CLAUDE_CALLBACK_PATH, (c) => handleCallback(c, 'claude'))
-oauthRoute.get(CODEX_CALLBACK_PATH, (c) => handleCallback(c, 'codex'))
-
-// Minimal self-closing landing page so the user has something to look
-// at after the IdP redirects them back. Kept inline — single page,
-// single purpose, no template engine needed.
-const renderCallbackPage = (status: 'ok' | 'error', message: string): string => {
-  const title = status === 'ok' ? 'Sign-in complete' : 'Sign-in failed'
-  const color = status === 'ok' ? '#0a7' : '#c33'
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>${title} — Claude Code Router</title>
-  <style>
-    body { font: 15px/1.5 system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1rem; color: #222; }
-    h1 { color: ${color}; }
-  </style>
-</head>
-<body>
-  <h1>${title}</h1>
-  <p>${escapeHtml(message)}</p>
-</body>
-</html>`
-}
-
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+})
