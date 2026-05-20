@@ -237,54 +237,78 @@ const pickActive = (current: SubAccount | null, accounts: DiscoveredAccount[]): 
   return fresh ? fresh : accounts[0]
 }
 
-// Upsert one discovered account into the DB. Extracted from
-// syncSubAccountsToDb to keep that orchestrator under the cognitive
-// complexity threshold and to share the create/update payload via
-// a single object (no duplicated field lists).
-const upsertDiscoveredAccount = async (
+// Identity key used to match a discovered account against an existing
+// SubAccount row. Stable across credential-file rewrites that change
+// `sourcePath` — notably codex's `auth.json` which embeds a per-login
+// UUID in the path. Falls back to sourcePath only when the credential
+// surfaces neither a userId nor an accountId (rare on real upstreams,
+// covered for defence in depth).
+type StableIdentity = string
+
+const stableIdentityFor = (
+  a: Pick<DiscoveredAccount | SubAccount, 'userId' | 'accountId' | 'sourcePath'>
+): StableIdentity => a.userId ?? a.accountId ?? `path:${a.sourcePath}`
+
+const buildAccountPayload = (providerName: string, account: DiscoveredAccount, key: Buffer) => ({
+  label: `${providerName}:${account.label}`,
+  userName: account.userName,
+  userEmail: account.userEmail,
+  userId: account.userId,
+  accountId: account.accountId,
+  plan: account.plan,
+  rateLimitTier: account.rateLimitTier,
+  expiresAt: account.expiresAt,
+  scopes: account.scopes,
+  accessTokenEnc: encryptString(account.accessToken, key),
+  refreshTokenEnc: encryptString(account.refreshToken, key),
+  idTokenEnc: encryptString(account.idToken, key),
+  lastSyncedAt: dayjs().toDate()
+})
+
+// Apply one discovered account: update the existing row in place if we
+// can match by stable identity (preserves SubAccount.id across
+// sourcePath changes), otherwise create a fresh row.
+const applyDiscoveredAccount = async (
   prisma: PrismaClient,
   providerId: string,
   providerName: string,
   account: DiscoveredAccount,
+  existingByIdentity: Map<StableIdentity, SubAccount>,
   key: Buffer
 ): Promise<void> => {
-  const payload = {
-    label: `${providerName}:${account.label}`,
-    userName: account.userName,
-    userEmail: account.userEmail,
-    userId: account.userId,
-    accountId: account.accountId,
-    plan: account.plan,
-    rateLimitTier: account.rateLimitTier,
-    expiresAt: account.expiresAt,
-    scopes: account.scopes,
-    accessTokenEnc: encryptString(account.accessToken, key),
-    refreshTokenEnc: encryptString(account.refreshToken, key),
-    idTokenEnc: encryptString(account.idToken, key),
-    lastSyncedAt: dayjs().toDate()
+  const payload = buildAccountPayload(providerName, account, key)
+  const existing = existingByIdentity.get(stableIdentityFor(account))
+  if (existing) {
+    await prisma.subAccount.update({
+      where: { id: existing.id },
+      data: { ...payload, sourcePath: account.sourcePath }
+    })
+    return
   }
-  await prisma.subAccount.upsert({
-    where: { providerId_sourcePath: { providerId, sourcePath: account.sourcePath } },
-    create: { providerId, sourcePath: account.sourcePath, ...payload },
-    update: payload
+  await prisma.subAccount.create({
+    data: { providerId, sourcePath: account.sourcePath, ...payload }
   })
 }
 
 // Resolve which SubAccount row should be the provider's active one
 // after a sync pass. Only enabled accounts are candidates; a
 // disabled current-active is dropped so pickActive selects a fresh
-// one from the enabled pool.
+// one from the enabled pool. Matching is by stable identity so the
+// active binding survives a sourcePath rewrite.
 const resolveNextActiveId = (
   refreshed: { subscriptionAccounts: SubAccount[]; activeSubscriptionAccount: SubAccount | null },
   discovered: DiscoveredAccount[]
 ): string | null => {
-  const enabledPaths = new Set(refreshed.subscriptionAccounts.filter((a) => a.enabled).map((a) => a.sourcePath))
-  const enabledDiscovered = discovered.filter((a) => enabledPaths.has(a.sourcePath))
+  const enabledIdentities = new Set(
+    refreshed.subscriptionAccounts.filter((a) => a.enabled).map((a) => stableIdentityFor(a))
+  )
+  const enabledDiscovered = discovered.filter((a) => enabledIdentities.has(stableIdentityFor(a)))
   const currentActive = refreshed.activeSubscriptionAccount
-  const currentForPick = currentActive && enabledPaths.has(currentActive.sourcePath) ? currentActive : null
+  const currentForPick = currentActive && enabledIdentities.has(stableIdentityFor(currentActive)) ? currentActive : null
   const nextActive = pickActive(currentForPick, enabledDiscovered)
   if (nextActive === null) return null
-  const row = refreshed.subscriptionAccounts.find((a) => a.sourcePath === nextActive.sourcePath)
+  const wantId = stableIdentityFor(nextActive)
+  const row = refreshed.subscriptionAccounts.find((a) => stableIdentityFor(a) === wantId)
   return row ? row.id : null
 }
 
@@ -304,16 +328,19 @@ const syncProvider = async (
   key: Buffer
 ): Promise<void> => {
   const discovered = await discoverAccountsForBaseUrl(provider.apiBaseUrl)
-  const discoveredByPath = new Map(discovered.map((a) => [a.sourcePath, a]))
+  const discoveredIdentities = new Set(discovered.map(stableIdentityFor))
+  const existingByIdentity = new Map(provider.subscriptionAccounts.map((a) => [stableIdentityFor(a), a]))
 
+  // Prune rows whose stable identity is no longer present upstream
+  // (account removed from the credentials file, login revoked, …).
   for (const existing of provider.subscriptionAccounts) {
-    if (!discoveredByPath.has(existing.sourcePath)) {
+    if (!discoveredIdentities.has(stableIdentityFor(existing))) {
       await prisma.subAccount.delete({ where: { id: existing.id } })
     }
   }
 
   for (const account of discovered) {
-    await upsertDiscoveredAccount(prisma, provider.id, provider.name, account, key)
+    await applyDiscoveredAccount(prisma, provider.id, provider.name, account, existingByIdentity, key)
   }
 
   const refreshed = await prisma.provider.findUnique({
