@@ -1,10 +1,26 @@
 language js
 
-`z.string()` as $match where {
-  $match <: not within `$_.string().$_`,
-  register_diagnostic(
-    span=$match,
-    message="Bare `z.string()` accepts any string including empty. Add `.nonempty()` (or `.optional()` / `.nullable()` / `.uuid()` / `.url()` etc.) to make intent explicit.",
-    severity="warn"
-  )
+or {
+  `z.string()` as $match where {
+    $match <: not within `$_.string().$_`,
+    register_diagnostic(
+      span=$match,
+      message="Bare `z.string()` accepts any string including empty. Add `.nonempty()` (or `.uuid()` / `.url()` etc.) to make intent explicit.",
+      severity="warn"
+    )
+  },
+  `z.string().nullable()` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="`z.string().nullable()` still accepts empty strings. Add `.nonempty()` before `.nullable()` to make intent explicit.",
+      severity="warn"
+    )
+  },
+  `z.string().optional()` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="`z.string().optional()` still accepts empty strings. Add `.nonempty()` before `.optional()` to make intent explicit.",
+      severity="warn"
+    )
+  }
 }

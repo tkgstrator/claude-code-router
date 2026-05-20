@@ -1,0 +1,18 @@
+language js
+
+or {
+  `z.array($_).nullable()` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `z.array(...).nullable()`. A missing collection is an empty list — use `.default([])` instead, or drop the modifier.",
+      severity="warn"
+    )
+  },
+  `z.array($_).optional()` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `z.array(...).optional()`. A missing collection is an empty list — use `.default([])` instead, or drop the modifier.",
+      severity="warn"
+    )
+  }
+}
