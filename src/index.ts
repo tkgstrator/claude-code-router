@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { HTTPException } from 'hono/http-exception'
 import { apiKeyAuth } from './api/api-key-auth'
 import { configRoute } from './api/config/route'
 import { logsRoute } from './api/logs/route'
@@ -66,6 +67,24 @@ const app = new OpenAPIHono()
 // own /api calls then carry it.
 app.use('/api/*', apiKeyAuth)
 app.use('/v1/*', apiKeyAuth)
+
+// Centralised error handler — catches unexpected throws only. Schema
+// validation does NOT flow through here: routes use `safeParse` and
+// return the typed error directly via `badRequestForZod`, which keeps
+// the request path exception-free. onError is the last-resort safety net.
+app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return err.getResponse()
+  }
+  logger.error({ err }, 'unhandled route error')
+  return c.json(
+    {
+      success: false as const,
+      error: { type: 'internal_error', message: err.message }
+    },
+    500
+  )
+})
 
 // Each sub-app declares its own absolute /api/... paths, so mount them
 // at root. OpenAPIHono.route() also merges their OpenAPI registries.
