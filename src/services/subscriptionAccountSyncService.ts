@@ -59,7 +59,7 @@ type DiscoveredAccount = {
   plan: string | null
   rateLimitTier: string | null
   expiresAt: Date | null
-  scopes: string[] | null
+  scopes: string[]
   accessToken: string | null
   refreshToken: string | null
   idToken: string | null
@@ -192,7 +192,7 @@ const readClaudeAccounts = (path: string, entries: unknown[], isArray: boolean):
       plan: oauth.subscriptionType ?? null,
       rateLimitTier: oauth.rateLimitTier ?? null,
       expiresAt: typeof oauth.expiresAt === 'number' ? new Date(oauth.expiresAt) : null,
-      scopes: oauth.scopes ?? null,
+      scopes: oauth.scopes ?? [],
       accessToken: oauth.accessToken ?? null,
       refreshToken: oauth.refreshToken ?? null,
       idToken: null
@@ -224,7 +224,7 @@ const readCodexAccounts = (path: string, entries: unknown[], isArray: boolean): 
       plan: asStringOrNull(auth.chatgpt_plan_type),
       rateLimitTier: null,
       expiresAt: activeUntil ? new Date(activeUntil) : null,
-      scopes: null,
+      scopes: [],
       accessToken: tokens.access_token ?? null,
       refreshToken: tokens.refresh_token ?? null,
       idToken: tokens.id_token ?? null

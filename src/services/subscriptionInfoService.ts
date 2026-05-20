@@ -12,7 +12,7 @@ export interface SubscriptionAccountInfo {
   plan: string | null
   rateLimitTier: string | null
   expiresAt: number | null
-  scopes: string[] | null
+  scopes: string[]
 }
 
 export interface SubscriptionInfo {
@@ -48,7 +48,7 @@ const toAccountInfo = (a: {
   plan: a.plan,
   rateLimitTier: a.rateLimitTier,
   expiresAt: a.expiresAt ? a.expiresAt.valueOf() : null,
-  scopes: Array.isArray(a.scopes) ? a.scopes.filter((s): s is string => typeof s === 'string') : null
+  scopes: Array.isArray(a.scopes) ? a.scopes.filter((s): s is string => typeof s === 'string') : []
 })
 
 export async function getSubscriptionsInfo(prisma: PrismaClient = getPrismaClient()): Promise<SubscriptionInfo[]> {

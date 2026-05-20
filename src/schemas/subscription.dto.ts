@@ -6,13 +6,13 @@ export const SubscriptionInfoSchema = z
     label: z.string().nonempty(),
     sourcePath: z.string().nonempty(),
     enabled: z.boolean(),
-    userName: z.string().nullable(),
-    userEmail: z.string().nullable(),
-    userId: z.string().nullable(),
-    plan: z.string().nullable(),
-    rateLimitTier: z.string().nullable(),
+    userName: z.string().nonempty().nullable(),
+    userEmail: z.string().nonempty().nullable(),
+    userId: z.string().nonempty().nullable(),
+    plan: z.string().nonempty().nullable(),
+    rateLimitTier: z.string().nonempty().nullable(),
     expiresAt: z.number().nullable(),
-    scopes: z.array(z.string().nonempty()).nullable()
+    scopes: z.array(z.string().nonempty())
   })
   .openapi('SubscriptionAccountInfo')
 
