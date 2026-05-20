@@ -3,6 +3,7 @@ import { readFileSync } from 'fs'
 import { createRequire } from 'module'
 import { arch, homedir } from 'os'
 import { join } from 'path'
+import { type OauthCredentials, OauthTransformerBase } from './oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
 // request as "CLI" (subscription allotment) vs "Other" (overage) by
@@ -46,7 +47,7 @@ interface CodexAuthFile {
   }
 }
 
-function readCodexAuth(codexAuthPath: string): { token: string; accountId?: string } {
+function readCodexAuth(codexAuthPath: string): OauthCredentials {
   let data: CodexAuthFile
   try {
     data = JSON.parse(readFileSync(codexAuthPath, 'utf-8'))
@@ -73,26 +74,16 @@ function readCodexAuth(codexAuthPath: string): { token: string; accountId?: stri
 // The llms `auth()` hook only fires in passthrough/bypass mode, which
 // codex can't use, so the credential injection is done here via
 // transformRequestIn's returned `config` (merged by the pipeline).
-export class CodexOauthTransformer {
+export class CodexOauthTransformer extends OauthTransformerBase {
   name = 'codex-oauth'
+  protected defaultCredentialPath = DEFAULT_CODEX_AUTH_PATH
+
+  protected async readFromDisk(path: string): Promise<OauthCredentials> {
+    return readCodexAuth(path)
+  }
 
   async transformRequestIn(request: any, provider: any) {
-    const dbToken =
-      typeof provider?.transformer?.subscriptionAuth?.accessToken === 'string'
-        ? provider.transformer.subscriptionAuth.accessToken
-        : ''
-    const dbAccountId =
-      typeof provider?.transformer?.subscriptionAuth?.accountId === 'string'
-        ? provider.transformer.subscriptionAuth.accountId
-        : undefined
-    const codexAuthPath =
-      typeof provider?.transformer?.subscriptionCredentialPath === 'string' &&
-      provider.transformer.subscriptionCredentialPath.length > 0
-        ? provider.transformer.subscriptionCredentialPath
-        : DEFAULT_CODEX_AUTH_PATH
-    const fallback = readCodexAuth(codexAuthPath)
-    const token = dbToken.length > 0 ? dbToken : fallback.token
-    const accountId = dbAccountId ?? fallback.accountId
+    const { token, accountId } = await this.resolveSubscriptionAuth(provider)
 
     // chatgpt.com/backend-api/codex requires `instructions`, `input`
     // as a list, store=false and stream=true. openai-responses already

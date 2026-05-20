@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { logger } from '../../../lib/logger'
+import { type OauthCredentials, OauthTransformerBase } from './oauth-base'
 
 const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.claude', '.credentials.json')
 
@@ -150,21 +151,19 @@ function withClaudeCodeIdentity(system: unknown): any[] {
   return [{ type: 'text', text: CLAUDE_CODE_IDENTITY }, ...blocks]
 }
 
-export class ClaudeCodeOauthTransformer {
+export class ClaudeCodeOauthTransformer extends OauthTransformerBase {
   name = 'claude-code-oauth'
   endPoint = '/v1/messages'
+  protected defaultCredentialPath = DEFAULT_CREDENTIALS_PATH
+
+  protected async readFromDisk(path: string): Promise<OauthCredentials> {
+    // getValidToken handles both the read and any near-expiry refresh,
+    // returning a usable access token. No accountId for Claude.
+    return { token: await getValidToken(path) }
+  }
 
   async auth(request: any, provider: any) {
-    const dbToken =
-      typeof provider?.transformer?.subscriptionAuth?.accessToken === 'string'
-        ? provider.transformer.subscriptionAuth.accessToken
-        : ''
-    const credentialsPath =
-      typeof provider?.transformer?.subscriptionCredentialPath === 'string' &&
-      provider.transformer.subscriptionCredentialPath.length > 0
-        ? provider.transformer.subscriptionCredentialPath
-        : DEFAULT_CREDENTIALS_PATH
-    const token = dbToken.length > 0 ? dbToken : await getValidToken(credentialsPath)
+    const { token } = await this.resolveSubscriptionAuth(provider)
     request.system = withClaudeCodeIdentity(request.system)
 
     // Remove thinking blocks that lack a valid Anthropic signature.
