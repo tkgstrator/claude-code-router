@@ -53,30 +53,32 @@ export function Providers() {
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
+  const [connectChoiceOpen, setConnectChoiceOpen] = useState(false)
 
-  // Claude OAuth loopback flow:
-  // 1. Server mints a one-shot state + PKCE pair at /oauth/initiate/claude
-  //    and returns Anthropic's authorize URL (redirect_uri pinned to
-  //    http://localhost:<port>/callback — the only pattern the Claude
-  //    Code OAuth client allows).
-  // 2. We open it in a new tab. claude.ai consent page redirects the
-  //    browser back to our /callback, server completes the exchange and
-  //    writes .credentials.json + triggers SubAccount sync.
-  // 3. User closes the "Sign-in complete" tab and refreshes the
-  //    subscription panel here to see the new account.
-  const handleConnectClaude = async () => {
+  // Subscription OAuth loopback flow:
+  // 1. UI asks user to pick a provider (claude or codex) in a dialog.
+  // 2. Server mints a one-shot state + PKCE pair at
+  //    /oauth/initiate/<provider> and returns the upstream IdP's
+  //    authorize URL.
+  // 3. We open it in a new tab; the consent page redirects the browser
+  //    back to the provider's whitelisted loopback callback (Hono-served).
+  // 4. Server completes the token exchange, writes the credentials file,
+  //    and triggers SubAccount sync. User closes the success tab and
+  //    refreshes the subscription panel to see the new account.
+  const handleConnectProvider = async (provider: 'claude' | 'codex') => {
+    setConnectChoiceOpen(false)
     try {
       const res = await api.post<{ success: boolean; authorizeUrl: string; state: string }>(
-        '/oauth/initiate/claude',
+        `/oauth/initiate/${provider}`,
         {}
       )
       if (!res.success || !res.authorizeUrl) {
-        console.error(t('providers.connect_claude_failed'), res)
+        console.error(t('providers.connect_failed'), res)
         return
       }
       window.open(res.authorizeUrl, '_blank', 'noopener,noreferrer')
     } catch (err) {
-      console.error(t('providers.connect_claude_failed'), err)
+      console.error(t('providers.connect_failed'), err)
     }
   }
 
@@ -682,9 +684,9 @@ export function Providers() {
           <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
           {t('providers.refresh_templates')}
         </Button>
-        <Button variant='outline' onClick={handleConnectClaude}>
+        <Button variant='outline' onClick={() => setConnectChoiceOpen(true)}>
           <LogIn className='h-4 w-4' />
-          {t('providers.connect_claude')}
+          {t('providers.connect')}
         </Button>
       </PageHeader>
       <PageContent>
@@ -1209,6 +1211,26 @@ export function Providers() {
               </Button> */}
               <Button onClick={handleSaveProvider}>{t('app.save')}</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Connect: choose which subscription provider to OAuth into */}
+      <Dialog open={connectChoiceOpen} onOpenChange={setConnectChoiceOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.connect_choose_title')}</DialogTitle>
+            <DialogDescription>{t('providers.connect_choose_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='flex flex-col gap-2 py-2'>
+            <Button variant='outline' className='justify-start' onClick={() => handleConnectProvider('claude')}>
+              <LogIn className='h-4 w-4' />
+              {t('providers.connect_claude_option')}
+            </Button>
+            <Button variant='outline' className='justify-start' onClick={() => handleConnectProvider('codex')}>
+              <LogIn className='h-4 w-4' />
+              {t('providers.connect_codex_option')}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
