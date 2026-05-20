@@ -44,6 +44,47 @@ export const OauthRefreshResponseSchema = z.object({
 })
 export type OauthRefreshResponse = z.infer<typeof OauthRefreshResponseSchema>
 
+// ─── Anthropic OAuth profile response ──────────────────────────────────
+//
+// GET https://api.anthropic.com/api/oauth/profile (with the
+// `anthropic-beta: oauth-2025-04-20` header). Used to enrich the
+// SubAccount row with user-facing identity (uuid / email / display name)
+// since the on-disk `.credentials.json` never carries those fields.
+// Optional surfaces lean toward "anthropic could add or rename here";
+// the discriminator fields we actually depend on (`account.uuid`,
+// `account.email`) are required.
+export const ClaudeOAuthProfileAccountSchema = z.object({
+  uuid: z.string().nonempty(),
+  full_name: z.string().nonempty().optional(),
+  display_name: z.string().nonempty().optional(),
+  email: z.string().nonempty(),
+  has_claude_max: z.boolean().optional(),
+  has_claude_pro: z.boolean().optional()
+})
+
+export const ClaudeOAuthProfileOrganizationSchema = z.object({
+  uuid: z.string().nonempty(),
+  name: z.string().nonempty().optional(),
+  organization_type: z.string().nonempty().optional(),
+  billing_type: z.string().nonempty().optional(),
+  rate_limit_tier: z.string().nonempty().optional(),
+  has_extra_usage_enabled: z.boolean().optional(),
+  subscription_status: z.string().nonempty().optional()
+})
+
+export const ClaudeOAuthProfileSchema = z.object({
+  account: ClaudeOAuthProfileAccountSchema,
+  organization: ClaudeOAuthProfileOrganizationSchema.optional(),
+  application: z
+    .object({
+      uuid: z.string().nonempty(),
+      name: z.string().nonempty().optional(),
+      slug: z.string().nonempty().optional()
+    })
+    .optional()
+})
+export type ClaudeOAuthProfile = z.infer<typeof ClaudeOAuthProfileSchema>
+
 // ─── Codex credentials file (~/.codex/auth.json) ───────────────────────
 //
 // The codex CLI writes a nested `{ tokens: { access_token, account_id } }`
