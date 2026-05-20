@@ -1,39 +1,15 @@
 /**
- * OAuth credential file shapes + the upstream refresh response, as
- * consumed by the OAuth transformers (claude-code-oauth, codex-oauth)
- * at request time.
+ * OAuth schemas consumed by the OAuth transformers (claude-code-oauth,
+ * codex-oauth) at request time: the upstream refresh response, the
+ * Anthropic /api/oauth/profile envelope, and the runtime overlay block
+ * the pipeline grafts onto `provider.transformer.subscriptionAuth`.
  *
- * These all cross a trust boundary (disk file written by an external
- * CLI, HTTP response from the OAuth provider). The schemas are strict
- * (required fields are real types, not z.unknown) so safeParse failures
- * surface as HTTPException at the transformer layer.
- *
- * Note: the lax `ClaudeCredentialsSchema` / `CodexAuthFileSchema` in
- * usage.dto.ts serve a different consumer (background usage-info
- * service) which tolerates missing fields. The transformer schemas
- * here intentionally use the `Oauth*` prefix to avoid the barrel
- * collision while making the consumer obvious.
+ * These all cross a trust boundary (HTTP response, pipeline overlay).
+ * Schemas are strict so safeParse failures surface as HTTPException at
+ * the transformer layer.
  */
 
 import { z } from '@hono/zod-openapi'
-
-// ─── Claude Code credentials file (~/.claude/.credentials.json) ────────
-
-export const OauthClaudeBlockSchema = z.object({
-  accessToken: z.string().nonempty(),
-  refreshToken: z.string().nonempty(),
-  expiresAt: z.number().int().nonnegative(),
-  scopes: z.array(z.string().nonempty()).default([]),
-  subscriptionType: z.string().nonempty().optional(),
-  rateLimitTier: z.string().nonempty().optional()
-})
-export type OauthClaudeBlock = z.infer<typeof OauthClaudeBlockSchema>
-
-export const OauthClaudeCredentialsSchema = z.object({
-  claudeAiOauth: OauthClaudeBlockSchema,
-  organizationUuid: z.string().nonempty().optional()
-})
-export type OauthClaudeCredentials = z.infer<typeof OauthClaudeCredentialsSchema>
 
 // ─── Anthropic OAuth refresh response ──────────────────────────────────
 
@@ -85,20 +61,6 @@ export const ClaudeOAuthProfileSchema = z.object({
 })
 export type ClaudeOAuthProfile = z.infer<typeof ClaudeOAuthProfileSchema>
 
-// ─── Codex credentials file (~/.codex/auth.json) ───────────────────────
-//
-// The codex CLI writes a nested `{ tokens: { access_token, account_id } }`
-// shape. We reject files missing tokens.access_token at parse time so
-// the transformer sees a typed credential object or an HTTPException.
-
-export const OauthCodexAuthFileSchema = z.object({
-  tokens: z.object({
-    access_token: z.string().nonempty(),
-    account_id: z.string().nonempty().optional()
-  })
-})
-export type OauthCodexAuthFile = z.infer<typeof OauthCodexAuthFileSchema>
-
 // ─── Runtime credential / overlay shapes used by the OAuth base class ──
 
 /**
@@ -118,11 +80,20 @@ export type OauthCredentials = z.infer<typeof OauthCredentialsSchema>
  * field is `unknown` because the source rows can contain decryption
  * failures (nulls) the OAuth base narrows defensively before use.
  */
+// Strict shape — every field is parsed and narrowed here so the OAuth
+// base can just read off `.data` instead of re-checking each property.
+// `accessToken` is required at the type level even though the wire
+// always carries it; the base treats an empty parse failure as "no
+// active subscription account" and refuses to proceed.
+// `expiresAt` accepts ISO strings (overlay round-trip) and Dates
+// (direct Prisma row) via z.coerce.date.
 export const OauthSubscriptionAuthBlockSchema = z.object({
-  accessToken: z.unknown().optional(),
-  refreshToken: z.unknown().optional(),
-  idToken: z.unknown().optional(),
-  accountId: z.unknown().optional()
+  subAccountId: z.string().nonempty(),
+  accessToken: z.string().nonempty(),
+  refreshToken: z.string().nonempty().nullable().optional(),
+  idToken: z.string().nonempty().nullable().optional(),
+  accountId: z.string().nonempty().nullable().optional(),
+  expiresAt: z.coerce.date().nullable().optional()
 })
 export type OauthSubscriptionAuthBlock = z.infer<typeof OauthSubscriptionAuthBlockSchema>
 

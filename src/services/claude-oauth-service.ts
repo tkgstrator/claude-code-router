@@ -3,20 +3,16 @@
  *
  * Mirrors what `claude` CLI does on `claude login`: builds the
  * authorize URL pointing at the user's browser, then on the callback
- * exchanges the code for OAuth tokens and writes them to the same
- * `.credentials.json` file the CLI would, so the sync service picks
- * them up unchanged.
+ * exchanges the code for OAuth tokens. Persistence is handled by
+ * subscription-account-sync-service.recordClaudeOAuthAccount — tokens
+ * land encrypted in the DB; nothing is written to disk.
  *
  * Client id + the refresh URL match the values already hardcoded in
  * `llms/transformers/claude-code-oauth.ts` so the proxy keeps working
- * with whatever tokens land on disk.
+ * with the stored tokens.
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
 import { logger } from '../logger'
-import { fetchClaudeProfile } from './claude-profile-service'
 
 // Diagnostic flag — set CCR_DEBUG_OAUTH=1 to log the token-exchange
 // request body alongside the response on failure. Off by default to
@@ -42,7 +38,7 @@ export const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 // authorize URL — Anthropic rejects the request with "Invalid request
 // format" when `org:create_api_key` is missing, even though the
 // downstream CCR proxy never uses that scope.
-const CLAUDE_SCOPES = [
+export const CLAUDE_SCOPES = [
   'org:create_api_key',
   'user:profile',
   'user:inference',
@@ -143,39 +139,4 @@ export const exchangeClaudeCode = async (opts: {
     throw new Error('claude token exchange returned an unexpected payload')
   }
   return raw
-}
-
-/**
- * Write the token response to the path the CLI uses (the existing
- * sync service watches this file). We also pull subscription metadata
- * off /api/oauth/profile so the file mirrors what `claude login`
- * itself would have produced — otherwise the first sync after this
- * call would land a SubAccount row with `plan: null` until the
- * profile-enrichment pass runs.
- */
-export const writeClaudeCredentialsFromExchange = async (
-  tokens: TokenExchangeResponse,
-  credentialsPath: string = defaultClaudeCredentialsPath()
-): Promise<void> => {
-  const profile = await fetchClaudeProfile(tokens.access_token, { logger })
-  const claudeAiOauth: Record<string, unknown> = {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token,
-    expiresAt: Date.now() + tokens.expires_in * 1000,
-    scopes: CLAUDE_SCOPES
-  }
-  if (profile?.organization?.organization_type) {
-    claudeAiOauth.subscriptionType = profile.organization.organization_type
-  }
-  if (profile?.organization?.rate_limit_tier) {
-    claudeAiOauth.rateLimitTier = profile.organization.rate_limit_tier
-  }
-  await mkdir(dirname(credentialsPath), { recursive: true })
-  await writeFile(credentialsPath, `${JSON.stringify({ claudeAiOauth }, null, 2)}\n`)
-}
-
-export const defaultClaudeCredentialsPath = (): string => {
-  const dirEnv = process.env.CCR_CLAUDE_CREDENTIALS_DIR
-  const dir = typeof dirEnv === 'string' ? dirEnv.trim() : ''
-  return dir.length > 0 ? join(dir, '.credentials.json') : join(homedir(), '.claude', '.credentials.json')
 }

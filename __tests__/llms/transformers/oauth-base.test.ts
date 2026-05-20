@@ -2,43 +2,45 @@
  * Unit tests for OAuthTransformer — the shared scaffolding behind
  * claude-code-oauth and codex-oauth.
  *
- * Two contracts the base class guarantees, and every concrete subclass
- * relies on:
+ * Three contracts the base class guarantees:
  *
- *  1. Credential file path: honour `provider.transformer.subscriptionCredentialPath`
- *     when it is a non-empty string; fall back to the subclass's
- *     defaultCredentialPath otherwise (incl. empty string / non-string /
- *     missing).
- *  2. Token source: prefer `provider.transformer.subscriptionAuth.accessToken`
- *     when it is a non-empty string (the DB-synced token kept current by
- *     the subscription-account-sync service); otherwise call readFromDisk
- *     with the resolved path. accountId is only honoured alongside a
- *     real DB token.
+ *  1. resolveSubscriptionAuth REJECTS unless the DB-synced overlay
+ *     carries non-empty subAccountId + accessToken (parsed strictly by
+ *     OauthSubscriptionAuthBlockSchema). There is no disk fallback.
+ *  2. When expiresAt is in the future (or null), the stored access
+ *     token is returned verbatim — no refresh runs.
+ *  3. When expiresAt is within the 5-minute leeway, refresh() is
+ *     invoked exactly once across concurrent callers (in-flight dedup),
+ *     the result is persisted via updateSubAccountAccessToken, and the
+ *     fresh access token is returned. Refresh failures fall back to the
+ *     existing token instead of throwing.
  */
 
-import { describe, expect, test } from 'bun:test'
-import { type OauthCredentials, OAuthTransformer } from '../../../src/llms/transformers/oauth-base'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { HTTPException } from 'hono/http-exception'
+import { type OAuthRefreshResult, OAuthTransformer, type OauthCredentials } from '../../../src/llms/transformers/oauth-base'
 import type { RuntimeProvider } from '../../../src/schemas'
 
-const DEFAULT_PATH = '/default/creds.json'
+// Spy that records every call so tests can assert the refresh writeback
+// fired (or didn't).
+const updateMock = mock(async () => {})
 
-// Stand-in subclass: records each readFromDisk call so we can assert on
-// (a) WHETHER disk was read at all and (b) WHICH path was used. Exposes
-// the two protected helpers via plain wrappers so tests can drive them
-// directly without leaning on `as any`.
+// Replace the writeback module-side so OAuthTransformer.refreshIfNearExpiry's
+// import resolves to our spy. mock.module rewires the module graph for the
+// rest of the file.
+mock.module('../../../src/services/subscription-account-sync-service', () => ({
+  updateSubAccountAccessToken: updateMock
+}))
+
 class TestTransformer extends OAuthTransformer {
   readonly name = 'test-oauth'
-  protected readonly defaultCredentialPath = DEFAULT_PATH
-  readCalls: string[] = []
-  diskResult: OauthCredentials = { token: 'disk-token', accountId: 'disk-account' }
+  refreshCalls: Array<{ refreshToken: string }> = []
+  refreshResult: OAuthRefreshResult | null | Error = null
 
-  protected async readFromDisk(path: string): Promise<OauthCredentials> {
-    this.readCalls.push(path)
-    return this.diskResult
-  }
-
-  resolvePath(provider: unknown): string {
-    return this.resolveCredentialsPath(provider as RuntimeProvider | null | undefined)
+  protected async refresh(input: { refreshToken: string }): Promise<OAuthRefreshResult | null> {
+    this.refreshCalls.push(input)
+    if (this.refreshResult instanceof Error) throw this.refreshResult
+    return this.refreshResult
   }
 
   resolveAuth(provider: unknown): Promise<OauthCredentials> {
@@ -46,111 +48,188 @@ class TestTransformer extends OAuthTransformer {
   }
 }
 
-describe('OAuthTransformer.resolveCredentialsPath', () => {
-  test('uses override when subscriptionCredentialPath is a non-empty string', () => {
+const makeProvider = (subscriptionAuth: Record<string, unknown> | undefined): unknown => ({
+  transformer: subscriptionAuth ? { subscriptionAuth } : {}
+})
+
+beforeEach(() => {
+  updateMock.mockClear()
+})
+
+afterEach(() => {
+  // Reset the singleton in-flight map by importing nothing — the map
+  // self-clears after each test's promise resolves, so this is a no-op
+  // but documented as a deliberate "no shared state across tests".
+})
+
+describe('OAuthTransformer.resolveSubscriptionAuth — rejection cases', () => {
+  test('throws 401 when subscriptionAuth is missing entirely', async () => {
     const t = new TestTransformer()
-    expect(t.resolvePath({ transformer: { subscriptionCredentialPath: '/custom/creds.json' } })).toBe(
-      '/custom/creds.json'
+    await expect(t.resolveAuth(makeProvider(undefined))).rejects.toBeInstanceOf(HTTPException)
+  })
+
+  test('throws 401 when subAccountId is missing', async () => {
+    const t = new TestTransformer()
+    await expect(t.resolveAuth(makeProvider({ accessToken: 'a' }))).rejects.toBeInstanceOf(HTTPException)
+  })
+
+  test('throws 401 when accessToken is missing', async () => {
+    const t = new TestTransformer()
+    await expect(t.resolveAuth(makeProvider({ subAccountId: 'sa' }))).rejects.toBeInstanceOf(HTTPException)
+  })
+
+  test('throws 401 when accessToken is an empty string (nonempty constraint)', async () => {
+    const t = new TestTransformer()
+    await expect(t.resolveAuth(makeProvider({ subAccountId: 'sa', accessToken: '' }))).rejects.toBeInstanceOf(
+      HTTPException
     )
   })
 
-  test('falls back to default when subscriptionCredentialPath is missing', () => {
+  test('throws 401 when provider is null / undefined', async () => {
     const t = new TestTransformer()
-    expect(t.resolvePath({ transformer: {} })).toBe(DEFAULT_PATH)
-  })
-
-  test('falls back to default when subscriptionCredentialPath is an empty string', () => {
-    const t = new TestTransformer()
-    expect(t.resolvePath({ transformer: { subscriptionCredentialPath: '' } })).toBe(DEFAULT_PATH)
-  })
-
-  test('falls back to default when subscriptionCredentialPath is not a string', () => {
-    const t = new TestTransformer()
-    expect(t.resolvePath({ transformer: { subscriptionCredentialPath: 42 } })).toBe(DEFAULT_PATH)
-    expect(t.resolvePath({ transformer: { subscriptionCredentialPath: null } })).toBe(DEFAULT_PATH)
-    expect(t.resolvePath({ transformer: { subscriptionCredentialPath: { nested: true } } })).toBe(DEFAULT_PATH)
-  })
-
-  test('falls back to default when provider / transformer is undefined', () => {
-    const t = new TestTransformer()
-    expect(t.resolvePath(undefined)).toBe(DEFAULT_PATH)
-    expect(t.resolvePath(null)).toBe(DEFAULT_PATH)
-    expect(t.resolvePath({})).toBe(DEFAULT_PATH)
+    await expect(t.resolveAuth(null)).rejects.toBeInstanceOf(HTTPException)
+    await expect(t.resolveAuth(undefined)).rejects.toBeInstanceOf(HTTPException)
   })
 })
 
-describe('OAuthTransformer.resolveSubscriptionAuth — DB token path', () => {
-  test('returns the DB token + accountId when both are non-empty strings', async () => {
+describe('OAuthTransformer.resolveSubscriptionAuth — happy path (no refresh needed)', () => {
+  test('returns the DB token + accountId when expiresAt is far in the future', async () => {
     const t = new TestTransformer()
-    const result = await t.resolveAuth({
-      transformer: { subscriptionAuth: { accessToken: 'db-token', accountId: 'db-account' } }
-    })
-    expect(result).toEqual({ token: 'db-token', accountId: 'db-account' })
-    expect(t.readCalls).toEqual([])
+    const farFuture = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    const result = await t.resolveAuth(
+      makeProvider({
+        subAccountId: 'sa-1',
+        accessToken: 'token-A',
+        accountId: 'acc-A',
+        expiresAt: farFuture
+      })
+    )
+    expect(result).toEqual({ token: 'token-A', accountId: 'acc-A' })
+    expect(t.refreshCalls).toEqual([])
+    expect(updateMock).not.toHaveBeenCalled()
   })
 
-  test('returns the DB token with undefined accountId when DB accountId is missing', async () => {
+  test('returns the DB token without accountId when accountId is absent', async () => {
     const t = new TestTransformer()
-    const result = await t.resolveAuth({
-      transformer: { subscriptionAuth: { accessToken: 'db-token' } }
-    })
-    expect(result).toEqual({ token: 'db-token', accountId: undefined })
-    expect(t.readCalls).toEqual([])
+    const result = await t.resolveAuth(
+      makeProvider({ subAccountId: 'sa-1', accessToken: 'token-A', expiresAt: null })
+    )
+    expect(result).toEqual({ token: 'token-A' })
+    expect(t.refreshCalls).toEqual([])
   })
 
-  test('ignores a non-string DB accountId (treats it as absent)', async () => {
+  test('skips refresh when expiresAt is null (no upstream expiry information)', async () => {
     const t = new TestTransformer()
-    const result = await t.resolveAuth({
-      transformer: { subscriptionAuth: { accessToken: 'db-token', accountId: 12345 } }
-    })
-    expect(result).toEqual({ token: 'db-token', accountId: undefined })
+    t.refreshResult = { accessToken: 'fresh' }
+    const result = await t.resolveAuth(
+      makeProvider({ subAccountId: 'sa-1', accessToken: 'stale', refreshToken: 'rt', expiresAt: null })
+    )
+    expect(result.token).toBe('stale')
+    expect(t.refreshCalls).toEqual([])
   })
 })
 
-describe('OAuthTransformer.resolveSubscriptionAuth — disk fallback', () => {
-  test('falls back to readFromDisk when no DB token is set', async () => {
-    const t = new TestTransformer()
-    const result = await t.resolveAuth({ transformer: {} })
-    expect(result).toEqual({ token: 'disk-token', accountId: 'disk-account' })
-    expect(t.readCalls).toEqual([DEFAULT_PATH])
-  })
+describe('OAuthTransformer.resolveSubscriptionAuth — refresh path', () => {
+  const nearExpiry = (): Date => new Date(Date.now() + 60 * 1000) // 1 min — within the 5 min leeway
 
-  test('falls back to disk when DB token is an empty string', async () => {
+  test('runs refresh and writes back the new token when expiresAt is within the leeway', async () => {
     const t = new TestTransformer()
-    const result = await t.resolveAuth({
-      transformer: { subscriptionAuth: { accessToken: '', accountId: 'db-account' } }
+    t.refreshResult = {
+      accessToken: 'fresh-token',
+      refreshToken: 'new-rt',
+      expiresAt: new Date(Date.now() + 3600_000)
+    }
+    const result = await t.resolveAuth(
+      makeProvider({
+        subAccountId: 'sa-1',
+        accessToken: 'stale-token',
+        refreshToken: 'old-rt',
+        expiresAt: nearExpiry().toISOString()
+      })
+    )
+    expect(result.token).toBe('fresh-token')
+    expect(t.refreshCalls).toEqual([{ refreshToken: 'old-rt' }])
+    expect(updateMock).toHaveBeenCalledTimes(1)
+    expect(updateMock).toHaveBeenCalledWith('sa-1', {
+      accessToken: 'fresh-token',
+      refreshToken: 'new-rt',
+      expiresAt: expect.any(Date)
     })
-    expect(result).toEqual({ token: 'disk-token', accountId: 'disk-account' })
-    expect(t.readCalls).toEqual([DEFAULT_PATH])
   })
 
-  test('falls back to disk when DB accessToken is not a string', async () => {
+  test('skips refresh when refreshToken is empty (cannot rotate without it)', async () => {
     const t = new TestTransformer()
-    const result = await t.resolveAuth({
-      transformer: { subscriptionAuth: { accessToken: null } }
+    t.refreshResult = { accessToken: 'fresh' }
+    const result = await t.resolveAuth(
+      makeProvider({ subAccountId: 'sa-1', accessToken: 'stale', expiresAt: nearExpiry() })
+    )
+    expect(result.token).toBe('stale')
+    expect(t.refreshCalls).toEqual([])
+  })
+
+  test('falls back to the existing token when refresh() throws', async () => {
+    const t = new TestTransformer()
+    t.refreshResult = new Error('upstream 503')
+    const result = await t.resolveAuth(
+      makeProvider({
+        subAccountId: 'sa-1',
+        accessToken: 'stale',
+        refreshToken: 'rt',
+        expiresAt: nearExpiry()
+      })
+    )
+    expect(result.token).toBe('stale')
+    expect(t.refreshCalls).toHaveLength(1)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  test('falls back to existing token when refresh() returns null (no-op refresh)', async () => {
+    const t = new TestTransformer()
+    t.refreshResult = null
+    const result = await t.resolveAuth(
+      makeProvider({
+        subAccountId: 'sa-1',
+        accessToken: 'stale',
+        refreshToken: 'rt',
+        expiresAt: nearExpiry()
+      })
+    )
+    expect(result.token).toBe('stale')
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  test('concurrent callers share one in-flight refresh per subAccountId', async () => {
+    const t = new TestTransformer()
+    let resolveRefresh: ((value: OAuthRefreshResult) => void) | null = null
+    const refreshPromise = new Promise<OAuthRefreshResult>((res) => {
+      resolveRefresh = res
     })
-    expect(result).toEqual({ token: 'disk-token', accountId: 'disk-account' })
-    expect(t.readCalls).toEqual([DEFAULT_PATH])
-  })
+    // Replace refresh() with one that suspends until we resolve the promise,
+    // so we can issue two concurrent calls that observe the same in-flight.
+    t.refresh = async (input) => {
+      t.refreshCalls.push(input)
+      return refreshPromise
+    }
 
-  test('falls back to disk when provider is undefined', async () => {
-    const t = new TestTransformer()
-    const result = await t.resolveAuth(undefined)
-    expect(result).toEqual({ token: 'disk-token', accountId: 'disk-account' })
-    expect(t.readCalls).toEqual([DEFAULT_PATH])
-  })
+    const provider = makeProvider({
+      subAccountId: 'sa-1',
+      accessToken: 'stale',
+      refreshToken: 'rt',
+      expiresAt: nearExpiry()
+    })
 
-  test('passes the override path to readFromDisk when subscriptionCredentialPath is set', async () => {
-    const t = new TestTransformer()
-    await t.resolveAuth({ transformer: { subscriptionCredentialPath: '/custom/creds.json' } })
-    expect(t.readCalls).toEqual(['/custom/creds.json'])
-  })
+    const p1 = t.resolveAuth(provider)
+    const p2 = t.resolveAuth(provider)
 
-  test('disk fallback returns whatever readFromDisk yields (no accountId case)', async () => {
-    const t = new TestTransformer()
-    t.diskResult = { token: 'disk-only-token' }
-    const result = await t.resolveAuth({ transformer: {} })
-    expect(result).toEqual({ token: 'disk-only-token' })
-    expect(result.accountId).toBeUndefined()
+    resolveRefresh?.({
+      accessToken: 'shared-fresh',
+      expiresAt: new Date(Date.now() + 3600_000)
+    })
+
+    const [r1, r2] = await Promise.all([p1, p2])
+    expect(r1.token).toBe('shared-fresh')
+    expect(r2.token).toBe('shared-fresh')
+    expect(t.refreshCalls).toHaveLength(1) // dedup'd
+    expect(updateMock).toHaveBeenCalledTimes(1)
   })
 })

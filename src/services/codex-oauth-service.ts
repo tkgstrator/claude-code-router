@@ -4,21 +4,11 @@
  * Mirrors what `codex login` does on a fresh device — same authorize
  * host (auth.openai.com), same client_id, same custom params
  * (`id_token_add_organizations`, `codex_cli_simplified_flow`,
- * `originator=codex_cli_rs`) — and writes the resulting tokens to the
- * `~/.codex/auth.json` array shape the existing
- * subscription-account-sync-service reader expects (entry shape:
- * `{ auth_mode: "chatgpt", OPENAI_API_KEY: null, tokens: {...},
- * last_refresh: ISO-string }`).
- *
- * The account_id is pulled from the id_token's
- * `https://api.openai.com/auth.chatgpt_account_id` claim — same shape
- * the existing readCodexAccounts in subscription-account-sync-service
- * already decodes.
+ * `originator=codex-tui`). Persistence is handled by
+ * subscription-account-sync-service.recordCodexOAuthAccount — tokens
+ * land encrypted in the DB; nothing is written to disk.
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
 import { logger } from '../logger'
 
 const CODEX_AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize'
@@ -36,12 +26,14 @@ export const CODEX_CALLBACK_PATH = '/auth/callback'
 const DEBUG_OAUTH = process.env.CCR_DEBUG_OAUTH === '1'
 
 export const buildCodexAuthorizeUrl = (opts: { redirectUri: string; state: string; codeChallenge: string }): string => {
-  // `id_token_add_organizations=true` opts the id_token into carrying
-  // the `organizations[]` claim under https://api.openai.com/auth,
-  // which the existing JWT decoder reads for the org list.
-  // `codex_cli_simplified_flow=true` swaps the consent UX for the
-  // single-click "Continue as <user>" page the CLI uses.
-  // `originator=codex_cli_rs` is the originator string codex CLI sends.
+  // Param set captured verbatim from a fresh `codex login` run.
+  // - id_token_add_organizations=true: id_token carries the
+  //   `organizations[]` claim under https://api.openai.com/auth, which
+  //   the existing JWT decoder reads for the org list.
+  // - codex_cli_simplified_flow=true: required — without it the consent
+  //   page hands back `error_code: unknown_error`.
+  // - originator=codex-tui: required for the same reason; identifies
+  //   the request as coming from the codex TUI flow.
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CODEX_CLIENT_ID,
@@ -52,7 +44,7 @@ export const buildCodexAuthorizeUrl = (opts: { redirectUri: string; state: strin
     id_token_add_organizations: 'true',
     codex_cli_simplified_flow: 'true',
     state: opts.state,
-    originator: 'codex_cli_rs'
+    originator: 'codex-tui'
   })
   return `${CODEX_AUTHORIZE_URL}?${params}`
 }
@@ -114,62 +106,4 @@ export const exchangeCodexCode = async (opts: {
     throw new Error('codex token exchange returned an unexpected payload')
   }
   return raw
-}
-
-const decodeJwtPayload = (jwt: string): Record<string, unknown> | null => {
-  const parts = jwt.split('.')
-  if (parts.length < 2) return null
-  try {
-    const padded = parts[1]
-      .replace(/-/g, '+')
-      .replace(/_/g, '/')
-      .padEnd(parts[1].length + ((4 - (parts[1].length % 4)) % 4), '=')
-    const json = Buffer.from(padded, 'base64').toString('utf8')
-    return JSON.parse(json) as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
-// Pull `chatgpt_account_id` out of the id_token's
-// https://api.openai.com/auth claim block.
-const extractAccountId = (idToken: string): string | null => {
-  const claims = decodeJwtPayload(idToken)
-  if (!claims) return null
-  const auth = claims['https://api.openai.com/auth']
-  if (typeof auth !== 'object' || auth === null) return null
-  const v = (auth as Record<string, unknown>).chatgpt_account_id
-  return typeof v === 'string' && v.length > 0 ? v : null
-}
-
-/**
- * Write the token response to `~/.codex/auth.json` (or wherever
- * CCR_CODEX_AUTH_DIR points) in the array-of-entries shape the codex
- * CLI itself uses, so the existing readCodexAccounts sync path picks
- * the new account up without code changes.
- */
-export const writeCodexCredentialsFromExchange = async (
-  tokens: CodexTokenExchangeResponse,
-  authPath: string = defaultCodexAuthPath()
-): Promise<void> => {
-  const accountId = extractAccountId(tokens.id_token) ?? ''
-  const entry = {
-    auth_mode: 'chatgpt',
-    OPENAI_API_KEY: null,
-    tokens: {
-      id_token: tokens.id_token,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      account_id: accountId
-    },
-    last_refresh: new Date().toISOString()
-  }
-  await mkdir(dirname(authPath), { recursive: true })
-  await writeFile(authPath, `${JSON.stringify([entry], null, 2)}\n`)
-}
-
-export const defaultCodexAuthPath = (): string => {
-  const dirEnv = process.env.CCR_CODEX_AUTH_DIR
-  const dir = typeof dirEnv === 'string' ? dirEnv.trim() : ''
-  return dir.length > 0 ? join(dir, 'auth.json') : join(homedir(), '.codex', 'auth.json')
 }

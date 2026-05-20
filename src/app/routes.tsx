@@ -5,6 +5,7 @@ import { DebugPage } from '@/components/DebugPage'
 import { HistoryPage } from '@/components/History'
 import { Login } from '@/components/Login'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
+import { OauthResultPage } from '@/components/OauthResultPage'
 import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
@@ -60,5 +61,12 @@ export const router = createBrowserRouter([
         <DebugPage />
       </ProtectedRoute>
     )
+  },
+  {
+    // Public — the IdP redirects browsers here after a server-side
+    // token exchange. Token persistence already happened by the time
+    // this route mounts; the page is read-only.
+    path: '/oauth-result',
+    element: <OauthResultPage />
   }
 ])

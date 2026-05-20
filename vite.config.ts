@@ -21,13 +21,15 @@ export default defineConfig({
     viteSingleFile(),
     devServer({
       entry: './src/index.ts',
-      // Hono owns /api/*, /v1/*, and the two OAuth loopback callbacks
-      // (/callback for claude, /auth/callback for codex). Every other
-      // path (the SPA at /, Vite's /@... module shims, /src/...,
-      // favicons, static assets) goes through Vite. The callbacks must
-      // be served by the backend so the auto-exchange + sync runs
-      // server-side instead of bouncing through the SPA.
-      exclude: [/^(?!\/api\/|\/v1\/|\/callback(?:\?|$)|\/auth\/callback(?:\?|$)).*$/]
+      // Hono owns /api/*, /v1/*, and the claude OAuth loopback callback
+      // /callback. Every other path (the SPA at /, Vite's /@... module
+      // shims, /src/..., favicons, static assets) goes through Vite. The
+      // callback must be served by the backend so the auto-exchange +
+      // sync runs server-side instead of bouncing through the SPA.
+      // Codex's callback hits a separate standalone listener on
+      // localhost:1455 (see services/codex-callback-listener.ts), so it
+      // doesn't go through Vite at all.
+      exclude: [/^(?!\/api\/|\/v1\/|\/callback(?:\?|$)).*$/]
     })
   ]
 })
