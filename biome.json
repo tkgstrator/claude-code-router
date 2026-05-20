@@ -8,6 +8,7 @@
     "./biome-plugins/prefer-z-url.grit",
     "./biome-plugins/prefer-z-nonempty.grit",
     "./biome-plugins/no-bare-z-string.grit",
+    "./biome-plugins/no-tri-state-z-boolean.grit",
     "./biome-plugins/no-while-loop.grit",
     "./biome-plugins/no-let.grit"
   ],
