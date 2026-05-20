@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Eye, EyeOff, LogIn, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -53,6 +53,32 @@ export function Providers() {
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
+
+  // Claude OAuth loopback flow:
+  // 1. Server mints a one-shot state + PKCE pair at /oauth/initiate/claude
+  //    and returns Anthropic's authorize URL (redirect_uri pinned to
+  //    http://localhost:<port>/callback — the only pattern the Claude
+  //    Code OAuth client allows).
+  // 2. We open it in a new tab. claude.ai consent page redirects the
+  //    browser back to our /callback, server completes the exchange and
+  //    writes .credentials.json + triggers SubAccount sync.
+  // 3. User closes the "Sign-in complete" tab and refreshes the
+  //    subscription panel here to see the new account.
+  const handleConnectClaude = async () => {
+    try {
+      const res = await api.post<{ success: boolean; authorizeUrl: string; state: string }>(
+        '/oauth/initiate/claude',
+        {}
+      )
+      if (!res.success || !res.authorizeUrl) {
+        console.error(t('providers.connect_claude_failed'), res)
+        return
+      }
+      window.open(res.authorizeUrl, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      console.error(t('providers.connect_claude_failed'), err)
+    }
+  }
 
   const refreshTemplates = async () => {
     setRefreshingTemplates(true)
@@ -655,6 +681,10 @@ export function Providers() {
         <Button variant='outline' onClick={refreshTemplates} disabled={refreshingTemplates}>
           <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
           {t('providers.refresh_templates')}
+        </Button>
+        <Button variant='outline' onClick={handleConnectClaude}>
+          <LogIn className='h-4 w-4' />
+          {t('providers.connect_claude')}
         </Button>
       </PageHeader>
       <PageContent>
