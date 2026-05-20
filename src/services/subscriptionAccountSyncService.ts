@@ -1,9 +1,53 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
+import { z } from 'zod'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, type PrismaClient, type SubAccount } from '../generated/prisma/client'
+import { logger } from '../lib/logger'
+
+// File-level validators for vendor credential files. We're lenient
+// about unknown keys (vendors add fields over time) but strict about
+// the discriminating shape — Codex must carry tokens with at least
+// one of access_token / id_token, and Claude must carry the
+// claudeAiOauth block. An entry that fails validation is skipped
+// (with a warn log) instead of taking down the whole sync.
+const CodexTokensSchema = z
+  .object({
+    access_token: z.string().min(1).optional(),
+    refresh_token: z.string().min(1).optional(),
+    id_token: z.string().min(1).optional(),
+    account_id: z.string().min(1).optional(),
+    user_id: z.string().min(1).optional()
+  })
+  .refine((t) => Boolean(t.access_token) || Boolean(t.id_token), {
+    message: 'tokens must include access_token or id_token'
+  })
+
+const CodexAuthEntrySchema = z.object({ tokens: CodexTokensSchema })
+
+const ClaudeOAuthSchema = z.object({
+  accessToken: z.string().min(1).optional(),
+  refreshToken: z.string().min(1).optional(),
+  expiresAt: z.number().optional(),
+  scopes: z.array(z.string()).optional(),
+  subscriptionType: z.string().optional(),
+  rateLimitTier: z.string().optional()
+})
+
+const ClaudeAccountEntrySchema = z.object({
+  claudeAiOauth: ClaudeOAuthSchema,
+  user: z
+    .object({
+      name: z.string().optional(),
+      email: z.string().optional(),
+      id: z.string().optional()
+    })
+    .optional(),
+  email: z.string().optional(),
+  organizationUuid: z.string().optional()
+})
 
 type DiscoveredAccount = {
   sourcePath: string
@@ -21,34 +65,54 @@ type DiscoveredAccount = {
   idToken: string | null
 }
 
-const readJson = async <T>(path: string): Promise<T | null> => {
+// Each vendor file is read as either a single account object or an
+// array of them. Array form is how operators express multiple accounts
+// in one file; single-object form is the original Codex / Claude CLI
+// layout and stays as-is for backward compatibility. `isArray` is
+// returned so callers can keep single-object sourcePaths bare while
+// suffixing array entries to disambiguate them inside the DB upsert
+// key.
+const CredentialFileShapeSchema = z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())])
+
+const isFileNotFound = (e: unknown): boolean => e instanceof Error && 'code' in e && e.code === 'ENOENT'
+
+const readJsonEntries = async (path: string): Promise<{ entries: unknown[]; isArray: boolean }> => {
+  let raw: string
   try {
-    return JSON.parse(await readFile(path, 'utf-8')) as T
-  } catch {
-    return null
+    raw = await readFile(path, 'utf-8')
+  } catch (e) {
+    // A missing file is normal — the operator hasn't logged in with
+    // the vendor CLI yet — and must not warn on every sync. Real read
+    // errors (permission, IO) are still worth surfacing.
+    if (!isFileNotFound(e)) logger.warn({ path, err: e }, '[subaccount] credential file unreadable')
+    return { entries: [], isArray: false }
   }
+  let json: unknown
+  try {
+    json = JSON.parse(raw)
+  } catch (e) {
+    logger.warn({ path, err: e }, '[subaccount] credential file is not valid JSON')
+    return { entries: [], isArray: false }
+  }
+  const parsed = CredentialFileShapeSchema.safeParse(json)
+  if (!parsed.success) {
+    logger.warn(
+      { path, error: parsed.error.format() },
+      '[subaccount] credential file must be an object or array of objects'
+    )
+    return { entries: [], isArray: false }
+  }
+  if (Array.isArray(parsed.data)) return { entries: parsed.data, isArray: true }
+  return { entries: [parsed.data], isArray: false }
 }
 
-const parseCredentialPaths = (raw: string | undefined, fallback: string): string[] => {
-  if (!raw) return [fallback]
-  const paths = raw
-    .split(',')
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0)
-  return paths.length > 0 ? paths : [fallback]
-}
-
-const credentialPathsFromDir = async (dir: string | undefined): Promise<string[]> => {
-  if (!dir || dir.trim().length === 0) return []
-  try {
-    const names = await readdir(dir)
-    return names
-      .filter((name) => name.toLowerCase().endsWith('.json'))
-      .sort((a, b) => a.localeCompare(b))
-      .map((name) => join(dir, name))
-  } catch {
-    return []
-  }
+// SubAccount rows are upsert-keyed on (providerId, sourcePath), so
+// multiple accounts sharing one physical file need disambiguating
+// suffixes. Single-object files keep the bare path (no churn against
+// existing rows); array entries get `<path>#<stableId|i<index>>`.
+const entrySourcePath = (path: string, isArray: boolean, stableId: string | null, index: number): string => {
+  if (!isArray) return path
+  return `${path}#${stableId ?? `i${index}`}`
 }
 
 const asStringOrNull = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null)
@@ -107,79 +171,81 @@ export const decryptString = (enc: string | null, key: Buffer): string | null =>
   }
 }
 
-const readClaudeAccount = async (path: string): Promise<DiscoveredAccount | null> => {
-  const data = await readJson<{ claudeAiOauth?: Record<string, unknown> }>(path)
-  const oauth = data?.claudeAiOauth
-  if (!oauth) return null
-  return {
-    sourcePath: path,
-    label: basename(path),
-    userName: asStringOrNull((data as { user?: { name?: unknown } })?.user?.name),
-    userEmail: asStringOrNull(
-      (data as { user?: { email?: unknown }; email?: unknown })?.user?.email ?? (data as { email?: unknown })?.email
-    ),
-    userId: asStringOrNull(
-      (data as { user?: { id?: unknown }; organizationUuid?: unknown })?.user?.id ??
-        (data as { organizationUuid?: unknown })?.organizationUuid
-    ),
-    accountId: null,
-    plan: asStringOrNull(oauth.subscriptionType),
-    rateLimitTier: asStringOrNull(oauth.rateLimitTier),
-    expiresAt: typeof oauth.expiresAt === 'number' ? new Date(oauth.expiresAt) : null,
-    scopes: Array.isArray(oauth.scopes) ? (oauth.scopes as string[]) : null,
-    accessToken: asStringOrNull(oauth.accessToken),
-    refreshToken: asStringOrNull(oauth.refreshToken),
-    idToken: null
-  }
+const readClaudeAccounts = (path: string, entries: unknown[], isArray: boolean): DiscoveredAccount[] => {
+  const out: DiscoveredAccount[] = []
+  entries.forEach((entry, i) => {
+    const parsed = ClaudeAccountEntrySchema.safeParse(entry)
+    if (!parsed.success) {
+      logger.warn({ path, index: i, error: parsed.error.format() }, '[subaccount] claude entry rejected by schema')
+      return
+    }
+    const data = parsed.data
+    const oauth = data.claudeAiOauth
+    const userId = data.user?.id ?? data.organizationUuid ?? null
+    out.push({
+      sourcePath: entrySourcePath(path, isArray, userId, i),
+      label: basename(path),
+      userName: data.user?.name ?? null,
+      userEmail: data.user?.email ?? data.email ?? null,
+      userId,
+      accountId: null,
+      plan: oauth.subscriptionType ?? null,
+      rateLimitTier: oauth.rateLimitTier ?? null,
+      expiresAt: typeof oauth.expiresAt === 'number' ? new Date(oauth.expiresAt) : null,
+      scopes: oauth.scopes ?? null,
+      accessToken: oauth.accessToken ?? null,
+      refreshToken: oauth.refreshToken ?? null,
+      idToken: null
+    })
+  })
+  return out
 }
 
-const readCodexAccount = async (path: string): Promise<DiscoveredAccount | null> => {
-  const data = await readJson<{ tokens?: Record<string, unknown> }>(path)
-  const tokens = data?.tokens ?? {}
-  const idToken = asStringOrNull(tokens.id_token)
-  const claims = idToken ? decodeJwtPayload(idToken) : null
-  const auth = (claims?.['https://api.openai.com/auth'] ?? {}) as Record<string, unknown>
-  const activeUntil = asStringOrNull(auth.chatgpt_subscription_active_until)
-  return {
-    sourcePath: path,
-    label: basename(path),
-    userName: asStringOrNull(claims?.name),
-    userEmail: asStringOrNull(claims?.email),
-    userId: asStringOrNull(claims?.sub) ?? asStringOrNull(tokens.user_id),
-    accountId: asStringOrNull(tokens.account_id) ?? asStringOrNull(auth.chatgpt_account_id),
-    plan: asStringOrNull(auth.chatgpt_plan_type),
-    rateLimitTier: null,
-    expiresAt: activeUntil ? new Date(activeUntil) : null,
-    scopes: null,
-    accessToken: asStringOrNull(tokens.access_token),
-    refreshToken: asStringOrNull(tokens.refresh_token),
-    idToken
-  }
+const readCodexAccounts = (path: string, entries: unknown[], isArray: boolean): DiscoveredAccount[] => {
+  const out: DiscoveredAccount[] = []
+  entries.forEach((entry, i) => {
+    const parsed = CodexAuthEntrySchema.safeParse(entry)
+    if (!parsed.success) {
+      logger.warn({ path, index: i, error: parsed.error.format() }, '[subaccount] codex entry rejected by schema')
+      return
+    }
+    const { tokens } = parsed.data
+    const claims = tokens.id_token ? decodeJwtPayload(tokens.id_token) : null
+    const auth = (claims?.['https://api.openai.com/auth'] ?? {}) as Record<string, unknown>
+    const activeUntil = asStringOrNull(auth.chatgpt_subscription_active_until)
+    const accountId = tokens.account_id ?? asStringOrNull(auth.chatgpt_account_id)
+    out.push({
+      sourcePath: entrySourcePath(path, isArray, accountId, i),
+      label: basename(path),
+      userName: asStringOrNull(claims?.name),
+      userEmail: asStringOrNull(claims?.email),
+      userId: asStringOrNull(claims?.sub) ?? tokens.user_id ?? null,
+      accountId,
+      plan: asStringOrNull(auth.chatgpt_plan_type),
+      rateLimitTier: null,
+      expiresAt: activeUntil ? new Date(activeUntil) : null,
+      scopes: null,
+      accessToken: tokens.access_token ?? null,
+      refreshToken: tokens.refresh_token ?? null,
+      idToken: tokens.id_token ?? null
+    })
+  })
+  return out
 }
 
 const discoverAccountsForBaseUrl = async (apiBaseUrl: string): Promise<DiscoveredAccount[]> => {
   if (apiBaseUrl.includes('anthropic.com')) {
-    const fallback = join(homedir(), '.claude', '.credentials.json')
-    const fromDir = await credentialPathsFromDir(process.env.CCR_CLAUDE_CREDENTIALS_DIR)
-    const paths =
-      fromDir.length > 0 ? fromDir : parseCredentialPaths(process.env.CCR_CLAUDE_CREDENTIALS_FILES, fallback)
-    const out: DiscoveredAccount[] = []
-    for (const path of paths) {
-      const account = await readClaudeAccount(path)
-      if (account) out.push(account)
-    }
-    return out
+    const dir = process.env.CCR_CLAUDE_CREDENTIALS_DIR?.trim()
+    const path =
+      dir && dir.length > 0 ? join(dir, '.credentials.json') : join(homedir(), '.claude', '.credentials.json')
+    const { entries, isArray } = await readJsonEntries(path)
+    return readClaudeAccounts(path, entries, isArray)
   }
   if (apiBaseUrl.includes('chatgpt.com') || apiBaseUrl.includes('openai.com/v1')) {
-    const fallback = join(homedir(), '.codex', 'auth.json')
-    const fromDir = await credentialPathsFromDir(process.env.CCR_CODEX_AUTH_DIR)
-    const paths = fromDir.length > 0 ? fromDir : parseCredentialPaths(process.env.CCR_CODEX_AUTH_FILES, fallback)
-    const out: DiscoveredAccount[] = []
-    for (const path of paths) {
-      const account = await readCodexAccount(path)
-      if (account) out.push(account)
-    }
-    return out
+    const dir = process.env.CCR_CODEX_AUTH_DIR?.trim()
+    const path = dir && dir.length > 0 ? join(dir, 'auth.json') : join(homedir(), '.codex', 'auth.json')
+    const { entries, isArray } = await readJsonEntries(path)
+    return readCodexAccounts(path, entries, isArray)
   }
   return []
 }
