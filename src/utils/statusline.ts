@@ -1,4 +1,3 @@
-import dayjs from '@/lib/dayjs'
 import type { StatusLineConfig } from '@/types'
 
 // Stub kept for callers that still import this surface. Validation
@@ -18,35 +17,6 @@ export function formatValidationError(
   t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   return t('statusline.validation.unknown_error')
-}
-
-/**
- * 解析颜色值，支持十六进制和内置颜色名称
- * @param color 颜色值（可以是颜色名称或十六进制值）
- * @param defaultColor 默认颜色（十六进制）
- * @returns 十六进制颜色值
- */
-export function parseColorValue(color: string | undefined, defaultColor: string = '#ffffff'): string {
-  if (!color) {
-    return defaultColor
-  }
-
-  // 如果是十六进制颜色值（以#开头）
-  if (color.startsWith('#')) {
-    return color
-  }
-
-  // 如果是已知的颜色名称，返回对应的十六进制值
-  return COLOR_HEX_MAP[color] || defaultColor
-}
-
-/**
- * 判断是否为有效的十六进制颜色值
- * @param color 要检查的颜色值
- * @returns 是否为有效的十六进制颜色值
- */
-export function isHexColor(color: string): boolean {
-  return /^#([0-9A-F]{3}){1,2}$/i.test(color)
 }
 
 // 颜色枚举到十六进制的映射
@@ -112,34 +82,5 @@ export function createDefaultStatusLineConfig(): StatusLineConfig {
         { type: 'speed', icon: '', text: '{{tokenSpeed}} t/s', color: 'white', background: 'bg_bright_red' }
       ]
     }
-  }
-}
-
-/**
- * 创建配置备份
- */
-export function backupConfig(config: StatusLineConfig): string {
-  const backup = {
-    config,
-    timestamp: dayjs().toISOString(),
-    version: '1.0'
-  }
-  return JSON.stringify(backup, null, 2)
-}
-
-/**
- * 从备份恢复配置
- */
-export function restoreConfig(backupStr: string): StatusLineConfig | null {
-  try {
-    const backup = JSON.parse(backupStr)
-    if (backup?.config && backup?.timestamp) {
-      const config: StatusLineConfig = backup.config
-      return config
-    }
-    return null
-  } catch (error) {
-    console.error('Failed to restore config from backup:', error)
-    return null
   }
 }

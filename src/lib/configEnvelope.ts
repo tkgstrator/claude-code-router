@@ -6,7 +6,6 @@ import JSON5 from 'json5'
 import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas'
 import { ENVELOPE_ENV_KEYS } from '@/shared'
 import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
-import dayjs from './dayjs'
 import { logger } from './logger'
 
 // Function to interpolate environment variables in config values
@@ -127,36 +126,6 @@ export const writeConfigFile = async (config: any) => {
   await ensureDir(HOME_DIR)
   const configWithComment = `${JSON.stringify(config, null, 2)}`
   await fs.writeFile(CONFIG_FILE, configWithComment)
-}
-
-export const backupConfigFile = async (): Promise<string | null> => {
-  try {
-    const exists = await fs
-      .access(CONFIG_FILE)
-      .then(() => true)
-      .catch(() => false)
-    if (!exists) return null
-    const timestamp = dayjs().toISOString().replace(/[:.]/g, '-')
-    const backupPath = `${CONFIG_FILE}.${timestamp}.bak`
-    await fs.copyFile(CONFIG_FILE, backupPath)
-    try {
-      const configDir = path.dirname(CONFIG_FILE)
-      const configFileName = path.basename(CONFIG_FILE)
-      const files = await fs.readdir(configDir)
-      const backupFiles = files
-        .filter((f) => f.startsWith(configFileName) && f.endsWith('.bak'))
-        .sort()
-        .reverse()
-      for (let i = 3; i < backupFiles.length; i++) {
-        await fs.unlink(path.join(configDir, backupFiles[i]))
-      }
-    } catch {
-      // cleanup failure is non-fatal
-    }
-    return backupPath
-  } catch {
-    return null
-  }
 }
 
 /**

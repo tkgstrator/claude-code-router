@@ -55,18 +55,4 @@ const buildLookup = (): Record<string, Record<string, OfficialPricingEntry>> => 
   return out
 }
 
-// Flat set of every model id flagged legacy across vendors — handy for
-// merging into the deprecation registry without dragging vendor names
-// around at the call site.
-export const LEGACY_MODELS: ReadonlySet<string> = (() => {
-  const set = new Set<string>()
-  for (const file of FILES) {
-    for (const [id, entry] of Object.entries(file.prices)) {
-      if (entry.legacy) set.add(id)
-    }
-  }
-  return set
-})()
-
 export const OFFICIAL_VENDOR_PRICES: Record<string, Record<string, OfficialPricingEntry>> = buildLookup()
-export const VENDOR_PRICE_FILES: VendorPriceFile[] = FILES

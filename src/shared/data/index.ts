@@ -2,16 +2,8 @@ import seed from './llm-prices.json'
 import { OFFICIAL_VENDOR_PRICES } from './providers'
 
 export { DEPRECATED_MODELS, isDeprecatedModel } from './deprecations'
-export {
-  LEGACY_MODELS,
-  OFFICIAL_VENDOR_PRICES,
-  type OfficialPricingEntry,
-  VENDOR_PRICE_FILES,
-  type VendorPriceFile
-} from './providers'
+export { OFFICIAL_VENDOR_PRICES, type OfficialPricingEntry } from './providers'
 export { SUBSCRIPTION_PRESETS, type SubscriptionPreset } from './subscriptions'
-
-export const LLM_PRICES_URL = 'https://www.llm-prices.com/current-v1.json'
 
 export interface PriceEntry {
   id: string
