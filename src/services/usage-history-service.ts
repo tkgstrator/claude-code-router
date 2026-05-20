@@ -18,58 +18,62 @@ const toDate = (iso: string | null): Date | null => {
   return d.isValid() ? d.toDate() : null
 }
 
-// Flatten the live usage snapshot into one row per window.
+// Flatten the live usage snapshot into one row per window. When multiple
+// accounts are connected for a vendor, take the maximum utilization per
+// metric so the chart reflects the most-constrained account.
 const flatten = (u: Awaited<ReturnType<typeof getUsage>>): SnapshotRow[] => {
-  const rows: SnapshotRow[] = []
-  const c = u.claude
-  if (c) {
+  const best = new Map<string, SnapshotRow>()
+  const keep = (row: SnapshotRow) => {
+    const prev = best.get(row.metric)
+    if (!prev || row.percent > prev.percent) best.set(row.metric, row)
+  }
+  for (const c of u.claude) {
     if (c.fiveHour)
-      rows.push({
+      keep({
         provider: 'claude',
         metric: 'claude.five_hour',
         percent: c.fiveHour.utilization,
         resetAt: toDate(c.fiveHour.resetsAt)
       })
     if (c.sevenDay)
-      rows.push({
+      keep({
         provider: 'claude',
         metric: 'claude.seven_day',
         percent: c.sevenDay.utilization,
         resetAt: toDate(c.sevenDay.resetsAt)
       })
     if (c.sevenDaySonnet)
-      rows.push({
+      keep({
         provider: 'claude',
         metric: 'claude.seven_day_sonnet',
         percent: c.sevenDaySonnet.utilization,
         resetAt: toDate(c.sevenDaySonnet.resetsAt)
       })
     if (c.sevenDayOpus)
-      rows.push({
+      keep({
         provider: 'claude',
         metric: 'claude.seven_day_opus',
         percent: c.sevenDayOpus.utilization,
         resetAt: toDate(c.sevenDayOpus.resetsAt)
       })
   }
-  const x = u.codex
-  if (x) {
+  for (const x of u.codex) {
     if (x.primary)
-      rows.push({
+      keep({
         provider: 'codex',
         metric: 'codex.primary',
         percent: x.primary.usedPercent,
         resetAt: toDate(x.primary.resetAt)
       })
     if (x.secondary)
-      rows.push({
+      keep({
         provider: 'codex',
         metric: 'codex.secondary',
         percent: x.secondary.usedPercent,
         resetAt: toDate(x.secondary.resetAt)
       })
   }
-  return rows
+  return [...best.values()]
 }
 
 export async function recordUsageSnapshots(): Promise<void> {
