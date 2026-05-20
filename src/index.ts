@@ -20,34 +20,50 @@ import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
 import { apiKeyAuth } from './lib/apiKeyAuth'
+import { initConfig, initDir } from './lib/configEnvelope'
+import { logger, syncLevelFromEnv } from './lib/logger'
 import { APP_VERSION } from './lib/version'
-import { bootstrapServer } from './services/bootstrap'
+import { syncSubAccountsToDb } from './services/subscription-account-sync-service'
+import { startUsageCapture } from './services/usage-job'
 
 // Hono root. Backend routes live under src/api/<path>/route.ts (one
 // Hono sub-app per file, Next.js-style) and are mounted here. The
 // /v1/* LLM proxy is served natively by v1Route, which drives the
 // absorbed llms router + transformer pipeline directly (no Fastify).
-
-// Mirror what the legacy Fastify server did at boot: lift any
-// pre-existing config.json into Postgres, seed default Providers + the
-// six RouterSlot rows, and copy the envelope scalars onto process.env.
 //
-// Guard against Vite HMR re-evaluating this module on every file save:
-// bootstrapServer() seeds the DB and may delete models/reset config, so
-// it must run exactly once per process lifetime, not once per HMR cycle.
-// globalThis survives module re-evaluation within the same Node process.
-const _g = globalThis as Record<string, unknown>
-if (!_g.__ccrBootstrapped) {
-  _g.__ccrBootstrapped = true
-  await bootstrapServer()
-}
+// Single entry for both dev and prod: in dev, @hono/vite-dev-server
+// imports this module and only forwards /api/* + /v1/* to app.fetch
+// (everything else is Vite-served). In prod, Bun runs this file
+// directly and consumes the default export's { port, fetch, idleTimeout }.
+// The SPA + static-asset handlers below are registered only when
+// ./dist/index.html exists, so dev (no build output) skips them safely.
+//
+// DB schema + first-run seed rows are NOT created here — that's the
+// job of `prisma migrate deploy` + `prisma db seed`, which entrypoint.sh
+// runs before exec'ing this process (or `bun db:migrate` locally).
+
+await initDir()
+const envelope = await initConfig()
+// Re-apply LOG_LEVEL to the already-initialised logger: the pino
+// instance is constructed at import time before initConfig() has
+// mirrored config.json's LOG_LEVEL onto process.env.
+syncLevelFromEnv()
+// Re-sync OAuth credentials from disk into the DB on every boot —
+// users can re-authenticate (claude login / codex login) between
+// restarts, so this isn't seed-time work.
+await syncSubAccountsToDb()
+logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
+// Fire-and-forget: never block server boot on Redis. The job setup
+// is resilient and registers the BullMQ schedule once Redis is reachable;
+// it has its own per-process guard so HMR re-evaluation is a no-op.
+void startUsageCapture()
 
 const app = new OpenAPIHono()
 
 // Gate everything that hits the paid subscriptions or mutates config
-// behind the envelope APIKEY (bootstrap mints one on first run). The
-// static SPA at `/` stays open so the UI can load and prompt for the
-// key; its own /api calls then carry it.
+// behind the envelope APIKEY (seed mints one on first run). The static
+// SPA at `/` stays open so the UI can load and prompt for the key; its
+// own /api calls then carry it.
 app.use('/api/*', apiKeyAuth)
 app.use('/v1/*', apiKeyAuth)
 
@@ -81,4 +97,43 @@ app.doc('/api/openapi.json', {
   info: { title: 'CCR API', version: APP_VERSION }
 })
 
-export default app
+// SPA + static fallback for production runs (Bun serving the built
+// single-file index.html). Vite handles the SPA in dev, and dist/
+// doesn't exist there, so we skip registration entirely when the build
+// output is missing. Registration order matters: this is attached
+// AFTER every API route, so it can never shadow them or strip auth.
+//
+// Gated on `typeof Bun !== 'undefined'` because @hono/vite-dev-server
+// imports this module in Vite's Node-based SSR runtime, where the Bun
+// global is missing and `hono/bun`'s SSG submodule throws at evaluation
+// time. The dynamic import keeps that submodule out of the Node load path.
+if (typeof Bun !== 'undefined') {
+  const indexHtmlFile = Bun.file('./dist/index.html')
+  if (await indexHtmlFile.exists()) {
+    const { serveStatic } = await import('hono/bun')
+    app.use('/*', serveStatic({ root: './dist' }))
+    const indexHtml = await indexHtmlFile.text()
+    app.get('/*', (c) => c.html(indexHtml))
+  }
+}
+
+// Bun's per-request idle timeout defaults to 10s and kills any socket
+// that goes quiet for that long. LLM calls routinely think for far
+// longer than 10s before the first token, so the default makes Bun
+// abort live requests with "request timed out after 10 seconds". 255
+// is Bun's maximum; lower values just reintroduce the cutoff. The
+// envelope key is in ms — convert to seconds and clamp to 1..255.
+const idleTimeout = envelope.API_TIMEOUT_MS
+  ? Math.min(Math.max(1, Math.round(envelope.API_TIMEOUT_MS / 1000)), 255)
+  : 255
+
+// Bun auto-serves a default export of `{ port, fetch }`. Vite's
+// dev-server only looks at `.fetch`, so the extra fields are harmless
+// in dev. PORT comes from the schema-parsed envelope (default 3456),
+// so any in-app feature that builds a self URL from it matches the
+// port Bun actually bound.
+export default {
+  port: envelope.PORT,
+  idleTimeout,
+  fetch: app.fetch
+}
