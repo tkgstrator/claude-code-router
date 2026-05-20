@@ -1,8 +1,8 @@
-import { createHash, randomUUID } from "crypto";
-import { readFileSync } from "fs";
-import { arch, homedir } from "os";
-import { createRequire } from "module";
-import { join } from "path";
+import { createHash, randomUUID } from 'crypto'
+import { readFileSync } from 'fs'
+import { createRequire } from 'module'
+import { arch, homedir } from 'os'
+import { join } from 'path'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
 // request as "CLI" (subscription allotment) vs "Other" (overage) by
@@ -19,51 +19,45 @@ import { join } from "path";
 const CODEX_USER_AGENT: string = (() => {
   const safe = (fn: () => string, fallback: string): string => {
     try {
-      const v = fn().trim();
-      return v.length > 0 ? v : fallback;
+      const v = fn().trim()
+      return v.length > 0 ? v : fallback
     } catch {
-      return fallback;
+      return fallback
     }
-  };
+  }
   const codexVer =
-    (process.env.CODEX_CLI_VERSION ?? "").trim() ||
-    safe(
-      () => createRequire(import.meta.url)("@openai/codex/package.json").version,
-      "0.0.0"
-    );
+    (process.env.CODEX_CLI_VERSION ?? '').trim() ||
+    safe(() => createRequire(import.meta.url)('@openai/codex/package.json').version, '0.0.0')
   const osStr = safe(() => {
-    const rel = readFileSync("/etc/os-release", "utf-8");
-    const name = rel.match(/^NAME="?([^"\n]+)"?/m)?.[1] ?? "Linux";
-    const ver = rel.match(/^VERSION_ID="?([^"\n]+)"?/m)?.[1] ?? "";
-    return `${name} ${ver}`.trim();
-  }, "Linux");
-  return `codex_cli/${codexVer} (${osStr}; ${arch()})`;
-})();
+    const rel = readFileSync('/etc/os-release', 'utf-8')
+    const name = rel.match(/^NAME="?([^"\n]+)"?/m)?.[1] ?? 'Linux'
+    const ver = rel.match(/^VERSION_ID="?([^"\n]+)"?/m)?.[1] ?? ''
+    return `${name} ${ver}`.trim()
+  }, 'Linux')
+  return `codex_cli/${codexVer} (${osStr}; ${arch()})`
+})()
 
-const DEFAULT_CODEX_AUTH_PATH = join(homedir(), ".codex", "auth.json");
+const DEFAULT_CODEX_AUTH_PATH = join(homedir(), '.codex', 'auth.json')
 
 interface CodexAuthFile {
   tokens?: {
-    access_token?: string;
-    account_id?: string;
-  };
+    access_token?: string
+    account_id?: string
+  }
 }
 
 function readCodexAuth(codexAuthPath: string): { token: string; accountId?: string } {
-  let data: CodexAuthFile;
+  let data: CodexAuthFile
   try {
-    data = JSON.parse(readFileSync(codexAuthPath, "utf-8"));
+    data = JSON.parse(readFileSync(codexAuthPath, 'utf-8'))
   } catch {
-    throw new Error(
-      `Cannot read Codex credentials from ${codexAuthPath}. ` +
-        "Authenticate the Codex CLI first."
-    );
+    throw new Error(`Cannot read Codex credentials from ${codexAuthPath}. ` + 'Authenticate the Codex CLI first.')
   }
-  const token = data.tokens?.access_token;
+  const token = data.tokens?.access_token
   if (!token) {
-    throw new Error("Codex credentials are missing tokens.access_token");
+    throw new Error('Codex credentials are missing tokens.access_token')
   }
-  return { token, accountId: data.tokens?.account_id };
+  return { token, accountId: data.tokens?.account_id }
 }
 
 // ChatGPT-subscription auth for the codex provider.
@@ -79,38 +73,35 @@ function readCodexAuth(codexAuthPath: string): { token: string; accountId?: stri
 // The llms `auth()` hook only fires in passthrough/bypass mode, which
 // codex can't use, so the credential injection is done here via
 // transformRequestIn's returned `config` (merged by the pipeline).
-export class CodexCredentialsTransformer {
-  name = "codex-oauth";
+export class CodexOauthTransformer {
+  name = 'codex-oauth'
 
   async transformRequestIn(request: any, provider: any) {
     const dbToken =
-      typeof provider?.transformer?.subscriptionAuth?.accessToken === "string"
+      typeof provider?.transformer?.subscriptionAuth?.accessToken === 'string'
         ? provider.transformer.subscriptionAuth.accessToken
-        : "";
+        : ''
     const dbAccountId =
-      typeof provider?.transformer?.subscriptionAuth?.accountId === "string"
+      typeof provider?.transformer?.subscriptionAuth?.accountId === 'string'
         ? provider.transformer.subscriptionAuth.accountId
-        : undefined;
+        : undefined
     const codexAuthPath =
-      typeof provider?.transformer?.subscriptionCredentialPath === "string" &&
+      typeof provider?.transformer?.subscriptionCredentialPath === 'string' &&
       provider.transformer.subscriptionCredentialPath.length > 0
         ? provider.transformer.subscriptionCredentialPath
-        : DEFAULT_CODEX_AUTH_PATH;
-    const fallback = readCodexAuth(codexAuthPath);
-    const token = dbToken.length > 0 ? dbToken : fallback.token;
-    const accountId = dbAccountId ?? fallback.accountId;
+        : DEFAULT_CODEX_AUTH_PATH
+    const fallback = readCodexAuth(codexAuthPath)
+    const token = dbToken.length > 0 ? dbToken : fallback.token
+    const accountId = dbAccountId ?? fallback.accountId
 
     // chatgpt.com/backend-api/codex requires `instructions`, `input`
     // as a list, store=false and stream=true. openai-responses already
     // produced `input` and lifts `instructions` from the system block;
     // enforce the rest (and a non-empty instructions fallback).
-    request.store = false;
-    request.stream = true;
-    if (
-      typeof request.instructions !== "string" ||
-      request.instructions.length === 0
-    ) {
-      request.instructions = "You are a helpful assistant.";
+    request.store = false
+    request.stream = true
+    if (typeof request.instructions !== 'string' || request.instructions.length === 0) {
+      request.instructions = 'You are a helpful assistant.'
     }
 
     // OpenAI routes its prompt cache by `prompt_cache_key`; the official
@@ -118,21 +109,19 @@ export class CodexCredentialsTransformer {
     // deterministic key from the stable request prefix instead — every
     // turn of the same conversation hashes identically and hits the
     // cache, fixing the prefix being re-billed each turn.
-    request.prompt_cache_key = createHash("sha256")
-      .update(
-        `${request.model ?? ""}\n${request.instructions ?? ""}\n${JSON.stringify(request.tools ?? [])}`
-      )
-      .digest("hex")
-      .slice(0, 32);
+    request.prompt_cache_key = createHash('sha256')
+      .update(`${request.model ?? ''}\n${request.instructions ?? ''}\n${JSON.stringify(request.tools ?? [])}`)
+      .digest('hex')
+      .slice(0, 32)
 
     // provider.baseUrl is the codex backend root
     // (https://chatgpt.com/backend-api/codex); the Responses endpoint
     // is one level down. sendRequestToProvider uses config.url verbatim
     // when set, otherwise provider.baseUrl.
-    const base = String(provider?.baseUrl ?? "").replace(/\/+$/, "");
-    const url = /\/responses$/.test(base) ? base : `${base}/responses`;
+    const base = String(provider?.baseUrl ?? '').replace(/\/+$/, '')
+    const url = /\/responses$/.test(base) ? base : `${base}/responses`
 
-    const sessionId = randomUUID();
+    const sessionId = randomUUID()
 
     return {
       body: request,
@@ -140,19 +129,19 @@ export class CodexCredentialsTransformer {
         url,
         headers: {
           Authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-          accept: "text/event-stream",
-          originator: "codex_cli",
-          "user-agent": CODEX_USER_AGENT,
+          'content-type': 'application/json',
+          accept: 'text/event-stream',
+          originator: 'codex_cli',
+          'user-agent': CODEX_USER_AGENT,
           session_id: sessionId,
           thread_id: sessionId,
-          "x-client-request-id": randomUUID(),
-          "x-codex-beta-features": "terminal_resize_reflow",
-          "x-codex-window-id": `${sessionId}:0`,
-          ...(accountId ? { "chatgpt-account-id": accountId } : {}),
-        },
-      },
-    };
+          'x-client-request-id': randomUUID(),
+          'x-codex-beta-features': 'terminal_resize_reflow',
+          'x-codex-window-id': `${sessionId}:0`,
+          ...(accountId ? { 'chatgpt-account-id': accountId } : {})
+        }
+      }
+    }
   }
 
   // Response chain runs reversed, so this fires BEFORE openai-responses.
@@ -163,15 +152,15 @@ export class CodexCredentialsTransformer {
   // Re-tag a successful stream so the SSE branch is taken. Non-2xx
   // bodies are genuine JSON errors; leave them untouched.
   async transformResponseOut(response: Response) {
-    if (!response.ok) return response;
-    const ct = response.headers.get("content-type") || "";
-    if (ct.includes("text/event-stream")) return response;
-    const headers = new Headers(response.headers);
-    headers.set("content-type", "text/event-stream");
+    if (!response.ok) return response
+    const ct = response.headers.get('content-type') || ''
+    if (ct.includes('text/event-stream')) return response
+    const headers = new Headers(response.headers)
+    headers.set('content-type', 'text/event-stream')
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers,
-    });
+      headers
+    })
   }
 }

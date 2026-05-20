@@ -46,7 +46,7 @@ const readJson = async <S extends z.ZodTypeAny>(path: string, schema: S): Promis
 
 // Read the OAuth access token a subscription provider authenticates
 // with, so the test makes a *real* authed call (not just a
-// file-presence check). Mirrors how the llms claude-code-credentials
+// file-presence check). Mirrors how the llms claude-code-oauth
 // transformer / subscriptionInfoService read the same files.
 const readSubscriptionAuth = async (apiBaseUrl: string): Promise<SubAuth | { error: string }> => {
   if (apiBaseUrl.includes('anthropic.com')) {
@@ -57,7 +57,7 @@ const readSubscriptionAuth = async (apiBaseUrl: string): Promise<SubAuth | { err
       return { error: 'Claude subscription token expired — re-login with the Claude CLI' }
     }
     // Claude Code sends the OAuth token as x-api-key (see the llms
-    // claude-code-credentials transformer).
+    // claude-code-oauth transformer).
     return { token: oauth.accessToken }
   }
   if (apiBaseUrl.includes('chatgpt.com') || apiBaseUrl.includes('openai.com')) {

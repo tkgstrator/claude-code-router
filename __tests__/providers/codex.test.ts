@@ -7,7 +7,7 @@
  *
  * Every enabled codex subscription model from /api/config is smoke
  * tested through /v1 (codex routes via the openai-responses +
- * codex-credentials chain to the ChatGPT backend). Any non-200 — incl.
+ * codex-oauth chain to the ChatGPT backend). Any non-200 — incl.
  * a 429 — is a hard failure, same policy as the claude-code matrix.
  */
 

@@ -2,7 +2,7 @@
  * Shared pino logger. Verbosity is controlled solely by LOG_LEVEL; file output
  * by LOG. No content-based filtering — a plain configured pino instance.
  *
- * Consumed by the vendored llms pipeline (src/llms) as `fastifyShim.log` /
+ * Consumed by the vendored llms pipeline (src/vendor/llms) as `fastifyShim.log` /
  * `ctx.log` (see llmsContext.ts); `logger.child({ reqId })` in
  * sendRequestToProvider groups one request's lines for the UI LogViewer.
  * For Hono-side request logging, pino's official pattern is

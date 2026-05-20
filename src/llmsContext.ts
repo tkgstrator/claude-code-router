@@ -5,7 +5,7 @@
  * Mirrors what the llms Server constructor builds (ConfigService /
  * TransformerService / TokenizerService / ProviderService) so the Hono
  * /v1 adapter can drive the exact same router + transformer pipeline
- * (src/llms) directly, in-process, without booting Fastify (whose
+ * (src/vendor/llms) directly, in-process, without booting Fastify (whose
  * listen()/avvio lifecycle hangs inside the Vite SSR runner).
  *
  * @ts-nocheck + tsconfig maps @/llms/* to an any-stub, so the strict

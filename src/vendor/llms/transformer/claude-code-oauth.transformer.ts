@@ -1,70 +1,63 @@
-import { homedir } from "os";
-import { join } from "path";
-import { readFileSync, writeFileSync } from "fs";
-import { logger } from "../../lib/logger";
+import { readFileSync, writeFileSync } from 'fs'
+import { homedir } from 'os'
+import { join } from 'path'
+import { logger } from '../../../lib/logger'
 
-const DEFAULT_CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
+const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.claude', '.credentials.json')
 
-const REFRESH_URL = "https://platform.claude.com/v1/oauth/token";
-const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+const REFRESH_URL = 'https://platform.claude.com/v1/oauth/token'
+const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 
 interface ClaudeCredentials {
   claudeAiOauth: {
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: number;
-    scopes: string[];
-    subscriptionType?: string;
-    rateLimitTier?: string;
-  };
-  organizationUuid?: string;
+    accessToken: string
+    refreshToken: string
+    expiresAt: number
+    scopes: string[]
+    subscriptionType?: string
+    rateLimitTier?: string
+  }
+  organizationUuid?: string
 }
 
 function readCredentials(credentialsPath: string): ClaudeCredentials {
   try {
-    return JSON.parse(readFileSync(credentialsPath, "utf-8"));
+    return JSON.parse(readFileSync(credentialsPath, 'utf-8'))
   } catch {
     throw new Error(
-      `Cannot read Claude Code credentials from ${credentialsPath}. ` +
-        "Please authenticate Claude Code first."
-    );
+      `Cannot read Claude Code credentials from ${credentialsPath}. ` + 'Please authenticate Claude Code first.'
+    )
   }
 }
 
-async function refreshToken(
-  refreshTokenValue: string,
-  credentialsPath: string
-): Promise<string> {
+async function refreshToken(refreshTokenValue: string, credentialsPath: string): Promise<string> {
   const response = await fetch(REFRESH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      grant_type: "refresh_token",
+      grant_type: 'refresh_token',
       refresh_token: refreshTokenValue,
-      client_id: CLIENT_ID,
-    }),
-  });
+      client_id: CLIENT_ID
+    })
+  })
 
   if (!response.ok) {
     // Include the upstream body so the *reason* (e.g. invalid_grant
     // when the rotating refresh token was already consumed) is visible
     // instead of a bare status code.
-    const detail = await response.text().catch(() => "");
-    throw new Error(
-      `Token refresh failed: ${response.status} ${detail}`.trim()
-    );
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Token refresh failed: ${response.status} ${detail}`.trim())
   }
 
-  const data = (await response.json()) as any;
-  const credentials = readCredentials(credentialsPath);
-  credentials.claudeAiOauth.accessToken = data.access_token;
-  credentials.claudeAiOauth.expiresAt =
-    Date.now() + (data.expires_in ?? 3600) * 1000;
+  const data = (await response.json()) as any
+  const credentials = readCredentials(credentialsPath)
+  credentials.claudeAiOauth.accessToken = data.access_token
+  credentials.claudeAiOauth.expiresAt = Date.now() + (data.expires_in ?? 3600) * 1000
   if (data.refresh_token) {
-    credentials.claudeAiOauth.refreshToken = data.refresh_token;
+    credentials.claudeAiOauth.refreshToken = data.refresh_token
   }
-  writeFileSync(credentialsPath, JSON.stringify(credentials));
-  return data.access_token;
+  writeFileSync(credentialsPath, JSON.stringify(credentials))
+  return data.access_token
 }
 
 // Shared in-flight refresh. Without this, Claude Code firing the main
@@ -77,16 +70,15 @@ async function refreshToken(
 // is exactly why Opus (won the refresh) works while Sonnet (lost it)
 // fails. Collapsing concurrent refreshes into one promise means every
 // waiter gets the same fresh token (or the same consistent fallback).
-const refreshInFlightByPath = new Map<string, Promise<string>>();
+const refreshInFlightByPath = new Map<string, Promise<string>>()
 
 async function getValidToken(credentialsPath: string): Promise<string> {
-  const credentials = readCredentials(credentialsPath);
-  const { accessToken, refreshToken: rt, expiresAt } =
-    credentials.claudeAiOauth;
+  const credentials = readCredentials(credentialsPath)
+  const { accessToken, refreshToken: rt, expiresAt } = credentials.claudeAiOauth
 
   // Token still good for >5 minutes — use it as-is.
   if (expiresAt - Date.now() >= 5 * 60 * 1000) {
-    return accessToken;
+    return accessToken
   }
 
   if (!refreshInFlightByPath.has(credentialsPath)) {
@@ -98,24 +90,24 @@ async function getValidToken(credentialsPath: string): Promise<string> {
         // sendRequestToProvider).
         logger.error(
           {
-            provider: "claude-code",
-            err: String((e as Error)?.message ?? e),
+            provider: 'claude-code',
+            err: String((e as Error)?.message ?? e)
           },
-          "[claude-code-oauth] OAuth token refresh failed; using " +
-            "the existing token (likely to 401). Re-authenticate: run " +
-            "`claude` and sign in, which rewrites " +
-            "~/.claude/.credentials.json (no `ccr restart` needed — the " +
-            "file is re-read every request)."
-        );
-        return accessToken;
+          '[claude-code-oauth] OAuth token refresh failed; using ' +
+            'the existing token (likely to 401). Re-authenticate: run ' +
+            '`claude` and sign in, which rewrites ' +
+            '~/.claude/.credentials.json (no `ccr restart` needed — the ' +
+            'file is re-read every request).'
+        )
+        return accessToken
       })
       .finally(() => {
-        refreshInFlightByPath.delete(credentialsPath);
-      });
-    refreshInFlightByPath.set(credentialsPath, inFlight);
+        refreshInFlightByPath.delete(credentialsPath)
+      })
+    refreshInFlightByPath.set(credentialsPath, inFlight)
   }
 
-  return refreshInFlightByPath.get(credentialsPath)!;
+  return refreshInFlightByPath.get(credentialsPath)!
 }
 
 // A Claude subscription OAuth token only gets the subscription's
@@ -132,8 +124,7 @@ async function getValidToken(credentialsPath: string): Promise<string> {
 //     other betas are preserved), and
 //  3. a system prompt whose FIRST block is exactly the Claude Code
 //     identity string (Anthropic checks the first block only).
-const CLAUDE_CODE_IDENTITY =
-  "You are Claude Code, Anthropic's official CLI for Claude.";
+const CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
 // Anthropic system is a string or an array of text blocks. Normalise
 // to an array and guarantee the first block is the Claude Code
@@ -147,34 +138,34 @@ const CLAUDE_CODE_IDENTITY =
 // identity as its first system block, so the normal path is a no-op.
 function withClaudeCodeIdentity(system: unknown): any[] {
   const blocks: any[] =
-    typeof system === "string"
+    typeof system === 'string'
       ? system.length > 0
-        ? [{ type: "text", text: system }]
+        ? [{ type: 'text', text: system }]
         : []
       : Array.isArray(system)
-        ? system.map((b) => (typeof b === "string" ? { type: "text", text: b } : b))
-        : [];
-  const firstText = typeof blocks[0]?.text === "string" ? blocks[0].text : "";
-  if (firstText.startsWith(CLAUDE_CODE_IDENTITY)) return blocks;
-  return [{ type: "text", text: CLAUDE_CODE_IDENTITY }, ...blocks];
+        ? system.map((b) => (typeof b === 'string' ? { type: 'text', text: b } : b))
+        : []
+  const firstText = typeof blocks[0]?.text === 'string' ? blocks[0].text : ''
+  if (firstText.startsWith(CLAUDE_CODE_IDENTITY)) return blocks
+  return [{ type: 'text', text: CLAUDE_CODE_IDENTITY }, ...blocks]
 }
 
-export class ClaudeCodeCredentialsTransformer {
-  name = "claude-code-oauth";
-  endPoint = "/v1/messages";
+export class ClaudeCodeOauthTransformer {
+  name = 'claude-code-oauth'
+  endPoint = '/v1/messages'
 
   async auth(request: any, provider: any) {
     const dbToken =
-      typeof provider?.transformer?.subscriptionAuth?.accessToken === "string"
+      typeof provider?.transformer?.subscriptionAuth?.accessToken === 'string'
         ? provider.transformer.subscriptionAuth.accessToken
-        : "";
+        : ''
     const credentialsPath =
-      typeof provider?.transformer?.subscriptionCredentialPath === "string" &&
+      typeof provider?.transformer?.subscriptionCredentialPath === 'string' &&
       provider.transformer.subscriptionCredentialPath.length > 0
         ? provider.transformer.subscriptionCredentialPath
-        : DEFAULT_CREDENTIALS_PATH;
-    const token = dbToken.length > 0 ? dbToken : await getValidToken(credentialsPath);
-    request.system = withClaudeCodeIdentity(request.system);
+        : DEFAULT_CREDENTIALS_PATH
+    const token = dbToken.length > 0 ? dbToken : await getValidToken(credentialsPath)
+    request.system = withClaudeCodeIdentity(request.system)
 
     // Remove thinking blocks that lack a valid Anthropic signature.
     // When conversation turns are routed to different providers, thinking
@@ -186,14 +177,13 @@ export class ClaudeCodeCredentialsTransformer {
     // redacted_thinking blocks are Anthropic-native and are always kept.
     if (Array.isArray(request.messages)) {
       request.messages = request.messages.map((msg: any) => {
-        if (!Array.isArray(msg.content)) return msg;
+        if (!Array.isArray(msg.content)) return msg
         const filtered = msg.content.filter(
           (block: any) =>
-            block.type !== "thinking" ||
-            (typeof block.signature === "string" && block.signature.length > 0)
-        );
-        return { ...msg, content: filtered };
-      });
+            block.type !== 'thinking' || (typeof block.signature === 'string' && block.signature.length > 0)
+        )
+        return { ...msg, content: filtered }
+      })
     }
 
     return {
@@ -201,19 +191,19 @@ export class ClaudeCodeCredentialsTransformer {
       config: {
         headers: {
           Authorization: `Bearer ${token}`,
-          "anthropic-version": "2023-06-01",
-          "x-api-key": undefined,
-        },
-      },
-    };
+          'anthropic-version': '2023-06-01',
+          'x-api-key': undefined
+        }
+      }
+    }
   }
 
   // Passthrough — request is already in Anthropic format
   async transformRequestOut(request: any) {
-    return request;
+    return request
   }
 
   async transformResponseIn(response: Response) {
-    return response;
+    return response
   }
 }

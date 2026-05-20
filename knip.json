@@ -11,7 +11,7 @@
         "__tests__/**/*.ts"
       ],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "__tests__/**/*.ts"],
-      "ignore": ["src/llms/**"]
+      "ignore": ["src/vendor/llms/**"]
     }
   },
   "ignoreFiles": [
