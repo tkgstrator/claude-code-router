@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi'
+import { EmptyStringToNullSchema } from './common.dto'
 import { LogLevelSchema } from './env.dto'
 import { JsonValueSchema, PresetTransformerConfigSchema } from './preset.dto'
 import { ProviderSchema } from './provider.dto'
@@ -69,22 +70,20 @@ export const ConfigSchema = z.object({
 })
 export type Config = z.infer<typeof ConfigSchema>
 
-// applyUiConfig accepts a Partial-ish shape — Providers/Router optional,
-// envelope keys free-form. Mirror that without dropping into z.any.
-//
-// Path scalars (CLAUDE_PATH / PROXY_URL / CUSTOM_ROUTER_PATH) are
-// modelled explicitly so the POST contract matches the GET contract:
-// the GET shape (AppConfigSchema) returns `string | null`, and the UI
-// round-trips that back as `string | null | undefined` or the empty
-// string for "unset". pruneUnsetEnvelopePaths in sync-to-disk.ts then
-// collapses null / "" / absent to "key absent on disk".
+// applyUiConfig accepts a partial-update payload — Providers/Router
+// and the path scalars are all optional so any caller can send only
+// the slice they're touching. Path scalars use EmptyStringToNullSchema
+// to coerce the React-Hook-Form default of "" to null on the way in;
+// pruneUnsetEnvelopePaths then collapses null to "key absent on disk".
+// The .optional() suffix represents "this key was not included in
+// this update" (vs. null / "" which both mean "explicitly unset").
 export const ApplyConfigPayloadSchema = z
   .object({
     Providers: z.array(ProviderSchema).optional(),
     Router: RouterSchema.partial().optional(),
-    CLAUDE_PATH: z.string().nullable().optional(),
-    PROXY_URL: z.string().nullable().optional(),
-    CUSTOM_ROUTER_PATH: z.string().nullable().optional()
+    CLAUDE_PATH: EmptyStringToNullSchema.optional(),
+    PROXY_URL: EmptyStringToNullSchema.optional(),
+    CUSTOM_ROUTER_PATH: EmptyStringToNullSchema.optional()
   })
   .catchall(JsonValueSchema)
   .openapi('ApplyConfigPayload')
