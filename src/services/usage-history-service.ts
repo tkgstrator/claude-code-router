@@ -1,6 +1,6 @@
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
-import { getUsage } from './usageService'
+import { getUsage } from './usage-service'
 
 // Keep a bit more than the week the UI charts so the edges look full.
 const RETAIN_DAYS = 8

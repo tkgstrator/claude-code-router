@@ -3,7 +3,6 @@ import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { z } from 'zod'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,15 +15,9 @@ import {
 } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { TransformerFormSchema, type TransformerFormValues } from '@/schemas/forms.dto'
 import { useConfig } from './ConfigProvider'
 import { TransformerList } from './TransformerList'
-
-const transformerSchema = z.object({
-  path: z.string().min(1),
-  options: z.array(z.object({ key: z.string(), value: z.string() }))
-})
-
-type TransformerFormValues = z.infer<typeof transformerSchema>
 
 function TransformerEditDialog({
   open,
@@ -40,7 +33,7 @@ function TransformerEditDialog({
   const { t } = useTranslation()
 
   const form = useForm<TransformerFormValues>({
-    resolver: zodResolver(transformerSchema),
+    resolver: zodResolver(TransformerFormSchema),
     defaultValues: { path: '', options: [] }
   })
 

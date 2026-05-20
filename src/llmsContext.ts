@@ -20,9 +20,9 @@ import { TokenizerService } from '@/llms/services/tokenizer'
 import { TransformerService } from '@/llms/services/transformer'
 import { router } from '@/llms/utils/router'
 import { logger } from './lib/logger'
-import { loadFullConfig } from './services/configService'
-import { getActiveSubAccountAuth } from './services/subscriptionAccountSyncService'
-import { getSubscriptionsInfo } from './services/subscriptionInfoService'
+import { loadFullConfig } from './services/config'
+import { getActiveSubAccountAuth } from './services/subscription-account-sync-service'
+import { getSubscriptionsInfo } from './services/subscription-info-service'
 
 // Re-export the pipeline entrypoints through this @ts-nocheck module so
 // the strict Hono adapter can import them as `any` (the @/llms/* stub

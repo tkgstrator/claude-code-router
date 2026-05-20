@@ -11,7 +11,7 @@
  */
 
 import 'dotenv/config'
-import { seedScrapedPricesIntoDb } from '../src/services/priceSeedService'
+import { seedScrapedPricesIntoDb } from '../src/services/price-seed-service'
 
 const outcomes = await seedScrapedPricesIntoDb()
 for (const o of outcomes) {

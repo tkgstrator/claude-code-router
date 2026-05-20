@@ -4,13 +4,8 @@
  */
 
 import { describe, expect, test } from 'bun:test'
+import { ConditionSchema, JsonValueSchema, PresetFileSchema, PresetMetadataSchema } from '../../src/schemas'
 import { evaluateCondition } from '../../src/shared/preset/schema'
-import {
-  ConditionSchema,
-  JsonValueSchema,
-  PresetFileSchema,
-  PresetMetadataSchema,
-} from '../../src/shared/preset/types'
 
 describe('JsonValueSchema', () => {
   test('accepts primitives', () => {

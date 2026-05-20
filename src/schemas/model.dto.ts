@@ -50,3 +50,14 @@ export const ModelTestAllResponseSchema = z
 export const UpdateModelBodySchema = z.object({
   enabled: z.boolean()
 })
+
+// Vendor /v1/models response shapes. OpenAI-compatible returns
+// `{ data: [{ id }] }`; Google Gemini returns `{ models: [{ name }] }`.
+// We accept either and pluck only the identifier — anything else
+// (description, capabilities, …) is ignored.
+export const VendorModelsResponseSchema = z
+  .object({
+    data: z.array(z.object({ id: z.string().nonempty().optional() })).optional(),
+    models: z.array(z.object({ name: z.string().nonempty().optional() })).optional()
+  })
+  .loose()

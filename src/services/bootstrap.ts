@@ -1,9 +1,9 @@
 import { initConfig, initDir } from '../lib/configEnvelope'
 import { logger, syncLevelFromEnv } from '../lib/logger'
-import { ensureRouterSlots, ensureSeedProviders } from './configService'
-import { seedScrapedPricesIntoDb } from './priceSeedService'
-import { syncSubAccountsToDb } from './subscriptionAccountSyncService'
-import { startUsageCapture } from './usageJob'
+import { ensureRouterSlots, ensureSeedProviders } from './config'
+import { seedScrapedPricesIntoDb } from './price-seed-service'
+import { syncSubAccountsToDb } from './subscription-account-sync-service'
+import { startUsageCapture } from './usage-job'
 
 // One-shot bootstrap for hosts that don't go through the legacy
 // Fastify Server class — the Hono root in src/index.ts calls this at

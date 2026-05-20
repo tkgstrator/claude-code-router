@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { RefreshModelsResponseSchema } from '../../schemas'
-import { refreshModelsForAllProviders } from '../../services/modelSyncService'
+import { refreshModelsForAllProviders } from '../../services/model-sync-service'
 
 export const refreshModelsRoute = new OpenAPIHono()
 

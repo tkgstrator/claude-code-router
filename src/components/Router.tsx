@@ -2,7 +2,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
-import { z } from 'zod'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -10,18 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
-import { RouterSchema } from '@/schemas'
+import { type RouterFormInput, type RouterFormOutput, RouterFormSchema } from '@/schemas/forms.dto'
 import type { Config } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { SelectCombobox } from './SelectCombobox'
-
-const formSchema = RouterSchema.extend({
-  forceUseImageAgent: z.string().nonempty()
-})
-
-type RouterFormInput = z.input<typeof formSchema>
-type RouterFormOutput = z.output<typeof formSchema>
 
 export function Router() {
   const { config } = useConfig()
@@ -36,7 +28,7 @@ function RouterForm({ config }: { config: Config }) {
   const modelOptions = useEnabledModelOptions()
 
   const form = useForm<RouterFormInput, unknown, RouterFormOutput>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(RouterFormSchema),
     defaultValues: {
       default: config.Router.default,
       background: config.Router.background,

@@ -1,0 +1,150 @@
+/**
+ * Load the scraped official vendor prices
+ * (src/shared/data/providers/<vendor>/prices.json, surfaced as
+ * OFFICIAL_VENDOR_PRICES) into the Model table for the three
+ * first-party API vendors.
+ *
+ * Behaviour: for each of openai / anthropic / google (api_key auth
+ * only), the Model catalog is reconciled to exactly the scraped set —
+ * models the scrape no longer lists are deleted (their RouterSlot
+ * binding nulled first so the FK Restrict doesn't abort), and every
+ * scraped model is upserted with its USD/1M input+output price,
+ * `deprecated` (from the deprecations registry) and `legacy` (from the
+ * scrape) flags.
+ *
+ * Subscription providers (claude-code / codex, authMode=subscription)
+ * are intentionally untouched — their pricing is plan-based, not
+ * per-token, and the user manages those separately.
+ */
+
+import type { z } from '@hono/zod-openapi'
+import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, VENDOR_DEFAULTS } from '@/shared/data'
+import { getPrismaClient } from '../db/client'
+import { AuthMode, Prisma, type PrismaClient } from '../generated/prisma/client'
+import type { PriceSeedOutcomeSchema } from '../schemas/price.dto'
+import { apiStyleForVendor, modelApiStyleOverride } from './config'
+
+const OFFICIAL_VENDORS = ['openai', 'anthropic', 'google'] as const
+type OfficialVendor = (typeof OFFICIAL_VENDORS)[number]
+
+export type PriceSeedOutcome = z.infer<typeof PriceSeedOutcomeSchema>
+
+type Tx = Prisma.TransactionClient
+type PriceEntry = NonNullable<(typeof OFFICIAL_VENDOR_PRICES)[OfficialVendor]>[string]
+type ProviderWithModels = NonNullable<Awaited<ReturnType<Tx['provider']['findUnique']>>> & {
+  models: { name: string }[]
+}
+
+// Find or recreate the Provider row for a first-party vendor. A missing
+// row means the user removed it or the DB pre-dates ensureSeedProviders;
+// either way we reinstate it as api_key with no key set so the catalog
+// stays seeded.
+const ensureProviderRow = async (tx: Tx, vendor: OfficialVendor): Promise<ProviderWithModels> => {
+  const existing = await tx.provider.findUnique({
+    where: { name: vendor },
+    include: { models: true }
+  })
+  if (existing) return existing
+  const defaults = VENDOR_DEFAULTS[vendor]
+  if (!defaults) {
+    throw new Error(`VENDOR_DEFAULTS missing entry for first-party vendor "${vendor}"`)
+  }
+  return tx.provider.create({
+    data: {
+      name: vendor,
+      apiBaseUrl: defaults.baseUrl,
+      apiKey: null,
+      authMode: AuthMode.api_key,
+      apiStyle: apiStyleForVendor(vendor),
+      transformer: defaults.transformer === undefined ? Prisma.DbNull : defaults.transformer
+    },
+    include: { models: true }
+  })
+}
+
+// Delete model rows the scrape no longer lists, nulling any RouterSlot
+// pointing at them first so the FK Restrict can't abort the transaction.
+const deleteStaleModels = async (tx: Tx, providerId: string, stale: string[]): Promise<number> => {
+  if (stale.length === 0) return 0
+  await tx.routerSlot.updateMany({
+    where: { model: { providerId, name: { in: stale } } },
+    data: { modelId: null }
+  })
+  const res = await tx.model.deleteMany({
+    where: { providerId, name: { in: stale } }
+  })
+  return res.count
+}
+
+const modelDataFromEntry = (id: string, entry: PriceEntry) => ({
+  deprecated: isDeprecatedModel(id),
+  legacy: Boolean(entry.legacy),
+  inputPer1M: entry.inputPer1M,
+  outputPer1M: entry.outputPer1M,
+  cachedInputPer1M: entry.cachedInputPer1M === undefined ? null : entry.cachedInputPer1M,
+  contextWindow: entry.contextWindow === undefined ? null : entry.contextWindow,
+  apiStyle: modelApiStyleOverride(id)
+})
+
+// Upsert each scraped model row. Returns {created, updated} counts.
+// Never overwrites Model.enabled — that's the user's toggle to own.
+const upsertScrapedModels = async (
+  tx: Tx,
+  providerId: string,
+  existingNames: ReadonlySet<string>,
+  priceMap: Record<string, PriceEntry>
+): Promise<{ created: number; updated: number }> => {
+  const counters = { created: 0, updated: 0 }
+  for (const id of Object.keys(priceMap)) {
+    const entry = priceMap[id]
+    const data = modelDataFromEntry(id, entry)
+    if (existingNames.has(id)) {
+      await tx.model.update({
+        where: { providerId_name: { providerId, name: id } },
+        data
+      })
+      counters.updated += 1
+    } else {
+      await tx.model.create({
+        data: {
+          providerId,
+          name: id,
+          ...data,
+          enabled: !(data.deprecated || data.legacy)
+        }
+      })
+      counters.created += 1
+    }
+  }
+  return counters
+}
+
+const seedVendor = async (tx: Tx, vendor: OfficialVendor): Promise<PriceSeedOutcome> => {
+  const priceMap = OFFICIAL_VENDOR_PRICES[vendor]
+  if (!priceMap || Object.keys(priceMap).length === 0) {
+    return { vendor, created: 0, updated: 0, deleted: 0, skipped: 'no scraped prices' }
+  }
+
+  const provider = await ensureProviderRow(tx, vendor)
+  // Never touch a subscription-auth provider that happens to share the
+  // name. (claude-code/codex use different names; this is belt-and-braces.)
+  if (provider.authMode !== AuthMode.api_key) {
+    return { vendor, created: 0, updated: 0, deleted: 0, skipped: 'provider is subscription auth' }
+  }
+
+  const desiredSet = new Set(Object.keys(priceMap))
+  const stale = provider.models.filter((m) => !desiredSet.has(m.name)).map((m) => m.name)
+  const deleted = await deleteStaleModels(tx, provider.id, stale)
+
+  const existingNames = new Set(provider.models.map((m) => m.name))
+  const { created, updated } = await upsertScrapedModels(tx, provider.id, existingNames, priceMap)
+  return { vendor, created, updated, deleted }
+}
+
+export async function seedScrapedPricesIntoDb(prisma: PrismaClient = getPrismaClient()): Promise<PriceSeedOutcome[]> {
+  const outcomes: PriceSeedOutcome[] = []
+  for (const vendor of OFFICIAL_VENDORS) {
+    outcomes.push(await prisma.$transaction((tx) => seedVendor(tx, vendor)))
+  }
+  return outcomes
+}

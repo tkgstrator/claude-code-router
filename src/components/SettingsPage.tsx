@@ -3,33 +3,18 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
-import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
+import { type SettingsFormInput, type SettingsFormOutput, SettingsFormSchema } from '@/schemas/forms.dto'
 import type { Config, StatusLineConfig } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { PageContainer, PageContent, PageHeader } from './PageLayout'
 import { SelectCombobox } from './SelectCombobox'
 import { StatusLineConfigDialog } from './StatusLineConfigDialog'
-
-const settingsSchema = z.object({
-  LOG: z.boolean(),
-  LOG_LEVEL: z.string().nonempty(),
-  CLAUDE_PATH: z.string().default(''),
-  HOST: z.string().default(''),
-  PORT: z.number().int().positive(),
-  API_TIMEOUT_MS: z.number().int().nonnegative(),
-  PROXY_URL: z.string().default(''),
-  APIKEY: z.string().default(''),
-  CUSTOM_ROUTER_PATH: z.string().default('')
-})
-
-type SettingsFormInput = z.input<typeof settingsSchema>
-type SettingsFormOutput = z.output<typeof settingsSchema>
 
 const LOG_LEVEL_OPTIONS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'].map((v) => ({ label: v, value: v }))
 
@@ -46,7 +31,7 @@ function SettingsForm({ config }: { config: Config }) {
   const [isStatusLineConfigOpen, setIsStatusLineConfigOpen] = useState(false)
 
   const form = useForm<SettingsFormInput, unknown, SettingsFormOutput>({
-    resolver: zodResolver(settingsSchema),
+    resolver: zodResolver(SettingsFormSchema),
     defaultValues: {
       LOG: config.LOG,
       LOG_LEVEL: config.LOG_LEVEL,

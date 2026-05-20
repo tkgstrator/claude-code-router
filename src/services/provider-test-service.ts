@@ -1,13 +1,12 @@
+import type { z } from '@hono/zod-openapi'
 import { VENDOR_DEFAULTS } from '@/shared'
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
-import { getSubscriptionsInfo } from './subscriptionInfoService'
+import type { ProviderTestResponseSchema } from '../schemas/provider.dto'
+import { isJsonObject } from './config/transformer'
+import { getSubscriptionsInfo } from './subscription-info-service'
 
-export interface ProviderTestResult {
-  success: boolean
-  latencyMs: number
-  error?: string
-}
+export type ProviderTestResult = z.infer<typeof ProviderTestResponseSchema>
 
 const probeApiKey = async (vendor: string, apiKey: string): Promise<{ ok: boolean; error?: string }> => {
   const defaults = VENDOR_DEFAULTS[vendor]
@@ -40,11 +39,7 @@ export async function testProvider(name: string): Promise<ProviderTestResult> {
   if (!provider) {
     return { success: false, latencyMs: dayjs().diff(start), error: `provider "${name}" not found` }
   }
-  if (
-    provider.transformer &&
-    typeof provider.transformer === 'object' &&
-    (provider.transformer as { providerEnabled?: unknown }).providerEnabled === false
-  ) {
+  if (isJsonObject(provider.transformer) && provider.transformer.providerEnabled === false) {
     return { success: false, latencyMs: dayjs().diff(start), error: 'provider is disabled' }
   }
   if (provider.authMode === 'subscription') {
@@ -54,7 +49,7 @@ export async function testProvider(name: string): Promise<ProviderTestResult> {
       return { success: false, latencyMs: dayjs().diff(start), error: 'provider is disabled' }
     }
     const account = match?.activeAccount
-    if (!account || !account.plan) {
+    if (!account?.plan) {
       return {
         success: false,
         latencyMs: dayjs().diff(start),

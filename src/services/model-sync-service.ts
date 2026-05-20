@@ -11,22 +11,44 @@
  * Providers with no api key, are skipped with a reason.
  */
 
+import type { z } from '@hono/zod-openapi'
 import { VENDOR_DEFAULTS } from '@/shared'
 import { isDeprecatedModel } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
+import { type RefreshOutcomeSchema, VendorModelsResponseSchema } from '../schemas/model.dto'
 
-export interface RefreshOutcome {
-  provider: string
-  added: string[]
-  error?: string
+export type RefreshOutcome = z.infer<typeof RefreshOutcomeSchema>
+
+const buildAuth = (
+  modelsAuth: NonNullable<(typeof VENDOR_DEFAULTS)[string]['modelsAuth']>,
+  apiKey: string,
+  url: string
+): { url: string; headers: Record<string, string> } => {
+  const base: Record<string, string> = { Accept: 'application/json' }
+  if (modelsAuth === 'bearer') {
+    return { url, headers: { ...base, Authorization: `Bearer ${apiKey}` } }
+  }
+  if (modelsAuth === 'x-api-key') {
+    return { url, headers: { ...base, 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' } }
+  }
+  return { url: `${url}?key=${encodeURIComponent(apiKey)}`, headers: base }
 }
 
-interface OpenAiModelsResponse {
-  data?: Array<{ id?: unknown }>
-}
+type VendorModelsResponse = z.infer<typeof VendorModelsResponseSchema>
 
-interface GoogleModelsResponse {
-  models?: Array<{ name?: unknown }>
+const extractModelIds = (data: VendorModelsResponse): string[] | null => {
+  // OpenAI-compatible: { data: [{ id }] }.
+  if (Array.isArray(data.data)) {
+    return data.data.flatMap((m) => (typeof m.id === 'string' && m.id.length > 0 ? [m.id] : []))
+  }
+  // Google Gemini: { models: [{ name: "models/gemini-..." }] }.
+  if (Array.isArray(data.models)) {
+    return data.models.flatMap((m) => {
+      if (typeof m.name !== 'string' || m.name.length === 0) return []
+      return [m.name.replace(/^models\//, '')]
+    })
+  }
+  return null
 }
 
 async function fetchVendorModels(vendor: string, apiKey: string): Promise<string[] | { error: string }> {
@@ -34,28 +56,14 @@ async function fetchVendorModels(vendor: string, apiKey: string): Promise<string
   if (!defaults?.modelsEndpoint || !defaults.modelsAuth) {
     return { error: 'no models endpoint configured for this vendor' }
   }
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  let url = defaults.modelsEndpoint
-  if (defaults.modelsAuth === 'bearer') {
-    headers.Authorization = `Bearer ${apiKey}`
-  } else if (defaults.modelsAuth === 'x-api-key') {
-    headers['x-api-key'] = apiKey
-    headers['anthropic-version'] = '2023-06-01'
-  } else if (defaults.modelsAuth === 'google-key-param') {
-    url += `?key=${encodeURIComponent(apiKey)}`
-  }
+  const { url, headers } = buildAuth(defaults.modelsAuth, apiKey, defaults.modelsEndpoint)
   const res = await fetch(url, { headers })
   if (!res.ok) return { error: `${vendor} returned HTTP ${res.status}` }
-  const data = (await res.json()) as OpenAiModelsResponse & GoogleModelsResponse
-  // OpenAI-compatible: { data: [{ id }] }
-  if (Array.isArray(data.data)) {
-    return data.data.map((m) => String(m.id ?? '')).filter((id) => id.length > 0)
-  }
-  // Google Gemini: { models: [{ name: "models/gemini-..." }] }
-  if (Array.isArray(data.models)) {
-    return data.models.map((m) => String(m.name ?? '').replace(/^models\//, '')).filter((id) => id.length > 0)
-  }
-  return { error: `${vendor} returned an unrecognised response shape` }
+  const parsed = VendorModelsResponseSchema.safeParse(await res.json())
+  if (!parsed.success) return { error: `${vendor} returned an unrecognised response shape` }
+  const ids = extractModelIds(parsed.data)
+  if (ids === null) return { error: `${vendor} returned an unrecognised response shape` }
+  return ids
 }
 
 export async function refreshModelsForAllProviders(): Promise<RefreshOutcome[]> {

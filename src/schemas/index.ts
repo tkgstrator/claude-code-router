@@ -2,7 +2,10 @@
 // working. Direct imports from `@/schemas/<domain>.dto` also work for new code.
 export * from './common.dto'
 export * from './config.dto'
+export * from './env.dto'
+export * from './forms.dto'
 export * from './model.dto'
+export * from './preset.dto'
 export * from './price.dto'
 export * from './provider.dto'
 export * from './request-log.dto'

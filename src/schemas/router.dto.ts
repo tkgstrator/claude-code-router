@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi'
+import { SCENARIO_KEYS } from '@/shared/db/types'
 import { EmptyStringToNullSchema } from './common.dto'
 
 // API wire shape returned by /api/config.
@@ -37,3 +38,10 @@ export const RouterConfigSchema = z.object({
   custom: z.unknown().optional()
 })
 export type RouterConfig = z.infer<typeof RouterConfigSchema>
+
+// Mirrors the Prisma ScenarioKey enum and the legacy `Router.*` keys so
+// the migration, configService, and UI all speak the same vocabulary.
+// Derived from the SCENARIO_KEYS const tuple (kept in shared/db/types
+// because it's plain data, not a Zod schema).
+export const ScenarioKeySchema = z.enum(SCENARIO_KEYS)
+export type ScenarioKey = z.infer<typeof ScenarioKeySchema>

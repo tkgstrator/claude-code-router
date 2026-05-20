@@ -1,6 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { UpdateModelBodySchema } from '../../../../../schemas'
-import { setModelEnabled } from '../../../../../services/configService'
+import { setModelEnabled } from '../../../../../services/config'
 
 export const providerModelRoute = new OpenAPIHono()
 

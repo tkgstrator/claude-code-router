@@ -10,30 +10,17 @@
  */
 import { appendFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
-import { HOME_DIR } from '@/shared/constants'
 import pino from 'pino'
 import pinoPretty from 'pino-pretty'
-import { z } from 'zod'
 import dayjs from '@/lib/dayjs'
+import { LoggerEnvSchema } from '@/schemas/env.dto'
+import { HOME_DIR } from '@/shared/constants'
 
 const LOG_DIR = path.join(HOME_DIR, 'logs')
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
 
-const envBool = (fallback: 'true' | 'false') =>
-  z
-    .string()
-    .transform((value) => value.trim().toLowerCase())
-    .pipe(z.enum(['true', 'false']))
-    .catch(fallback)
-    .transform((value) => value === 'true')
-
-const env = z
-  .object({
-    LOG: envBool('true'),
-    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).catch('info')
-  })
-  .parse(process.env)
+const env = LoggerEnvSchema.parse(process.env)
 
 const SIMPLE_REDACT_KEYS = [
   'authorization',

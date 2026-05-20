@@ -1,29 +1,16 @@
+import type { z } from '@hono/zod-openapi'
 import { getPrismaClient } from '../db/client'
 import type { PrismaClient } from '../generated/prisma/client'
+import type { SubscriptionInfoSchema, SubscriptionProviderInfoSchema } from '../schemas/subscription.dto'
+import { isJsonObject } from './config/transformer'
 
-export interface SubscriptionAccountInfo {
-  id: string
-  label: string
-  sourcePath: string
-  enabled: boolean
-  userName: string | null
-  userEmail: string | null
-  userId: string | null
-  plan: string | null
-  rateLimitTier: string | null
-  expiresAt: number | null
-  scopes: string[]
+export type SubscriptionAccountInfo = z.infer<typeof SubscriptionInfoSchema>
+export type SubscriptionInfo = z.infer<typeof SubscriptionProviderInfoSchema>
+
+const isProviderEnabled = (transformer: unknown): boolean => {
+  if (!isJsonObject(transformer)) return true
+  return transformer.providerEnabled !== false
 }
-
-export interface SubscriptionInfo {
-  providerName: string
-  enabled: boolean
-  accounts: SubscriptionAccountInfo[]
-  activeAccount: SubscriptionAccountInfo | null
-}
-
-const providerEnabled = (enabled: unknown, transformer: unknown): boolean =>
-  enabled !== false && (transformer as { providerEnabled?: unknown } | null | undefined)?.providerEnabled !== false
 
 const toAccountInfo = (a: {
   id: string
@@ -65,7 +52,7 @@ export async function getSubscriptionsInfo(prisma: PrismaClient = getPrismaClien
     const active = p.activeSubscriptionAccount ? toAccountInfo(p.activeSubscriptionAccount) : null
     return {
       providerName: p.name,
-      enabled: providerEnabled(true, p.transformer),
+      enabled: isProviderEnabled(p.transformer),
       accounts,
       activeAccount: active
     }

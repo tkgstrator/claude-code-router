@@ -1,28 +1,56 @@
 import { z } from '@hono/zod-openapi'
-import { ConfigEnvelopeSchema } from '@/shared/db/types'
-import { JsonValueSchema } from '@/shared/preset/types'
+import { LogLevelSchema } from './env.dto'
+import { JsonValueSchema, PresetTransformerConfigSchema } from './preset.dto'
 import { ProviderSchema } from './provider.dto'
 import { RouterConfigSchema, RouterSchema } from './router.dto'
 import { StatusLineConfigSchema } from './status-line.dto'
 import { TransformerSchema } from './transformer.dto'
 
-// API wire shape returned by /api/config. Extends ConfigEnvelopeSchema with
-// the DB-resident fields (Providers, Router) and overrides the path/url
-// scalars that composeUiConfig normalises from '' on disk to null on the
-// wire. Registered as .openapi('Config') for the generated OpenAPI doc.
-export const ApiConfigSchema = ConfigEnvelopeSchema.extend({
+// Whitelist of what is allowed to stay on disk in
+// ~/.claude-code-router/config.json once Providers / Router have been
+// moved into the DB.
+export const ConfigEnvelopeSchema = z
+  .object({
+    HOST: z.string().default('127.0.0.1'),
+    PORT: z.number().int().positive().default(3456),
+    APIKEY: z.string().nonempty(),
+    LOG: z.boolean().default(false),
+    LOG_LEVEL: LogLevelSchema.default('info'),
+    PROXY_URL: z.string().default(''),
+    API_TIMEOUT_MS: z.coerce.number().int().nonnegative().optional(),
+    CLAUDE_PATH: z.string().default(''),
+    NON_INTERACTIVE_MODE: z.boolean().optional(),
+
+    // Object-shaped envelope members that stay on disk for PR #1.
+    StatusLine: JsonValueSchema.optional(),
+    transformers: z.array(PresetTransformerConfigSchema).optional(),
+    plugins: z.array(JsonValueSchema).optional(),
+    Plugins: z.array(JsonValueSchema).optional()
+  })
+  // Any other keys we don't know about — keep them, don't drop them.
+  .catchall(JsonValueSchema)
+export type ConfigEnvelope = z.infer<typeof ConfigEnvelopeSchema>
+
+// API wire shape returned by /api/config and emitted by composeUiConfig
+// / loadFullConfig. Extends ConfigEnvelopeSchema with DB-resident fields
+// (Providers, Router) and overrides the optional path/url scalars so
+// "unset" travels as null (composeUiConfig emits null when absent / ''
+// on disk). Registered as .openapi('Config') for the generated OpenAPI
+// document.
+export const AppConfigSchema = ConfigEnvelopeSchema.extend({
   Providers: z.array(ProviderSchema),
   Router: RouterSchema,
-  // composeUiConfig always emits these as null when unset (absent / '' on disk).
   PROXY_URL: z.string().nullable(),
   CLAUDE_PATH: z.string().nullable(),
   CUSTOM_ROUTER_PATH: z.string().nullable()
 }).openapi('Config')
+export type AppConfig = z.infer<typeof AppConfigSchema>
 
-// Legacy UI shape — the type widely consumed by components as `Config`.
-// Distinct from ApiConfigSchema because composeUiConfig still emits the
-// broader envelope (StatusLine, transformers, LOG, LOG_LEVEL, HOST, PORT,
-// APIKEY, API_TIMEOUT_MS, etc.) and the UI types it together.
+// UI-side config shape consumed by components. Differs from
+// AppConfigSchema in that it requires the envelope scalars (LOG,
+// LOG_LEVEL, HOST, PORT, APIKEY, API_TIMEOUT_MS) and uses the broader
+// RouterConfigSchema (allows the `custom` field). Kept distinct because
+// the frontend types this directly off the JSON it receives.
 export const ConfigSchema = z.object({
   Providers: z.array(ProviderSchema),
   Router: RouterConfigSchema,
@@ -46,7 +74,6 @@ export type Config = z.infer<typeof ConfigSchema>
 export const ApplyConfigPayloadSchema = z
   .object({
     Providers: z.array(ProviderSchema).optional(),
-    providers: z.array(ProviderSchema).optional(),
     Router: RouterSchema.partial().optional()
   })
   .catchall(JsonValueSchema)

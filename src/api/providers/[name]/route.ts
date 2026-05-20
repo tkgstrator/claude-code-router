@@ -1,6 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { ProviderSchema } from '../../../schemas'
-import { deleteProviderByName, upsertProvider } from '../../../services/configService'
+import { deleteProviderByName, upsertProvider } from '../../../services/config'
 
 export const providerByNameRoute = new OpenAPIHono()
 

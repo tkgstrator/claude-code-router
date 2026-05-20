@@ -1,7 +1,7 @@
 import { Queue, Worker } from 'bullmq'
 import IORedis from 'ioredis'
 import { logger } from '../lib/logger'
-import { pruneOldSnapshots, recordUsageSnapshots } from './usageHistoryService'
+import { pruneOldSnapshots, recordUsageSnapshots } from './usage-history-service'
 
 const QUEUE = 'usage'
 const SCHEDULER_ID = 'usage-capture'

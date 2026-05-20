@@ -3,63 +3,53 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import dayjs from '../lib/dayjs'
 import { logger } from '../lib/logger'
+import {
+  ClaudeCredentialsSchema,
+  type ClaudeUsage,
+  type ClaudeUsageWindowValue,
+  ClaudeUsageWireSchema,
+  type CodexAuthFile,
+  CodexAuthFileSchema,
+  type CodexCliTokens,
+  CodexTokenRefreshResponseSchema,
+  type CodexUsage,
+  type CodexUsageWindowValue,
+  CodexUsageWireSchema,
+  type GetUsageInput,
+  type GetUsageOutput,
+  JwtPayloadSchema,
+  type UsageResponse
+} from '../schemas/usage.dto'
 
-export interface ClaudeUsageWindow {
-  utilization: number
-  resetsAt: string | null
-}
-
-export interface ClaudeUsage {
-  fiveHour: ClaudeUsageWindow | null
-  sevenDay: ClaudeUsageWindow | null
-  sevenDaySonnet: ClaudeUsageWindow | null
-  sevenDayOpus: ClaudeUsageWindow | null
-  extraUsageEnabled: boolean
-  capturedAt: string
-}
-
-export interface CodexUsageWindow {
-  usedPercent: number
-  resetAt: string | null
-  windowSeconds: number | null
-}
-
-export interface CodexUsage {
-  planType: string | null
-  primary: CodexUsageWindow | null
-  secondary: CodexUsageWindow | null
-  capturedAt: string
-}
-
-export interface UsageResponse {
-  claude: ClaudeUsage | null
-  codex: CodexUsage | null
-}
-
-export interface GetUsageInput {
-  // Reserved for future route-level controls.
-  forceRefresh?: boolean
-}
-
-export interface GetUsageOutput {
-  usage: UsageResponse
-}
+// Re-export the types that external consumers historically pulled from
+// this module so existing imports keep working without a churned diff.
+export type {
+  ClaudeUsage,
+  ClaudeUsageWindow,
+  CodexUsage,
+  CodexUsageWindow,
+  GetUsageInput,
+  GetUsageOutput,
+  UsageResponse
+} from '../schemas/usage.dto'
 
 const claudeToken = async (): Promise<string | null> => {
   try {
     const raw = await readFile(join(homedir(), '.claude', '.credentials.json'), 'utf-8')
-    const tok = (JSON.parse(raw) as { claudeAiOauth?: { accessToken?: unknown } })?.claudeAiOauth?.accessToken
+    const parsed = ClaudeCredentialsSchema.safeParse(JSON.parse(raw))
+    if (!parsed.success) return null
+    const tok = parsed.data.claudeAiOauth?.accessToken
     return typeof tok === 'string' && tok.length > 0 ? tok : null
   } catch {
     return null
   }
 }
 
-const windowOf = (v: unknown): ClaudeUsageWindow | null => {
-  if (!v || typeof v !== 'object') return null
-  const o = v as Record<string, unknown>
-  if (typeof o.utilization !== 'number') return null
-  return { utilization: o.utilization, resetsAt: typeof o.resets_at === 'string' ? o.resets_at : null }
+const windowOf = (v: unknown): ClaudeUsageWindowValue | null => {
+  if (v === null || typeof v !== 'object') return null
+  if (!('utilization' in v) || typeof v.utilization !== 'number') return null
+  const resetsAt = 'resets_at' in v && typeof v.resets_at === 'string' && v.resets_at.length > 0 ? v.resets_at : null
+  return { utilization: v.utilization, resetsAt }
 }
 
 // Claude exposes a real usage endpoint for subscription OAuth tokens.
@@ -74,9 +64,9 @@ const windowOf = (v: unknown): ClaudeUsageWindow | null => {
 // dropping the whole panel. This is a deliberate boundary cache, not a
 // swallow — a refresh either updates the snapshot or keeps the prior.
 const CLAUDE_TTL_MS = 5 * 60_000
-const claudeStore: { value: ClaudeUsage | null; at: number } = { value: null, at: 0 }
+const claudeStore: { value: ClaudeUsage; at: number } = { value: null, at: 0 }
 
-const requestClaudeUsage = async (): Promise<ClaudeUsage | null> => {
+const requestClaudeUsage = async (): Promise<ClaudeUsage> => {
   const token = await claudeToken()
   if (!token) return null
   try {
@@ -88,15 +78,19 @@ const requestClaudeUsage = async (): Promise<ClaudeUsage | null> => {
       }
     })
     if (!res.ok) return null
-    const j = (await res.json()) as Record<string, unknown>
+    const raw = await res.json()
+    const parsed = ClaudeUsageWireSchema.safeParse(raw)
+    if (!parsed.success) return null
+    const j = parsed.data
     const extra = j.extra_usage
+    const extraUsageEnabled =
+      typeof extra === 'object' && extra !== null && 'is_enabled' in extra && extra.is_enabled === true
     return {
       fiveHour: windowOf(j.five_hour),
       sevenDay: windowOf(j.seven_day),
       sevenDaySonnet: windowOf(j.seven_day_sonnet),
       sevenDayOpus: windowOf(j.seven_day_opus),
-      extraUsageEnabled:
-        typeof extra === 'object' && extra !== null && (extra as Record<string, unknown>).is_enabled === true,
+      extraUsageEnabled,
       capturedAt: dayjs().toISOString()
     }
   } catch {
@@ -104,7 +98,7 @@ const requestClaudeUsage = async (): Promise<ClaudeUsage | null> => {
   }
 }
 
-const fetchClaudeUsage = async (): Promise<ClaudeUsage | null> => {
+const fetchClaudeUsage = async (): Promise<ClaudeUsage> => {
   const fresh = claudeStore.value && dayjs().valueOf() - claudeStore.at < CLAUDE_TTL_MS
   if (fresh) return claudeStore.value
   const next = await requestClaudeUsage()
@@ -126,7 +120,7 @@ const fetchClaudeUsage = async (): Promise<ClaudeUsage | null> => {
 // is { used_percent, limit_window_seconds, reset_after_seconds,
 // reset_at(epoch s) }.
 const CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage'
-const codexStore: { value: CodexUsage | null; at: number } = { value: null, at: 0 }
+const codexStore: { value: CodexUsage; at: number } = { value: null, at: 0 }
 
 // Public OAuth values baked into the OSS Codex CLI (openai/codex). CCR
 // only ever read auth.json before; mirror the CLI and refresh the
@@ -137,18 +131,6 @@ const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token'
 const CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const REFRESH_SKEW_S = 30 * 60
 
-interface CodexTokens {
-  access_token?: unknown
-  refresh_token?: unknown
-  id_token?: unknown
-  account_id?: unknown
-}
-interface CodexAuthFile {
-  tokens?: CodexTokens
-  last_refresh?: unknown
-  [k: string]: unknown
-}
-
 // `exp` (epoch seconds) out of a JWT access token, or null if the
 // token isn't a decodable JWT.
 const jwtExp = (jwt: string): number | null => {
@@ -156,8 +138,9 @@ const jwtExp = (jwt: string): number | null => {
   if (parts.length !== 3) return null
   try {
     const json = Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
-    const payload = JSON.parse(json) as { exp?: unknown }
-    return typeof payload.exp === 'number' ? payload.exp : null
+    const parsed = JwtPayloadSchema.safeParse(JSON.parse(json))
+    if (!parsed.success) return null
+    return typeof parsed.data.exp === 'number' ? parsed.data.exp : null
   } catch {
     return null
   }
@@ -183,13 +166,18 @@ const refreshCodexToken = async (auth: CodexAuthFile, refreshToken: string): Pro
       logger.warn({ status: res.status, body: body.slice(0, 200) }, '[codex] token refresh failed')
       return null
     }
-    const j = (await res.json()) as { access_token?: unknown; refresh_token?: unknown; id_token?: unknown }
+    const parsed = CodexTokenRefreshResponseSchema.safeParse(await res.json())
+    if (!parsed.success) {
+      logger.warn('[codex] token refresh: response did not match expected shape')
+      return null
+    }
+    const j = parsed.data
     if (typeof j.access_token !== 'string' || j.access_token.length === 0) {
       logger.warn('[codex] token refresh: response had no access_token')
       return null
     }
-    const prev = auth.tokens && typeof auth.tokens === 'object' ? auth.tokens : {}
-    const tokens: CodexTokens = {
+    const prev: CodexCliTokens = auth.tokens && typeof auth.tokens === 'object' ? auth.tokens : {}
+    const tokens: CodexCliTokens = {
       ...prev,
       access_token: j.access_token,
       refresh_token:
@@ -216,8 +204,13 @@ const isFileNotFound = (e: unknown): boolean => e instanceof Error && 'code' in 
 const codexAuth = async (): Promise<{ token: string; accountId: string | null } | null> => {
   try {
     const raw = await readFile(CODEX_AUTH_PATH, 'utf-8')
-    const auth = JSON.parse(raw) as CodexAuthFile
-    const tokens = auth.tokens && typeof auth.tokens === 'object' ? auth.tokens : {}
+    const parsed = CodexAuthFileSchema.safeParse(JSON.parse(raw))
+    if (!parsed.success) {
+      logger.warn('[codex] auth.json did not match expected shape')
+      return null
+    }
+    const auth = parsed.data
+    const tokens: CodexCliTokens = auth.tokens && typeof auth.tokens === 'object' ? auth.tokens : {}
     const access = typeof tokens.access_token === 'string' ? tokens.access_token : ''
     if (access.length === 0) {
       logger.warn('[codex] auth.json has no tokens.access_token')
@@ -244,19 +237,20 @@ const codexAuth = async (): Promise<{ token: string; accountId: string | null } 
   }
 }
 
-const codexWindowOf = (v: unknown): CodexUsageWindow | null => {
-  if (!v || typeof v !== 'object') return null
-  const o = v as Record<string, unknown>
-  if (typeof o.used_percent !== 'number') return null
-  const resetAt = typeof o.reset_at === 'number' ? dayjs(o.reset_at * 1000).toISOString() : null
+const codexWindowOf = (v: unknown): CodexUsageWindowValue | null => {
+  if (v === null || typeof v !== 'object') return null
+  if (!('used_percent' in v) || typeof v.used_percent !== 'number') return null
+  const resetAt = 'reset_at' in v && typeof v.reset_at === 'number' ? dayjs(v.reset_at * 1000).toISOString() : null
+  const windowSeconds =
+    'limit_window_seconds' in v && typeof v.limit_window_seconds === 'number' ? v.limit_window_seconds : null
   return {
-    usedPercent: o.used_percent,
+    usedPercent: v.used_percent,
     resetAt,
-    windowSeconds: typeof o.limit_window_seconds === 'number' ? o.limit_window_seconds : null
+    windowSeconds
   }
 }
 
-const requestCodexUsage = async (): Promise<CodexUsage | null> => {
+const requestCodexUsage = async (): Promise<CodexUsage> => {
   const auth = await codexAuth()
   if (!auth) {
     // codexAuth() already logged anything worth logging; an absent or
@@ -276,13 +270,21 @@ const requestCodexUsage = async (): Promise<CodexUsage | null> => {
       logger.warn({ status: res.status, body: body.slice(0, 200) }, '[codex] wham/usage non-OK')
       return null
     }
-    const j = (await res.json()) as Record<string, unknown>
+    const parsed = CodexUsageWireSchema.safeParse(await res.json())
+    if (!parsed.success) {
+      logger.warn('[codex] wham/usage response did not match expected shape')
+      return null
+    }
+    const j = parsed.data
     const rl = j.rate_limit
-    const limits = rl && typeof rl === 'object' ? (rl as Record<string, unknown>) : {}
+    const primaryWindow =
+      rl !== null && typeof rl === 'object' && 'primary_window' in rl ? rl.primary_window : undefined
+    const secondaryWindow =
+      rl !== null && typeof rl === 'object' && 'secondary_window' in rl ? rl.secondary_window : undefined
     return {
-      planType: typeof j.plan_type === 'string' ? j.plan_type : null,
-      primary: codexWindowOf(limits.primary_window),
-      secondary: codexWindowOf(limits.secondary_window),
+      planType: typeof j.plan_type === 'string' && j.plan_type.length > 0 ? j.plan_type : null,
+      primary: codexWindowOf(primaryWindow),
+      secondary: codexWindowOf(secondaryWindow),
       capturedAt: dayjs().toISOString()
     }
   } catch (e) {
@@ -291,7 +293,7 @@ const requestCodexUsage = async (): Promise<CodexUsage | null> => {
   }
 }
 
-const fetchCodexUsage = async (): Promise<CodexUsage | null> => {
+const fetchCodexUsage = async (): Promise<CodexUsage> => {
   const fresh = codexStore.value && dayjs().valueOf() - codexStore.at < CLAUDE_TTL_MS
   if (fresh) return codexStore.value
   const next = await requestCodexUsage()

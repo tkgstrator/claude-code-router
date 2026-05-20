@@ -8,7 +8,7 @@
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { getPrismaClient } from '../../src/db/client'
-import { applyUiConfig, composeUiConfig, ensureRouterSlots } from '../../src/services/configService'
+import { applyUiConfig, composeUiConfig, ensureRouterSlots } from '../../src/services/config'
 import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
 
 // HOME and DATABASE_URL are redirected by __tests__/setup.ts (preload),
@@ -33,6 +33,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
           name: 'openai',
           api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
+          auth_mode: 'api_key',
           models: ['gpt-5', 'gpt-5-nano']
         }
       ],
@@ -62,6 +63,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
           name: 'openai',
           api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
+          auth_mode: 'api_key',
           models: ['gpt-5', 'gpt-5-nano']
         }
       ],
@@ -74,6 +76,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
           name: 'openai',
           api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
+          auth_mode: 'api_key',
           models: ['gpt-5']
         }
       ],
@@ -92,12 +95,14 @@ describe.skipIf(!HAS_DB)('configService', () => {
           name: 'openai',
           api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
+          auth_mode: 'api_key',
           models: ['gpt-5']
         },
         {
           name: 'gemini',
           api_base_url: 'https://generativelanguage.googleapis.com',
           api_key: 'AI-x',
+          auth_mode: 'api_key',
           models: ['gemini-2.5-flash']
         }
       ],
@@ -114,6 +119,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
           name: 'openai',
           api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
+          auth_mode: 'api_key',
           models: ['gpt-5']
         }
       ],
@@ -156,6 +162,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
           name: 'openai',
           api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
+          auth_mode: 'api_key',
           models: ['gpt-5']
         }
       ],
@@ -183,6 +190,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
           name: 'openai',
           api_base_url: 'https://api.openai.com/v2',
           api_key: 'sk-x',
+          auth_mode: 'api_key',
           models: ['gpt-5']
         }
       ],
