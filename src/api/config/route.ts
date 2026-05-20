@@ -1,5 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { resetLlmsContext } from '../../llmsContext'
+import { resetLlmsContext } from '../../llms'
 import { ApplyConfigPayloadSchema } from '../../schemas'
 import { applyUiConfig, composeUiConfig } from '../../services/config'
 

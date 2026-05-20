@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { getPrismaClient } from '../../db/client'
-import { type RequestLogEvent, requestLogEmitter } from '../../lib/requestLogEvents'
 import {
   RequestLogIdParamSchema,
   RequestLogsDeleteAllResponseSchema,
@@ -13,6 +12,7 @@ import {
   SessionLogsResponseSchema,
   SessionsResponseSchema
 } from '../../schemas'
+import { type RequestLogEvent, requestLogEmitter } from './events'
 
 export const requestLogsRoute = new OpenAPIHono()
 

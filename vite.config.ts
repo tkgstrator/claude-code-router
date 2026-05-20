@@ -13,13 +13,7 @@ export default defineConfig({
     allowedHosts: true
   },
   resolve: {
-    alias: [
-      // Order matters: longer prefix first so '@/llms/*' wins over '@/*'.
-      // Keeps the logical alias `@/llms` stable while the physical
-      // directory moved under src/vendor/ to signal it's third-party.
-      { find: /^@\/llms\//, replacement: `${resolve(__dirname, './src/vendor/llms')}/` },
-      { find: '@', replacement: resolve(__dirname, './src') }
-    ]
+    alias: [{ find: '@', replacement: resolve(__dirname, './src') }]
   },
   plugins: [
     react(),

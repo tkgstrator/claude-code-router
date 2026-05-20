@@ -5,7 +5,7 @@ import { basename, join } from 'node:path'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, type PrismaClient, type SubAccount } from '../generated/prisma/client'
 import dayjs from '../lib/dayjs'
-import { logger } from '../lib/logger'
+import { logger } from '../logger'
 import {
   ClaudeAccountEntrySchema,
   CodexAuthEntrySchema,

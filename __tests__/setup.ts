@@ -6,7 +6,7 @@
  * Two pollutants this script defangs:
  *  1. CONFIG_FILE / HOME_DIR are derived from os.homedir() at module
  *     load time (src/shared/constants.ts). Tests that write or unlink
- *     CONFIG_FILE (lib/configEnvelope.test.ts, db/migrateFromJson.test.ts)
+ *     CONFIG_FILE (services/config/envelope.test.ts, db/migrateFromJson.test.ts)
  *     would otherwise clobber the developer's real
  *     ~/.claude-code-router/config.json.
  *  2. DB-backed tests TRUNCATE Provider/Model/RouterSlot/... in

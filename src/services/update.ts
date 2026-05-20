@@ -1,4 +1,4 @@
-import { logger } from '../lib/logger'
+import { logger } from '../logger'
 
 // The published package this deployment tracks for update checks.
 const NPM_PACKAGE = '@musistudio/claude-code-router'

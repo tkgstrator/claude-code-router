@@ -1,22 +1,12 @@
 {
-  // Runtime-only resolution config for `bun src/index.ts` in
-  // production (Dockerfile CMD passes --tsconfig-override).
-  //
-  // tsconfig.json maps `@/llms/*` to the type-only stub
-  // src/vendor/llms-vendor.d.ts so the strict `tsc` pass treats the
-  // vendored, intentionally-loose llms subsystem as `any`. Vite (dev)
-  // resolves `@/llms/*` to the real vendored source via the alias in
-  // vite.config.ts. Plain Bun DOES honour tsconfig paths and would
-  // try to execute the .d.ts stub at runtime (ReferenceError:
-  // llmsAny is not defined). The mapping below redirects
-  // `@/llms/*` to the real vendored source — mirroring Vite — without
-  // weakening the strict typecheck contract in tsconfig.json. NOT
-  // used by tsc.
+  // Runtime-only resolution config for `bun src/index.ts` in production
+  // (Dockerfile CMD passes --tsconfig-override). Only `@/*` is needed
+  // now — the legacy `@/llms/*` stub indirection went away with the
+  // vendor/llms removal.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/llms/*": ["src/vendor/llms/*"],
       "@/*": ["src/*"]
     }
   }

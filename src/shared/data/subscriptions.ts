@@ -48,3 +48,6 @@ export const SUBSCRIPTION_PRESETS: SubscriptionPreset[] = [
     credentialsPath: '~/.codex/auth.json'
   }
 ]
+
+export const findSubscriptionPreset = (provider: { api_base_url: string }): SubscriptionPreset | undefined =>
+  SUBSCRIPTION_PRESETS.find((p) => p.apiBaseUrl === provider.api_base_url)

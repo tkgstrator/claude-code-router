@@ -13,7 +13,7 @@ import {
   type Provider as DbProvider,
   ModelTestStatus
 } from '../../generated/prisma/client'
-import { readConfigFile } from '../../lib/configEnvelope'
+import { readConfigFile } from './envelope'
 import { isJsonObject, providerEnabledFromTransformer } from './transformer'
 
 // Unassigned slots are null (not '') so "no model bound" reads the

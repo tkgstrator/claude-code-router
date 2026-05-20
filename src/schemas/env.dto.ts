@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi'
 
 // Log level enum shared by the disk envelope schema (config.dto) and the
-// logger's runtime env validation (lib/logger.ts).
+// logger's runtime env validation (src/logger.ts).
 export const LogLevelSchema = z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
 export type LogLevel = z.infer<typeof LogLevelSchema>
 

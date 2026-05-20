@@ -7,8 +7,8 @@
  * import dependency.
  */
 
-import { readConfigFile, writeConfigFile } from '../../lib/configEnvelope'
 import { composeUiConfig, stripDbKeys } from './compose'
+import { readConfigFile, writeConfigFile } from './envelope'
 
 // Optional path/url envelope scalars. Their "unset" state is null on
 // the wire (see composeUiConfig); on disk we represent unset as the key

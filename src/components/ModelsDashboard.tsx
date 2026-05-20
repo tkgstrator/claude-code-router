@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 import { ProviderIcon } from '@/lib/providerIcons'
-import { MODEL_PRICING } from '@/lib/providerTemplates'
+import { MODEL_PRICING } from '@/shared/data'
 
 type Reachability = 'unknown' | 'testing' | 'ok' | 'fail'
 

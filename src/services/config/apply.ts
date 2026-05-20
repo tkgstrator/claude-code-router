@@ -14,9 +14,9 @@ import {
   ModelTestStatus,
   Prisma
 } from '../../generated/prisma/client'
-import { writeConfigFile } from '../../lib/configEnvelope'
-import { resetLlmsContext } from '../../llmsContext'
+import { resetLlmsContext } from '../../llms'
 import { modelApiStyleOverride } from './api-style'
+import { writeConfigFile } from './envelope'
 import { pruneUnsetEnvelopePaths } from './sync-to-disk'
 import { disabledSet } from './transformer'
 

@@ -3,7 +3,7 @@ import { OFFICIAL_VENDOR_PRICES } from './providers'
 
 export { DEPRECATED_MODELS, isDeprecatedModel } from './deprecations'
 export { OFFICIAL_VENDOR_PRICES, type OfficialPricingEntry } from './providers'
-export { SUBSCRIPTION_PRESETS, type SubscriptionPreset } from './subscriptions'
+export { findSubscriptionPreset, SUBSCRIPTION_PRESETS, type SubscriptionPreset } from './subscriptions'
 
 export interface PriceEntry {
   id: string
@@ -143,3 +143,8 @@ export function buildSeedPricing(prices: PriceEntry[] = LLM_PRICES_SEED.prices):
   }
   return result
 }
+
+// UI-facing snapshot: same data the seed routine consumes, frozen at
+// module load so the dashboard's price labels and the initial DB
+// contents always agree.
+export const MODEL_PRICING: Record<string, PricingEntry> = buildSeedPricing()

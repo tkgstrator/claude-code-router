@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { apiKeyAuth } from './api/api-key-auth'
 import { configRoute } from './api/config/route'
 import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
@@ -19,12 +20,11 @@ import { updatePerformRoute } from './api/update/perform/route'
 import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
-import { apiKeyAuth } from './lib/apiKeyAuth'
-import { initConfig, initDir } from './lib/configEnvelope'
-import { logger, syncLevelFromEnv } from './lib/logger'
-import { APP_VERSION } from './lib/version'
+import { logger, syncLevelFromEnv } from './logger'
+import { initConfig, initDir } from './services/config/envelope'
 import { syncSubAccountsToDb } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
+import { APP_VERSION } from './version'
 
 // Hono root. Backend routes live under src/api/<path>/route.ts (one
 // Hono sub-app per file, Next.js-style) and are mounted here. The

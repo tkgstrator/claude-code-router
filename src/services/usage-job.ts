@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq'
 import IORedis from 'ioredis'
-import { logger } from '../lib/logger'
+import { logger } from '../logger'
 import { pruneOldSnapshots, recordUsageSnapshots } from './usage-history-service'
 
 const QUEUE = 'usage'

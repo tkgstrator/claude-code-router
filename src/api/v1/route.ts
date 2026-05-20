@@ -1,15 +1,88 @@
+/**
+ * /v1/* LLM proxy. The single entry the Claude Code client (and ccr)
+ * actually targets. Resolves the inbound path to the matching endpoint
+ * transformer, runs the app-side pipeline, and relays the upstream
+ * response back to the client as JSON or SSE.
+ */
+
 import type { Context } from 'hono'
 import { Hono } from 'hono'
-// Vendored llms pipeline, re-exported through llmsContext (@ts-nocheck)
-// so these resolve as `any` here. We drive the exact same router +
-// transformer chain Fastify used, without Fastify.
-import { getLlmsContext, handleTransformerEndpoint, router } from '../../llmsContext'
+import { HTTPException } from 'hono/http-exception'
+import { getPrismaClient } from '../../db/client'
+import {
+  getLlmsContext,
+  type LlmsContext,
+  type ResolvedProvider,
+  routeScenario,
+  runPipeline,
+  type Transformer,
+  type UsageRecord
+} from '../../llms'
+import type { PipelineRequest } from '../../llms/types'
+import { requestLogEmitter } from '../request-logs/events'
 
 export const v1Route = new Hono()
 
-// Recursively replace every string value strictly equal to `from`
-// with `to`. Returns true if anything changed.
-const deepReplaceValue = (node: unknown, from: string, to: string): boolean => {
+// ─── Reasoning-effort normalisation ────────────────────────────────────
+
+const EFFORT_LADDER = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+
+// Per-model max-supported effort. Claude Code sends body.output_config.effort
+// (e.g. 'xhigh'); models that don't support a level — or `effort` at all
+// — 400. Normalise BEFORE sending. Ordered low→high so the last entry is
+// the model's max supported level.
+const EFFORT_BY_MODEL: Record<string, readonly string[]> = {
+  'claude-opus-4-7': ['low', 'medium', 'high', 'xhigh', 'max'],
+  'claude-opus-4-6': ['low', 'medium', 'high', 'max'],
+  'claude-sonnet-4-6': ['low', 'medium', 'high', 'max'],
+  'claude-opus-4-5': ['low', 'medium', 'high']
+}
+
+function effortSetFor(model: string): readonly string[] | undefined {
+  for (const id of Object.keys(EFFORT_BY_MODEL)) {
+    if (model === id || model.startsWith(`${id}-`) || model.startsWith(`${id}@`)) return EFFORT_BY_MODEL[id]
+  }
+  return undefined
+}
+
+function normalizeEffort(body: Record<string, unknown>, model: string): void {
+  const oc = body.output_config as { effort?: unknown } | undefined
+  const requested = oc?.effort
+  if (typeof requested !== 'string') return
+  const allowed = effortSetFor(model)
+  if (!allowed) {
+    delete oc!.effort
+    return
+  }
+  if (!allowed.includes(requested)) oc!.effort = allowed[allowed.length - 1]
+}
+
+// ─── Anthropic subscription beta header reshape ────────────────────────
+
+const OAUTH_BETA = 'oauth-2025-04-20'
+
+// Reshape `anthropic-beta` for the subscription (OAuth) path:
+//  - drop `context-1m-*`: on a non-1M subscription, opting into 1M
+//    rate_limits every request even a tiny "say pong"; degrade to 200K.
+//  - ensure OAUTH_BETA is present so premium models route to the
+//    subscription allotment instead of org-disabled overage.
+function prepareSubscriptionBetas(headers: Record<string, string>): void {
+  const raw = headers['anthropic-beta']
+  const tokens =
+    typeof raw === 'string'
+      ? raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : []
+  const kept = tokens.filter((t) => !t.startsWith('context-1m'))
+  if (!kept.includes(OAUTH_BETA)) kept.push(OAUTH_BETA)
+  headers['anthropic-beta'] = kept.join(',')
+}
+
+// ─── Recursive deep-replace (used by the effort retry path) ────────────
+
+function deepReplaceValue(node: unknown, from: string, to: string): boolean {
   if (!node || typeof node !== 'object') return false
   const obj = node as Record<string | number, unknown>
   const keys = Array.isArray(node) ? node.map((_, i) => i) : Object.keys(obj)
@@ -25,77 +98,7 @@ const deepReplaceValue = (node: unknown, from: string, to: string): boolean => {
   return changed
 }
 
-// Per-model reasoning-effort support, from Anthropic's effort docs.
-// Claude Code sends output_config.effort (e.g. 'xhigh'); routed-to
-// models that don't support a level — or `effort` at all — 400.
-// Normalise BEFORE sending. Ordered low -> high so the last entry is
-// the model's max supported level.
-const EFFORT_LADDER = ['low', 'medium', 'high', 'xhigh', 'max'] as const
-const EFFORT_BY_MODEL: Record<string, readonly string[]> = {
-  'claude-opus-4-7': ['low', 'medium', 'high', 'xhigh', 'max'],
-  'claude-opus-4-6': ['low', 'medium', 'high', 'max'],
-  'claude-sonnet-4-6': ['low', 'medium', 'high', 'max'],
-  'claude-opus-4-5': ['low', 'medium', 'high']
-}
-
-const effortSetFor = (model: string): readonly string[] | undefined => {
-  for (const id of Object.keys(EFFORT_BY_MODEL)) {
-    if (model === id || model.startsWith(`${id}-`) || model.startsWith(`${id}@`)) return EFFORT_BY_MODEL[id]
-  }
-  return undefined
-}
-
-// Mutate body.output_config.effort to fit `model`: strip it for
-// non-effort models, or clamp an unsupported level to the model's top
-// supported level (preserving the "strong effort" intent).
-const normalizeEffort = (body: unknown, model: string): void => {
-  const oc = (body as { output_config?: { effort?: unknown } } | null)?.output_config
-  const requested = oc?.effort
-  if (typeof requested !== 'string') return
-  const allowed = effortSetFor(model)
-  if (!allowed) {
-    delete (oc as { effort?: unknown }).effort
-    return
-  }
-  if (!allowed.includes(requested)) {
-    ;(oc as { effort?: unknown }).effort = allowed[allowed.length - 1]
-  }
-}
-
-// The anthropic-beta header that identifies a request as official
-// Claude Code OAuth. Without it a subscription serves premium models
-// (Opus/Sonnet) from the API "overage" path, which is org-disabled on
-// subscriptions → 429 rate_limit_error, while Haiku (base allotment)
-// still 200s. With it, premium models route to the subscription
-// allotment like the real Claude Code client.
-const OAUTH_BETA = 'oauth-2025-04-20'
-
-// Reshape the anthropic-beta header for the subscription (OAuth) path,
-// preserving every beta the client sent:
-//  - drop `context-1m-*`: on a subscription that opts into the 1M
-//    window, every request 429s "Extra usage is required for long
-//    context requests" even a tiny "say pong"; the proxy can't grant
-//    1M on a non-1M subscription, so degrade to the standard 200K
-//    window.
-//  - ensure OAUTH_BETA is present so premium models route to the
-//    subscription allotment instead of org-disabled overage.
-// prompt-caching / interleaved-thinking / effort / … are untouched.
-const prepareSubscriptionBetas = (headers: Record<string, string>): void => {
-  const raw = headers['anthropic-beta']
-  const tokens =
-    typeof raw === 'string'
-      ? raw
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : []
-  const kept = tokens.filter((t) => !t.startsWith('context-1m'))
-  if (!kept.includes(OAUTH_BETA)) kept.push(OAUTH_BETA)
-  headers['anthropic-beta'] = kept.join(',')
-}
-
-// Highest supported level from a 400's "Supported levels: a, b, c".
-const bestSupportedLevel = (message: string | undefined): { bad: string; level: string } | null => {
+function bestSupportedLevel(message: string | undefined): { bad: string; level: string } | null {
   const m = message?.match(/does not support effort level '([^']+)'\.\s*Supported levels:\s*([^"}\n]+)/i)
   if (!m) return null
   const supported = m[2]
@@ -112,90 +115,46 @@ const bestSupportedLevel = (message: string | undefined): { bad: string; level: 
   return { bad: m[1], level }
 }
 
-interface PipeError {
-  statusCode?: number
-  code?: string
-  message?: string
-}
+// ─── Upstream-error forwarding ──────────────────────────────────────────
 
-// sendRequestToProvider throws this exact shape on a non-ok upstream
-// response: "Error from provider(<name>,<model>: <status>): <rawBody>"
-// with statusCode = the upstream status. Forward the upstream status +
-// original body verbatim so Claude Code sees the genuine Anthropic
-// error (e.g. rate_limit_error) and reacts immediately, instead of our
-// re-wrapped message. Fail fast — these are never retried here.
+// sendToProvider throws an HTTPException with the exact message
+// "Error from provider(<name>,<model>: <status>): <rawBody>" so the
+// client sees the genuine upstream error (e.g. Anthropic rate_limit_error)
+// rather than our re-wrapped one. Fail fast.
 const PROVIDER_ERR_RE = /^Error from provider\([^)]*:\s*(\d+)\):\s*([\s\S]*)$/
-const errorResponse = (c: Context, e: PipeError) => {
-  if (e.code === 'provider_response_error' && typeof e.message === 'string') {
-    const m = e.message.match(PROVIDER_ERR_RE)
-    if (m) {
-      const status = Number(m[1]) || e.statusCode || 502
-      return new Response(m[2], {
-        status: status as number,
-        headers: { 'content-type': 'application/json' }
-      })
-    }
-  }
-  return c.json(
-    { type: 'error', error: { type: e.code ?? 'internal_error', message: e.message ?? 'error' } },
-    (e.statusCode ?? 500) as 500
-  )
+
+function forwardUpstreamError(err: unknown): Response | null {
+  if (!(err instanceof HTTPException)) return null
+  const message = err.message
+  const m = message.match(PROVIDER_ERR_RE)
+  if (!m) return null
+  const status = Number(m[1]) || err.status || 502
+  return new Response(m[2], { status, headers: { 'content-type': 'application/json' } })
 }
 
-const endpointTransformerMap = (ctx: { transformerService: { getTransformersWithEndpoint(): unknown[] } }) => {
-  const map = new Map<string, Map<string, unknown>>()
-  for (const { name, transformer } of ctx.transformerService.getTransformersWithEndpoint() as {
-    name: string
-    transformer: { endPoint?: string }
-  }[]) {
-    if (!transformer.endPoint) continue
-    if (!map.has(transformer.endPoint)) map.set(transformer.endPoint, new Map())
-    map.get(transformer.endPoint)?.set(name, transformer)
+// ─── Resolve endpoint transformer by inbound path ──────────────────────
+
+function endpointTransformerMap(ctx: LlmsContext): Map<string, Map<string, Transformer>> {
+  const map = new Map<string, Map<string, Transformer>>()
+  for (const { name, transformer } of ctx.transformers.getWithEndpoint()) {
+    const ep = transformer.endPoint!
+    if (!map.has(ep)) map.set(ep, new Map())
+    map.get(ep)!.set(name, transformer)
   }
   return map
 }
 
-const makeReplyShim = (replyHeaders: Record<string, string>) => ({
-  statusCode: 200,
-  code(s: number) {
-    this.statusCode = s
-    return this
-  },
-  status(s: number) {
-    this.statusCode = s
-    return this
-  },
-  header(k: string, v: string) {
-    replyHeaders[k] = v
-    return this
-  },
-  type() {
-    return this
-  },
-  send(p: unknown) {
-    return p
-  }
-})
+// ─── Invocation assembly ────────────────────────────────────────────────
 
 interface Invocation {
-  reqShim: Record<string, unknown>
-  replyShim: ReturnType<typeof makeReplyShim>
-  replyHeaders: Record<string, string>
-  fastifyShim: Record<string, unknown>
-  transformer: unknown
   body: Record<string, unknown>
+  headers: Record<string, string>
+  request: PipelineRequest
+  provider: ResolvedProvider
+  transformer: Transformer
 }
 
-// Resolve the request to a concrete pipeline invocation: match the
-// endpoint transformer, run the router + provider/model split, clamp
-// effort and reshape subscription betas. Returns a Response for a
-// client/setup error (no handler / missing model) so the caller can
-// just forward it. Extracted from the POST handler to keep each
-// function's cognitive complexity in check.
-const buildInvocation = async (
-  c: Context,
-  ctx: Awaited<ReturnType<typeof getLlmsContext>>
-): Promise<Response | Invocation> => {
+async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response | Invocation> {
   const url = new URL(c.req.url)
   const path = url.pathname
 
@@ -203,105 +162,151 @@ const buildInvocation = async (
   if (!transformersByName) {
     return c.json({ type: 'error', error: { type: 'not_found', message: `No handler for ${path}` } }, 404)
   }
-  let transformer = transformersByName.values().next().value
 
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>)
+  // Default to the first registered transformer at this endpoint —
+  // we may swap it below if the routed-to provider has a bypass single-use.
+  let transformer: Transformer = transformersByName.values().next().value!
+
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
   const headers: Record<string, string> = {}
   c.req.raw.headers.forEach((v, k) => {
     headers[k] = v
   })
 
-  const replyHeaders: Record<string, string> = {}
-  const replyShim = makeReplyShim(replyHeaders)
-  const reqShim = { body, headers, url: path + url.search, log: ctx.log, raw: c.req.raw } as Record<string, unknown>
+  const request: PipelineRequest = {
+    body,
+    headers,
+    url: path + url.search
+  }
 
-  // preHandler #1 (router): resolves body.model to "provider,model".
-  await router(reqShim, replyShim, { configService: ctx.configService, tokenizerService: ctx.tokenizerService })
+  // Scenario routing: rewrite body.model to the resolved provider,model
+  // and stamp req.scenarioType.
+  await routeScenario(
+    { body: body as PipelineRequest['body'] & { model: string }, log: ctx.log, sessionId: undefined },
+    { config: ctx.config, tokenizers: ctx.tokenizers }
+  )
 
-  // preHandler #2 (modelProviderMiddleware, ported from llms
-  // server.start()): split "provider,model" into req.provider + the
-  // bare model the handler/transformers expect.
-  const modelField = (body as { model?: unknown }).model
+  // Split "provider,model" into separate fields.
+  const modelField = body.model
   if (typeof modelField !== 'string' || modelField.length === 0) {
     return c.json({ type: 'error', error: { type: 'invalid_request', message: 'Missing model in request body' } }, 400)
   }
-  const [prov, ...rest] = modelField.split(',')
-  ;(body as { model: string }).model = rest.join(',')
-  reqShim.provider = prov
-  reqShim.model = rest
+  const [providerName, ...rest] = modelField.split(',')
+  const model = rest.join(',')
+  body.model = model
+  request.provider = providerName
+  request.model = model
 
-  // Clamp/strip output_config.effort to what the routed-to model
-  // supports — before the upstream call.
-  normalizeEffort(body, (body as { model: string }).model)
+  // Clamp / strip output_config.effort to what the routed-to model
+  // supports — BEFORE the upstream call.
+  normalizeEffort(body, model)
 
-  // Provider with a single transformer enables bypass+auth — pick it.
-  const provider = prov ? ctx.providerService.getProvider(prov) : undefined
-  const soleUse = provider?.transformer?.use?.length === 1 ? provider.transformer.use[0]?.name : undefined
-  if (soleUse && transformersByName.has(soleUse)) transformer = transformersByName.get(soleUse)
+  // Resolve the provider; an unknown one fails fast.
+  const provider = ctx.providers.get(providerName)
+  if (!provider) {
+    return c.json(
+      { type: 'error', error: { type: 'invalid_request', message: `Provider '${providerName}' not found` } },
+      400
+    )
+  }
 
-  // Subscription providers route through a `*-oauth` sole transformer
-  // (claude-code-oauth, codex-oauth, …). Reshape the beta header for
-  // the OAuth path (drop context-1m, add the oauth beta) so premium
-  // models aren't 429'd by the overage gate.
-  if (typeof soleUse === 'string' && soleUse.endsWith('-oauth')) {
+  // Bypass detection: if the provider has a single transformer that
+  // matches the endpoint's path, use it instead of the default at this
+  // endpoint. (Same logic the legacy registerApiRoutes used.)
+  const soleUseName = provider.transformer?.use?.length === 1 ? provider.transformer.use[0].name : undefined
+  if (soleUseName && transformersByName.has(soleUseName)) transformer = transformersByName.get(soleUseName)!
+
+  // Subscription path: subscriptions route through *-oauth transformers.
+  // Reshape the anthropic-beta header (drop context-1m, add oauth beta).
+  if (typeof soleUseName === 'string' && soleUseName.endsWith('-oauth')) {
     prepareSubscriptionBetas(headers)
   }
 
-  const fastifyShim = {
-    providerService: ctx.providerService,
-    transformerService: ctx.transformerService,
-    configService: ctx.configService,
-    tokenizerService: ctx.tokenizerService,
-    log: ctx.log
-  }
-  return { reqShim, replyShim, replyHeaders, fastifyShim, transformer, body }
+  return { body, headers, request, provider, transformer }
 }
 
-// Catch every /v1/* POST, match it against the transformer endpoints
-// the llms TransformerService exposes (mirrors registerApiRoutes), and
-// run the pipeline directly. Anthropic's transformer registers
-// `/v1/messages` — the surface official ccr / Claude Code talk to.
+// ─── Usage capture sink ─────────────────────────────────────────────────
+
+async function recordUsage(entry: UsageRecord): Promise<void> {
+  const prisma = getPrismaClient()
+  await prisma.session.upsert({
+    where: { id: entry.sessionId },
+    create: { id: entry.sessionId },
+    update: { updatedAt: new Date() }
+  })
+  await prisma.requestLog.create({ data: { ...entry } })
+  requestLogEmitter.emit('new_log', { sessionId: entry.sessionId })
+}
+
+// ─── Response formatting ────────────────────────────────────────────────
+
+async function formatResponse(c: Context, response: Response, stream: boolean): Promise<Response> {
+  if (!stream) {
+    const text = await response.text()
+    const json = text.length > 0 ? JSON.parse(text) : {}
+    return c.json(json, (response.status || 200) as 200)
+  }
+  // SSE — relay the upstream stream as-is. Set the headers the Anthropic
+  // SDK expects on the inbound client.
+  const headers = new Headers({
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive'
+  })
+  // Forward upstream cache / x-ratelimit headers when present.
+  for (const [k, v] of response.headers.entries()) {
+    if (k.toLowerCase() === 'content-type') continue
+    headers.set(k, v)
+  }
+  return new Response(response.body, { status: response.status, headers })
+}
+
+// ─── Handler ────────────────────────────────────────────────────────────
+
 v1Route.post('/v1/*', async (c) => {
   const ctx = await getLlmsContext()
   const built = await buildInvocation(c, ctx)
   if (built instanceof Response) return built
-  const { reqShim, replyShim, replyHeaders, fastifyShim, transformer, body } = built
+  const { body, headers, request, provider, transformer } = built
 
-  const toResponse = (result: unknown) => {
-    const status = (replyShim.statusCode || 200) as 200
-    if ((body as { stream?: unknown }).stream !== true) {
-      return c.json(result as Record<string, unknown>, status)
-    }
-    const h = new Headers({
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-cache',
-      connection: 'keep-alive'
-    })
-    for (const [k, v] of Object.entries(replyHeaders)) h.set(k, v)
-    return new Response(result as BodyInit, { status, headers: h })
+  const runOnce = async (): Promise<Response> => {
+    const upstream = await runPipeline(
+      { body, headers, provider, transformer, context: { req: request } },
+      { log: ctx.log, httpsProxy: ctx.config.getHttpsProxy(), recordUsage }
+    )
+    return formatResponse(c, upstream, body.stream === true)
   }
-  const runPipeline = async () =>
-    toResponse(await handleTransformerEndpoint(reqShim, replyShim, fastifyShim, transformer))
 
   try {
-    return await runPipeline()
+    return await runOnce()
   } catch (err) {
-    const e = err as PipeError & { stack?: string }
-    if (e.code !== 'provider_response_error') {
-      ctx.log.error({ err: { code: e.code, message: e.message, stack: e.stack } }, 'pipeline error')
-    }
-    // Safety net for a model/level combo the matrix doesn't know yet:
-    // parse the supported list from the 400 and retry once.
-    const fix = bestSupportedLevel(e.message)
-    if (fix && deepReplaceValue(body, fix.bad, fix.level)) {
-      replyShim.statusCode = 200
-      for (const k of Object.keys(replyHeaders)) delete replyHeaders[k]
-      try {
-        return await runPipeline()
-      } catch (err2) {
-        return errorResponse(c, err2 as PipeError)
+    // Forward genuine upstream errors verbatim (Anthropic rate_limit, etc.)
+    // before the safety net runs.
+    const forwarded = forwardUpstreamError(err)
+    if (forwarded) {
+      // Retry once if the upstream 400 told us which effort levels it
+      // actually supports for this model.
+      const message = err instanceof HTTPException ? err.message : ''
+      const fix = bestSupportedLevel(message)
+      if (fix && deepReplaceValue(body, fix.bad, fix.level)) {
+        try {
+          return await runOnce()
+        } catch (err2) {
+          return forwardUpstreamError(err2) ?? errorResponse(c, err2)
+        }
       }
+      return forwarded
     }
-    return errorResponse(c, e)
+
+    ctx.log.error({ err }, 'pipeline error')
+    return errorResponse(c, err)
   }
 })
+
+function errorResponse(c: Context, err: unknown): Response {
+  if (err instanceof HTTPException) {
+    return c.json({ type: 'error', error: { type: 'internal_error', message: err.message } }, err.status as 500)
+  }
+  const message = err instanceof Error ? err.message : String(err)
+  return c.json({ type: 'error', error: { type: 'internal_error', message } }, 500)
+}

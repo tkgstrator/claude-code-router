@@ -8,7 +8,7 @@
 import { type Provider, ProviderSchema } from '@/schemas'
 import { getPrismaClient } from '../../db/client'
 import { ModelTestStatus, type PrismaClient } from '../../generated/prisma/client'
-import { resetLlmsContext } from '../../llmsContext'
+import { resetLlmsContext } from '../../llms'
 import { applyProviders } from './apply'
 import { toProvider } from './compose'
 import { syncToConfigFile } from './sync-to-disk'

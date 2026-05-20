@@ -2,7 +2,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import dayjs from '../lib/dayjs'
-import { logger } from '../lib/logger'
+import { logger } from '../logger'
 import {
   ClaudeCredentialsSchema,
   type ClaudeUsage,

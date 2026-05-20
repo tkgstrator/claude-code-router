@@ -5,7 +5,7 @@
  * production. All operations below are idempotent so re-runs are no-ops.
  */
 
-import { logger } from '../lib/logger'
+import { logger } from '../logger'
 import { ensureRouterSlots, ensureSeedProviders } from '../services/config/seed'
 import { seedScrapedPricesIntoDb } from '../services/price-seed-service'
 
