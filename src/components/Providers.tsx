@@ -15,8 +15,7 @@ import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
-import { findSubscriptionPreset } from '@/lib/subscriptionPresets'
-import { isDeprecatedModel } from '@/shared/data'
+import { findSubscriptionPreset, isDeprecatedModel } from '@/shared/data'
 import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
 import { ProviderList } from './ProviderList'
@@ -135,7 +134,7 @@ export function Providers() {
     const actualIndex = validProviders.indexOf(visibleProviders[index])
     const provider = config.Providers[actualIndex]
     setEditingProviderIndex(actualIndex)
-    setEditingProviderData({ enabled: true, ...JSON.parse(JSON.stringify(provider)) }) // 深拷贝
+    setEditingProviderData({ enabled: true, ...JSON.parse(JSON.stringify(provider)) }) // Deep clone
     // Reset API key visibility and error when opening edit dialog
     setShowApiKey((prev) => ({
       ...prev,
@@ -1028,7 +1027,7 @@ export function Providers() {
                               }))}
                               value=''
                               onChange={() => {
-                                // 只更新输入值，不添加模型
+                                // Only update the input value; do not add the model
                               }}
                               onEnter={(value) => {
                                 if (editingProviderIndex !== null) {
@@ -1057,7 +1056,7 @@ export function Providers() {
                         <Button
                           onClick={() => {
                             if (hasFetchedModels[editingProviderIndex] && comboInputRef.current) {
-                              // 使用ComboInput的逻辑
+                              // ComboInput branch
                               const comboInput = comboInputRef.current as unknown as {
                                 getCurrentValue(): string
                                 clearInput(): void
@@ -1065,11 +1064,11 @@ export function Providers() {
                               const currentValue = comboInput.getCurrentValue()
                               if (currentValue && currentValue.trim() && editingProviderIndex !== null) {
                                 handleAddModel(editingProviderIndex, currentValue.trim())
-                                // 清空ComboInput
+                                // Clear the ComboInput
                                 comboInput.clearInput()
                               }
                             } else {
-                              // 使用普通Input的逻辑
+                              // Plain Input branch
                               const input = document.getElementById('models') as HTMLInputElement
                               if (input && input.value.trim() && editingProviderIndex !== null) {
                                 handleAddModel(editingProviderIndex, input.value)

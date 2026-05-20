@@ -30,12 +30,12 @@ export function DebugPage() {
   const headersEditorRef = useRef<any>(null)
   const bodyEditorRef = useRef<any>(null)
 
-  // 切换全屏模式
+  // Toggle fullscreen mode
   const toggleFullscreen = (editorType: 'headers' | 'body') => {
     const isEnteringFullscreen = fullscreenEditor !== editorType
     setFullscreenEditor(isEnteringFullscreen ? editorType : null)
 
-    // 延迟触发Monaco编辑器的重新布局，等待DOM更新完成
+    // Defer Monaco editor relayout to wait for the DOM update
     setTimeout(() => {
       if (headersEditorRef.current) {
         headersEditorRef.current.layout()
@@ -46,7 +46,7 @@ export function DebugPage() {
     }, 300)
   }
 
-  // 从URL参数中解析日志数据
+  // Parse log data from URL parameters
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const logDataParam = params.get('logData')
@@ -55,20 +55,20 @@ export function DebugPage() {
       try {
         const parsedData = JSON.parse(decodeURIComponent(logDataParam))
 
-        // 解析URL - 支持多种字段名
+        // Resolve URL - supports several field names
         const url = parsedData.url || parsedData.requestUrl || parsedData.endpoint || ''
 
-        // 解析Method - 支持多种字段名和大小写
+        // Resolve method - supports several field names and casings
         const method = (parsedData.method || parsedData.requestMethod || 'POST').toUpperCase()
 
-        // 解析Headers - 支持多种格式
+        // Resolve headers - supports several formats
         let headers: Record<string, string> = {}
         if (parsedData.headers) {
           if (typeof parsedData.headers === 'string') {
             try {
               headers = JSON.parse(parsedData.headers)
             } catch {
-              // 如果是字符串格式，尝试解析为键值对
+              // When it's a string, try to parse as key/value pairs
               const headerLines = parsedData.headers.split('\n')
               headerLines.forEach((line: string) => {
                 const [key, ...values] = line.split(':')
@@ -82,11 +82,11 @@ export function DebugPage() {
           }
         }
 
-        // 解析Body - 支持多种格式和嵌套结构
+        // Resolve body - supports several formats and nested structures
         let body: Record<string, unknown> = {}
         let bodyData = null
 
-        // 支持多种字段名和嵌套结构
+        // Supports several field names and nested structures
         if (parsedData.body) {
           bodyData = parsedData.body
         } else if (parsedData.request && parsedData.request.body) {
@@ -96,30 +96,30 @@ export function DebugPage() {
         if (bodyData) {
           if (typeof bodyData === 'string') {
             try {
-              // 尝试解析为JSON对象
+              // Try to parse as a JSON object
               const parsed = JSON.parse(bodyData)
               body = parsed
             } catch {
-              // 如果不是JSON，检查是否是纯文本
+              // Not JSON - check whether it's plain text
               const trimmed = bodyData.trim()
               if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-                // 看起来像JSON但解析失败，作为字符串保存
+                // Looks like JSON but failed to parse - keep as a raw string
                 body = { raw: bodyData }
               } else {
-                // 普通文本，直接保存
+                // Plain text - store as is
                 body = { content: bodyData }
               }
             }
           } else if (typeof bodyData === 'object') {
-            // 已经是对象，直接使用
+            // Already an object - use it directly
             body = bodyData
           } else {
-            // 其他类型，转换为字符串
+            // Other types - coerce to string
             body = { content: String(bodyData) }
           }
         }
 
-        // 预填充请求表单
+        // Prefill the request form
         setRequestData({
           url,
           method,
@@ -135,7 +135,7 @@ export function DebugPage() {
     }
   }, [location.search])
 
-  // 发送请求
+  // Send the request
   const sendRequest = async () => {
     try {
       setIsLoading(true)
@@ -165,12 +165,12 @@ export function DebugPage() {
       const responseText = await response.text()
       let responseBody = responseText
 
-      // 尝试解析JSON响应
+      // Try to parse the response as JSON
       try {
         const jsonResponse = JSON.parse(responseText)
         responseBody = JSON.stringify(jsonResponse, null, 2)
       } catch {
-        // 如果不是JSON，保持原样
+        // Not JSON - keep the original text
       }
 
       const responseHeadersString = JSON.stringify(responseHeaders, null, 2)
@@ -182,7 +182,7 @@ export function DebugPage() {
         headers: responseHeadersString
       })
 
-      // 保存到IndexedDB
+      // Persist to IndexedDB
       await requestHistoryDB.saveRequest({
         url: requestData.url,
         method: requestData.method,
@@ -206,7 +206,7 @@ export function DebugPage() {
     }
   }
 
-  // 从历史记录中选择请求
+  // Select a request from history
   const handleSelectRequest = (request: import('@/lib/db').RequestHistoryItem) => {
     setRequestData({
       url: request.url,
@@ -223,7 +223,7 @@ export function DebugPage() {
     })
   }
 
-  // 复制cURL命令
+  // Copy the cURL command
   const copyCurl = () => {
     try {
       const headers = JSON.parse(requestData.headers)
@@ -231,12 +231,12 @@ export function DebugPage() {
 
       let curlCommand = `curl -X ${requestData.method} "${requestData.url}"`
 
-      // 添加headers
+      // Append headers
       Object.entries(headers).forEach(([key, value]) => {
         curlCommand += ` \\\n  -H "${key}: ${value}"`
       })
 
-      // 添加body
+      // Append body
       if (requestData.method !== 'GET' && Object.keys(body).length > 0) {
         curlCommand += ` \\\n  -d '${JSON.stringify(body)}'`
       }
@@ -251,7 +251,7 @@ export function DebugPage() {
 
   return (
     <div className='h-screen bg-gray-50 font-sans'>
-      {/* 头部 */}
+      {/* Header */}
       <header className='flex h-16 items-center justify-between border-b bg-background px-6'>
         <div className='flex items-center gap-4'>
           <Button variant='ghost' size='sm' onClick={() => navigate('/models')}>
@@ -272,14 +272,14 @@ export function DebugPage() {
         </div>
       </header>
 
-      {/* 主要内容 */}
+      {/* Main content */}
       <main className='flex h-[calc(100vh-4rem)] flex-col gap-4 p-4 overflow-hidden'>
-        {/* 上部分：请求参数配置 - 上中下布局 */}
+        {/* Top: request parameter configuration - vertical layout */}
         <div className='h-1/2 flex flex-col gap-4'>
           <div className='bg-background rounded-lg border p-4 flex-1 flex flex-col'>
             <h3 className='font-medium mb-4'>请求参数配置</h3>
             <div className='flex flex-col gap-4 flex-1'>
-              {/* 上：Method、URL和发送请求按钮配置 */}
+              {/* Top: method, URL, and send-request button */}
               <div className='flex gap-4 items-end'>
                 <div className='w-32'>
                   <label className='block text-sm font-medium mb-1'>Method</label>
@@ -324,7 +324,7 @@ export function DebugPage() {
                 </Button>
               </div>
 
-              {/* Headers和Body配置 - 使用tab布局 */}
+              {/* Headers and body configuration - tabbed layout */}
               <div className='flex-1'>
                 <Tabs defaultValue='headers' className='h-full flex flex-col'>
                   <TabsList className='grid w-full grid-cols-2'>
@@ -421,7 +421,7 @@ export function DebugPage() {
           </div>
         </div>
 
-        {/* 下部分：响应信息查看 */}
+        {/* Bottom: response viewer */}
         <div className='h-1/2 flex flex-col gap-4'>
           <div className='flex-1 bg-background rounded-lg border p-4 flex flex-col'>
             <div className='flex items-center justify-between mb-4'>
@@ -479,7 +479,7 @@ export function DebugPage() {
         </div>
       </main>
 
-      {/* 请求历史抽屉 */}
+      {/* Request history drawer */}
       <RequestHistoryDrawer
         isOpen={isHistoryDrawerOpen}
         onClose={() => setIsHistoryDrawerOpen(false)}

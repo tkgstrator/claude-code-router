@@ -19,7 +19,7 @@ export function formatValidationError(
   return t('statusline.validation.unknown_error')
 }
 
-// 颜色枚举到十六进制的映射
+// Color enum to hex value mapping
 export const COLOR_HEX_MAP: Record<string, string> = {
   black: '#000000',
   red: '#cd0000',
@@ -56,7 +56,7 @@ export const COLOR_HEX_MAP: Record<string, string> = {
 }
 
 /**
- * 创建默认的StatusLine配置
+ * Create the default StatusLine configuration
  */
 export function createDefaultStatusLineConfig(): StatusLineConfig {
   return {
