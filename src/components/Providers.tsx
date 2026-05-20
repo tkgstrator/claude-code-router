@@ -35,6 +35,8 @@ type SubscriptionAccountView = {
 const accountSummary = (a: SubscriptionAccountView): string =>
   [a.userName, a.userEmail, a.userId].filter(Boolean).join(' / ') || a.label
 
+const formatPlan = (plan: string): string => plan.replace(/^(claude|codex)_/i, '')
+
 type SubscriptionView = {
   providerName: string
   enabled: boolean
@@ -104,7 +106,6 @@ export function Providers() {
   const [activeAuthMode, setActiveAuthMode] = useState<ProviderAuthMode>('api_key')
   const comboInputRef = useRef<HTMLInputElement>(null)
 
-  const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
   const [subscriptionByProvider, setSubscriptionByProvider] = useState<Record<string, SubscriptionView>>({})
 
   // Fetch available transformers when component mounts
@@ -127,13 +128,10 @@ export function Providers() {
         const response = await api.get<{
           subscriptions: SubscriptionView[]
         }>('/subscriptions')
-        const map: Record<string, string | null> = {}
         const subMap: Record<string, SubscriptionView> = {}
         for (const entry of response.subscriptions) {
-          map[entry.providerName] = entry.activeAccount?.plan ?? null
           subMap[entry.providerName] = entry
         }
-        setPlanByProvider(map)
         setSubscriptionByProvider(subMap)
       } catch (error) {
         console.error('Failed to fetch subscriptions:', error)
@@ -655,7 +653,7 @@ export function Providers() {
   const visibleProviders = providersByAuth[activeAuthMode]
   const isAvailable = (p: Provider) => {
     if (p.enabled === false) return false
-    if (p.auth_mode === 'subscription') return Boolean(planByProvider[p.name])
+    if (p.auth_mode === 'subscription') return subscriptionByProvider[p.name]?.accounts.some((a) => a.enabled) ?? false
     return (p.api_key?.trim().length ?? 0) > 0
   }
   const availableProviders = visibleProviders.filter(isAvailable)
@@ -701,7 +699,6 @@ export function Providers() {
                 </h3>
                 <ProviderList
                   providers={availableProviders}
-                  planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
                 />
               </div>
@@ -713,7 +710,6 @@ export function Providers() {
                 </h3>
                 <ProviderList
                   providers={unavailableProviders}
-                  planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
                 />
               </div>
@@ -841,16 +837,22 @@ export function Providers() {
                                     }}
                                   />
                                   <div className='min-w-0 flex-1'>
-                                    <div className='font-medium text-sm truncate'>{account.label}</div>
-                                    <div className='text-xs text-muted-foreground truncate'>
-                                      {accountSummary(account)}
+                                    <div className='flex items-center gap-2'>
+                                      <span className='font-medium text-sm truncate'>
+                                        {account.userName ?? account.userEmail ?? account.userId ?? account.label}
+                                      </span>
+                                      {account.plan && (
+                                        <Badge variant='secondary' className='text-xs uppercase tracking-wide shrink-0'>
+                                          {formatPlan(account.plan)}
+                                        </Badge>
+                                      )}
                                     </div>
+                                    {(account.userEmail || account.userId) && (
+                                      <div className='text-xs text-muted-foreground truncate'>
+                                        {account.userEmail ?? account.userId}
+                                      </div>
+                                    )}
                                   </div>
-                                  {account.plan && (
-                                    <Badge variant='outline' className='text-xs'>
-                                      {account.plan}
-                                    </Badge>
-                                  )}
                                 </div>
                               )
                             })}
