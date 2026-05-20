@@ -12,6 +12,7 @@ import {
   CredentialFileShapeSchema,
   type DiscoveredAccount
 } from '../schemas/subscription.dto'
+import { fetchClaudeProfile } from './claude-profile-service'
 
 // Narrow ENOENT (file simply absent) so the sync stays silent for
 // not-yet-registered vendors and only surfaces real IO failures.
@@ -208,13 +209,37 @@ const readCodexAccounts = (path: string, entries: unknown[], isArray: boolean): 
   return out
 }
 
+// Pull user-facing identity (uuid / email / display name) off the
+// /api/oauth/profile endpoint and overlay it on the Claude accounts
+// parsed from disk. The credentials file rarely carries those fields,
+// so without this enrichment SubAccount rows surface as
+// `userName: null / userEmail: null` in /api/subscriptions. Profile
+// fetch failures are non-fatal — the discovered account keeps whatever
+// the file already supplied.
+const enrichClaudeAccountsWithProfile = async (accounts: DiscoveredAccount[]): Promise<DiscoveredAccount[]> =>
+  Promise.all(
+    accounts.map(async (account) => {
+      if (!account.accessToken) return account
+      const profile = await fetchClaudeProfile(account.accessToken, { logger })
+      if (!profile) return account
+      return {
+        ...account,
+        userId: firstString(account.userId, profile.account.uuid),
+        userName: firstString(account.userName, profile.account.full_name, profile.account.display_name),
+        userEmail: firstString(account.userEmail, profile.account.email),
+        plan: firstString(account.plan, profile.organization?.organization_type),
+        rateLimitTier: firstString(account.rateLimitTier, profile.organization?.rate_limit_tier)
+      }
+    })
+  )
+
 const discoverAccountsForBaseUrl = async (apiBaseUrl: string): Promise<DiscoveredAccount[]> => {
   if (apiBaseUrl.includes('anthropic.com')) {
     const dirEnv = process.env.CCR_CLAUDE_CREDENTIALS_DIR
     const dir = typeof dirEnv === 'string' ? dirEnv.trim() : ''
     const path = dir.length > 0 ? join(dir, '.credentials.json') : join(homedir(), '.claude', '.credentials.json')
     const { entries, isArray } = await readJsonEntries(path)
-    return readClaudeAccounts(path, entries, isArray)
+    return enrichClaudeAccountsWithProfile(readClaudeAccounts(path, entries, isArray))
   }
   if (apiBaseUrl.includes('chatgpt.com') || apiBaseUrl.includes('openai.com/v1')) {
     const dirEnv = process.env.CCR_CODEX_AUTH_DIR
