@@ -1,6 +1,5 @@
 import type { SimpleIcon } from 'simple-icons'
 import * as si from 'simple-icons'
-import { cn } from './utils'
 
 // Vendor → simple-icons slug. Vendors that simple-icons declines to
 // ship for brand-licensing reasons (openai, moonshot-ai at v16) come
@@ -38,14 +37,6 @@ interface ProviderIconProps {
   className?: string
 }
 
-// Returns true when the icon hex is dark enough to be invisible on a dark background.
-const needsDarkInvert = (hex: string): boolean => {
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.4
-}
-
 export function ProviderIcon({ name, size = 20, className }: ProviderIconProps) {
   const resolvedName = NAME_ALIASES[name] ?? name
   const slug = VENDOR_ICON_SLUG[resolvedName]
@@ -60,7 +51,7 @@ export function ProviderIcon({ name, size = 20, className }: ProviderIconProps) 
         width={size}
         height={size}
         fill={`#${icon.hex}`}
-        className={cn(needsDarkInvert(icon.hex) && 'dark:invert', className)}
+        className={className}
         aria-label={icon.title}
       >
         <path d={icon.path} />
