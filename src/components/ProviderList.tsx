@@ -1,6 +1,5 @@
 import { CheckCircle2, LoaderCircle, Pencil, Wifi, XCircle } from 'lucide-react'
 import { useState } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import { ProviderIcon } from '@/lib/providerIcons'
@@ -11,10 +10,9 @@ type TestState = 'idle' | 'testing' | 'ok' | 'fail'
 interface ProviderListProps {
   providers: Provider[]
   onEdit: (index: number) => void
-  planByProvider?: Record<string, string | null>
 }
 
-export function ProviderList({ providers, onEdit, planByProvider }: ProviderListProps) {
+export function ProviderList({ providers, onEdit }: ProviderListProps) {
   const [testState, setTestState] = useState<Record<string, TestState>>({})
   const [testError, setTestError] = useState<Record<string, string>>({})
 
@@ -107,11 +105,6 @@ export function ProviderList({ providers, onEdit, planByProvider }: ProviderList
               <div className='flex-1 space-y-1'>
                 <div className='flex items-center gap-2'>
                   <p className='text-md font-semibold text-foreground'>{providerName}</p>
-                  {planByProvider?.[providerName] && (
-                    <Badge variant='secondary' className='text-xs uppercase tracking-wide'>
-                      {planByProvider[providerName]}
-                    </Badge>
-                  )}
                 </div>
                 <p className='text-sm text-muted-foreground'>{apiBasePath}</p>
               </div>
