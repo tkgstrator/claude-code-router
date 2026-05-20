@@ -9,8 +9,8 @@
  */
 
 import type { Logger } from 'pino'
+import type { Provider, ProviderConfigShape } from '@/schemas'
 import { logger } from '../logger'
-import type { Provider as SchemaProvider } from '../schemas'
 import { loadFullConfig } from '../services/config'
 import { getActiveSubAccountAuth } from '../services/subscription-account-sync-service'
 import { getSubscriptionsInfo } from '../services/subscription-info-service'
@@ -25,9 +25,8 @@ import { CodexOauthTransformer } from './transformers/codex-oauth'
 import { GeminiTransformer } from './transformers/gemini'
 import { OpenAITransformer } from './transformers/openai'
 import { OpenAIResponsesTransformer } from './transformers/openai-responses'
-import type { ProviderConfigShape } from './types'
 
-export interface LlmsContext {
+export type LlmsContext = {
   config: ConfigStore
   transformers: TransformerRegistry
   providers: ProviderRegistry
@@ -52,7 +51,9 @@ async function buildLlmsContext(): Promise<LlmsContext> {
 
   // 1. Subscription overlay — inject OAuth credentials onto subscription
   //    providers so the OAuth transformers can read them at request time.
-  const rawProviders: SchemaProvider[] = cfg.Providers ?? []
+  //    AppConfig.Providers is non-optional per the schema, so no nullish
+  //    fallback is needed here.
+  const rawProviders: Provider[] = cfg.Providers
   const [activeAccountPaths, authByProvider] = await Promise.all([
     collectActiveAccountPaths(),
     collectAuthByProvider(rawProviders)
@@ -84,13 +85,38 @@ async function buildLlmsContext(): Promise<LlmsContext> {
   // 4. Provider registry — resolve each provider's transformer chain
   //    against the freshly-built transformer registry.
   const providers = new ProviderRegistry(transformers, logger)
-  providers.registerFromConfig(providersWithAuth as unknown as ProviderConfigShape[])
+  providers.registerFromConfig(toProviderConfigShapes(providersWithAuth))
 
   // 5. Tokenizer registry — used by the scenario router to count tokens.
   const tokenizers = new TokenizerRegistry(logger)
   await tokenizers.initialize()
 
   return { config, transformers, providers, tokenizers, log: logger }
+}
+
+/**
+ * Bridge Provider[] (the disk/DB shape with looser `api_key:
+ * string | null` and the broader `use[]` union) into the registry input
+ * shape ProviderConfigShape[]. registerFromConfig defensively skips
+ * rows with falsy name/api_base_url/api_key, so the unused-null and
+ * shape differences are runtime-safe; the structural mismatch is
+ * unavoidable at the type layer because the two schemas describe the
+ * same data at different boundaries.
+ */
+function toProviderConfigShapes(providers: Provider[]): ProviderConfigShape[] {
+  return providers.map((p) => ({
+    name: p.name,
+    api_base_url: p.api_base_url,
+    // biome-ignore plugin: api_key is nullable on the DB-shaped Provider but the
+    // registry filters out null/empty rows in registerFromConfig; the empty-string
+    // fallback keeps the type union narrow without a cast.
+    api_key: p.api_key ?? '',
+    models: p.models,
+    // biome-ignore plugin: `transformer.use` entries are structurally the same on
+    // both schemas (string | [string, options]) but the disk schema models them
+    // with a wider union; this structural pass-through is the safe bridge.
+    transformer: p.transformer as ProviderConfigShape['transformer']
+  }))
 }
 
 // ─── Subscription overlay collection ───────────────────────────────────
@@ -105,7 +131,7 @@ async function collectActiveAccountPaths(): Promise<Map<string, string>> {
   return map
 }
 
-async function collectAuthByProvider(providers: SchemaProvider[]): Promise<Map<string, SubscriptionAuthOverlay>> {
+async function collectAuthByProvider(providers: Provider[]): Promise<Map<string, SubscriptionAuthOverlay>> {
   const map = new Map<string, SubscriptionAuthOverlay>()
   for (const p of providers) {
     if (p.auth_mode !== 'subscription') continue

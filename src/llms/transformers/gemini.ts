@@ -7,7 +7,7 @@
  * conversion is reused by vertex-gemini.
  */
 
-import type { RuntimeProvider, TransformerContext, TransformerHookResult, UnifiedChatRequest } from '../types'
+import type { RuntimeProvider, TransformerContext, TransformerHookResult, UnifiedChatRequest } from '@/schemas'
 import { buildRequestBody, transformRequestOut, transformResponseOut } from '../utils/gemini-conversion'
 import { Transformer } from './base'
 
@@ -36,10 +36,15 @@ export class GeminiTransformer extends Transformer {
   }
 
   async transformRequestOut(request: unknown, _context: TransformerContext): Promise<UnifiedChatRequest> {
-    return transformRequestOut(request as Record<string, unknown>)
+    return transformRequestOut(toGeminiRequestRecord(request))
   }
 
   async transformResponseOut(response: Response, _context: TransformerContext): Promise<Response> {
     return transformResponseOut(response, this.name, this.logger)
   }
+}
+
+function toGeminiRequestRecord(request: unknown): Record<string, unknown> {
+  if (request === null || typeof request !== 'object') return {}
+  return request as Record<string, unknown>
 }

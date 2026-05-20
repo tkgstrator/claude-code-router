@@ -8,6 +8,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
+import type { PipelineRequest } from '@/schemas'
 import { getPrismaClient } from '../../db/client'
 import {
   getLlmsContext,
@@ -18,7 +19,6 @@ import {
   type Transformer,
   type UsageRecord
 } from '../../llms'
-import type { PipelineRequest } from '../../llms/types'
 import { requestLogEmitter } from '../request-logs/events'
 
 export const v1Route = new Hono()

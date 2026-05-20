@@ -22,5 +22,12 @@ or {
       message="`z.string().optional()` still accepts empty strings. Add `.nonempty()` before `.optional()` to make intent explicit.",
       severity="warn"
     )
+  },
+  `z.string().default($_)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="`z.string().default(...)` still accepts empty strings (and the default itself may be empty). Add `.nonempty()` before `.default(...)` to make intent explicit.",
+      severity="warn"
+    )
   }
 }

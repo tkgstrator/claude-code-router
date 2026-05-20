@@ -7,8 +7,37 @@
  */
 
 import { get_encoding, type Tiktoken, type TiktokenEncoding } from 'tiktoken'
-import type { ProviderTokenizerConfig } from '../types'
+import type { ProviderTokenizerConfig } from '@/schemas'
 import { type TokenizeContentBlock, type TokenizeRequest, Tokenizer } from './base'
+
+const DEFAULT_ENCODING: TiktokenEncoding = 'cl100k_base'
+
+function isProviderTokenizerConfig(
+  value: TiktokenEncoding | ProviderTokenizerConfig
+): value is ProviderTokenizerConfig {
+  return typeof value !== 'string'
+}
+
+function isTiktokenEncoding(value: string | undefined): value is TiktokenEncoding {
+  // Only the encoding names tiktoken ships. Keep this list in sync with
+  // the `TiktokenEncoding` union from the upstream package.
+  if (!value) return false
+  const known: readonly string[] = ['cl100k_base', 'p50k_base', 'p50k_edit', 'r50k_base', 'gpt2', 'o200k_base']
+  return known.includes(value)
+}
+
+function readBlockText(part: TokenizeContentBlock): string | undefined {
+  const text = Reflect.get(part, 'text')
+  return typeof text === 'string' ? text : undefined
+}
+
+function readBlockInput(part: TokenizeContentBlock): unknown {
+  return Reflect.get(part, 'input')
+}
+
+function readBlockContent(part: TokenizeContentBlock): unknown {
+  return Reflect.get(part, 'content')
+}
 
 export class TiktokenTokenizer extends Tokenizer {
   private encoding: Tiktoken | undefined
@@ -17,13 +46,9 @@ export class TiktokenTokenizer extends Tokenizer {
    * Accepts either a raw encoding name or a `ProviderTokenizerConfig`
    * whose `model` field is the encoding name. Defaults to `cl100k_base`.
    */
-  constructor(encodingOrConfig: TiktokenEncoding | ProviderTokenizerConfig = 'cl100k_base') {
+  constructor(encodingOrConfig: TiktokenEncoding | ProviderTokenizerConfig = DEFAULT_ENCODING) {
     super()
-    const encodingName: TiktokenEncoding =
-      typeof encodingOrConfig === 'string'
-        ? encodingOrConfig
-        : ((encodingOrConfig.model as TiktokenEncoding | undefined) ?? 'cl100k_base')
-
+    const encodingName = this.resolveEncoding(encodingOrConfig)
     try {
       this.encoding = get_encoding(encodingName)
     } catch {
@@ -31,77 +56,86 @@ export class TiktokenTokenizer extends Tokenizer {
     }
   }
 
+  private resolveEncoding(encodingOrConfig: TiktokenEncoding | ProviderTokenizerConfig): TiktokenEncoding {
+    if (!isProviderTokenizerConfig(encodingOrConfig)) return encodingOrConfig
+    const model = encodingOrConfig.model
+    return isTiktokenEncoding(model) ? model : DEFAULT_ENCODING
+  }
+
   override async initialize(): Promise<void> {
-    if (!this.encoding) {
-      throw new Error('Tiktoken encoding not initialized')
-    }
+    if (!this.encoding) throw new Error('Tiktoken encoding not initialized')
   }
 
   async countTokens(request: TokenizeRequest): Promise<number> {
     const encoding = this.encoding
-    if (!encoding) {
-      throw new Error('Encoding not initialized')
-    }
+    if (!encoding) throw new Error('Encoding not initialized')
 
-    let tokenCount = 0
-    const { messages, system, tools } = request
+    return (
+      this.countMessages(encoding, request.messages) +
+      this.countSystem(encoding, request.system) +
+      this.countTools(encoding, request.tools)
+    )
+  }
 
-    // Messages
-    if (Array.isArray(messages)) {
-      for (const message of messages) {
-        if (typeof message.content === 'string') {
-          tokenCount += encoding.encode(message.content).length
-        } else if (Array.isArray(message.content)) {
-          for (const part of message.content) {
-            tokenCount += this.countContentBlock(encoding, part)
-          }
-        }
+  private countMessages(encoding: Tiktoken, messages: TokenizeRequest['messages']): number {
+    if (!Array.isArray(messages)) return 0
+    let n = 0
+    for (const message of messages) {
+      if (typeof message.content === 'string') {
+        n += encoding.encode(message.content).length
+        continue
+      }
+      if (Array.isArray(message.content)) {
+        for (const part of message.content) n += this.countContentBlock(encoding, part)
       }
     }
+    return n
+  }
 
-    // System
-    if (typeof system === 'string') {
-      tokenCount += encoding.encode(system).length
-    } else if (Array.isArray(system)) {
-      for (const item of system) {
-        if (item.type !== 'text') continue
-        if (typeof item.text === 'string') {
-          tokenCount += encoding.encode(item.text).length
-        } else if (Array.isArray(item.text)) {
-          for (const textPart of item.text) {
-            tokenCount += encoding.encode(textPart ?? '').length
-          }
-        }
-      }
+  private countSystem(encoding: Tiktoken, system: TokenizeRequest['system']): number {
+    if (typeof system === 'string') return encoding.encode(system).length
+    if (!Array.isArray(system)) return 0
+    let n = 0
+    for (const item of system) {
+      if (item.type === 'text') n += this.countSystemTextField(encoding, item.text)
     }
+    return n
+  }
 
-    // Tools
-    if (tools) {
-      for (const tool of tools) {
-        if (tool.description) {
-          tokenCount += encoding.encode(tool.name + tool.description).length
-        }
-        if (tool.input_schema) {
-          tokenCount += encoding.encode(JSON.stringify(tool.input_schema)).length
-        }
-      }
+  private countSystemTextField(encoding: Tiktoken, text: string | string[] | undefined): number {
+    if (typeof text === 'string') return encoding.encode(text).length
+    if (!Array.isArray(text)) return 0
+    let n = 0
+    for (const part of text) {
+      if (typeof part === 'string') n += encoding.encode(part).length
     }
+    return n
+  }
 
-    return tokenCount
+  private countTools(encoding: Tiktoken, tools: TokenizeRequest['tools']): number {
+    if (!tools) return 0
+    let n = 0
+    for (const tool of tools) {
+      if (tool.description) n += encoding.encode(tool.name + tool.description).length
+      if (tool.input_schema) n += encoding.encode(JSON.stringify(tool.input_schema)).length
+    }
+    return n
   }
 
   private countContentBlock(encoding: Tiktoken, part: TokenizeContentBlock): number {
     if (part.type === 'text') {
-      const text = (part as { text?: unknown }).text
-      return typeof text === 'string' ? encoding.encode(text).length : 0
+      const text = readBlockText(part)
+      return text !== undefined ? encoding.encode(text).length : 0
     }
     if (part.type === 'tool_use') {
-      const input = (part as { input?: unknown }).input
-      return encoding.encode(JSON.stringify(input ?? '')).length
+      const input = readBlockInput(part)
+      const text = input !== undefined ? JSON.stringify(input) : ''
+      return encoding.encode(text).length
     }
     if (part.type === 'tool_result') {
-      const content = (part as { content?: unknown }).content
-      const text = typeof content === 'string' ? content : JSON.stringify(content ?? '')
+      const content = readBlockContent(part)
+      if (typeof content === 'string') return encoding.encode(content).length
+      const text = content !== undefined ? JSON.stringify(content) : ''
       return encoding.encode(text).length
     }
     return 0

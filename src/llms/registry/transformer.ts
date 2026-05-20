@@ -11,7 +11,7 @@
 import type { Logger } from 'pino'
 import type { Transformer } from '../transformers/base'
 
-export interface TransformerWithName {
+export type TransformerWithName = {
   name: string
   transformer: Transformer
 }

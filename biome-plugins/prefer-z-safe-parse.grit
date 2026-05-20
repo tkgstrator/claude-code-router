@@ -1,0 +1,26 @@
+language js
+
+or {
+  `$schema.parse($_)` as $match where {
+    or {
+      $schema <: r"^[A-Z][A-Za-z0-9_]*Schema$",
+      $schema <: contains `z`
+    },
+    register_diagnostic(
+      span=$match,
+      message="Prefer `safeParse` over `parse` for Zod schemas. Capture the result with `const result = <schema>.safeParse(...)` and branch on `result.success` to return a typed error instead of throwing.",
+      severity="warn"
+    )
+  },
+  `$schema.parseAsync($_)` as $match where {
+    or {
+      $schema <: r"^[A-Z][A-Za-z0-9_]*Schema$",
+      $schema <: contains `z`
+    },
+    register_diagnostic(
+      span=$match,
+      message="Prefer `safeParseAsync` over `parseAsync` for Zod schemas. Capture the result with `const result = await <schema>.safeParseAsync(...)` and branch on `result.success` to return a typed error instead of throwing.",
+      severity="warn"
+    )
+  }
+}

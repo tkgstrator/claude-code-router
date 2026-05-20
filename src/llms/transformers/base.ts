@@ -16,9 +16,9 @@ import type {
   TransformerContext,
   TransformerHookResult,
   UnifiedChatRequest
-} from '../types'
+} from '@/schemas'
 
-export type { TransformerAuthResult } from '../types'
+export type { TransformerAuthResult } from '@/schemas'
 
 export abstract class Transformer {
   /** Unique name used in provider.transformer.use[] chains. */
@@ -37,7 +37,10 @@ export abstract class Transformer {
   /**
    * Convert the upstream client's wire request into the unified
    * internal shape. Override on transformers that own an endpoint.
+   * Default impl: pass-through (the body already matches the unified
+   * shape, e.g. the OAuth claude-code passthrough path).
    */
+  // biome-ignore plugin: identity passthrough in the base hook — the unified shape is the same as the inbound wire shape for transformers that don't own an endpoint conversion (claude-code-oauth bypass).
   async transformRequestOut(request: unknown, _context: TransformerContext): Promise<UnifiedChatRequest> {
     return request as UnifiedChatRequest
   }
@@ -92,7 +95,7 @@ export abstract class Transformer {
  * a `static TransformerName`; everything else is identified by the
  * instance `name` field.
  */
-export interface TransformerConstructor {
+export type TransformerConstructor = {
   new (options?: Record<string, unknown>): Transformer
   TransformerName?: string
 }

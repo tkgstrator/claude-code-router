@@ -10,11 +10,18 @@
  * verbatim.
  */
 
-import { readFileSync, writeFileSync } from 'fs'
-import { homedir } from 'os'
-import { join } from 'path'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { HTTPException } from 'hono/http-exception'
+import {
+  type OauthClaudeCredentials,
+  OauthClaudeCredentialsSchema,
+  OauthRefreshResponseSchema,
+  type RuntimeProvider,
+  type TransformerContext
+} from '@/schemas'
 import { logger } from '../../logger'
-import type { RuntimeProvider, TransformerContext } from '../types'
 import type { TransformerAuthResult } from './base'
 import { OAuthTransformer, type OauthCredentials } from './oauth-base'
 
@@ -23,32 +30,22 @@ const DEFAULT_CREDENTIALS_PATH = join(homedir(), '.claude', '.credentials.json')
 const REFRESH_URL = 'https://platform.claude.com/v1/oauth/token'
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 
-interface ClaudeCredentials {
-  claudeAiOauth: {
-    accessToken: string
-    refreshToken: string
-    expiresAt: number
-    scopes: string[]
-    subscriptionType?: string
-    rateLimitTier?: string
-  }
-  organizationUuid?: string
-}
-
-interface RefreshResponse {
-  access_token: string
-  expires_in?: number
-  refresh_token?: string
-}
-
-function readCredentials(credentialsPath: string): ClaudeCredentials {
+function readCredentials(credentialsPath: string): OauthClaudeCredentials {
+  let raw: unknown
   try {
-    return JSON.parse(readFileSync(credentialsPath, 'utf-8')) as ClaudeCredentials
+    raw = JSON.parse(readFileSync(credentialsPath, 'utf-8'))
   } catch {
-    throw new Error(
-      `Cannot read Claude Code credentials from ${credentialsPath}. ` + 'Please authenticate Claude Code first.'
-    )
+    throw new HTTPException(500, {
+      message: `Cannot read Claude Code credentials from ${credentialsPath}. Please authenticate Claude Code first.`
+    })
   }
+  const result = OauthClaudeCredentialsSchema.safeParse(raw)
+  if (!result.success) {
+    throw new HTTPException(500, {
+      message: `Invalid Claude Code credentials at ${credentialsPath}: ${result.error.message}`
+    })
+  }
+  return result.data
 }
 
 async function refreshToken(refreshTokenValue: string, credentialsPath: string): Promise<string> {
@@ -64,13 +61,21 @@ async function refreshToken(refreshTokenValue: string, credentialsPath: string):
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
-    throw new Error(`Token refresh failed: ${response.status} ${detail}`.trim())
+    // biome-ignore plugin: Hono's HTTPException status is a closed union of supported HTTP codes; arbitrary upstream codes must be widened.
+    throw new HTTPException(response.status as never, {
+      message: `Token refresh failed: ${response.status} ${detail}`.trim()
+    })
   }
 
-  const data = (await response.json()) as RefreshResponse
+  const result = OauthRefreshResponseSchema.safeParse(await response.json())
+  if (!result.success) {
+    throw new HTTPException(502, { message: `Invalid OAuth refresh response: ${result.error.message}` })
+  }
+  const data = result.data
   const credentials = readCredentials(credentialsPath)
+  const expiresIn = data.expires_in !== undefined ? data.expires_in : 3600
   credentials.claudeAiOauth.accessToken = data.access_token
-  credentials.claudeAiOauth.expiresAt = Date.now() + (data.expires_in ?? 3600) * 1000
+  credentials.claudeAiOauth.expiresAt = Date.now() + expiresIn * 1000
   if (data.refresh_token) {
     credentials.claudeAiOauth.refreshToken = data.refresh_token
   }
@@ -97,29 +102,27 @@ async function getValidToken(credentialsPath: string): Promise<string> {
     return accessToken
   }
 
-  if (!refreshInFlightByPath.has(credentialsPath)) {
-    const inFlight = refreshToken(rt, credentialsPath)
-      .catch((e: unknown) => {
-        logger.error(
-          {
-            provider: 'claude-code',
-            err: String((e as Error)?.message ?? e)
-          },
-          '[claude-code-oauth] OAuth token refresh failed; using ' +
-            'the existing token (likely to 401). Re-authenticate: run ' +
-            '`claude` and sign in, which rewrites ' +
-            '~/.claude/.credentials.json (no `ccr restart` needed — the ' +
-            'file is re-read every request).'
-        )
-        return accessToken
-      })
-      .finally(() => {
-        refreshInFlightByPath.delete(credentialsPath)
-      })
-    refreshInFlightByPath.set(credentialsPath, inFlight)
-  }
+  const existing = refreshInFlightByPath.get(credentialsPath)
+  if (existing) return existing
 
-  return refreshInFlightByPath.get(credentialsPath)!
+  const inFlight = refreshToken(rt, credentialsPath)
+    .catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : String(e)
+      logger.error(
+        { provider: 'claude-code', err: message },
+        '[claude-code-oauth] OAuth token refresh failed; using ' +
+          'the existing token (likely to 401). Re-authenticate: run ' +
+          '`claude` and sign in, which rewrites ' +
+          '~/.claude/.credentials.json (no `ccr restart` needed — the ' +
+          'file is re-read every request).'
+      )
+      return accessToken
+    })
+    .finally(() => {
+      refreshInFlightByPath.delete(credentialsPath)
+    })
+  refreshInFlightByPath.set(credentialsPath, inFlight)
+  return inFlight
 }
 
 // A Claude subscription OAuth token only gets the subscription's model
@@ -130,7 +133,7 @@ async function getValidToken(credentialsPath: string): Promise<string> {
 // the base allotment) still 200s.
 const CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
-interface AnthropicSystemBlock {
+type AnthropicSystemBlock = {
   type?: string
   text?: string
   cache_control?: unknown
@@ -143,26 +146,45 @@ interface AnthropicSystemBlock {
 // Code attached survives — Anthropic prompt caching is prefix-based, and
 // rebuilding blocks as plain {type,text} dropped the cache breakpoints,
 // re-billing the whole system/tools prefix as fresh input every turn.
+function toSystemBlock(value: unknown): AnthropicSystemBlock {
+  if (typeof value === 'string') return { type: 'text', text: value }
+  if (value === null || typeof value !== 'object') return {}
+  const type = Reflect.get(value, 'type')
+  const text = Reflect.get(value, 'text')
+  const cache_control = Reflect.get(value, 'cache_control')
+  return {
+    type: typeof type === 'string' ? type : undefined,
+    text: typeof text === 'string' ? text : undefined,
+    cache_control
+  }
+}
+
 function withClaudeCodeIdentity(system: unknown): AnthropicSystemBlock[] {
-  const blocks: AnthropicSystemBlock[] =
-    typeof system === 'string'
-      ? system.length > 0
-        ? [{ type: 'text', text: system }]
-        : []
-      : Array.isArray(system)
-        ? (system as unknown[]).map((b) =>
-            typeof b === 'string' ? { type: 'text', text: b } : (b as AnthropicSystemBlock)
-          )
-        : []
+  let blocks: AnthropicSystemBlock[]
+  if (typeof system === 'string') {
+    blocks = system.length > 0 ? [{ type: 'text', text: system }] : []
+  } else if (Array.isArray(system)) {
+    blocks = system.map(toSystemBlock)
+  } else {
+    blocks = []
+  }
   const firstText = typeof blocks[0]?.text === 'string' ? blocks[0].text : ''
   if (firstText.startsWith(CLAUDE_CODE_IDENTITY)) return blocks
   return [{ type: 'text', text: CLAUDE_CODE_IDENTITY }, ...blocks]
 }
 
-interface ClaudeCodeRequestShape {
+type ClaudeCodeRequestShape = {
   system?: unknown
   messages?: Array<{ content?: unknown; [k: string]: unknown }>
   [k: string]: unknown
+}
+
+function keepSignedBlock(block: unknown): boolean {
+  if (block === null || typeof block !== 'object') return true
+  const type = Reflect.get(block, 'type')
+  if (type !== 'thinking') return true
+  const signature = Reflect.get(block, 'signature')
+  return typeof signature === 'string' && signature.length > 0
 }
 
 export class ClaudeCodeOauthTransformer extends OAuthTransformer {
@@ -182,6 +204,7 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
     _context: TransformerContext
   ): Promise<TransformerAuthResult> {
     const { token } = await this.resolveSubscriptionAuth(provider)
+    // biome-ignore plugin: the OAuth auth hook receives the inbound Anthropic body verbatim (unknown by design); narrowing to a Zod schema would re-encode the whole request, defeating the bypass-mode passthrough.
     const req = request as ClaudeCodeRequestShape
     req.system = withClaudeCodeIdentity(req.system)
 
@@ -197,9 +220,7 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
     if (Array.isArray(req.messages)) {
       req.messages = req.messages.map((msg) => {
         if (!Array.isArray(msg.content)) return msg
-        const filtered = (msg.content as Array<{ type?: string; signature?: unknown }>).filter(
-          (block) => block.type !== 'thinking' || (typeof block.signature === 'string' && block.signature.length > 0)
-        )
+        const filtered = msg.content.filter((block) => keepSignedBlock(block))
         return { ...msg, content: filtered }
       })
     }
@@ -218,6 +239,7 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
 
   // Passthrough — request is already in Anthropic format
   async transformRequestOut(request: unknown, _context: TransformerContext): Promise<never> {
+    // biome-ignore plugin: bypass-mode passthrough — the request is already in the upstream wire shape; the abstract base's signature returns UnifiedChatRequest but here we return whatever came in.
     return request as never
   }
 

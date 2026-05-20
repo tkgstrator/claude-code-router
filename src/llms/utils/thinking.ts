@@ -1,4 +1,4 @@
-import type { ThinkLevel } from '../types'
+import type { ThinkLevel } from '@/schemas'
 
 /**
  * Map a raw Anthropic-style `thinking_budget` token count onto the

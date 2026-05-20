@@ -10,13 +10,13 @@
  */
 
 import type { Logger } from 'pino'
+import type { ProviderTokenizerConfig } from '@/schemas'
 import { ApiTokenizer } from '../tokenizers/api'
 import type { TokenizeRequest, Tokenizer } from '../tokenizers/base'
 import { HuggingFaceTokenizer } from '../tokenizers/huggingface'
 import { TiktokenTokenizer } from '../tokenizers/tiktoken'
-import type { ProviderTokenizerConfig } from '../types'
 
-export interface CountTokensResult {
+export type CountTokensResult = {
   tokenCount: number
   tokenizerUsed: string
 }
@@ -61,7 +61,8 @@ export class TokenizerRegistry {
         { err, tokenizerType: config.type },
         `Failed to build ${config.type} tokenizer; using fallback`
       )
-      return this.fallback!
+      if (!this.fallback) throw new Error('TokenizerRegistry.initialize() must run before resolve()')
+      return this.fallback
     }
   }
 
@@ -88,8 +89,10 @@ export class TokenizerRegistry {
 
   private cacheKey(config: ProviderTokenizerConfig): string {
     switch (config.type) {
-      case 'tiktoken':
-        return `tiktoken:${config.model ?? 'cl100k_base'}`
+      case 'tiktoken': {
+        const model = config.model ? config.model : 'cl100k_base'
+        return `tiktoken:${model}`
+      }
       case 'huggingface':
         return `hf:${config.model}`
       case 'api':

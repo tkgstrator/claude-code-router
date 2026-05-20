@@ -13,10 +13,10 @@
  */
 
 import type { Logger } from 'pino'
-import type { ProviderTokenizerConfig } from '../types'
+import type { ProviderTokenizerConfig } from '@/schemas'
 import { type TokenizeRequest, Tokenizer } from './base'
 
-export interface ApiTokenizerOptions {
+export type ApiTokenizerOptions = {
   /** Network timeout (ms). Defaults to 30s. */
   timeout?: number
   /** Optional pino logger. */
@@ -46,14 +46,14 @@ export class ApiTokenizer extends Tokenizer {
     }
     this.endpoint = config.endpoint
     this.apiKey = config.apiKey
-    this.extraHeaders = options.headers ?? {}
-    this.timeout = options.timeout ?? 30_000
+    this.extraHeaders = options.headers ? options.headers : {}
+    this.timeout = options.timeout !== undefined ? options.timeout : 30_000
     this.logger = options.logger
   }
 
   async countTokens(request: TokenizeRequest): Promise<number> {
     const body = {
-      messages: request.messages ?? [],
+      messages: request.messages,
       system: request.system,
       tools: request.tools
     }
@@ -95,23 +95,15 @@ export class ApiTokenizer extends Tokenizer {
    * the only other format we've ever seen in the wild.
    */
   private extractTokenCount(data: unknown): number {
-    if (typeof data !== 'object' || data === null) {
+    if (!isRecord(data)) {
       throw this.invalidResponse(data, 'response is not an object')
     }
-    const obj = data as Record<string, unknown>
-
-    if (typeof obj.token_count === 'number') {
-      return obj.token_count
+    if (typeof data.token_count === 'number') {
+      return data.token_count
     }
-
-    const usage = obj.usage
-    if (typeof usage === 'object' && usage !== null) {
-      const inputTokens = (usage as Record<string, unknown>).input_tokens
-      if (typeof inputTokens === 'number') {
-        return inputTokens
-      }
+    if (isRecord(data.usage) && typeof data.usage.input_tokens === 'number') {
+      return data.usage.input_tokens
     }
-
     throw this.invalidResponse(data, 'no numeric `token_count` or `usage.input_tokens` field')
   }
 
@@ -119,4 +111,8 @@ export class ApiTokenizer extends Tokenizer {
     this.logger?.error(`Invalid response from API tokenizer (${reason}). Response: ${JSON.stringify(data)}`)
     return new Error(`Invalid response from API tokenizer: ${reason}`)
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }

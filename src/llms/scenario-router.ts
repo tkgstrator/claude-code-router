@@ -16,24 +16,15 @@
 import { opendir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Logger } from 'pino'
+import { ProjectRouterFileSchema, type ScenarioRouterConfig as RouterConfig, type ScenarioType } from '@/schemas'
 import { CLAUDE_PROJECTS_DIR, HOME_DIR } from '@/shared/constants'
 import type { ConfigStore } from './registry/config'
 import type { TokenizerRegistry } from './registry/tokenizer'
 import type { TokenizeMessage, TokenizeRequest, TokenizeSystem, TokenizeTool } from './tokenizers/base'
 
-export type ScenarioType = 'default' | 'background' | 'think' | 'longContext' | 'webSearch'
+export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas'
 
-export interface RouterConfig {
-  default?: string
-  background?: string
-  think?: string
-  longContext?: string
-  webSearch?: string
-  /** Token threshold above which a request gets routed to longContext. */
-  longContextThreshold?: number
-}
-
-export interface RouterRequestBody {
+export type RouterRequestBody = {
   model: string
   messages?: TokenizeMessage[]
   system?: TokenizeSystem
@@ -43,7 +34,7 @@ export interface RouterRequestBody {
   [extra: string]: unknown
 }
 
-export interface RouterRequest {
+export type RouterRequest = {
   body: RouterRequestBody
   log: Logger
   sessionId?: string
@@ -51,12 +42,12 @@ export interface RouterRequest {
   tokenCount?: number
 }
 
-export interface RouterContext {
+export type RouterContext = {
   config: ConfigStore
   tokenizers: TokenizerRegistry
 }
 
-interface ConfigProvider {
+type ConfigProvider = {
   name: string
   models?: string[]
 }
@@ -83,14 +74,17 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
 
     const project = await getProjectRouter(req, ctx.config)
     const globalRouter = ctx.config.get<RouterConfig>('Router')
-    const router = project ?? globalRouter
+    // Project-level override wins; fall through to the global Router map
+    // when no per-project file applies.
+    const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
 
     const { model, scenarioType } = selectModel(req, tokenCount, router, ctx.config)
     req.body.model = model
     req.scenarioType = scenarioType
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')
-    req.body.model = ctx.config.get<RouterConfig>('Router')?.default ?? req.body.model
+    const fallback = ctx.config.get<RouterConfig>('Router')?.default
+    if (fallback) req.body.model = fallback
     req.scenarioType = 'default'
   }
 }
@@ -113,19 +107,13 @@ function selectModel(
 ): { model: string; scenarioType: ScenarioType } {
   // Explicit "provider,model" override — short-circuit, no scenario routing.
   if (req.body.model.includes(',')) {
-    const [providerInput, modelInput] = req.body.model.split(',')
-    const providers = config.get<ConfigProvider[]>('providers', [])
-    const provider = providers.find((p) => p.name.toLowerCase() === providerInput.toLowerCase())
-    const model = provider?.models?.find((m) => m.toLowerCase() === modelInput.toLowerCase())
-    if (provider && model) return { model: `${provider.name},${model}`, scenarioType: 'default' }
-    return { model: req.body.model, scenarioType: 'default' }
+    return resolveExplicitProviderModel(req.body.model, config)
   }
 
   // Long context — token count exceeds threshold AND Router.longContext set.
-  const threshold = router?.longContextThreshold ?? DEFAULT_LONG_CONTEXT_THRESHOLD
-  if (tokenCount > threshold && router?.longContext) {
-    req.log.info(`Using long context model due to token count: ${tokenCount}, threshold: ${threshold}`)
-    return { model: router.longContext, scenarioType: 'longContext' }
+  if (router) {
+    const longContext = pickLongContext(req, tokenCount, router)
+    if (longContext) return longContext
   }
 
   // <CCR-SUBAGENT-MODEL> tag in the second system block — explicit
@@ -134,25 +122,16 @@ function selectModel(
   if (subagentModel) return { model: subagentModel, scenarioType: 'default' }
 
   // Any Claude Haiku variant → background model.
-  if (
-    typeof req.body.model === 'string' &&
-    req.body.model.includes('claude') &&
-    req.body.model.includes('haiku') &&
-    router?.background
-  ) {
+  if (isHaikuBackground(req.body.model, router)) {
     req.log.info(`Using background model for ${req.body.model}`)
     return { model: router.background, scenarioType: 'background' }
   }
 
   // Web search tools — higher priority than `thinking`. body.tools may
   // carry vendor-specific shapes (Anthropic's `{ type: 'web_search_*' }`
-  // block) that TokenizeTool doesn't model; narrow `type` via unknown.
-  if (Array.isArray(req.body.tools) && router?.webSearch) {
-    const hasWebSearch = req.body.tools.some((tool: unknown) => {
-      const type = (tool as { type?: unknown }).type
-      return typeof type === 'string' && type.startsWith('web_search')
-    })
-    if (hasWebSearch) return { model: router.webSearch, scenarioType: 'webSearch' }
+  // block) that TokenizeTool doesn't model.
+  if (router?.webSearch && Array.isArray(req.body.tools) && req.body.tools.some(isWebSearchTool)) {
+    return { model: router.webSearch, scenarioType: 'webSearch' }
   }
 
   // `thinking` field present → think model.
@@ -161,14 +140,60 @@ function selectModel(
     return { model: router.think, scenarioType: 'think' }
   }
 
-  return { model: router?.default ?? req.body.model, scenarioType: 'default' }
+  const fallback = router?.default
+  return { model: fallback ? fallback : req.body.model, scenarioType: 'default' }
+}
+
+function resolveExplicitProviderModel(
+  rawModel: string,
+  config: ConfigStore
+): { model: string; scenarioType: ScenarioType } {
+  const [providerInput, modelInput] = rawModel.split(',')
+  const providers = config.get<ConfigProvider[]>('providers', [])
+  const provider = providers.find((p) => p.name.toLowerCase() === providerInput.toLowerCase())
+  const model = provider?.models?.find((m) => m.toLowerCase() === modelInput.toLowerCase())
+  if (provider && model) return { model: `${provider.name},${model}`, scenarioType: 'default' }
+  return { model: rawModel, scenarioType: 'default' }
+}
+
+function pickLongContext(
+  req: RouterRequest,
+  tokenCount: number,
+  router: RouterConfig
+): { model: string; scenarioType: ScenarioType } | undefined {
+  const threshold =
+    typeof router.longContextThreshold === 'number' ? router.longContextThreshold : DEFAULT_LONG_CONTEXT_THRESHOLD
+  if (tokenCount > threshold && router.longContext) {
+    req.log.info(`Using long context model due to token count: ${tokenCount}, threshold: ${threshold}`)
+    return { model: router.longContext, scenarioType: 'longContext' }
+  }
+  return undefined
+}
+
+function isHaikuBackground(
+  model: string,
+  router: RouterConfig | undefined
+): router is RouterConfig & { background: string } {
+  return (
+    typeof model === 'string' &&
+    model.includes('claude') &&
+    model.includes('haiku') &&
+    typeof router?.background === 'string' &&
+    router.background.length > 0
+  )
+}
+
+function isWebSearchTool(tool: unknown): tool is { type: string } {
+  if (tool === null || typeof tool !== 'object' || !('type' in tool)) return false
+  const type: unknown = Reflect.get(tool, 'type')
+  return typeof type === 'string' && type.startsWith('web_search')
 }
 
 function extractSubagentModel(system: TokenizeSystem | undefined): string | undefined {
   if (!Array.isArray(system) || system.length < 2) return undefined
   const block = system[1]
   const text = typeof block?.text === 'string' ? block.text : undefined
-  if (!text || !text.startsWith('<CCR-SUBAGENT-MODEL>')) return undefined
+  if (!text?.startsWith('<CCR-SUBAGENT-MODEL>')) return undefined
   const match = text.match(/<CCR-SUBAGENT-MODEL>(.*?)<\/CCR-SUBAGENT-MODEL>/s)
   if (!match) return undefined
   // Strip the tag so it doesn't reach the upstream provider.
@@ -178,25 +203,37 @@ function extractSubagentModel(system: TokenizeSystem | undefined): string | unde
 
 // ─── Project-specific router override ──────────────────────────────────
 
-interface ProjectRouterConfig {
-  Router?: RouterConfig
-}
-
 async function getProjectRouter(req: RouterRequest, _config: ConfigStore): Promise<RouterConfig | undefined> {
   if (!req.sessionId) return undefined
   const project = await searchProjectBySession(req.sessionId)
   if (!project) return undefined
 
-  // Per-session override wins over per-project override.
+  // Per-session override wins over per-project override. Both files are
+  // optional — missing files / bad JSON / unknown shape silently fall
+  // through to the next candidate (no HTTPException here because the
+  // global Router is the always-available fallback).
   const sessionPath = join(HOME_DIR, project, `${req.sessionId}.json`)
   const projectPath = join(HOME_DIR, project, 'config.json')
   for (const path of [sessionPath, projectPath]) {
+    let text: string
     try {
-      const parsed = JSON.parse(await readFile(path, 'utf8')) as ProjectRouterConfig
-      if (parsed?.Router) return parsed.Router
+      text = await readFile(path, 'utf8')
     } catch {
-      // Either missing file or bad JSON; try the next candidate.
+      continue
     }
+    let raw: unknown
+    try {
+      raw = JSON.parse(text)
+    } catch {
+      req.log.warn({ path }, 'Project router file is not valid JSON; skipping')
+      continue
+    }
+    const result = ProjectRouterFileSchema.safeParse(raw)
+    if (!result.success) {
+      req.log.warn({ path, err: result.error.message }, 'Project router file does not match schema; skipping')
+      continue
+    }
+    if (result.data.Router) return result.data.Router
   }
   return undefined
 }

@@ -1,52 +1,24 @@
 /**
  * Tokenizer base contract.
  *
- * The pipeline's only consumer (vendor `utils/router.ts`) calls one method
- * on a tokenizer instance: `countTokens(request)` where `request` is the
- * structured Anthropic-style payload (messages + optional system + optional
- * tools). Everything else from the legacy `ITokenizer` (encodeText, dispose,
- * isInitialized, type, name) was only used by the now-unused TokenizerService
- * cache layer, so it is intentionally dropped here.
+ * The pipeline's only consumer (scenario router) calls one method on a
+ * tokenizer instance: `countTokens(request)` where `request` is the
+ * structured Anthropic-style payload (messages + optional system +
+ * optional tools). The request shape lives in `@/schemas/llm-tokenizer.dto`
+ * so it stays a single source of truth with the rest of the LLM domain.
  *
- * `initialize()` stays optional — tiktoken does its work in the constructor
- * and never needs to be awaited, while the HuggingFace tokenizer must
- * download and parse vocab files before it can count anything.
+ * `initialize()` stays optional — tiktoken does its work in the
+ * constructor and never needs to be awaited, while the HuggingFace
+ * tokenizer must download and parse vocab files before it can count
+ * anything.
  */
 
-/**
- * A single content block inside a structured user/assistant message. The
- * Anthropic wire format mixes text, tool calls and tool results; we only
- * peek at the discriminator and the few fields each branch carries.
- */
-export type TokenizeContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; input: unknown }
-  | { type: 'tool_result'; content: string | unknown }
-  | { type: string; [extra: string]: unknown }
+import type { TokenizeRequest } from '@/schemas'
 
-export interface TokenizeMessage {
-  role: string
-  content: string | TokenizeContentBlock[]
-}
-
-export type TokenizeSystem =
-  | string
-  | Array<{
-      type: string
-      text?: string | string[]
-    }>
-
-export interface TokenizeTool {
-  name: string
-  description?: string
-  input_schema: object
-}
-
-export interface TokenizeRequest {
-  messages: TokenizeMessage[]
-  system?: TokenizeSystem
-  tools?: TokenizeTool[]
-}
+// Re-export the schema-derived request types so tokenizer implementations
+// can `import { Tokenizer, TokenizeRequest, ... } from './base'` without
+// having to know that the data shapes live under `@/schemas`.
+export type { TokenizeContentBlock, TokenizeMessage, TokenizeRequest, TokenizeSystem, TokenizeTool } from '@/schemas'
 
 /**
  * Minimum surface every concrete tokenizer must implement. Kept as an

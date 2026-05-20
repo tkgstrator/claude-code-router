@@ -26,12 +26,28 @@
 import { randomUUID } from 'node:crypto'
 import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
+import {
+  AnthropicMessageDeltaEventSchema,
+  AnthropicMessageStartEventSchema,
+  ChatCompletionUsageChunkSchema,
+  isProviderModelBlock,
+  isTransformerHookResult,
+  JsonResponseWithUsageSchema,
+  type PipelineBodyView,
+  ResponsesCompletedEventSchema,
+  type TransformerConfig,
+  type TransformerContext,
+  type TransformerHookResult,
+  type UnifiedChatRequest,
+  type UsageBlock,
+  type UsageRecord,
+  viewPipelineBody
+} from '@/schemas'
 import { fetchProvider } from './provider-fetch'
 import type { ResolvedProvider, ResolvedProviderTransformer } from './registry/provider'
 import type { Transformer } from './transformers/base'
-import type { TransformerConfig, TransformerContext, TransformerHookResult, UnifiedChatRequest } from './types'
 
-export interface PipelineDeps {
+export type PipelineDeps = {
   log: Logger
   /** Outbound HTTPS proxy URL, if any. */
   httpsProxy?: string
@@ -39,21 +55,9 @@ export interface PipelineDeps {
   recordUsage?: (entry: UsageRecord) => Promise<void>
 }
 
-export interface UsageRecord {
-  sessionId: string
-  provider: string
-  model: string
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  totalInputTokens: number
-  cacheHitPct: number
-  durationMs: number
-  status: number
-}
+export type { UsageRecord } from '@/schemas'
 
-export interface PipelineInput {
+export type PipelineInput = {
   /** Raw inbound request body. */
   body: Record<string, unknown>
   /** Inbound headers (case-preserved as the upstream client sent them). */
@@ -91,11 +95,53 @@ function shouldBypass(
 ): boolean {
   const topUse = providerTx?.use
   if (!Array.isArray(topUse) || topUse.length !== 1 || topUse[0].name !== transformer.name) return false
-  const model = typeof body.model === 'string' ? body.model : ''
-  const modelBlock = model ? (providerTx?.[model] as { use?: Transformer[] } | undefined) : undefined
+  const modelBlock = lookupProviderModelBlock(providerTx, typeof body.model === 'string' ? body.model : '')
   const modelUse = modelBlock?.use
   if (!modelUse || modelUse.length === 0) return true
   return modelUse.length === 1 && modelUse[0].name === transformer.name
+}
+
+/**
+ * Resolve the per-model entry on `provider.transformer[modelKey]`. The
+ * registry stores arbitrary value kinds at this key (Transformer[],
+ * subscription metadata, ...); the type guard isolates the
+ * `{ use?: Transformer[] }` shape callers actually want.
+ */
+function lookupProviderModelBlock(
+  providerTx: ResolvedProviderTransformer | undefined,
+  modelKey: string | undefined
+): { use?: Transformer[] } | undefined {
+  if (!providerTx || modelKey === undefined || modelKey.length === 0) return undefined
+  const raw = providerTx[modelKey]
+  if (!isProviderModelBlock(raw)) return undefined
+  // Narrow the shape: ProviderModelBlock allows `use?: unknown[]`; the
+  // registry stores Transformer instances there (resolveUseList builds
+  // Transformer[]), so the runtime invariant holds.
+  const use = raw.use
+  if (use === undefined) return {}
+  return { use: filterTransformerInstances(use) }
+}
+
+/**
+ * Filter an `unknown[]` from the registry shape down to the Transformer
+ * instances actually stored there. Defensive — the registry always
+ * inserts Transformer instances on the per-model `use` slot — but
+ * structural typing requires us to narrow before invoking the methods.
+ */
+function filterTransformerInstances(values: readonly unknown[]): Transformer[] {
+  const out: Transformer[] = []
+  for (const v of values) {
+    if (isTransformerInstance(v)) out.push(v)
+  }
+  return out
+}
+
+function isTransformerInstance(value: unknown): value is Transformer {
+  if (value === null || typeof value !== 'object') return false
+  if (!('name' in value) || !('transformRequestIn' in value)) return false
+  const name: unknown = Reflect.get(value, 'name')
+  const fn: unknown = Reflect.get(value, 'transformRequestIn')
+  return typeof name === 'string' && typeof fn === 'function'
 }
 
 // ─── Request chain ──────────────────────────────────────────────────────
@@ -124,40 +170,51 @@ async function processRequestTransformers(
   const providerTx = input.provider.transformer
   const use = Array.isArray(providerTx?.use) ? providerTx.use : []
   for (const step of use) {
-    const result = await step.transformRequestIn(requestBody as UnifiedChatRequest, input.provider, input.context)
+    const result = await step.transformRequestIn(asUnifiedRequest(requestBody), input.provider, input.context)
     ;({ requestBody, config } = mergeHookResult(result, requestBody, config))
   }
 
   // 3. Model-specific chain.
-  const model = (requestBody as { model?: unknown })?.model
-  const modelKey = typeof model === 'string' ? model : ''
-  const modelBlock = modelKey ? (providerTx?.[modelKey] as { use?: Transformer[] } | undefined) : undefined
-  for (const step of modelBlock?.use ?? []) {
-    const result = await step.transformRequestIn(requestBody as UnifiedChatRequest, input.provider, input.context)
-    ;({ requestBody, config } = mergeHookResult(result, requestBody, config))
+  const view = viewPipelineBody(requestBody)
+  const modelBlock = lookupProviderModelBlock(providerTx, view.model)
+  const modelUse = modelBlock?.use
+  if (modelUse) {
+    for (const step of modelUse) {
+      const result = await step.transformRequestIn(asUnifiedRequest(requestBody), input.provider, input.context)
+      ;({ requestBody, config } = mergeHookResult(result, requestBody, config))
+    }
   }
 
   return { requestBody, config }
 }
 
+/**
+ * The pipeline carries the in-flight body as `unknown` because every
+ * transformer reshapes it differently. transformRequestIn expects a
+ * UnifiedChatRequest; this helper is the documented unsafe-narrowing
+ * boundary between the loose pipeline state and the strict hook input.
+ */
+function asUnifiedRequest(body: unknown): UnifiedChatRequest {
+  // biome-ignore plugin: pipeline state is unknown by design (every transformer reshapes the body);
+  // UnifiedChatRequest is what each hook expects on entry. The cast is the documented boundary.
+  return body as UnifiedChatRequest
+}
+
 function mergeHookResult(
-  result: TransformerHookResult | UnifiedChatRequest | unknown,
+  result: unknown,
   prevBody: unknown,
   prevConfig: TransformerConfig
 ): { requestBody: unknown; config: TransformerConfig } {
-  if (
-    result &&
-    typeof result === 'object' &&
-    'body' in result &&
-    (result as TransformerHookResult).body !== undefined
-  ) {
-    const hook = result as TransformerHookResult
+  if (isTransformerHookResult(result)) {
+    const hookConfig: TransformerConfig = result.config !== undefined ? result.config : {}
     return {
-      requestBody: hook.body,
-      config: { ...prevConfig, ...(hook.config ?? {}) }
+      requestBody: result.body,
+      config: { ...prevConfig, ...hookConfig }
     }
   }
-  return { requestBody: result ?? prevBody, config: prevConfig }
+  // Plain replacement body — fall back to the previous body only when
+  // the hook returned no value at all.
+  return { requestBody: result === undefined ? prevBody : result, config: prevConfig }
 }
 
 // ─── Send to provider ───────────────────────────────────────────────────
@@ -171,40 +228,8 @@ async function sendToProvider(
   context: TransformerContext,
   deps: PipelineDeps
 ): Promise<Response> {
-  let body = requestBody
-  let outConfig = config
-
-  // Bypass-mode auth hook (subscription OAuth flows live here).
-  if (bypass) {
-    const auth = await transformer.auth(body, provider, context)
-    if (
-      auth &&
-      typeof auth === 'object' &&
-      'body' in (auth as object) &&
-      (auth as TransformerHookResult).body !== undefined
-    ) {
-      const a = auth as TransformerHookResult
-      body = a.body
-      let headers: Record<string, string | undefined> = { ...(outConfig.headers ?? {}) }
-      if (a.config?.headers) {
-        // Drop every case variant of inbound auth headers before merging
-        // the transformer's upstream auth — otherwise inbound lowercase
-        // `authorization` lingers and Headers.set() (case-insensitive)
-        // can pick the wrong value.
-        for (const k of Object.keys(headers)) {
-          const lower = k.toLowerCase()
-          if (lower === 'authorization' || lower === 'x-api-key') delete headers[k]
-        }
-        headers = { ...headers, ...a.config.headers }
-        delete headers.host
-      }
-      outConfig = { ...outConfig, ...a.config, headers }
-    } else {
-      body = auth
-    }
-  }
-
-  const url = outConfig.url ?? new URL(provider.api_base_url)
+  const { body, outConfig } = await applyBypassAuth(requestBody, config, provider, transformer, bypass, context)
+  const url = outConfig.url !== undefined ? outConfig.url : new URL(provider.api_base_url)
 
   // One id per upstream send. LogViewer groups a request's lines by
   // reqId — bind it on a child logger so request body / response /
@@ -213,85 +238,18 @@ async function sendToProvider(
   const reqLog = deps.log.child({ reqId })
   const startedAt = Date.now()
 
-  // Build header set: provider Bearer (overwritten by transformer auth
-  // headers, if any), then merge transformer-provided headers.
-  const headers: Record<string, string | undefined> = {
-    Authorization: `Bearer ${provider.api_key}`,
-    ...(outConfig.headers ?? {})
-  }
-  for (const k of Object.keys(headers)) {
-    const v = headers[k]
-    if (v === 'undefined') delete headers[k]
-    else if (k.toLowerCase() === 'authorization' && typeof v === 'string' && v.includes('undefined')) delete headers[k]
-  }
+  const headers = buildRequestHeaders(provider, outConfig)
 
-  reqLog.debug(
-    {
-      type: 'request body',
-      data: {
-        provider: provider.name,
-        model: (body as { model?: unknown } | null)?.model,
-        url: String(url),
-        stream: (body as { stream?: unknown } | null)?.stream === true,
-        bypass,
-        messages: Array.isArray((body as { messages?: unknown[] } | null)?.messages)
-          ? (body as { messages: unknown[] }).messages.length
-          : undefined,
-        tools: Array.isArray((body as { tools?: unknown[] } | null)?.tools)
-          ? (body as { tools: unknown[] }).tools.length
-          : undefined
-      }
-    },
-    'llm request'
-  )
+  logRequest(reqLog, provider, body, url, bypass)
 
   const response = await fetchProvider(url, body, { headers, httpsProxy: deps.httpsProxy }, { reqId }, reqLog)
   const durationMs = Date.now() - startedAt
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const isSubscription = transformer.name.endsWith('-oauth')
-    const model = (body as { model?: string } | null)?.model ?? 'unknown'
-
-    // KEEP this message byte-for-byte: v1/route.ts has a regex
-    // (PROVIDER_ERR_RE) that parses "Error from provider(<name>,<model>:
-    // <status>): <rawBody>" to forward the genuine upstream error to
-    // Claude Code verbatim.
-    const message = `Error from provider(${provider.name},${model}: ${response.status}): ${errorText}`
-    reqLog.error(
-      {
-        type: 'response',
-        provider: provider.name,
-        model,
-        status: response.status,
-        durationMs,
-        body: errorText
-      },
-      `[provider_response_error] ${message}`
-    )
-
-    if ((response.status === 401 || response.status === 403) && isSubscription) {
-      reqLog.error(
-        { provider: provider.name, status: response.status },
-        `Subscription auth rejected by '${provider.name}' (${response.status}). ` +
-          'If the OAuth credentials are absent/expired, re-authenticate ' +
-          'the underlying CLI (run `claude` and sign in for claude-code, ' +
-          'or `codex login` for codex) to refresh the credentials file.'
-      )
-    }
-    throw new HTTPException(response.status as never, { message })
+    await handleProviderError(response, provider, transformer, body, durationMs, reqLog)
   }
 
-  reqLog.debug(
-    {
-      type: 'response',
-      provider: provider.name,
-      model: (body as { model?: unknown } | null)?.model,
-      status: response.status,
-      durationMs
-    },
-    `${provider.name}/${(body as { model?: unknown } | null)?.model} ${response.status} ${durationMs}ms`
-  )
+  logResponse(reqLog, provider, body, response.status, durationMs)
 
   // Best-effort usage capture from a cloned stream so the completion
   // log carries token + cache stats. Never blocks the response.
@@ -301,6 +259,137 @@ async function sendToProvider(
   }
 
   return response
+}
+
+/**
+ * Bypass-mode auth hook (subscription OAuth flows live here). When the
+ * hook returns `{ body, config }`, merge upstream headers in case-safe
+ * order; otherwise the hook may return a plain body replacement.
+ */
+async function applyBypassAuth(
+  body: unknown,
+  config: TransformerConfig,
+  provider: ResolvedProvider,
+  transformer: Transformer,
+  bypass: boolean,
+  context: TransformerContext
+): Promise<{ body: unknown; outConfig: TransformerConfig }> {
+  if (!bypass) return { body, outConfig: config }
+
+  const auth = await transformer.auth(body, provider, context)
+  if (!isTransformerHookResult(auth)) {
+    return { body: auth, outConfig: config }
+  }
+
+  const inboundHeaders: Record<string, string | undefined> = config.headers !== undefined ? { ...config.headers } : {}
+  if (auth.config?.headers) {
+    // Drop every case variant of inbound auth headers before merging
+    // the transformer's upstream auth — otherwise inbound lowercase
+    // `authorization` lingers and Headers.set() (case-insensitive)
+    // can pick the wrong value.
+    for (const k of Object.keys(inboundHeaders)) {
+      const lower = k.toLowerCase()
+      if (lower === 'authorization' || lower === 'x-api-key') delete inboundHeaders[k]
+    }
+    Object.assign(inboundHeaders, auth.config.headers)
+    delete inboundHeaders.host
+  }
+  return { body: auth.body, outConfig: { ...config, ...auth.config, headers: inboundHeaders } }
+}
+
+function buildRequestHeaders(
+  provider: ResolvedProvider,
+  outConfig: TransformerConfig
+): Record<string, string | undefined> {
+  // Build header set: provider Bearer (overwritten by transformer auth
+  // headers, if any), then merge transformer-provided headers.
+  const merged: Record<string, string | undefined> = {
+    Authorization: `Bearer ${provider.api_key}`,
+    ...(outConfig.headers !== undefined ? outConfig.headers : {})
+  }
+  for (const k of Object.keys(merged)) {
+    const v = merged[k]
+    if (v === 'undefined') delete merged[k]
+    else if (k.toLowerCase() === 'authorization' && typeof v === 'string' && v.includes('undefined')) delete merged[k]
+  }
+  return merged
+}
+
+function logRequest(log: Logger, provider: ResolvedProvider, body: unknown, url: URL | string, bypass: boolean): void {
+  const view = viewPipelineBody(body)
+  log.debug(
+    {
+      type: 'request body',
+      data: {
+        provider: provider.name,
+        model: view.model,
+        url: String(url),
+        stream: view.stream === true,
+        bypass,
+        messages: view.messages !== undefined ? view.messages.length : undefined,
+        tools: view.tools !== undefined ? view.tools.length : undefined
+      }
+    },
+    'llm request'
+  )
+}
+
+function logResponse(log: Logger, provider: ResolvedProvider, body: unknown, status: number, durationMs: number): void {
+  const view = viewPipelineBody(body)
+  log.debug(
+    {
+      type: 'response',
+      provider: provider.name,
+      model: view.model,
+      status,
+      durationMs
+    },
+    `${provider.name}/${view.model} ${status} ${durationMs}ms`
+  )
+}
+
+async function handleProviderError(
+  response: Response,
+  provider: ResolvedProvider,
+  transformer: Transformer,
+  body: unknown,
+  durationMs: number,
+  log: Logger
+): Promise<never> {
+  const errorText = await response.text()
+  const isSubscription = transformer.name.endsWith('-oauth')
+  const view = viewPipelineBody(body)
+  const model = view.model !== undefined ? view.model : 'unknown'
+
+  // KEEP this message byte-for-byte: v1/route.ts has a regex
+  // (PROVIDER_ERR_RE) that parses "Error from provider(<name>,<model>:
+  // <status>): <rawBody>" to forward the genuine upstream error to
+  // Claude Code verbatim.
+  const message = `Error from provider(${provider.name},${model}: ${response.status}): ${errorText}`
+  log.error(
+    {
+      type: 'response',
+      provider: provider.name,
+      model,
+      status: response.status,
+      durationMs,
+      body: errorText
+    },
+    `[provider_response_error] ${message}`
+  )
+
+  if ((response.status === 401 || response.status === 403) && isSubscription) {
+    log.error(
+      { provider: provider.name, status: response.status },
+      `Subscription auth rejected by '${provider.name}' (${response.status}). ` +
+        'If the OAuth credentials are absent/expired, re-authenticate ' +
+        'the underlying CLI (run `claude` and sign in for claude-code, ' +
+        'or `codex login` for codex) to refresh the credentials file.'
+    )
+  }
+  // biome-ignore plugin: HTTPException's status param is typed as a closed union of supported codes;
+  // upstream returns arbitrary HTTP codes which we forward verbatim, so the cast is the only path.
+  throw new HTTPException(response.status as never, { message })
 }
 
 // ─── Response chain ─────────────────────────────────────────────────────
@@ -325,10 +414,10 @@ async function processResponseTransformers(
   }
 
   // Model-specific response chain (also reversed).
-  const model = (requestBody as { model?: unknown })?.model
-  const modelKey = typeof model === 'string' ? model : ''
-  const modelBlock = modelKey ? (providerTx?.[modelKey] as { use?: Transformer[] } | undefined) : undefined
-  for (const step of modelBlock?.use ? [...modelBlock.use].reverse() : []) {
+  const view = viewPipelineBody(requestBody)
+  const modelBlock = lookupProviderModelBlock(providerTx, view.model)
+  const reverseModelUse = modelBlock?.use ? [...modelBlock.use].reverse() : []
+  for (const step of reverseModelUse) {
     finalResponse = await step.transformResponseOut(finalResponse, context)
   }
 
@@ -350,89 +439,129 @@ async function captureUsage(
   const usage = await extractUsage(resp)
   if (!usage) return
 
-  const headers = context.req?.headers ?? {}
-  const sessionId =
-    (typeof headers.thread_id === 'string' ? headers.thread_id : undefined) ??
-    (typeof headers['x-claude-code-session-id'] === 'string' ? headers['x-claude-code-session-id'] : undefined) ??
-    randomUUID()
-
-  const cachedTokens =
-    Number(usage.cache_read_input_tokens ?? 0) || Number(usage.input_tokens_details?.cached_tokens ?? 0)
-  const writtenTokens = Number(usage.cache_creation_input_tokens ?? 0)
-  const outputTokens = Number(usage.output_tokens ?? 0) || Number(usage.completion_tokens ?? 0)
-  // Anthropic input_tokens is the non-cached portion only; OpenAI uses prompt_tokens.
-  const rawInput = Number(usage.input_tokens ?? 0) || Number(usage.prompt_tokens ?? 0)
-  const totalInputTokens = rawInput + writtenTokens + cachedTokens
-  const cacheHitPct = totalInputTokens > 0 ? Math.round((cachedTokens / totalInputTokens) * 100) : 0
+  const sessionId = resolveSessionId(context)
+  const tokens = computeTokenStats(usage)
+  const view = viewPipelineBody(body)
 
   await deps.recordUsage?.({
     sessionId,
     provider: provider.name,
-    model: (body as { model?: string } | null)?.model ?? 'unknown',
-    inputTokens: rawInput,
-    outputTokens,
-    cacheReadTokens: cachedTokens,
-    cacheWriteTokens: writtenTokens,
-    totalInputTokens,
-    cacheHitPct,
+    model: view.model !== undefined ? view.model : 'unknown',
+    inputTokens: tokens.rawInput,
+    outputTokens: tokens.outputTokens,
+    cacheReadTokens: tokens.cachedTokens,
+    cacheWriteTokens: tokens.writtenTokens,
+    totalInputTokens: tokens.totalInputTokens,
+    cacheHitPct: tokens.cacheHitPct,
     durationMs,
     status
   })
 }
 
-interface UsageBlock {
-  input_tokens?: number
-  output_tokens?: number
-  prompt_tokens?: number
-  completion_tokens?: number
-  cache_read_input_tokens?: number
-  cache_creation_input_tokens?: number
-  input_tokens_details?: { cached_tokens?: number }
+function resolveSessionId(context: TransformerContext): string {
+  const headers = context.req?.headers !== undefined ? context.req.headers : {}
+  const threadId = typeof headers.thread_id === 'string' ? headers.thread_id : undefined
+  if (threadId) return threadId
+  const ccSession =
+    typeof headers['x-claude-code-session-id'] === 'string' ? headers['x-claude-code-session-id'] : undefined
+  if (ccSession) return ccSession
+  return randomUUID()
+}
+
+type TokenStats = {
+  cachedTokens: number
+  writtenTokens: number
+  outputTokens: number
+  rawInput: number
+  totalInputTokens: number
+  cacheHitPct: number
+}
+
+function computeTokenStats(usage: UsageBlock): TokenStats {
+  const cachedTokens =
+    numberOrZero(usage.cache_read_input_tokens) || numberOrZero(usage.input_tokens_details?.cached_tokens)
+  const writtenTokens = numberOrZero(usage.cache_creation_input_tokens)
+  const outputTokens = numberOrZero(usage.output_tokens) || numberOrZero(usage.completion_tokens)
+  // Anthropic input_tokens is the non-cached portion only; OpenAI uses prompt_tokens.
+  const rawInput = numberOrZero(usage.input_tokens) || numberOrZero(usage.prompt_tokens)
+  const totalInputTokens = rawInput + writtenTokens + cachedTokens
+  const cacheHitPct = totalInputTokens > 0 ? Math.round((cachedTokens / totalInputTokens) * 100) : 0
+  return { cachedTokens, writtenTokens, outputTokens, rawInput, totalInputTokens, cacheHitPct }
+}
+
+/** Coerce an optional `unknown` numeric usage field to a finite number, defaulting to 0. */
+function numberOrZero(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 async function extractUsage(resp: Response): Promise<UsageBlock | null> {
   try {
-    const ct = (resp.headers.get('content-type') ?? '').toLowerCase()
-    if (ct.includes('application/json')) {
-      const j = (await resp.json().catch(() => null)) as { usage?: UsageBlock } | null
-      return j?.usage ?? null
+    const ct = resp.headers.get('content-type')
+    const contentType = (typeof ct === 'string' ? ct : '').toLowerCase()
+    if (contentType.includes('application/json')) {
+      return await extractJsonUsage(resp)
     }
     // SSE or unknown content type — parse line-by-line.
-    const text = await resp.text()
-    let usage: UsageBlock | null = null
-    for (const block of text.split('\n\n')) {
-      const dataLine = block.split('\n').find((l) => l.startsWith('data:'))
-      if (!dataLine) continue
-      const raw = dataLine.slice(5).trim()
-      if (raw === '[DONE]') continue
-      let obj: Record<string, unknown> | null = null
-      try {
-        obj = JSON.parse(raw)
-      } catch {
-        continue
-      }
-      if (!obj) continue
-      // Anthropic SSE
-      if (obj.type === 'message_start' && (obj.message as { usage?: UsageBlock } | undefined)?.usage) {
-        usage = { ...(obj.message as { usage: UsageBlock }).usage }
-      } else if (obj.type === 'message_delta' && obj.usage) {
-        usage = { ...(usage ?? {}), ...(obj.usage as UsageBlock) }
-      } else if (obj.type === 'response.completed' && (obj.response as { usage?: UsageBlock } | undefined)?.usage) {
-        usage = { ...(obj.response as { usage: UsageBlock }).usage }
-      } else if (obj.usage && typeof (obj.usage as UsageBlock).prompt_tokens === 'number') {
-        usage = { ...(obj.usage as UsageBlock) }
-      }
-    }
-    if (!usage) {
-      try {
-        const j = JSON.parse(text) as { usage?: UsageBlock }
-        if (j?.usage) usage = j.usage
-      } catch {
-        // not JSON
-      }
-    }
-    return usage
+    return await extractStreamUsage(resp)
   } catch {
     return null
   }
 }
+
+async function extractJsonUsage(resp: Response): Promise<UsageBlock | null> {
+  const json = await resp.json().catch(() => null)
+  const result = JsonResponseWithUsageSchema.safeParse(json)
+  if (!result.success) return null
+  return result.data.usage !== undefined ? result.data.usage : null
+}
+
+async function extractStreamUsage(resp: Response): Promise<UsageBlock | null> {
+  const text = await resp.text()
+  let usage: UsageBlock | null = null
+  for (const block of text.split('\n\n')) {
+    usage = applySseBlock(block, usage)
+  }
+  if (!usage) usage = fallbackJsonParse(text)
+  return usage
+}
+
+function applySseBlock(block: string, current: UsageBlock | null): UsageBlock | null {
+  const dataLine = block.split('\n').find((l) => l.startsWith('data:'))
+  if (!dataLine) return current
+  const raw = dataLine.slice(5).trim()
+  if (raw === '[DONE]') return current
+  let obj: unknown
+  try {
+    obj = JSON.parse(raw)
+  } catch {
+    return current
+  }
+
+  const start = AnthropicMessageStartEventSchema.safeParse(obj)
+  if (start.success) return { ...start.data.message.usage }
+
+  const delta = AnthropicMessageDeltaEventSchema.safeParse(obj)
+  if (delta.success) return { ...(current !== null ? current : {}), ...delta.data.usage }
+
+  const completed = ResponsesCompletedEventSchema.safeParse(obj)
+  if (completed.success) return { ...completed.data.response.usage }
+
+  const chunk = ChatCompletionUsageChunkSchema.safeParse(obj)
+  if (chunk.success) return { ...chunk.data.usage }
+
+  return current
+}
+
+function fallbackJsonParse(text: string): UsageBlock | null {
+  try {
+    const result = JsonResponseWithUsageSchema.safeParse(JSON.parse(text))
+    if (result.success && result.data.usage) return result.data.usage
+  } catch {
+    // not JSON
+  }
+  return null
+}
+
+// Re-export helper types used by tests / callers that previously imported
+// them from this file.
+export type { PipelineBodyView, TransformerHookResult }

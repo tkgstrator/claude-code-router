@@ -8,15 +8,15 @@
  * open-source models.
  */
 
+import { existsSync, promises as fs, mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { Tokenizer as HFTokenizer } from '@huggingface/tokenizers'
-import { existsSync, promises as fs, mkdirSync } from 'fs'
-import { homedir } from 'os'
-import { join } from 'path'
 import type { Logger } from 'pino'
-import type { ProviderTokenizerConfig } from '../types'
+import type { ProviderTokenizerConfig } from '@/schemas'
 import { type TokenizeContentBlock, type TokenizeRequest, Tokenizer } from './base'
 
-export interface HuggingFaceTokenizerOptions {
+export type HuggingFaceTokenizerOptions = {
   /** Network timeout (ms) when downloading vocab files. Defaults to 30s. */
   timeout?: number
   /** Override the on-disk cache directory. */
@@ -25,7 +25,7 @@ export interface HuggingFaceTokenizerOptions {
   logger?: Logger
 }
 
-interface CachedTokenizerFiles {
+type CachedTokenizerFiles = {
   tokenizerJson: object
   tokenizerConfig: object
 }
@@ -45,8 +45,8 @@ export class HuggingFaceTokenizer extends Tokenizer {
     }
     this.modelId = config.model
     this.logger = options.logger
-    this.timeout = options.timeout ?? 30_000
-    this.cacheDir = options.cacheDir ?? join(homedir(), '.claude-code-router', '.huggingface')
+    this.timeout = options.timeout !== undefined ? options.timeout : 30_000
+    this.cacheDir = options.cacheDir ? options.cacheDir : join(homedir(), '.claude-code-router', '.huggingface')
     // Cache safe model name to avoid repeated regex operations
     this.safeModelName = this.modelId.replace(/\//g, '_').replace(/[^a-zA-Z0-9_-]/g, '_')
   }
@@ -57,7 +57,7 @@ export class HuggingFaceTokenizer extends Tokenizer {
       this.ensureDir(this.cacheDir)
 
       const cached = await this.loadFromCache()
-      const data = cached ?? (await this.downloadAndCache())
+      const data = cached ? cached : await this.downloadAndCache()
       this.tokenizer = new HFTokenizer(data.tokenizerJson, data.tokenizerConfig)
 
       this.logger?.info(`HuggingFace tokenizer initialized for ${this.modelId}`)
@@ -111,8 +111,8 @@ export class HuggingFaceTokenizer extends Tokenizer {
         fs.readFile(paths.tokenizerConfig, 'utf-8')
       ])
       return {
-        tokenizerJson: JSON.parse(tokenizerJsonContent) as object,
-        tokenizerConfig: JSON.parse(tokenizerConfigContent) as object
+        tokenizerJson: asObject(JSON.parse(tokenizerJsonContent)),
+        tokenizerConfig: asObject(JSON.parse(tokenizerConfigContent))
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -143,10 +143,12 @@ export class HuggingFaceTokenizer extends Tokenizer {
         throw new Error(`Failed to fetch tokenizer.json: ${jsonRes.statusText}`)
       }
 
-      const [tokenizerJson, tokenizerConfig] = await Promise.all([
-        jsonRes.json() as Promise<object>,
-        configRes.ok ? (configRes.json() as Promise<object>) : Promise.resolve({})
+      const [tokenizerJsonRaw, tokenizerConfigRaw] = await Promise.all([
+        jsonRes.json(),
+        configRes.ok ? configRes.json() : Promise.resolve({})
       ])
+      const tokenizerJson = asObject(tokenizerJsonRaw)
+      const tokenizerConfig = asObject(tokenizerConfigRaw)
 
       this.ensureDir(paths.modelDir)
       await Promise.all([
@@ -164,61 +166,77 @@ export class HuggingFaceTokenizer extends Tokenizer {
 
   private extractTextFromRequest(request: TokenizeRequest): string {
     const parts: string[] = []
-    const { messages, system, tools } = request
+    this.collectMessageText(parts, request.messages)
+    this.collectSystemText(parts, request.system)
+    this.collectToolsText(parts, request.tools)
+    return parts.join(' ')
+  }
 
-    if (Array.isArray(messages)) {
-      for (const message of messages) {
-        if (typeof message.content === 'string') {
-          parts.push(message.content)
-        } else if (Array.isArray(message.content)) {
-          for (const block of message.content) {
-            const text = this.flattenContentBlock(block)
-            if (text) parts.push(text)
-          }
-        }
+  private collectMessageText(parts: string[], messages: TokenizeRequest['messages']): void {
+    if (!Array.isArray(messages)) return
+    for (const message of messages) {
+      if (typeof message.content === 'string') {
+        parts.push(message.content)
+        continue
+      }
+      if (!Array.isArray(message.content)) continue
+      for (const block of message.content) {
+        const text = this.flattenContentBlock(block)
+        if (text) parts.push(text)
       }
     }
+  }
 
+  private collectSystemText(parts: string[], system: TokenizeRequest['system']): void {
     if (typeof system === 'string') {
       parts.push(system)
-    } else if (Array.isArray(system)) {
-      for (const item of system) {
-        if (item.type !== 'text') continue
-        if (typeof item.text === 'string') {
-          parts.push(item.text)
-        } else if (Array.isArray(item.text)) {
-          for (const textPart of item.text) {
-            if (textPart) parts.push(textPart)
-          }
-        }
-      }
+      return
     }
-
-    if (tools) {
-      for (const tool of tools) {
-        if (tool.name) parts.push(tool.name)
-        if (tool.description) parts.push(tool.description)
-        if (tool.input_schema) parts.push(JSON.stringify(tool.input_schema))
-      }
+    if (!Array.isArray(system)) return
+    for (const item of system) {
+      if (item.type !== 'text') continue
+      this.collectSystemItemText(parts, item.text)
     }
+  }
 
-    return parts.join(' ')
+  private collectSystemItemText(parts: string[], text: string | string[] | undefined): void {
+    if (typeof text === 'string') {
+      parts.push(text)
+      return
+    }
+    if (!Array.isArray(text)) return
+    for (const part of text) {
+      if (part) parts.push(part)
+    }
+  }
+
+  private collectToolsText(parts: string[], tools: TokenizeRequest['tools']): void {
+    if (!tools) return
+    for (const tool of tools) {
+      if (tool.name) parts.push(tool.name)
+      if (tool.description) parts.push(tool.description)
+      if (tool.input_schema) parts.push(JSON.stringify(tool.input_schema))
+    }
   }
 
   private flattenContentBlock(block: TokenizeContentBlock): string {
     if (block.type === 'text') {
-      const text = (block as { text?: unknown }).text
+      const text = Reflect.get(block, 'text')
       return typeof text === 'string' ? text : ''
     }
     if (block.type === 'tool_use') {
-      const input = (block as { input?: unknown }).input
+      const input: unknown = Reflect.get(block, 'input')
       return input === undefined ? '' : JSON.stringify(input)
     }
     if (block.type === 'tool_result') {
-      const content = (block as { content?: unknown }).content
+      const content: unknown = Reflect.get(block, 'content')
       if (content === undefined) return ''
       return typeof content === 'string' ? content : JSON.stringify(content)
     }
     return ''
   }
+}
+
+function asObject(value: unknown): object {
+  return typeof value === 'object' && value !== null ? value : {}
 }

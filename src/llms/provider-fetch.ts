@@ -13,7 +13,7 @@
 import type { Logger } from 'pino'
 import { ProxyAgent } from 'undici'
 
-export interface ProviderFetchOptions {
+export type ProviderFetchOptions = {
   /** Outgoing request headers. `undefined` values are dropped. */
   headers?: Record<string, string | undefined>
   /** Outbound HTTPS_PROXY. */
@@ -24,12 +24,15 @@ export interface ProviderFetchOptions {
   timeoutMs?: number
 }
 
-export interface ProviderFetchContext {
+export type ProviderFetchContext = {
   /** Request id for log correlation; opaque to the wrapper. */
   reqId?: string
 }
 
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000
+
+/** RequestInit augmented with undici's non-standard `dispatcher` slot. */
+type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown }
 
 export async function fetchProvider(
   url: URL | string,
@@ -39,34 +42,35 @@ export async function fetchProvider(
   logger?: Logger
 ): Promise<Response> {
   const headers = new Headers({ 'Content-Type': 'application/json' })
-  for (const [k, v] of Object.entries(options.headers ?? {})) {
+  const headerEntries: Array<[string, string | undefined]> = options.headers ? Object.entries(options.headers) : []
+  for (const [k, v] of headerEntries) {
     if (v !== undefined && v !== null && v !== 'undefined') headers.set(k, v)
   }
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  const timeoutMs = options.timeoutMs === undefined ? DEFAULT_TIMEOUT_MS : options.timeoutMs
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   options.signal?.addEventListener('abort', () => controller.abort())
 
-  const init: RequestInit = {
+  const bodyString = JSON.stringify(body)
+  const init: RequestInitWithDispatcher = {
     method: 'POST',
     headers,
-    body: JSON.stringify(body),
+    body: bodyString,
     signal: controller.signal
   }
 
   // undici ProxyAgent attaches via the non-standard `dispatcher` option,
-  // which RequestInit doesn't expose. Cast through a typed shape rather
-  // than `any`.
+  // which RequestInit doesn't expose — we use a widened init type instead
+  // of an `as` cast at the call site.
   if (options.httpsProxy) {
-    ;(init as RequestInit & { dispatcher?: unknown }).dispatcher = new ProxyAgent(
-      new URL(options.httpsProxy).toString()
-    )
+    init.dispatcher = new ProxyAgent(new URL(options.httpsProxy).toString())
   }
 
   logger?.debug(
     {
       reqId: context.reqId,
-      request: { method: init.method, bodyLength: (init.body as string)?.length },
+      request: { method: init.method, bodyLength: bodyString.length },
       headers: Object.fromEntries(headers.entries()),
       requestUrl: typeof url === 'string' ? url : url.toString(),
       useProxy: options.httpsProxy

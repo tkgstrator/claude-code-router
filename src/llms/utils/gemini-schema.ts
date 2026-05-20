@@ -27,6 +27,34 @@ type SchemaLike = Record<string, unknown>
 const isRecord = (value: unknown): value is SchemaLike =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string')
+
+const VALID_GEMINI_FIELDS: ReadonlySet<string> = new Set([
+  'type',
+  'format',
+  'title',
+  'description',
+  'nullable',
+  'enum',
+  'maxItems',
+  'minItems',
+  'properties',
+  'required',
+  'minProperties',
+  'maxProperties',
+  'minLength',
+  'maxLength',
+  'pattern',
+  'example',
+  'anyOf',
+  'propertyOrdering',
+  'default',
+  'items',
+  'minimum',
+  'maximum'
+])
+
 /**
  * Recursively strip JSON Schema fields that Gemini does not accept and
  * normalise mismatched `type` / `format` / `enum` combinations.
@@ -46,36 +74,14 @@ export function cleanupParameters(obj: unknown, keyName?: string): void {
     return
   }
 
-  const record = obj as SchemaLike
-
-  const validFields = new Set([
-    'type',
-    'format',
-    'title',
-    'description',
-    'nullable',
-    'enum',
-    'maxItems',
-    'minItems',
-    'properties',
-    'required',
-    'minProperties',
-    'maxProperties',
-    'minLength',
-    'maxLength',
-    'pattern',
-    'example',
-    'anyOf',
-    'propertyOrdering',
-    'default',
-    'items',
-    'minimum',
-    'maximum'
-  ])
+  if (!isRecord(obj)) {
+    return
+  }
+  const record: SchemaLike = obj
 
   if (keyName !== 'properties') {
     Object.keys(record).forEach((key) => {
-      if (!validFields.has(key)) {
+      if (!VALID_GEMINI_FIELDS.has(key)) {
         delete record[key]
       }
     })
@@ -121,19 +127,118 @@ function flattenTypeArrayToAnyOf(typeList: Array<string>, resultingSchema: Schem
 }
 
 /**
+ * Collapse the `{ anyOf: [{ type: 'null' }, X] }` JSON-Schema pattern
+ * (used for nullable values) into `{ nullable: true, ...X }`. Returns
+ * the schema to use for further processing — either the non-null branch
+ * or the input untouched.
+ */
+function unwrapNullableAnyOf(jsonSchema: SchemaLike, genAISchema: SchemaLike): SchemaLike {
+  const incomingAnyOf = jsonSchema.anyOf
+  if (!Array.isArray(incomingAnyOf) || incomingAnyOf.length !== 2) {
+    return jsonSchema
+  }
+  const [first, second] = incomingAnyOf
+  if (isRecord(first) && first.type === 'null' && isRecord(second)) {
+    genAISchema.nullable = true
+    return second
+  }
+  if (isRecord(second) && second.type === 'null' && isRecord(first)) {
+    genAISchema.nullable = true
+    return first
+  }
+  return jsonSchema
+}
+
+const SCHEMA_FIELD_NAMES: ReadonlySet<string> = new Set(['items'])
+const LIST_SCHEMA_FIELD_NAMES: ReadonlySet<string> = new Set(['anyOf'])
+const DICT_SCHEMA_FIELD_NAMES: ReadonlySet<string> = new Set(['properties'])
+
+/**
+ * Process the `type` field of a JSON schema and write the Gemini-shaped
+ * equivalent onto `genAISchema`.
+ */
+function applyTypeField(value: unknown, genAISchema: SchemaLike): void {
+  if (value === 'null') {
+    throw new Error('type: null can not be the only possible type for the field.')
+  }
+  if (Array.isArray(value)) {
+    // Array-typed fields are handled separately before this dispatch.
+    return
+  }
+  const upperCaseValue = String(value).toUpperCase()
+  genAISchema.type = GEMINI_TYPE_VALUES.has(upperCaseValue) ? upperCaseValue : GeminiType.TYPE_UNSPECIFIED
+}
+
+/**
+ * Process a JSON-Schema `anyOf`-style list field, recursively converting
+ * each element and lifting `{ type: 'null' }` entries into a top-level
+ * `nullable: true` flag.
+ */
+function processListSchemaField(fieldValue: unknown[], genAISchema: SchemaLike): SchemaLike[] {
+  const out: SchemaLike[] = []
+  for (const item of fieldValue) {
+    if (isRecord(item) && item.type === 'null') {
+      genAISchema.nullable = true
+      continue
+    }
+    if (isRecord(item)) {
+      out.push(processJsonSchema(item))
+    }
+  }
+  return out
+}
+
+/**
+ * Process a JSON-Schema `properties`-style map field, recursively
+ * converting each value to the Gemini shape.
+ */
+function processDictSchemaField(fieldValue: SchemaLike): SchemaLike {
+  const out: SchemaLike = {}
+  for (const [key, value] of Object.entries(fieldValue)) {
+    out[key] = isRecord(value) ? processJsonSchema(value) : value
+  }
+  return out
+}
+
+/**
+ * Convert one entry of a JSON schema's top-level object into the
+ * matching Gemini-shaped field on `genAISchema`. Returns whether the
+ * entry was consumed (callers can fall through to a default copy).
+ */
+function processSchemaEntry(fieldName: string, fieldValue: unknown, genAISchema: SchemaLike): void {
+  if (fieldName === 'type') {
+    applyTypeField(fieldValue, genAISchema)
+    return
+  }
+  if (SCHEMA_FIELD_NAMES.has(fieldName) && isRecord(fieldValue)) {
+    genAISchema[fieldName] = processJsonSchema(fieldValue)
+    return
+  }
+  if (LIST_SCHEMA_FIELD_NAMES.has(fieldName) && Array.isArray(fieldValue)) {
+    genAISchema[fieldName] = processListSchemaField(fieldValue, genAISchema)
+    return
+  }
+  if (DICT_SCHEMA_FIELD_NAMES.has(fieldName) && isRecord(fieldValue)) {
+    genAISchema[fieldName] = processDictSchemaField(fieldValue)
+    return
+  }
+  if (fieldName === 'additionalProperties') {
+    // additionalProperties is not included in JSONSchema, skipping it.
+    return
+  }
+  genAISchema[fieldName] = fieldValue
+}
+
+/**
  * Process a JSON schema to make it compatible with the GenAI API.
  *
  * Returns a fresh schema rather than mutating the input so the original
  * tool definition stays intact for any other transformer that wants it.
  */
 function processJsonSchema(_jsonSchema: SchemaLike): SchemaLike {
-  let jsonSchema = _jsonSchema
   const genAISchema: SchemaLike = {}
-  const schemaFieldNames = ['items']
-  const listSchemaFieldNames = ['anyOf']
-  const dictSchemaFieldNames = ['properties']
 
-  if (jsonSchema.type && jsonSchema.anyOf) {
+  if (_jsonSchema.type && _jsonSchema.anyOf) {
     throw new Error('type and anyOf cannot be both populated.')
   }
 
@@ -146,21 +251,10 @@ function processJsonSchema(_jsonSchema: SchemaLike): SchemaLike {
   _jsonSchema for processing. This is because the backend doesn't have a null
   type.
   */
-  const incomingAnyOf = jsonSchema.anyOf
-  if (incomingAnyOf != null && Array.isArray(incomingAnyOf) && incomingAnyOf.length === 2) {
-    const first = incomingAnyOf[0]
-    const second = incomingAnyOf[1]
-    if (isRecord(first) && first.type === 'null' && isRecord(second)) {
-      genAISchema.nullable = true
-      jsonSchema = second
-    } else if (isRecord(second) && second.type === 'null' && isRecord(first)) {
-      genAISchema.nullable = true
-      jsonSchema = first
-    }
-  }
+  const jsonSchema = unwrapNullableAnyOf(_jsonSchema, genAISchema)
 
-  if (jsonSchema.type && Array.isArray(jsonSchema.type)) {
-    flattenTypeArrayToAnyOf(jsonSchema.type as string[], genAISchema)
+  if (jsonSchema.type && isStringArray(jsonSchema.type)) {
+    flattenTypeArrayToAnyOf(jsonSchema.type, genAISchema)
   }
 
   for (const [fieldName, fieldValue] of Object.entries(jsonSchema)) {
@@ -168,55 +262,19 @@ function processJsonSchema(_jsonSchema: SchemaLike): SchemaLike {
     if (fieldValue == null) {
       continue
     }
-
-    if (fieldName === 'type') {
-      if (fieldValue === 'null') {
-        throw new Error('type: null can not be the only possible type for the field.')
-      }
-      if (Array.isArray(fieldValue)) {
-        // we have already handled the type field with array of types in the
-        // beginning of this function.
-        continue
-      }
-      const upperCaseValue = String(fieldValue).toUpperCase()
-      genAISchema.type = GEMINI_TYPE_VALUES.has(upperCaseValue) ? upperCaseValue : GeminiType.TYPE_UNSPECIFIED
-    } else if (schemaFieldNames.includes(fieldName) && isRecord(fieldValue)) {
-      genAISchema[fieldName] = processJsonSchema(fieldValue)
-    } else if (listSchemaFieldNames.includes(fieldName) && Array.isArray(fieldValue)) {
-      const listSchemaFieldValue: SchemaLike[] = []
-      for (const item of fieldValue) {
-        if (isRecord(item) && item.type === 'null') {
-          genAISchema.nullable = true
-          continue
-        }
-        if (isRecord(item)) {
-          listSchemaFieldValue.push(processJsonSchema(item))
-        }
-      }
-      genAISchema[fieldName] = listSchemaFieldValue
-    } else if (dictSchemaFieldNames.includes(fieldName) && isRecord(fieldValue)) {
-      const dictSchemaFieldValue: SchemaLike = {}
-      for (const [key, value] of Object.entries(fieldValue)) {
-        if (isRecord(value)) {
-          dictSchemaFieldValue[key] = processJsonSchema(value)
-        } else {
-          dictSchemaFieldValue[key] = value
-        }
-      }
-      genAISchema[fieldName] = dictSchemaFieldValue
-    } else {
-      // additionalProperties is not included in JSONSchema, skipping it.
-      if (fieldName === 'additionalProperties') {
-        continue
-      }
-      genAISchema[fieldName] = fieldValue
+    // The array-of-strings `type` case was already handled by
+    // `flattenTypeArrayToAnyOf`; skip the `type` entry in that scenario
+    // so we don't overwrite the result.
+    if (fieldName === 'type' && Array.isArray(fieldValue)) {
+      continue
     }
+    processSchemaEntry(fieldName, fieldValue, genAISchema)
   }
   return genAISchema
 }
 
 /** Shape of a single function declaration as Gemini consumes it. */
-export interface GeminiFunctionDeclaration {
+export type GeminiFunctionDeclaration = {
   name?: string
   description?: string
   parameters?: SchemaLike
@@ -226,9 +284,34 @@ export interface GeminiFunctionDeclaration {
 }
 
 /** Shape of a Gemini `tools[]` entry built from unified tools. */
-export interface GeminiTool {
+export type GeminiTool = {
   functionDeclarations?: GeminiFunctionDeclaration[]
   googleSearch?: Record<string, never>
+}
+
+/**
+ * Decide how a single declaration field (`parameters` / `response`)
+ * should be rewritten: when the underlying JSON schema is a raw JSON
+ * Schema (no `$schema` marker) we process it; when it has `$schema`
+ * we lift it to the `<field>JsonSchema` slot Gemini expects.
+ */
+function applyDeclarationField(
+  declaration: GeminiFunctionDeclaration,
+  field: 'parameters' | 'response',
+  jsonSchemaField: 'parametersJsonSchema' | 'responseJsonSchema'
+): void {
+  const value = declaration[field]
+  if (!value) {
+    return
+  }
+  if (!Object.keys(value).includes('$schema')) {
+    declaration[field] = processJsonSchema(value)
+    return
+  }
+  if (!declaration[jsonSchemaField]) {
+    declaration[jsonSchemaField] = value
+    delete declaration[field]
+  }
 }
 
 /**
@@ -239,26 +322,8 @@ export interface GeminiTool {
 export function tTool(tool: GeminiTool): GeminiTool {
   if (tool.functionDeclarations) {
     for (const functionDeclaration of tool.functionDeclarations) {
-      if (functionDeclaration.parameters) {
-        if (!Object.keys(functionDeclaration.parameters).includes('$schema')) {
-          functionDeclaration.parameters = processJsonSchema(functionDeclaration.parameters)
-        } else {
-          if (!functionDeclaration.parametersJsonSchema) {
-            functionDeclaration.parametersJsonSchema = functionDeclaration.parameters
-            delete functionDeclaration.parameters
-          }
-        }
-      }
-      if (functionDeclaration.response) {
-        if (!Object.keys(functionDeclaration.response).includes('$schema')) {
-          functionDeclaration.response = processJsonSchema(functionDeclaration.response)
-        } else {
-          if (!functionDeclaration.responseJsonSchema) {
-            functionDeclaration.responseJsonSchema = functionDeclaration.response
-            delete functionDeclaration.response
-          }
-        }
-      }
+      applyDeclarationField(functionDeclaration, 'parameters', 'parametersJsonSchema')
+      applyDeclarationField(functionDeclaration, 'response', 'responseJsonSchema')
     }
   }
   return tool

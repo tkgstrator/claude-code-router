@@ -10,12 +10,21 @@
  * auth + the chatgpt.com/backend-api/codex requirements.
  */
 
-import { createHash, randomUUID } from 'crypto'
-import { readFileSync } from 'fs'
-import { createRequire } from 'module'
-import { arch, homedir } from 'os'
-import { join } from 'path'
-import type { RuntimeProvider, TransformerContext, TransformerHookResult, UnifiedChatRequest } from '../types'
+import { createHash, randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { arch, homedir } from 'node:os'
+import { join } from 'node:path'
+import { HTTPException } from 'hono/http-exception'
+import {
+  type CodexRequestShape,
+  OauthCodexAuthFileSchema,
+  PackageJsonSchema,
+  type RuntimeProvider,
+  type TransformerContext,
+  type TransformerHookResult,
+  type UnifiedChatRequest
+} from '@/schemas'
 import { OAuthTransformer, type OauthCredentials } from './oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
@@ -33,16 +42,21 @@ const CODEX_USER_AGENT: string = (() => {
       return fallback
     }
   }
+  const envVer = (process.env.CODEX_CLI_VERSION ? process.env.CODEX_CLI_VERSION : '').trim()
   const codexVer =
-    (process.env.CODEX_CLI_VERSION ?? '').trim() ||
-    safe(() => {
-      const pkg = createRequire(import.meta.url)('@openai/codex/package.json') as { version: string }
-      return pkg.version
-    }, '0.0.0')
+    envVer.length > 0
+      ? envVer
+      : safe(() => {
+          const pkg = PackageJsonSchema.safeParse(createRequire(import.meta.url)('@openai/codex/package.json'))
+          if (!pkg.success) throw new Error('@openai/codex/package.json: missing version field')
+          return pkg.data.version
+        }, '0.0.0')
   const osStr = safe(() => {
     const rel = readFileSync('/etc/os-release', 'utf-8')
-    const name = rel.match(/^NAME="?([^"\n]+)"?/m)?.[1] ?? 'Linux'
-    const ver = rel.match(/^VERSION_ID="?([^"\n]+)"?/m)?.[1] ?? ''
+    const nameMatch = rel.match(/^NAME="?([^"\n]+)"?/m)
+    const verMatch = rel.match(/^VERSION_ID="?([^"\n]+)"?/m)
+    const name = nameMatch ? nameMatch[1] : 'Linux'
+    const ver = verMatch ? verMatch[1] : ''
     return `${name} ${ver}`.trim()
   }, 'Linux')
   return `codex_cli/${codexVer} (${osStr}; ${arch()})`
@@ -50,32 +64,22 @@ const CODEX_USER_AGENT: string = (() => {
 
 const DEFAULT_CODEX_AUTH_PATH = join(homedir(), '.codex', 'auth.json')
 
-interface CodexAuthFile {
-  tokens?: {
-    access_token?: string
-    account_id?: string
-  }
-}
-
 function readCodexAuth(codexAuthPath: string): OauthCredentials {
-  let data: CodexAuthFile
+  let raw: unknown
   try {
-    data = JSON.parse(readFileSync(codexAuthPath, 'utf-8')) as CodexAuthFile
+    raw = JSON.parse(readFileSync(codexAuthPath, 'utf-8'))
   } catch {
-    throw new Error(`Cannot read Codex credentials from ${codexAuthPath}. ` + 'Authenticate the Codex CLI first.')
+    throw new HTTPException(500, {
+      message: `Cannot read Codex credentials from ${codexAuthPath}. Authenticate the Codex CLI first.`
+    })
   }
-  const token = data.tokens?.access_token
-  if (!token) {
-    throw new Error('Codex credentials are missing tokens.access_token')
+  const result = OauthCodexAuthFileSchema.safeParse(raw)
+  if (!result.success) {
+    throw new HTTPException(500, {
+      message: `Invalid Codex credentials at ${codexAuthPath}: ${result.error.message}`
+    })
   }
-  return { token, accountId: data.tokens?.account_id }
-}
-
-interface CodexRequestShape extends UnifiedChatRequest {
-  store?: boolean
-  instructions?: string
-  prompt_cache_key?: string
-  input?: unknown
+  return { token: result.data.tokens.access_token, accountId: result.data.tokens.account_id }
 }
 
 export class CodexOauthTransformer extends OAuthTransformer {
@@ -92,6 +96,7 @@ export class CodexOauthTransformer extends OAuthTransformer {
     _context: TransformerContext
   ): Promise<TransformerHookResult> {
     const { token, accountId } = await this.resolveSubscriptionAuth(provider)
+    // biome-ignore plugin: CodexRequestShape adds optional Responses-API-specific fields (store/instructions/input/prompt_cache_key) on top of UnifiedChatRequest; the unified schema cannot model these without leaking codex-specific shape into the shared type.
     const req = request as CodexRequestShape
 
     // chatgpt.com/backend-api/codex requires `instructions`, `input` as
@@ -109,8 +114,11 @@ export class CodexOauthTransformer extends OAuthTransformer {
     // deterministic key from the stable request prefix instead — every
     // turn of the same conversation hashes identically and hits the
     // cache, fixing the prefix being re-billed each turn.
+    const cacheModel = req.model ? req.model : ''
+    const cacheInstructions = req.instructions ? req.instructions : ''
+    const cacheTools = JSON.stringify(req.tools ? req.tools : [])
     req.prompt_cache_key = createHash('sha256')
-      .update(`${req.model ?? ''}\n${req.instructions ?? ''}\n${JSON.stringify(req.tools ?? [])}`)
+      .update(`${cacheModel}\n${cacheInstructions}\n${cacheTools}`)
       .digest('hex')
       .slice(0, 32)
 
@@ -118,7 +126,7 @@ export class CodexOauthTransformer extends OAuthTransformer {
     // (https://chatgpt.com/backend-api/codex); the Responses endpoint
     // is one level down. sendRequestToProvider uses config.url verbatim
     // when set, otherwise provider.api_base_url.
-    const base = String(provider.api_base_url ?? '').replace(/\/+$/, '')
+    const base = (provider.api_base_url ? provider.api_base_url : '').replace(/\/+$/, '')
     const url = /\/responses$/.test(base) ? base : `${base}/responses`
 
     const sessionId = randomUUID()
@@ -153,8 +161,8 @@ export class CodexOauthTransformer extends OAuthTransformer {
   // bodies are genuine JSON errors; leave them untouched.
   async transformResponseOut(response: Response, _context: TransformerContext): Promise<Response> {
     if (!response.ok) return response
-    const ct = response.headers.get('content-type') || ''
-    if (ct.includes('text/event-stream')) return response
+    const ct = response.headers.get('content-type')
+    if (ct?.includes('text/event-stream')) return response
     const headers = new Headers(response.headers)
     headers.set('content-type', 'text/event-stream')
     return new Response(response.body, {

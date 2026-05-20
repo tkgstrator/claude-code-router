@@ -7,6 +7,7 @@
     "./biome-plugins/prefer-z-uuid.grit",
     "./biome-plugins/prefer-z-url.grit",
     "./biome-plugins/prefer-z-nonempty.grit",
+    "./biome-plugins/prefer-z-safe-parse.grit",
     "./biome-plugins/no-bare-z-string.grit",
     "./biome-plugins/no-tri-state-z-boolean.grit",
     "./biome-plugins/no-tri-state-z-array.grit",

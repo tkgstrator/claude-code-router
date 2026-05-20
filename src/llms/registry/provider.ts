@@ -9,19 +9,19 @@
  */
 
 import type { Logger } from 'pino'
+import type { ProviderConfigShape, RuntimeProvider, TransformerUseEntry } from '@/schemas'
 import type { Transformer, TransformerConstructor } from '../transformers/base'
-import type { ProviderConfigShape, RuntimeProvider, TransformerUseEntry } from '../types'
 import type { TransformerRegistry } from './transformer'
 
 /** Provider shape after `use` entries have been resolved to instances.
  *  Structurally compatible with RuntimeProvider (transformer.use is
  *  Transformer[], a subtype of unknown[]), so the pipeline can pass
  *  these straight into transformer hooks. */
-export interface ResolvedProvider extends Omit<RuntimeProvider, 'transformer'> {
+export type ResolvedProvider = Omit<RuntimeProvider, 'transformer'> & {
   transformer?: ResolvedProviderTransformer
 }
 
-export interface ResolvedProviderTransformer {
+export type ResolvedProviderTransformer = {
   use?: Transformer[]
   /** Per-model overrides keyed by model id, plus runtime-injected
    *  fields like subscriptionCredentialPath / subscriptionAuth. */
@@ -38,14 +38,18 @@ export class ProviderRegistry {
 
   registerFromConfig(providers: ProviderConfigShape[]): void {
     for (const config of providers) {
+      // ProviderConfigShape requires name/api_base_url/api_key as nonempty
+      // strings already; this is a defence-in-depth check for callers that
+      // hand us pre-parse-equivalent data.
+      if (!config.name || !config.api_base_url || !config.api_key) continue
       try {
-        if (!config.name || !config.api_base_url || !config.api_key) continue
         this.providers.set(config.name, this.resolve(config))
         this.logger?.info(`${config.name} provider registered`)
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
         this.logger?.error(
           { err: error, provider: config.name },
-          `${config.name} provider registered error: ${(error as Error)?.message ?? String(error)}`
+          `${config.name} provider registered error: ${message}`
         )
       }
     }
@@ -64,7 +68,11 @@ export class ProviderRegistry {
       name: config.name,
       api_base_url: config.api_base_url,
       api_key: config.api_key,
-      models: config.models ?? []
+      // ProviderConfigShape.models has a Zod .default([]) so a missing
+      // array becomes [] after parse — the schema-typed input may still
+      // surface undefined for raw callers (z.input side), hence this
+      // explicit normalisation rather than trusting the input.
+      models: config.models ? config.models : []
     }
     if (!config.transformer) return resolved
 
@@ -74,33 +82,20 @@ export class ProviderRegistry {
 
   private resolveTransformerBlock(block: Record<string, unknown>): ResolvedProviderTransformer {
     const out: ResolvedProviderTransformer = {}
-    for (const key of Object.keys(block)) {
-      const value = block[key]
+    for (const [key, value] of Object.entries(block)) {
       if (key === 'use') {
-        if (Array.isArray(value)) {
-          out.use = this.resolveUseList(value as TransformerUseEntry[])
-        }
-      } else if (this.isModelOverride(value)) {
-        const sub = value.use
-        if (Array.isArray(sub)) {
-          out[key] = { use: this.resolveUseList(sub as TransformerUseEntry[]) }
-        }
-      } else {
-        // Preserve unknown keys verbatim (e.g. subscriptionCredentialPath,
-        // subscriptionAuth) — the OAuth base reads them off provider.transformer.
-        out[key] = value
+        if (isUseEntryList(value)) out.use = this.resolveUseList(value)
+        continue
       }
+      if (isModelOverride(value) && isUseEntryList(value.use)) {
+        out[key] = { use: this.resolveUseList(value.use) }
+        continue
+      }
+      // Preserve unknown keys verbatim (e.g. subscriptionCredentialPath,
+      // subscriptionAuth) — the OAuth base reads them off provider.transformer.
+      out[key] = value
     }
     return out
-  }
-
-  private isModelOverride(value: unknown): value is { use: unknown[] } {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'use' in (value as Record<string, unknown>) &&
-      Array.isArray((value as { use: unknown }).use)
-    )
   }
 
   private resolveUseList(entries: TransformerUseEntry[]): Transformer[] {
@@ -119,11 +114,11 @@ export class ProviderRegistry {
     if (Array.isArray(entry) && typeof entry[0] === 'string') {
       const base = this.transformers.get(entry[0])
       if (!base) return undefined
-      // If the legacy code instantiated a CTOR for the per-call options
-      // form, mirror that: cast through TransformerConstructor for the
-      // few transformers that opt into it. The 6 we ship don't take
-      // options today, but the path stays open for future ones.
-      const Ctor = base.constructor as TransformerConstructor
+      // Legacy CTOR-with-options path: the constructor signature is the
+      // TransformerConstructor contract on the base class side. The 6
+      // shipped transformers don't take options today, but the path
+      // stays open for future ones.
+      const Ctor = base.constructor as unknown as TransformerConstructor
       try {
         return new Ctor(entry[1])
       } catch {
@@ -132,4 +127,14 @@ export class ProviderRegistry {
     }
     return undefined
   }
+}
+
+function isUseEntryList(value: unknown): value is TransformerUseEntry[] {
+  return Array.isArray(value)
+}
+
+function isModelOverride(value: unknown): value is { use: unknown[] } {
+  if (typeof value !== 'object' || value === null) return false
+  const obj: Record<string, unknown> = value as Record<string, unknown>
+  return 'use' in obj && Array.isArray(obj.use)
 }

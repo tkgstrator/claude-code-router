@@ -8,7 +8,8 @@
 export const formatBase64 = (data: string, media_type: string): string => {
   let payload = data
   if (payload.includes('base64')) {
-    payload = payload.split('base64').pop() ?? ''
+    const tail = payload.split('base64').pop()
+    payload = tail ? tail : ''
     if (payload.startsWith(',')) {
       payload = payload.slice(1)
     }
