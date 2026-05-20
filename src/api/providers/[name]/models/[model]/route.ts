@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { UpdateModelBodySchema } from '../../../../../schemas'
 import { setModelEnabled } from '../../../../../services/config'
+import { badRequestForZod } from '../../../../zod-response'
 
 export const providerModelRoute = new OpenAPIHono()
 
@@ -9,9 +10,7 @@ providerModelRoute.patch('/api/providers/:name/models/:model', async (c) => {
   const modelName = c.req.param('model')
   const raw = await c.req.json().catch(() => null)
   const parsed = UpdateModelBodySchema.safeParse(raw)
-  if (!parsed.success) {
-    return c.json({ success: false as const, error: parsed.error }, 400)
-  }
+  if (!parsed.success) return badRequestForZod(c, parsed.error)
   try {
     await setModelEnabled(providerName, modelName, parsed.data.enabled)
     return c.json({ success: true as const })

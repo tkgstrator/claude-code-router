@@ -167,7 +167,17 @@ async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response |
   // we may swap it below if the routed-to provider has a bypass single-use.
   let transformer: Transformer = transformersByName.values().next().value!
 
-  const body = RecordSchema.parse(await c.req.json().catch(() => ({})))
+  const bodyParsed = RecordSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!bodyParsed.success) {
+    return c.json(
+      {
+        type: 'error',
+        error: { type: 'invalid_request', message: 'Request body must be a JSON object' }
+      },
+      400
+    )
+  }
+  const body = bodyParsed.data
   const headers: Record<string, string> = {}
   c.req.raw.headers.forEach((v, k) => {
     headers[k] = v
