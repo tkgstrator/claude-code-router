@@ -10,6 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception'
 import { type OauthCredentials, OauthSubscriptionAuthBlockSchema, type RuntimeProvider } from '@/schemas'
+import { resolveAccountForSession } from '../../services/session-account-router'
 import { updateSubAccountAccessToken } from '../../services/subscription-account-sync-service'
 import { Transformer } from './base'
 
@@ -38,7 +39,26 @@ export abstract class OAuthTransformer extends Transformer {
     return null
   }
 
-  protected async resolveSubscriptionAuth(provider: RuntimeProvider | null | undefined): Promise<OauthCredentials> {
+  protected async resolveSubscriptionAuth(
+    provider: RuntimeProvider | null | undefined,
+    sessionId?: string | null,
+    kind?: 'claude' | 'codex'
+  ): Promise<OauthCredentials> {
+    // Session-aware path: pick account by session continuity or lowest usage.
+    if (sessionId && kind) {
+      const account = await resolveAccountForSession(sessionId, kind)
+      if (account) {
+        const live = await this.refreshIfNearExpiry({
+          subAccountId: account.subAccountId,
+          accessToken: account.accessToken,
+          refreshToken: account.refreshToken ?? '',
+          expiresAt: account.expiresAt
+        })
+        return account.accountId ? { token: live, accountId: account.accountId } : { token: live }
+      }
+    }
+
+    // Fallback: use the context-build-time active account overlay.
     const parsed = OauthSubscriptionAuthBlockSchema.safeParse(
       // biome-ignore plugin: provider.transformer is the pipeline-owned `Record<string, unknown>` overlay; safeParse narrows the subscriptionAuth block from there.
       (provider?.transformer as Record<string, unknown> | undefined)?.subscriptionAuth
