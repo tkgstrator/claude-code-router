@@ -1,0 +1,18 @@
+language js
+
+or {
+  `z.boolean().nullable()` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `z.boolean().nullable()`. A boolean should be true or false — use `.default(false)` for missing-means-false, or model the third state with an enum.",
+      severity="warn"
+    )
+  },
+  `z.boolean().optional()` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `z.boolean().optional()`. A boolean should be true or false — use `.default(false)` for missing-means-false, or model the third state with an enum.",
+      severity="warn"
+    )
+  }
+}

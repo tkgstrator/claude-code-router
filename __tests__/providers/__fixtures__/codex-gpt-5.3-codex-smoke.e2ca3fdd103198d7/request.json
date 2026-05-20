@@ -1,0 +1,16 @@
+{
+  "label": "codex/gpt-5.3-codex: subscription smoke",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "codex,gpt-5.3-codex",
+    "max_tokens": 64,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply with the word 'pong' only."
+      }
+    ],
+    "stream": true
+  }
+}

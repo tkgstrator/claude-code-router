@@ -1,16 +1,15 @@
 #!/bin/sh
-# Container entrypoint: apply pending Prisma migrations BEFORE the
-# server boots.
+# Container entrypoint: apply pending Prisma migrations and seed the
+# DB BEFORE the server boots. src/index.ts assumes the schema and seed
+# rows (Providers, RouterSlot) already exist — against an unmigrated /
+# unseeded database it would throw P2021 or render an empty UI.
 #
-# src/index.ts runs bootstrapServer() at module load, which seeds the
-# DB and therefore requires the schema to already exist. Against an
-# unmigrated database it throws P2021 ("table does not exist") and the
-# process exits. `prisma migrate deploy` is the production-safe,
-# idempotent command (no prompts, applies only already-generated
-# migrations); running it again is a no-op.
+# `prisma migrate deploy` and `prisma db seed` are both idempotent
+# (deploy applies only pending migrations; the seed script uses upserts
+# and top-up logic), so running them on every container start is safe.
 #
-# `set -e` makes a failed migration abort the container instead of
-# starting the server against a half-migrated schema. compose.yaml
+# `set -e` makes a failed migration / seed abort the container instead
+# of starting the server against a half-initialised DB. compose.yaml
 # already gates this on `postgres: condition: service_healthy`.
 set -e
 
@@ -27,6 +26,8 @@ fi
 # CLI — no network fetch.
 echo "[entrypoint] applying prisma migrations (migrate deploy)..."
 bunx prisma migrate deploy
-echo "[entrypoint] migrations applied; starting server"
+echo "[entrypoint] seeding database (db seed)..."
+bunx prisma db seed
+echo "[entrypoint] migrations + seed applied; starting server"
 
 exec "$@"

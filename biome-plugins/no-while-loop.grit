@@ -1,0 +1,18 @@
+language js
+
+or {
+  `while ($cond) { $_ }` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `while` loops. Use `for...of`, array methods, or recursion instead.",
+      severity="warn"
+    )
+  },
+  `do { $_ } while ($cond)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `do...while` loops. Use `for...of`, array methods, or recursion instead.",
+      severity="warn"
+    )
+  }
+}

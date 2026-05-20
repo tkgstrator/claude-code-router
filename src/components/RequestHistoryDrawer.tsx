@@ -68,12 +68,12 @@ export function RequestHistoryDrawer({ isOpen, onClose, onSelectRequest }: Reque
 
   return (
     <div className='fixed inset-0 z-50'>
-      {/* 遮罩层 */}
+      {/* Backdrop */}
       <div className='absolute inset-0 bg-black bg-opacity-50' onClick={onClose} />
 
-      {/* 抽屉 */}
+      {/* Drawer */}
       <div className='absolute right-0 top-0 h-full w-96 bg-background shadow-xl flex flex-col'>
-        {/* 头部 */}
+        {/* Header */}
         <div className='flex items-center justify-between p-4 border-b'>
           <div className='flex items-center gap-2'>
             <History className='h-5 w-5' />
@@ -90,7 +90,7 @@ export function RequestHistoryDrawer({ isOpen, onClose, onSelectRequest }: Reque
           </div>
         </div>
 
-        {/* 内容 */}
+        {/* Content */}
         <div className='flex-1 overflow-y-auto p-4'>
           {loading ? (
             <div className='flex items-center justify-center h-32 text-muted-foreground'>加载中...</div>

@@ -1,13 +1,13 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { LOG_DIR } from '../../lib/logger'
+import { LOG_DIR } from '../../logger'
 
 // Backend for LogViewer.tsx. The client (src/lib/api.ts) calls
 // GET /api/logs/files, GET /api/logs?file=, DELETE /api/logs?file= —
 // all behind the /api/* APIKEY guard mounted in src/index.ts. Until
 // now these routes did not exist, so the (fully built) log UI was
-// dead. File logs are written by src/lib/logger.ts as JSON lines.
+// dead. File logs are written by src/logger.ts as JSON lines.
 export const logsRoute = new OpenAPIHono()
 
 // Resolve a client-supplied `file` strictly inside LOG_DIR. basename()

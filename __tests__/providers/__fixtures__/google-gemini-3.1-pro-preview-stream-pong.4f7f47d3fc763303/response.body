@@ -1,0 +1,30 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_1779261524932","type":"message","role":"assistant","content":[],"model":"gemini-3.1-pro-preview","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"pong"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"thinking","thinking":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"thinking_delta","thinking":"(no content)"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"signature_delta","signature":"EtwFCtkFAQw51sfzyPeaex2QuNfjwcBoX/OLBntxcePILtHBOf1zO/MGM7kH/OLVqfdJK92H3H4hZHt5Vq3a1yhChX14od7iww8V8bLmqkREpbKwKM3i8AS+PgyyBz+jOdrMjXJK+Oa30AJbBJhuK72klJXOMzE3hZvAAR30egj7HwycNJwu+DLWXD+L5DwYDFZe7KNtr99zhaUnm92BzfHQjfMJbpQISkdZbUg0nKQQs9wjbrcjuVeVGF57ZoO86BvtTS8grBQa2GQBSzkchCCK0aZnN0K4NLOlhzOB945ioQYD0+G+QP+z7ok3zNOkyI4FAtfNHvInkqtNpUyMaGiLfMgJMt/pXrPNkT9J6/rgoEijeyFsai4yevD05D8k8PkzznQRPASphQZByfDBPuWsgB6iWeOkjeq6q9FVmLM6cfmwvDDjU1oxexV3YlFhsWynDJsXcPqd2UcJvnxINFfZjiCkYF/ciTpgR522hHJl8uzXM5OEj9o3CWfOLU9lOtVcvNuGhzYCjgVZ5CXBYIn8ratAD9babVKGviKaZkIRkX/EDlEteHHsYc3DizJRGhj4O8fzTIV7/tYmB9OTNU8lXDvHbsIcQeMOAqKU6O5dhOkBmSsIZr5hX8lUkQKN82g1vxuuEz73d03Wz/ov1J39sQ5mr9pXj0YQCmhlUFcbS+aaUtQ3pJatcuq3sQ8RHnBWpzglTBa8caRip365C8AzwgFPLJ7qbjYJYE6xjp5+Lsps+t3cCMMBdvmUnFzXuTG7BqYhQHwX5yEy9wmccxJDmupypUB2kXm/hHTg+wsZImUMMWt9qhW8Tl4TbOunytGzmdv5WKQnRUj5NZKMrpBFyMbsw+bb/6y3VmazFrTeOJpXGVOqqFYcUm9zsTR+xLtRJxkWAcEgC4XMW7EBqMsWY8YmD2u3mwytY5/D03sU2dNbCNQfpYLREWnGW/kDv9QcQzKkcHAqZpvOGJKr"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":10,"output_tokens":1,"cache_read_input_tokens":0}}
+
+event: message_stop
+data: {"type":"message_stop"}
+

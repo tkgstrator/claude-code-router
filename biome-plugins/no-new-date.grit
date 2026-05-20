@@ -1,0 +1,18 @@
+language js
+
+or {
+  `new Date()` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `new Date()`. Use the project's dayjs (`dayjs()` / `dayjs().toDate()`) so time handling stays consistent and testable.",
+      severity="warn"
+    )
+  },
+  `new Date($args)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="Avoid `new Date(...)`. Use the project's dayjs (`dayjs(...)` / `dayjs().toDate()`) so time handling stays consistent and testable.",
+      severity="warn"
+    )
+  }
+}

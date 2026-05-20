@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Scrape https://ai.google.dev/gemini-api/docs/pricing and emit
- * packages/shared/src/data/providers/google/prices.json.
+ * src/shared/data/providers/google/prices.json.
  *
  *   bun run scripts/scrape-gemini-pricing.ts          # write the JSON
  *   bun run scripts/scrape-gemini-pricing.ts --dry    # print + count only
@@ -22,7 +22,7 @@ import { join } from 'node:path'
 import { chromium } from 'playwright'
 
 const SOURCE_URL = 'https://ai.google.dev/gemini-api/docs/pricing'
-const OUT = join(import.meta.dir, '../packages/shared/src/data/providers/google/prices.json')
+const OUT = join(import.meta.dir, '../src/shared/data/providers/google/prices.json')
 
 interface RawRow {
   dimension: string

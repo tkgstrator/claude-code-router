@@ -1,11 +1,8 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
-import { setModelEnabled } from '../../../../../services/configService'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { UpdateModelBodySchema } from '../../../../../schemas'
+import { setModelEnabled } from '../../../../../services/config'
 
 export const providerModelRoute = new OpenAPIHono()
-
-const UpdateModelBodySchema = z.object({
-  enabled: z.boolean()
-})
 
 providerModelRoute.patch('/api/providers/:name/models/:model', async (c) => {
   const providerName = c.req.param('name')

@@ -1,0 +1,24 @@
+{
+  "label": "openai/gpt-4.1-mini: multi-turn memory",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "openai,gpt-4.1-mini",
+    "max_tokens": 50,
+    "messages": [
+      {
+        "role": "user",
+        "content": "My favorite number is 17. Please remember it."
+      },
+      {
+        "role": "assistant",
+        "content": "Got it — your favorite number is 17."
+      },
+      {
+        "role": "user",
+        "content": "What is my favorite number? Reply with only the number."
+      }
+    ],
+    "stream": true
+  }
+}

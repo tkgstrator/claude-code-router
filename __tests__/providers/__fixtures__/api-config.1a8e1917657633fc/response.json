@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "statusText": "OK",
+  "headers": {
+    "connection": "keep-alive",
+    "content-length": "8782",
+    "content-type": "application/json",
+    "date": "Wed, 20 May 2026 07:18:25 GMT",
+    "keep-alive": "timeout=5",
+    "vary": "Origin"
+  }
+}

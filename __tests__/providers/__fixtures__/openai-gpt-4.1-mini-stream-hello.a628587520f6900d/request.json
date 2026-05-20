@@ -1,0 +1,16 @@
+{
+  "label": "openai/gpt-4.1-mini: stream-hello",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "openai,gpt-4.1-mini",
+    "max_tokens": 100,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say exactly: hello"
+      }
+    ],
+    "stream": true
+  }
+}

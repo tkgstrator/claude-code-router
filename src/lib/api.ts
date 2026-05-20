@@ -1,4 +1,4 @@
-import type { Config, Provider, Transformer } from '@/types'
+import type { Config } from '@/types'
 
 export interface RequestLogItem {
   id: string
@@ -36,25 +36,10 @@ export interface SessionSummary {
   lastAt: string
 }
 
-// 日志聚合响应类型
-interface GroupedLogsResponse {
-  grouped: boolean
-  groups: {
-    [reqId: string]: Array<{ timestamp: string; level: string; message: string; source?: string; reqId?: string }>
-  }
-  summary: {
-    totalRequests: number
-    totalLogs: number
-    requests: Array<{
-      reqId: string
-      logCount: number
-      firstLog: string
-      lastLog: string
-    }>
-  }
-}
-
-// API Client Class for handling requests with baseUrl and apikey authentication
+// Browser-side API client. Fetches under `${baseUrl}<endpoint>` with the
+// envelope APIKEY (mirrored onto X-API-Key) attached automatically. The
+// temp key from `?tempApiKey=` lets the integrated `ccr ui` flow open the
+// UI pre-authenticated without persisting the long-lived key.
 class ApiClient {
   private baseUrl: string
   private apiKey: string
@@ -62,21 +47,12 @@ class ApiClient {
 
   constructor(baseUrl: string = '/api', apiKey: string = '') {
     this.baseUrl = baseUrl
-    // Load API key from localStorage if available
     this.apiKey = apiKey || localStorage.getItem('apiKey') || ''
-    // Load temp API key from URL if available
     this.tempApiKey = new URLSearchParams(window.location.search).get('tempApiKey')
   }
 
-  // Update base URL
-  setBaseUrl(url: string) {
-    this.baseUrl = url
-  }
-
-  // Update API key
   setApiKey(apiKey: string) {
     this.apiKey = apiKey
-    // Save API key to localStorage
     if (apiKey) {
       localStorage.setItem('apiKey', apiKey)
     } else {
@@ -84,284 +60,126 @@ class ApiClient {
     }
   }
 
-  // Update temp API key
-  setTempApiKey(tempApiKey: string | null) {
-    this.tempApiKey = tempApiKey
+  private authHeader(): Record<string, string> {
+    if (this.tempApiKey) return { 'X-Temp-API-Key': this.tempApiKey }
+    if (this.apiKey) return { 'X-API-Key': this.apiKey }
+    return {}
   }
 
-  // Create headers with API key authentication
-  private createHeaders(contentType: string = 'application/json'): HeadersInit {
-    const headers: Record<string, string> = {
-      Accept: 'application/json'
-    }
-
-    // Use temp API key if available, otherwise use regular API key
-    if (this.tempApiKey) {
-      headers['X-Temp-API-Key'] = this.tempApiKey
-    } else if (this.apiKey) {
-      headers['X-API-Key'] = this.apiKey
-    }
-
-    if (contentType) {
-      headers['Content-Type'] = contentType
-    }
-
-    return headers
-  }
-
-  // Generic fetch wrapper with base URL and authentication
   private async apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`
-
-    const config: RequestInit = {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers: {
-        ...this.createHeaders(),
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...this.authHeader(),
         ...options.headers
       }
+    })
+
+    if (response.status === 401) {
+      // 401 invalidates the stored key; the app listens for this event
+      // and routes back to the login screen (memory router — can't push
+      // from here directly).
+      localStorage.removeItem('apiKey')
+      window.dispatchEvent(new CustomEvent('unauthorized'))
+      return new Promise(() => {}) as Promise<T>
     }
 
-    try {
-      const response = await fetch(url, config)
-
-      // Handle 401 Unauthorized responses
-      if (response.status === 401) {
-        // Remove API key when it's invalid
-        localStorage.removeItem('apiKey')
-        // Redirect to login page if not already there
-        // For memory router, we need to use the router instance
-        // We'll dispatch a custom event that the app can listen to
-        window.dispatchEvent(new CustomEvent('unauthorized'))
-        // Return a promise that never resolves to prevent further execution
-        return new Promise(() => {}) as Promise<T>
-      }
-
-      if (!response.ok) {
-        // Try to get detailed error message from response body
-        let errorMessage = `API request failed: ${response.status} ${response.statusText}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error || errorData.message) {
-            errorMessage = errorData.message || errorData.error || errorMessage
-          }
-        } catch {
-          // If parsing fails, use default error message
+    if (!response.ok) {
+      let errorMessage = `API request failed: ${response.status} ${response.statusText}`
+      try {
+        const errorData = await response.json()
+        if (errorData.error || errorData.message) {
+          errorMessage = errorData.message || errorData.error || errorMessage
         }
-        throw new Error(errorMessage)
+      } catch {
+        // body wasn't JSON; fall back to status line
       }
-
-      if (response.status === 204) {
-        return {} as T
-      }
-
-      const text = await response.text()
-      return text ? JSON.parse(text) : ({} as T)
-    } catch (error) {
-      console.error('API request error:', error)
-      throw error
+      throw new Error(errorMessage)
     }
+
+    if (response.status === 204) return {} as T
+    const text = await response.text()
+    return text ? JSON.parse(text) : ({} as T)
   }
 
-  // GET request
   async get<T>(endpoint: string): Promise<T> {
-    return this.apiFetch<T>(endpoint, {
-      method: 'GET'
-    })
+    return this.apiFetch<T>(endpoint, { method: 'GET' })
   }
 
-  // POST request
   async post<T>(endpoint: string, data: unknown): Promise<T> {
-    return this.apiFetch<T>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data)
-    })
+    return this.apiFetch<T>(endpoint, { method: 'POST', body: JSON.stringify(data) })
   }
 
-  // PUT request
-  async put<T>(endpoint: string, data: unknown): Promise<T> {
-    return this.apiFetch<T>(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(data)
-    })
+  private async deleteRequest<T>(endpoint: string, body: unknown = {}): Promise<T> {
+    return this.apiFetch<T>(endpoint, { method: 'DELETE', body: JSON.stringify(body) })
   }
 
-  // DELETE request
-  async delete<T>(endpoint: string, body?: any): Promise<T> {
-    return this.apiFetch<T>(endpoint, {
-      method: 'DELETE',
-      body: JSON.stringify(body || {})
-    })
-  }
-
-  // API methods for configuration
-  // Get current configuration
+  // Configuration
   async getConfig(): Promise<Config> {
     return this.get<Config>('/config')
   }
 
-  // Update entire configuration
   async updateConfig(config: Config): Promise<Config> {
     return this.post<Config>('/config', config)
   }
 
-  // Get providers
-  async getProviders(): Promise<Provider[]> {
-    return this.get<Provider[]>('/api/providers')
-  }
-
-  // Add a new provider
-  async addProvider(provider: Provider): Promise<Provider> {
-    return this.post<Provider>('/api/providers', provider)
-  }
-
-  // Update a provider
-  async updateProvider(index: number, provider: Provider): Promise<Provider> {
-    return this.post<Provider>(`/api/providers/${index}`, provider)
-  }
-
-  // Delete a provider
-  async deleteProvider(index: number): Promise<void> {
-    return this.delete<void>(`/api/providers/${index}`)
-  }
-
-  // Get transformers
-  async getTransformers(): Promise<Transformer[]> {
-    return this.get<Transformer[]>('/api/transformers')
-  }
-
-  // Add a new transformer
-  async addTransformer(transformer: Transformer): Promise<Transformer> {
-    return this.post<Transformer>('/api/transformers', transformer)
-  }
-
-  // Update a transformer
-  async updateTransformer(index: number, transformer: Transformer): Promise<Transformer> {
-    return this.post<Transformer>(`/api/transformers/${index}`, transformer)
-  }
-
-  // Delete a transformer
-  async deleteTransformer(index: number): Promise<void> {
-    return this.delete<void>(`/api/transformers/${index}`)
-  }
-
-  // Get configuration (new endpoint)
-  async getConfigNew(): Promise<Config> {
-    return this.get<Config>('/config')
-  }
-
-  // Save configuration (new endpoint)
-  async saveConfig(config: Config): Promise<unknown> {
-    return this.post<Config>('/config', config)
-  }
-
-  // Restart service
+  // Service control
   async restartService(): Promise<unknown> {
     return this.post<void>('/restart', {})
   }
 
-  // Check for updates
   async checkForUpdates(): Promise<{ hasUpdate: boolean; latestVersion?: string; changelog?: string }> {
     return this.get<{ hasUpdate: boolean; latestVersion?: string; changelog?: string }>('/update/check')
   }
 
-  // Perform update
   async performUpdate(): Promise<{ success: boolean; message: string }> {
     return this.post<{ success: boolean; message: string }>('/api/update/perform', {})
   }
 
-  // Get log files list
+  // Logs
   async getLogFiles(): Promise<Array<{ name: string; path: string; size: number; lastModified: string }>> {
     return this.get<Array<{ name: string; path: string; size: number; lastModified: string }>>('/logs/files')
   }
 
-  // Get logs from specific file
   async getLogs(filePath: string): Promise<string[]> {
     return this.get<string[]>(`/logs?file=${encodeURIComponent(filePath)}`)
   }
 
-  // Clear logs from specific file
   async clearLogs(filePath: string): Promise<void> {
-    return this.delete<void>(`/logs?file=${encodeURIComponent(filePath)}`)
+    return this.deleteRequest<void>(`/logs?file=${encodeURIComponent(filePath)}`)
   }
 
-  // ========== Preset API methods ==========
-
-  // Get presets list
+  // Presets
   async getPresets(): Promise<{ presets: Array<any> }> {
     return this.get<{ presets: Array<any> }>('/presets')
   }
 
-  // Get preset details
   async getPreset(name: string): Promise<any> {
     return this.get<any>(`/presets/${encodeURIComponent(name)}`)
   }
 
-  // Install preset from URL
-  async installPresetFromUrl(url: string, name?: string): Promise<any> {
-    return this.post<any>('/presets/install', { url, name })
-  }
-
-  // Upload preset file
-  async uploadPresetFile(file: File, name?: string): Promise<any> {
-    const formData = new FormData()
-    formData.append('file', file)
-    if (name) {
-      formData.append('name', name)
-    }
-
-    const url = `${this.baseUrl}/presets/upload`
-
-    const headers: Record<string, string> = {
-      Accept: 'application/json'
-    }
-
-    // Use temp API key if available, otherwise use regular API key
-    if (this.tempApiKey) {
-      headers['X-Temp-API-Key'] = this.tempApiKey
-    } else if (this.apiKey) {
-      headers['X-API-Key'] = this.apiKey
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData
-    })
-
-    if (response.status === 401) {
-      localStorage.removeItem('apiKey')
-      window.dispatchEvent(new CustomEvent('unauthorized'))
-      return new Promise(() => {}) as any
-    }
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload preset: ${response.status} ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-
-  // Apply preset (configure sensitive fields)
   async applyPreset(name: string, secrets: Record<string, string>): Promise<any> {
     return this.post<any>(`/presets/${encodeURIComponent(name)}/apply`, { secrets })
   }
 
-  // Delete preset
   async deletePreset(name: string): Promise<any> {
-    return this.delete<any>(`/presets/${encodeURIComponent(name)}`, {})
+    return this.deleteRequest<any>(`/presets/${encodeURIComponent(name)}`)
   }
 
-  // Get market presets
   async getMarketPresets(): Promise<{ presets: Array<any> }> {
     return this.get<{ presets: Array<any> }>('/presets/market')
   }
 
-  // Install preset from GitHub repository
   async installPresetFromGitHub(repo: string, name?: string): Promise<any> {
     return this.post<any>('/presets/install/github', { repo, name })
   }
 
-  // ========== Request log API methods ==========
+  // Request logs
+  async getSessionLogs(sessionId: string): Promise<{ items: RequestLogItem[] }> {
+    return this.get<{ items: RequestLogItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}`)
+  }
 
   async getRequestLogSessions(params?: { limit?: number; offset?: number }): Promise<{
     sessions: SessionSummary[]
@@ -374,32 +192,9 @@ class ApiClient {
     return this.get<{ sessions: SessionSummary[]; total: number }>(`/request-logs/sessions${qs ? `?${qs}` : ''}`)
   }
 
-  async getSessionLogs(sessionId: string): Promise<{ items: RequestLogItem[] }> {
-    return this.get<{ items: RequestLogItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}`)
-  }
-
-  async getRequestLogs(params?: { limit?: number; offset?: number }): Promise<{
-    items: RequestLogItem[]
-    total: number
-  }> {
-    const q = new URLSearchParams()
-    if (params?.limit != null) q.set('limit', String(params.limit))
-    if (params?.offset != null) q.set('offset', String(params.offset))
-    const qs = q.toString()
-    return this.get<{ items: RequestLogItem[]; total: number }>(`/request-logs${qs ? `?${qs}` : ''}`)
-  }
-
-  async deleteRequestLog(id: string): Promise<void> {
-    return this.delete<void>(`/request-logs/${id}`)
-  }
-
   async deleteAllRequestLogs(): Promise<void> {
-    return this.delete<void>('/request-logs')
+    return this.deleteRequest<void>('/request-logs')
   }
 }
 
-// Create a default instance of the API client
 export const api = new ApiClient()
-
-// Export the class for creating custom instances
-export default ApiClient

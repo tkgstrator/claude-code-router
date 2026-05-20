@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
-import { BUILTIN_TRANSFORMERS } from '../../lib/builtinTransformers'
+import { getLlmsContext } from '../../llms'
 import { TransformersResponseSchema } from '../../schemas'
 
 export const transformersRoute = new OpenAPIHono()
@@ -14,8 +14,9 @@ const getTransformersRoute = createRoute({
     }
   }
 })
-transformersRoute.openapi(getTransformersRoute, (c) => {
-  // Mirrors the list @musistudio/llms registers at boot. Once we
-  // bootstrap TransformerService from Hono we can read it directly.
-  return c.json({ transformers: BUILTIN_TRANSFORMERS }, 200)
+
+transformersRoute.openapi(getTransformersRoute, async (c) => {
+  const ctx = await getLlmsContext()
+  const transformers = ctx.transformers.getAll().map((t) => ({ name: t.name, endpoint: t.endPoint ?? null }))
+  return c.json({ transformers }, 200)
 })

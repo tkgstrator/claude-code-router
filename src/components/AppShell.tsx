@@ -79,7 +79,7 @@ function AppSidebar() {
           <SidebarMenu>
             {NAV_ITEMS.map(({ to, icon: Icon, key }) => (
               <SidebarMenuItem key={to}>
-                <SidebarMenuButton size='lg' asChild isActive={pathname.startsWith(to)} tooltip={t(key)}>
+                <SidebarMenuButton asChild isActive={pathname.startsWith(to)} tooltip={t(key)}>
                   <NavLink to={to}>
                     <Icon />
                     <span>{t(key)}</span>

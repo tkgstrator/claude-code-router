@@ -5,9 +5,9 @@
 # runtime image installs production deps only, so none of that ships.
 #
 # Runtime executes TS source directly with Bun (no dist server bundle):
-# `bun --tsconfig-override tsconfig.runtime.json src/server.ts`, so the
-# image still needs src/, the prod node_modules, the built @ccr/shared,
-# the generated Prisma client and the Vite SPA dist.
+# `bun --tsconfig-override tsconfig.runtime.json src/index.ts`, so the
+# image still needs src/, the prod node_modules, the generated Prisma
+# client and the Vite SPA dist.
 
 # ---------- builder ----------------------------------------------------
 FROM oven/bun:1.3.14 AS builder
@@ -19,7 +19,6 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY tsconfig.json tsconfig.base.json tsconfig.runtime.json biome.json ./
 COPY index.html vite.config.ts prisma.config.ts ./
-COPY packages ./packages
 COPY scripts ./scripts
 COPY src ./src
 
@@ -36,19 +35,17 @@ RUN bun -e "let v='';try{v=require('@openai/codex/package.json').version}catch{}
 FROM oven/bun:1.3.14
 WORKDIR /app
 
-# Sources + workspace manifests needed to resolve + run.
+# Sources needed to resolve + run.
 COPY package.json bun.lock ./
 COPY tsconfig.json tsconfig.base.json tsconfig.runtime.json biome.json ./
 COPY prisma.config.ts ./
-COPY packages ./packages
 COPY src ./src
 
 # Production deps only — drops vite, @openai/codex, biome, typescript,
 # playwright, … `prisma` is a runtime dep (the entrypoint runs
 # `prisma migrate deploy` and prisma.config.ts imports `prisma/config`),
 # so scripts run normally: the postinstall regenerates the client and
-# prisma fetches its engines. Built SPA/@ccr/shared still come from the
-# builder.
+# prisma fetches its engines. Built SPA still comes from the builder.
 # --frozen-lockfile omitted: arm64 CDN sometimes serves valibot (transitive
 # @prisma/dev dep) with a different tarball hash; bun.lock still pins versions.
 RUN bun install --production --ignore-scripts
@@ -56,7 +53,6 @@ RUN bun install --production --ignore-scripts
 # Build outputs the production-only install does not reproduce.
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/generated ./src/generated
-COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/.codex-cli-version ./.codex-cli-version
 
 COPY entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -68,4 +64,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD bun -e "fetch('http://127.0.0.1:3456/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["bun", "--tsconfig-override", "tsconfig.runtime.json", "src/server.ts"]
+CMD ["bun", "--tsconfig-override", "tsconfig.runtime.json", "src/index.ts"]

@@ -1,0 +1,17 @@
+{
+  "label": "claude-code/claude-haiku-4-5: system prompt",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "claude-code,claude-haiku-4-5",
+    "max_tokens": 50,
+    "system": "You ONLY ever reply with the single word: pizza. No punctuation, no other text.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is your favorite food?"
+      }
+    ],
+    "stream": true
+  }
+}

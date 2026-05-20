@@ -1,0 +1,16 @@
+{
+  "label": "google/gemini-2.5-flash: stream-pong",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "google,gemini-2.5-flash",
+    "max_tokens": 50,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply with the word 'pong' only."
+      }
+    ],
+    "stream": true
+  }
+}

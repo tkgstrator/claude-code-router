@@ -4,22 +4,11 @@
     ".": {
       "entry": [
         "src/index.ts",
-        "src/server.ts",
-        "src/app/main.tsx",
-        "vite.config.ts",
         "scripts/**/*.ts",
         "__tests__/**/*.ts"
       ],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "__tests__/**/*.ts"],
-      "ignore": ["src/llms/**"]
-    },
-    "packages/cli": {
-      "entry": ["src/cli.ts"],
-      "project": ["src/**/*.ts"]
-    },
-    "packages/shared": {
-      "entry": ["src/index.ts", "src/data/index.ts"],
-      "project": ["src/**/*.ts"]
+      "ignore": ["src/vendor/llms/**"]
     }
   },
   "ignoreFiles": [

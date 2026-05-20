@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { EnabledModelsResponseSchema } from '../../schemas'
-import { getEnabledModels } from '../../services/configService'
+import { getEnabledModels } from '../../services/config'
 
 export const modelsRoute = new OpenAPIHono()
 

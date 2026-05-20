@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { UsageResponseSchema } from '../../schemas'
-import { fetchUsageSnapshot } from '../../services/usageService'
+import { fetchUsageSnapshot } from '../../services/usage-service'
 
 export const usageRoute = new OpenAPIHono()
 

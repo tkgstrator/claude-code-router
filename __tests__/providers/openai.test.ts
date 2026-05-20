@@ -10,11 +10,17 @@ import {
   sendMessage,
   extractTextFromEvents,
   assertAnthropicSSEShape,
+  isUnavailableModelSignal,
   TEST_TIMEOUT,
+  IS_REPLAY,
 } from "./helpers";
 
+// In replay mode the upstream key is irrelevant — fixtures supply the
+// response. Skip only when we'd actually hit the live server and the
+// caller hasn't provisioned credentials (or has opted out explicitly).
 const hasApiKey =
-  Boolean(process.env.OPENAI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS;
+  IS_REPLAY ||
+  (Boolean(process.env.OPENAI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS);
 
 describe.skipIf(!hasApiKey)("openai / gpt-4.1-mini", () => {
   test(
@@ -100,7 +106,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-5.5", () => {
           messages: [{ role: "user", content: "Say exactly: hello" }],
         });
       } catch (err: any) {
-        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+        if (isUnavailableModelSignal(err.message)) {
           console.warn("openai gpt-5.5 not available, skipping");
           return;
         }
@@ -125,7 +131,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-5.5", () => {
           messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
         });
       } catch (err: any) {
-        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+        if (isUnavailableModelSignal(err.message)) {
           console.warn("openai gpt-5.5 not available, skipping");
           return;
         }
@@ -151,7 +157,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-5.4", () => {
           messages: [{ role: "user", content: "Say exactly: hello" }],
         });
       } catch (err: any) {
-        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+        if (isUnavailableModelSignal(err.message)) {
           console.warn("openai gpt-5.4 not available, skipping");
           return;
         }
@@ -176,7 +182,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-5.4", () => {
           messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
         });
       } catch (err: any) {
-        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+        if (isUnavailableModelSignal(err.message)) {
           console.warn("openai gpt-5.4 not available, skipping");
           return;
         }
@@ -201,14 +207,21 @@ describe.skipIf(!hasApiKey)("openai / gpt-5.4", () => {
           stream: false,
         });
       } catch (err: any) {
-        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+        if (isUnavailableModelSignal(err.message)) {
           console.warn("openai gpt-5.4 not available, skipping");
           return;
         }
         throw err;
       }
 
-      expect(res.ok).toBe(true);
+      if (!res.ok) {
+        const text = await res.text();
+        if (isUnavailableModelSignal(text)) {
+          console.warn("openai gpt-5.4 not available, skipping");
+          return;
+        }
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
       const body = await res.json() as any;
       expect(body.type).toBe("message");
       expect(body.role).toBe("assistant");
@@ -232,7 +245,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-5.3-codex", () => {
           messages: [{ role: "user", content: "Say exactly: hello" }],
         });
       } catch (err: any) {
-        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+        if (isUnavailableModelSignal(err.message)) {
           console.warn("openai gpt-5.3-codex not available, skipping");
           return;
         }
@@ -257,7 +270,7 @@ describe.skipIf(!hasApiKey)("openai / gpt-5.3-codex", () => {
           messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
         });
       } catch (err: any) {
-        if (err.message?.includes("404") || err.message?.includes("model_not_found")) {
+        if (isUnavailableModelSignal(err.message)) {
           console.warn("openai gpt-5.3-codex not available, skipping");
           return;
         }

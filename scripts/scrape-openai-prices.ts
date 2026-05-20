@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Scrape OpenAI's pricing page and emit
- * packages/shared/src/data/vendor-prices/openai.json.
+ * src/shared/data/vendor-prices/openai.json.
  *
  *   bun run scripts/scrape-openai-prices.ts          # write the JSON
  *   bun run scripts/scrape-openai-prices.ts --dry    # print + count only
@@ -29,7 +29,7 @@ import { join } from 'node:path'
 import { chromium } from 'playwright'
 
 const SOURCE_URL = 'https://developers.openai.com/api/docs/pricing'
-const OUT = join(import.meta.dir, '../packages/shared/src/data/providers/openai/prices.json')
+const OUT = join(import.meta.dir, '../src/shared/data/providers/openai/prices.json')
 
 interface RawTable {
   tier: 'standard' | 'batch' | 'flex' | 'priority' | null

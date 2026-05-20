@@ -1,0 +1,1 @@
+{"id":"chatcmpl-DhVqLlqjDGeExW8lm26ERWYTs0lSW","type":"message","role":"assistant","model":"gpt-5.4-2026-03-05","content":[{"type":"text","text":"42"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":14,"output_tokens":4,"cache_read_input_tokens":0}}

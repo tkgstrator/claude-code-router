@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { ModelTestAllRequestSchema, ModelTestAllResponseSchema } from '../../../schemas'
-import { testAllModels } from '../../../services/modelTestService'
+import { testAllModels } from '../../../services/model-test-service'
 
 export const modelTestAllRoute = new OpenAPIHono()
 

@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 import { ProviderIcon } from '@/lib/providerIcons'
-import { MODEL_PRICING } from '@/lib/providerTemplates'
+import { MODEL_PRICING } from '@/shared/data'
 
 type Reachability = 'unknown' | 'testing' | 'ok' | 'fail'
 
@@ -61,12 +61,16 @@ export function ModelsDashboard() {
   useEffect(() => {
     const fetchSubscriptions = async () => {
       try {
-        const response = await api.get<{ subscriptions: { providerName: string; plan: string | null }[] }>(
-          '/subscriptions'
-        )
+        const response = await api.get<{
+          subscriptions: {
+            providerName: string
+            enabled: boolean
+            activeAccount: { plan: string | null } | null
+          }[]
+        }>('/subscriptions')
         const map: Record<string, string | null> = {}
         for (const entry of response.subscriptions) {
-          map[entry.providerName] = entry.plan
+          map[entry.providerName] = entry.activeAccount?.plan ?? null
         }
         setPlanByProvider(map)
       } catch (error) {
@@ -94,6 +98,7 @@ export function ModelsDashboard() {
     const raw = providers.flatMap((provider) => {
       if (!provider) return []
       const providerName = provider.name || 'unknown'
+      if (provider.enabled === false) return []
       const providerAvailable =
         provider.auth_mode === 'subscription'
           ? Boolean(planByProvider[providerName])

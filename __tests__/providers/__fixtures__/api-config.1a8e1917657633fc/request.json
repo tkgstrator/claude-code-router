@@ -1,0 +1,6 @@
+{
+  "label": "GET /api/config",
+  "method": "GET",
+  "url": "http://127.0.0.1:16173/api/config",
+  "body": null
+}

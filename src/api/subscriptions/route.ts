@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { SubscriptionsResponseSchema } from '../../schemas'
-import { getSubscriptionsInfo } from '../../services/subscriptionInfoService'
+import { getSubscriptionsInfo } from '../../services/subscription-info-service'
 
 export const subscriptionsRoute = new OpenAPIHono()
 

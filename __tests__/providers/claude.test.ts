@@ -18,6 +18,7 @@ import {
   smokeSubscriptionModel,
   fetchSubscriptionModels,
   TEST_TIMEOUT,
+  IS_REPLAY,
   type SubscriptionModel,
 } from "./helpers";
 import { existsSync } from "fs";
@@ -25,8 +26,11 @@ import { join } from "path";
 import { homedir } from "os";
 
 const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
+// Replay mode doesn't need real OAuth creds — fixtures supply the
+// subscription smokes.
 const hasCredentials =
-  existsSync(CREDENTIALS_PATH) && !process.env.CCR_SKIP_LIVE_TESTS;
+  IS_REPLAY ||
+  (existsSync(CREDENTIALS_PATH) && !process.env.CCR_SKIP_LIVE_TESTS);
 
 const result = await (async (): Promise<
   { models: SubscriptionModel[] } | { error: string }
