@@ -184,6 +184,8 @@
     "selected_transformers": "選択中の Transformer",
     "import_from_template": "テンプレートから読み込む",
     "refresh_templates": "最新のデータを取得",
+    "connect_claude": "Claude にサインイン",
+    "connect_claude_failed": "Claude のサインインを開始できませんでした",
     "no_templates_found": "テンプレートが見つかりません",
     "select_template": "テンプレートを選択...",
     "api_key_required": "API Key は必須です",
