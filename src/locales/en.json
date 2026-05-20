@@ -184,6 +184,8 @@
     "selected_transformers": "Selected Transformers",
     "import_from_template": "Import from template",
     "refresh_templates": "Refresh",
+    "connect_claude": "Connect Claude",
+    "connect_claude_failed": "Failed to start Claude sign-in",
     "no_templates_found": "No templates found",
     "select_template": "Select a template...",
     "api_key_required": "API Key is required",

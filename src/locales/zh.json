@@ -184,6 +184,8 @@
     "selected_transformers": "已选转换器",
     "import_from_template": "从模板导入",
     "refresh_templates": "刷新模板",
+    "connect_claude": "连接 Claude",
+    "connect_claude_failed": "无法开始 Claude 登录流程",
     "no_templates_found": "未找到模板",
     "select_template": "选择一个模板...",
     "api_key_required": "API 密钥为必填项",
