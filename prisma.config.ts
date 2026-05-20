@@ -34,6 +34,10 @@ export default defineConfig({
   schema: path.join('src', 'prisma', 'schema.prisma'),
   datasource: { url: process.env.DATABASE_URL ?? '' },
   migrations: {
-    adapter: async () => new PrismaPg({ connectionString: requireDatabaseUrl() })
+    adapter: async () => new PrismaPg({ connectionString: requireDatabaseUrl() }),
+    // Runs on `prisma migrate dev` / `migrate reset` / `db seed`. The
+    // Dockerfile entrypoint also calls `prisma db seed` explicitly after
+    // `migrate deploy` so production containers seed on first boot.
+    seed: 'bun src/prisma/seed.ts'
   }
 })

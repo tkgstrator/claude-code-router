@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline'
 import JSON5 from 'json5'
-import { ConfigEnvelopeSchema } from '@/schemas'
+import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas'
 import { ENVELOPE_ENV_KEYS } from '@/shared'
 import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
 import dayjs from './dayjs'
@@ -67,23 +67,26 @@ const confirm = async (query: string): Promise<boolean> => {
 
 const generateApiKey = () => crypto.randomBytes(32).toString('hex')
 
-const createDefaultConfig = async () => {
+const createDefaultConfig = async (): Promise<ConfigEnvelope> => {
   await initDir()
-  const config = {
+  const raw = {
     PORT: 3456,
     APIKEY: generateApiKey(),
     Providers: [],
     Router: {}
   }
-  await writeConfigFile(config)
+  await writeConfigFile(raw)
   logger.info({ path: CONFIG_FILE }, 'Created default configuration file')
-  return config
+  // Parse through the schema so callers receive a fully-defaulted
+  // ConfigEnvelope (HOST, LOG, LOG_LEVEL, PROXY_URL, …) instead of just
+  // the four scalars we persist on first run.
+  return ConfigEnvelopeSchema.parse(raw)
 }
 
-export const readConfigFile = async () => {
+export const readConfigFile = async (): Promise<ConfigEnvelope> => {
   try {
     const raw = await fs.readFile(CONFIG_FILE, 'utf-8')
-    let parsed: any
+    let parsed: unknown
     try {
       parsed = JSON5.parse(raw)
     } catch (parseError) {
@@ -99,7 +102,10 @@ export const readConfigFile = async () => {
       return createDefaultConfig()
     }
 
-    return interpolateEnvVars(parsed)
+    // Return the schema-parsed envelope (defaults applied, API_TIMEOUT_MS
+    // coerced, …). Callers — and `initConfig` in particular — can rely on
+    // typed values without re-parsing.
+    return interpolateEnvVars(result.data)
   } catch (readError: any) {
     if (readError.code === 'ENOENT') {
       try {
@@ -112,6 +118,8 @@ export const readConfigFile = async () => {
       logger.fatal({ path: CONFIG_FILE, err: readError }, 'Failed to read config file')
       process.exit(1)
     }
+    // Unreachable: every branch above either returns or process.exit's.
+    throw readError
   }
 }
 
@@ -172,8 +180,8 @@ export const applyEnvelopeToEnv = (config: Record<string, unknown>) => {
   }
 }
 
-export const initConfig = async () => {
-  const config = await readConfigFile()
-  applyEnvelopeToEnv(config)
-  return config
+export const initConfig = async (): Promise<ConfigEnvelope> => {
+  const envelope = await readConfigFile()
+  applyEnvelopeToEnv(envelope)
+  return envelope
 }

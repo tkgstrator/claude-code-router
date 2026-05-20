@@ -4,7 +4,6 @@
     ".": {
       "entry": [
         "src/index.ts",
-        "src/server.ts",
         "src/app/main.tsx",
         "vite.config.ts",
         "scripts/**/*.ts",

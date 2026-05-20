@@ -95,7 +95,7 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
   beforeEach(deleteConfig)
   afterEach(deleteConfig)
 
-  test('string API_TIMEOUT_MS passes schema validation (config is not deleted)', async () => {
+  test('string API_TIMEOUT_MS is coerced to number and config is not deleted', async () => {
     // Pre-fix configs written by the old UI stored API_TIMEOUT_MS as a string.
     // z.coerce.number() ensures those files survive startup rather than being
     // wiped and recreated as a default config (which loses all other settings).
@@ -103,11 +103,12 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
       JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: '30000' })
     )
     const cfg = await readConfigFile()
-    // readConfigFile returns the raw parsed JSON (pre-coercion), so the value
-    // is still a string. The important guarantee is that it does NOT fall back
-    // to createDefaultConfig() — APIKEY is preserved.
-    expect((cfg as Record<string, unknown>).APIKEY).toBe('key')
-    expect((cfg as Record<string, unknown>).PORT).toBe(3456)
+    // readConfigFile returns the schema-parsed envelope, so API_TIMEOUT_MS
+    // is coerced to a number. The important guarantee is that the file does
+    // NOT fall back to createDefaultConfig() — APIKEY is preserved.
+    expect(cfg.APIKEY).toBe('key')
+    expect(cfg.PORT).toBe(3456)
+    expect(cfg.API_TIMEOUT_MS).toBe(30000)
   })
 
   test('number API_TIMEOUT_MS is accepted and returned as-is', async () => {
@@ -115,15 +116,15 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
       JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: 30000 })
     )
     const cfg = await readConfigFile()
-    expect((cfg as Record<string, unknown>).API_TIMEOUT_MS).toBe(30000)
+    expect(cfg.API_TIMEOUT_MS).toBe(30000)
   })
 
   test('absent API_TIMEOUT_MS is valid (field is optional)', async () => {
     await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key' }))
     const cfg = await readConfigFile()
-    expect((cfg as Record<string, unknown>).API_TIMEOUT_MS).toBeUndefined()
+    expect(cfg.API_TIMEOUT_MS).toBeUndefined()
     // Config was NOT recreated — original settings are preserved.
-    expect((cfg as Record<string, unknown>).APIKEY).toBe('key')
+    expect(cfg.APIKEY).toBe('key')
   })
 
   test('negative API_TIMEOUT_MS fails validation and triggers default config creation', async () => {
@@ -132,9 +133,9 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
     )
     const cfg = await readConfigFile()
     // A default config is created; the original APIKEY is lost, but a new one is generated.
-    expect((cfg as Record<string, unknown>).API_TIMEOUT_MS).toBeUndefined()
-    expect(typeof (cfg as Record<string, unknown>).APIKEY).toBe('string')
-    expect((cfg as Record<string, unknown>).APIKEY).not.toBe('key')
+    expect(cfg.API_TIMEOUT_MS).toBeUndefined()
+    expect(typeof cfg.APIKEY).toBe('string')
+    expect(cfg.APIKEY).not.toBe('key')
   })
 
   test('non-numeric string API_TIMEOUT_MS fails validation and triggers default config creation', async () => {
@@ -142,7 +143,7 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
       JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: 'fast' })
     )
     const cfg = await readConfigFile()
-    expect((cfg as Record<string, unknown>).APIKEY).not.toBe('key')
+    expect(cfg.APIKEY).not.toBe('key')
   })
 
   test('"600000" (old UI default value as string) does not destroy config', async () => {
@@ -157,9 +158,11 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
       })
     )
     const cfg = await readConfigFile()
-    expect((cfg as Record<string, unknown>).APIKEY).toBe(originalApikey)
-    expect((cfg as Record<string, unknown>).LOG).toBe(true)
-    expect((cfg as Record<string, unknown>).LOG_LEVEL).toBe('debug')
+    expect(cfg.APIKEY).toBe(originalApikey)
+    expect(cfg.LOG).toBe(true)
+    expect(cfg.LOG_LEVEL).toBe('debug')
+    // The string value is coerced to a number on the returned envelope.
+    expect(cfg.API_TIMEOUT_MS).toBe(600000)
   })
 })
 

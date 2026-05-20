@@ -1,5 +1,5 @@
 {
-  // Runtime-only resolution config for `bun src/server.ts` in
+  // Runtime-only resolution config for `bun src/index.ts` in
   // production (Dockerfile CMD passes --tsconfig-override).
   //
   // tsconfig.json maps `@/llms/*` to the type-only stub

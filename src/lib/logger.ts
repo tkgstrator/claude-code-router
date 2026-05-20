@@ -111,9 +111,10 @@ export const logger = pino(
   combinedStream
 )
 
-// Called by bootstrapServer() after initConfig() applies the config.json
-// envelope to process.env — the logger is initialized at import time before
-// the envelope is loaded, so the level must be re-applied once it is known.
+// Called from src/index.ts after initConfig() applies the config.json
+// envelope to process.env — the logger is initialised at import time
+// before the envelope is loaded, so the level must be re-applied once
+// it is known.
 export const syncLevelFromEnv = () => {
   const raw = process.env.LOG_LEVEL ?? ''
   const valid = ['fatal', 'error', 'warn', 'info', 'debug', 'trace']

@@ -5,7 +5,7 @@
 # runtime image installs production deps only, so none of that ships.
 #
 # Runtime executes TS source directly with Bun (no dist server bundle):
-# `bun --tsconfig-override tsconfig.runtime.json src/server.ts`, so the
+# `bun --tsconfig-override tsconfig.runtime.json src/index.ts`, so the
 # image still needs src/, the prod node_modules, the generated Prisma
 # client and the Vite SPA dist.
 
@@ -64,4 +64,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD bun -e "fetch('http://127.0.0.1:3456/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["bun", "--tsconfig-override", "tsconfig.runtime.json", "src/server.ts"]
+CMD ["bun", "--tsconfig-override", "tsconfig.runtime.json", "src/index.ts"]
