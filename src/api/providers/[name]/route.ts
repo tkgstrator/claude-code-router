@@ -1,24 +1,79 @@
-import { OpenAPIHono } from '@hono/zod-openapi'
-import { ProviderSchema } from '../../../schemas'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import {
+  ProviderDeleteResponseSchema,
+  ProviderErrorResponseSchema,
+  ProviderSchema,
+  ProviderUpsertResponseSchema
+} from '../../../schemas'
 import { deleteProviderByName, upsertProvider } from '../../../services/config'
-import { badRequestForZod } from '../../zod-response'
+import { ValidationErrorResponseSchema, validationErrorHook } from '../../zod-response'
 
-export const providerByNameRoute = new OpenAPIHono()
+export const providerByNameRoute = new OpenAPIHono({ defaultHook: validationErrorHook })
 
-providerByNameRoute.patch('/api/providers/:name', async (c) => {
-  const name = c.req.param('name')
-  const raw = await c.req.json().catch(() => null)
-  const parsed = ProviderSchema.safeParse({ ...(raw && typeof raw === 'object' ? raw : {}), name })
-  if (!parsed.success) return badRequestForZod(c, parsed.error)
-  const { provider, warnings } = await upsertProvider(parsed.data)
-  return c.json({ success: true as const, provider, ...(warnings.length > 0 ? { warnings } : {}) })
+const NameParamSchema = z.object({
+  name: z
+    .string()
+    .nonempty()
+    .openapi({ param: { name: 'name', in: 'path' } })
 })
 
-providerByNameRoute.delete('/api/providers/:name', async (c) => {
-  const name = c.req.param('name')
+// PATCH body omits `name` — the URL path supplies it.
+const ProviderPatchBodySchema = ProviderSchema.omit({ name: true })
+
+const patchProviderRoute = createRoute({
+  method: 'patch',
+  path: '/api/providers/{name}',
+  request: {
+    params: NameParamSchema,
+    body: { content: { 'application/json': { schema: ProviderPatchBodySchema } } }
+  },
+  responses: {
+    200: {
+      description: 'Provider updated. `warnings` lists non-fatal apply-layer notes.',
+      content: { 'application/json': { schema: ProviderUpsertResponseSchema } }
+    },
+    400: {
+      description: 'Validation failure — see issues[].',
+      content: { 'application/json': { schema: ValidationErrorResponseSchema } }
+    }
+  }
+})
+
+providerByNameRoute.openapi(patchProviderRoute, async (c) => {
+  const { name } = c.req.valid('param')
+  const body = c.req.valid('json')
+  const { provider, warnings } = await upsertProvider({ ...body, name })
+  return c.json(
+    {
+      success: true as const,
+      provider,
+      ...(warnings.length > 0 ? { warnings } : {})
+    },
+    200
+  )
+})
+
+const deleteProviderRoute = createRoute({
+  method: 'delete',
+  path: '/api/providers/{name}',
+  request: { params: NameParamSchema },
+  responses: {
+    200: {
+      description: 'Provider deleted.',
+      content: { 'application/json': { schema: ProviderDeleteResponseSchema } }
+    },
+    404: {
+      description: 'Provider not found.',
+      content: { 'application/json': { schema: ProviderErrorResponseSchema } }
+    }
+  }
+})
+
+providerByNameRoute.openapi(deleteProviderRoute, async (c) => {
+  const { name } = c.req.valid('param')
   try {
     await deleteProviderByName(name)
-    return c.json({ success: true as const })
+    return c.json({ success: true as const }, 200)
   } catch (err) {
     return c.json({ success: false as const, error: (err as Error).message }, 404)
   }
