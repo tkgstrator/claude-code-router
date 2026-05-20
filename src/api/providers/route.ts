@@ -1,19 +1,53 @@
-import { OpenAPIHono } from '@hono/zod-openapi'
-import { ProviderSchema } from '../../schemas'
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
+import { ProviderListResponseSchema, ProviderSchema, ProviderUpsertResponseSchema } from '../../schemas'
 import { getProviders, upsertProvider } from '../../services/config'
-import { badRequestForZod } from '../zod-response'
+import { ValidationErrorResponseSchema, validationErrorHook } from '../zod-response'
 
-export const providersRoute = new OpenAPIHono()
+export const providersRoute = new OpenAPIHono({ defaultHook: validationErrorHook })
 
-providersRoute.get('/api/providers', async (c) => {
-  const providers = await getProviders()
-  return c.json(providers)
+const listProvidersRoute = createRoute({
+  method: 'get',
+  path: '/api/providers',
+  responses: {
+    200: {
+      description: 'List every provider row.',
+      content: { 'application/json': { schema: ProviderListResponseSchema } }
+    }
+  }
 })
 
-providersRoute.post('/api/providers', async (c) => {
-  const raw = await c.req.json().catch(() => null)
-  const parsed = ProviderSchema.safeParse(raw)
-  if (!parsed.success) return badRequestForZod(c, parsed.error)
-  const { provider, warnings } = await upsertProvider(parsed.data)
-  return c.json({ success: true as const, provider, ...(warnings.length > 0 ? { warnings } : {}) }, 201)
+providersRoute.openapi(listProvidersRoute, async (c) => {
+  const providers = await getProviders()
+  return c.json(providers, 200)
+})
+
+const createProviderRoute = createRoute({
+  method: 'post',
+  path: '/api/providers',
+  request: {
+    body: { content: { 'application/json': { schema: ProviderSchema } } }
+  },
+  responses: {
+    201: {
+      description: 'Provider created. `warnings` lists non-fatal apply-layer notes.',
+      content: { 'application/json': { schema: ProviderUpsertResponseSchema } }
+    },
+    400: {
+      description: 'Validation failure — see issues[].',
+      content: { 'application/json': { schema: ValidationErrorResponseSchema } }
+    }
+  }
+})
+
+providersRoute.openapi(createProviderRoute, async (c) => {
+  const data = c.req.valid('json')
+  const { provider, warnings } = await upsertProvider(data)
+  return c.json(
+    {
+      success: true as const,
+      provider,
+      ...(warnings.length > 0 ? { warnings } : {})
+    },
+    201
+  )
 })

@@ -39,11 +39,7 @@ export enum MergeStrategy {
 
 // --- JSON value (recursive) -------------------------------------------------
 
-// `""` is a valid JSON string, so the string variant must accept empty.
-// ApplyConfigPayloadSchema feeds arbitrary envelope values through this
-// catchall — any field carrying an empty string (CLAUDE_PATH, PROXY_URL,
-// CUSTOM_ROUTER_PATH, …) would otherwise 400 at the boundary.
-export const JsonPrimitiveSchema = z.union([z.string().min(0), z.number(), z.boolean(), z.null()])
+export const JsonPrimitiveSchema = z.union([z.string().nonempty(), z.number(), z.boolean(), z.null()])
 export type JsonPrimitive = z.infer<typeof JsonPrimitiveSchema>
 
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }

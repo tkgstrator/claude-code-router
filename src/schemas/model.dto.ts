@@ -51,6 +51,14 @@ export const UpdateModelBodySchema = z.object({
   enabled: z.boolean()
 })
 
+export const UpdateModelSuccessResponseSchema = z
+  .object({ success: z.literal(true) })
+  .openapi('UpdateModelSuccessResponse')
+
+export const UpdateModelErrorResponseSchema = z
+  .object({ success: z.literal(false), error: z.string().nonempty() })
+  .openapi('UpdateModelErrorResponse')
+
 // Vendor /v1/models response shapes. OpenAI-compatible returns
 // `{ data: [{ id }] }`; Google Gemini returns `{ models: [{ name }] }`.
 // We accept either and pluck only the identifier — anything else
