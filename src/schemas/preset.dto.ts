@@ -39,16 +39,16 @@ export enum MergeStrategy {
 
 // --- JSON value (recursive) -------------------------------------------------
 
-export const JsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
+export const JsonPrimitiveSchema = z.union([z.string().nonempty(), z.number(), z.boolean(), z.null()])
 export type JsonPrimitive = z.infer<typeof JsonPrimitiveSchema>
 
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([JsonPrimitiveSchema, z.array(JsonValueSchema), z.record(z.string(), JsonValueSchema)])
+  z.union([JsonPrimitiveSchema, z.array(JsonValueSchema), z.record(z.string().nonempty(), JsonValueSchema)])
 )
 
-export const JsonObjectSchema = z.record(z.string(), JsonValueSchema)
+export const JsonObjectSchema = z.record(z.string().nonempty(), JsonValueSchema)
 export type JsonObject = z.infer<typeof JsonObjectSchema>
 
 // --- InputType enum schema (mirrors the shared enum) ------------------------
@@ -57,12 +57,12 @@ const InputTypeSchema = z.nativeEnum(InputType)
 
 // --- Dynamic configuration --------------------------------------------------
 
-export const UserInputValuesSchema = z.record(z.string(), JsonValueSchema)
+export const UserInputValuesSchema = z.record(z.string().nonempty(), JsonValueSchema)
 export type UserInputValues = z.infer<typeof UserInputValuesSchema>
 
 export const InputOptionSchema = z.object({
-  label: z.string(),
-  value: z.union([z.string(), z.number(), z.boolean()]),
+  label: z.string().nonempty(),
+  value: z.union([z.string().nonempty(), z.number(), z.boolean()]),
   description: z.string().optional(),
   disabled: z.boolean().optional(),
   icon: z.string().optional()
@@ -78,7 +78,7 @@ export const DynamicOptionsSchema = z.object({
 export type DynamicOptions = z.infer<typeof DynamicOptionsSchema>
 
 export const ConditionSchema = z.object({
-  field: z.string(),
+  field: z.string().nonempty(),
   operator: z.enum(['eq', 'ne', 'in', 'nin', 'gt', 'lt', 'gte', 'lte', 'exists']).optional(),
   value: JsonValueSchema.optional()
 })
@@ -89,7 +89,7 @@ export type Condition = z.infer<typeof ConditionSchema>
 export type Validator = RegExp | string | ((value: JsonValue) => boolean | string)
 
 const RequiredInputBaseSchema = z.object({
-  id: z.string(),
+  id: z.string().nonempty(),
   type: InputTypeSchema.optional(),
   label: z.string().optional(),
   prompt: z.string().optional(),
@@ -98,10 +98,12 @@ const RequiredInputBaseSchema = z.object({
   when: z.union([ConditionSchema, z.array(ConditionSchema)]).optional(),
   defaultValue: JsonValueSchema.optional(),
   required: z.boolean().optional(),
+  // min/max are validator bounds for the input value, which may be a
+  // float (e.g. 0.5 ≤ temperature ≤ 1.0) — kept as plain numbers.
   min: z.number().optional(),
   max: z.number().optional(),
-  rows: z.number().optional(),
-  dependsOn: z.array(z.string()).optional()
+  rows: z.number().int().positive().optional(),
+  dependsOn: z.array(z.string().nonempty()).optional()
 })
 export const RequiredInputSchema = RequiredInputBaseSchema
 export type RequiredInput = z.infer<typeof RequiredInputBaseSchema> & {
@@ -141,7 +143,7 @@ export type PresetRouterConfig = z.infer<typeof PresetRouterConfigSchema>
 export const PresetTransformerConfigSchema = z
   .object({
     path: z.string().optional(),
-    use: z.array(z.union([z.string(), z.tuple([z.string(), JsonValueSchema])])),
+    use: z.array(z.union([z.string().nonempty(), z.tuple([z.string().nonempty(), JsonValueSchema])])),
     options: JsonValueSchema.optional()
   })
   .catchall(JsonValueSchema)
@@ -150,14 +152,14 @@ export type PresetTransformerConfig = z.infer<typeof PresetTransformerConfigSche
 // --- Preset metadata / sections ---------------------------------------------
 
 export const PresetMetadataSchema = z.object({
-  name: z.string(),
-  version: z.string(),
+  name: z.string().nonempty(),
+  version: z.string().nonempty(),
   description: z.string().optional(),
   author: z.string().optional(),
   homepage: z.string().optional(),
   repository: z.string().optional(),
   license: z.string().optional(),
-  keywords: z.array(z.string()).optional(),
+  keywords: z.array(z.string().nonempty()).optional(),
   ccrVersion: z.string().optional(),
   source: z.string().optional(),
   sourceType: z.enum(['local', 'gist', 'registry']).optional(),
@@ -175,7 +177,7 @@ export const PresetConfigSectionSchema = z
     noServer: z.boolean().optional(),
     claudeCodeSettings: z
       .object({
-        env: z.record(z.string(), JsonValueSchema).optional(),
+        env: z.record(z.string().nonempty(), JsonValueSchema).optional(),
         statusLine: JsonValueSchema.optional()
       })
       .catchall(JsonValueSchema)
@@ -184,11 +186,11 @@ export const PresetConfigSectionSchema = z
   .catchall(JsonValueSchema)
 export type PresetConfigSection = z.infer<typeof PresetConfigSectionSchema>
 
-export const TemplateConfigSchema = z.record(z.string(), JsonValueSchema)
+export const TemplateConfigSchema = z.record(z.string().nonempty(), JsonValueSchema)
 export type TemplateConfig = z.infer<typeof TemplateConfigSchema>
 
 export const ConfigMappingSchema = z.object({
-  target: z.string(),
+  target: z.string().nonempty(),
   value: JsonValueSchema,
   when: z.union([ConditionSchema, z.array(ConditionSchema)]).optional()
 })
@@ -197,7 +199,7 @@ export type ConfigMapping = z.infer<typeof ConfigMappingSchema>
 export const PresetFileSchema = z.object({
   metadata: PresetMetadataSchema.optional(),
   config: PresetConfigSectionSchema,
-  secrets: z.record(z.string(), z.string()).optional(),
+  secrets: z.record(z.string().nonempty(), z.string().nonempty()).optional(),
   schema: z.array(RequiredInputBaseSchema).optional(),
   template: TemplateConfigSchema.optional(),
   configMappings: z.array(ConfigMappingSchema).optional()
@@ -226,15 +228,15 @@ export type ManifestFile = PresetMetadata &
   }
 
 export const PresetIndexEntrySchema = z.object({
-  id: z.string(),
-  name: z.string(),
+  id: z.string().nonempty(),
+  name: z.string().nonempty(),
   description: z.string().optional(),
-  version: z.string(),
+  version: z.string().nonempty(),
   author: z.string().optional(),
   downloads: z.number().optional(),
   stars: z.number().optional(),
-  tags: z.array(z.string()).optional(),
-  url: z.string(),
+  tags: z.array(z.string().nonempty()).optional(),
+  url: z.string().nonempty(),
   repo: z.string().optional(),
   checksum: z.string().optional(),
   ccrVersion: z.string().optional()
@@ -242,27 +244,27 @@ export const PresetIndexEntrySchema = z.object({
 export type PresetIndexEntry = z.infer<typeof PresetIndexEntrySchema>
 
 export const PresetRegistrySchema = z.object({
-  version: z.string(),
-  lastUpdated: z.string(),
+  version: z.string().nonempty(),
+  lastUpdated: z.string().nonempty(),
   presets: z.array(PresetIndexEntrySchema)
 })
 export type PresetRegistry = z.infer<typeof PresetRegistrySchema>
 
 export const ValidationResultSchema = z.object({
   valid: z.boolean(),
-  errors: z.array(z.string()),
-  warnings: z.array(z.string())
+  errors: z.array(z.string().nonempty()),
+  warnings: z.array(z.string().nonempty())
 })
 export type ValidationResult = z.infer<typeof ValidationResultSchema>
 
 export const SanitizeResultSchema = z.object({
   sanitizedConfig: JsonObjectSchema,
-  sanitizedCount: z.number()
+  sanitizedCount: z.number().int().nonnegative()
 })
 export type SanitizeResult = z.infer<typeof SanitizeResultSchema>
 
 export const PresetInfoSchema = z.object({
-  name: z.string(),
+  name: z.string().nonempty(),
   version: z.string().optional(),
   description: z.string().optional(),
   author: z.string().optional(),

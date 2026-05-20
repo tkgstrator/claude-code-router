@@ -19,11 +19,11 @@ import { AnnotationSchema, ThinkLevelSchema } from './llm-chat.dto'
 // emit, where each field is a required number.
 export const GeminiUsageMetadataSchema = z
   .object({
-    candidatesTokenCount: z.number().default(0),
-    promptTokenCount: z.number().default(0),
-    cachedContentTokenCount: z.number().default(0),
-    totalTokenCount: z.number().default(0),
-    thoughtsTokenCount: z.number().default(0)
+    candidatesTokenCount: z.number().int().nonnegative().default(0),
+    promptTokenCount: z.number().int().nonnegative().default(0),
+    cachedContentTokenCount: z.number().int().nonnegative().default(0),
+    totalTokenCount: z.number().int().nonnegative().default(0),
+    thoughtsTokenCount: z.number().int().nonnegative().default(0)
   })
   .loose()
 export type GeminiUsageMetadata = z.infer<typeof GeminiUsageMetadataSchema>
@@ -33,14 +33,14 @@ export type GeminiUsageMetadata = z.infer<typeof GeminiUsageMetadataSchema>
 const GeminiSegmentSchema = z
   .object({
     text: z.string().default(''),
-    startIndex: z.number().default(0),
-    endIndex: z.number().default(0)
+    startIndex: z.number().int().nonnegative().default(0),
+    endIndex: z.number().int().nonnegative().default(0)
   })
   .loose()
 
 export const GeminiGroundingSupportSchema = z
   .object({
-    groundingChunkIndices: z.array(z.number()).default([]),
+    groundingChunkIndices: z.array(z.number().int().nonnegative()).default([]),
     segment: GeminiSegmentSchema.default({ text: '', startIndex: 0, endIndex: 0 })
   })
   .loose()
@@ -166,7 +166,7 @@ export const GeminiInboundRequestSchema = z
     contents: z.array(GeminiInboundContentSchema).default([]),
     tools: z.array(GeminiInboundToolSchema).default([]),
     model: z.string().nonempty(),
-    max_tokens: z.number().optional(),
+    max_tokens: z.number().int().positive().optional(),
     temperature: z.number().optional(),
     stream: z.boolean().default(false),
     tool_choice: z.unknown().optional()
@@ -191,7 +191,7 @@ export const PipelineToolCallSchema = z.object({
 export type PipelineToolCall = z.input<typeof PipelineToolCallSchema>
 
 export const PipelineToolCallDeltaSchema = PipelineToolCallSchema.extend({
-  index: z.number()
+  index: z.number().int().nonnegative()
 })
 export type PipelineToolCallDelta = z.input<typeof PipelineToolCallDeltaSchema>
 
@@ -212,23 +212,24 @@ export type PipelineDelta = z.input<typeof PipelineDeltaSchema>
 export const PipelineChunkChoiceSchema = z.object({
   delta: PipelineDeltaSchema,
   finish_reason: z.union([z.string().nonempty(), z.null()]),
-  index: z.number(),
+  index: z.number().int().nonnegative(),
   logprobs: z.null()
 })
 export type PipelineChunkChoice = z.input<typeof PipelineChunkChoiceSchema>
 
 export const PipelineChunkUsageSchema = z.object({
-  completion_tokens: z.number(),
-  prompt_tokens: z.number(),
-  prompt_tokens_details: z.object({ cached_tokens: z.number() }),
-  total_tokens: z.number(),
-  output_tokens_details: z.object({ reasoning_tokens: z.number() })
+  completion_tokens: z.number().int().nonnegative(),
+  prompt_tokens: z.number().int().nonnegative(),
+  prompt_tokens_details: z.object({ cached_tokens: z.number().int().nonnegative() }),
+  total_tokens: z.number().int().nonnegative(),
+  output_tokens_details: z.object({ reasoning_tokens: z.number().int().nonnegative() })
 })
 export type PipelineChunkUsage = z.input<typeof PipelineChunkUsageSchema>
 
 export const PipelineStreamChunkSchema = z.object({
   choices: z.array(PipelineChunkChoiceSchema),
-  created: z.number(),
+  // Unix epoch seconds (OpenAI uses seconds; Gemini conversion emits seconds).
+  created: z.number().int().nonnegative(),
   id: z.string().nonempty(),
   model: z.string().nonempty(),
   object: z.literal('chat.completion.chunk'),
@@ -299,7 +300,7 @@ export type GeminiContent = z.input<typeof GeminiContentSchema>
 export const GeminiThinkingConfigSchema = z.object({
   includeThoughts: z.boolean(),
   thinkingLevel: ThinkLevelSchema.optional(),
-  thinkingBudget: z.number().optional()
+  thinkingBudget: z.number().int().nonnegative().optional()
 })
 export type GeminiThinkingConfig = z.input<typeof GeminiThinkingConfigSchema>
 

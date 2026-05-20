@@ -61,7 +61,7 @@ export const ConfigSchema = z.object({
   LOG_LEVEL: z.string().nonempty(),
   CLAUDE_PATH: z.string().nonempty(),
   HOST: z.string().nonempty(),
-  PORT: z.number(),
+  PORT: z.number().int().positive(),
   APIKEY: z.string().nonempty(),
   API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.url(),

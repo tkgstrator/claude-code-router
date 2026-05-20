@@ -2,15 +2,16 @@ import { z } from '@hono/zod-openapi'
 
 export const SessionSummarySchema = z.object({
   sessionId: z.string().nonempty(),
-  requestCount: z.number(),
+  requestCount: z.number().int().nonnegative(),
   providers: z.array(z.string().nonempty()),
   models: z.array(z.string().nonempty()),
-  totalInputTokens: z.number(),
-  totalOutputTokens: z.number(),
-  totalCacheReadTokens: z.number(),
-  totalCacheWriteTokens: z.number(),
+  totalInputTokens: z.number().int().nonnegative(),
+  totalOutputTokens: z.number().int().nonnegative(),
+  totalCacheReadTokens: z.number().int().nonnegative(),
+  totalCacheWriteTokens: z.number().int().nonnegative(),
+  // Average across int rows — kept as a plain number to allow fractional values.
   avgCacheHitPct: z.number(),
-  totalDurationMs: z.number(),
+  totalDurationMs: z.number().int().nonnegative(),
   totalCostUsd: z.number().nullable(),
   firstAt: z.string().nonempty(),
   lastAt: z.string().nonempty()
@@ -21,14 +22,15 @@ export const RequestLogItemSchema = z.object({
   sessionId: z.string().nonempty(),
   provider: z.string().nonempty(),
   model: z.string().nonempty(),
-  inputTokens: z.number(),
-  outputTokens: z.number(),
-  cacheReadTokens: z.number(),
-  cacheWriteTokens: z.number(),
-  totalInputTokens: z.number(),
-  cacheHitPct: z.number(),
-  durationMs: z.number(),
-  status: z.number(),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  cacheReadTokens: z.number().int().nonnegative(),
+  cacheWriteTokens: z.number().int().nonnegative(),
+  totalInputTokens: z.number().int().nonnegative(),
+  // Prisma column is Int — single-request hit percent is a whole-number percentage.
+  cacheHitPct: z.number().int().min(0).max(100),
+  durationMs: z.number().int().nonnegative(),
+  status: z.number().int(),
   createdAt: z.string().nonempty(),
   inputCostUsd: z.number().nullable(),
   outputCostUsd: z.number().nullable(),
@@ -52,7 +54,7 @@ export const RequestLogIdParamSchema = z.object({ id: z.string().nonempty() })
 
 export const SessionsResponseSchema = z.object({
   sessions: z.array(SessionSummarySchema),
-  total: z.number()
+  total: z.number().int().nonnegative()
 })
 
 export const SessionLogsResponseSchema = z.object({
@@ -61,9 +63,9 @@ export const SessionLogsResponseSchema = z.object({
 
 export const RequestLogsListResponseSchema = z.object({
   items: z.array(RequestLogItemSchema),
-  total: z.number()
+  total: z.number().int().nonnegative()
 })
 
-export const RequestLogsDeleteAllResponseSchema = z.object({ deleted: z.number() })
+export const RequestLogsDeleteAllResponseSchema = z.object({ deleted: z.number().int().nonnegative() })
 
 export const RequestLogsDeleteOneResponseSchema = z.object({ id: z.string().nonempty() })

@@ -18,14 +18,14 @@ import { z } from '@hono/zod-openapi'
 // ─── Usage block (Anthropic-shaped on SSE) ─────────────────────────────
 
 export const AnthropicSSEUsageSchema = z.object({
-  input_tokens: z.number(),
-  output_tokens: z.number(),
+  input_tokens: z.number().int().nonnegative(),
+  output_tokens: z.number().int().nonnegative(),
   // Cache fields are Anthropic-native. OpenAI/Gemini routes via CCR's
   // transformers don't surface them on the SSE wire — proven by the
   // fixture corpus (the openai/google streams omit these even though
   // they're zero on the upstream side).
-  cache_read_input_tokens: z.number().optional(),
-  cache_creation_input_tokens: z.number().optional()
+  cache_read_input_tokens: z.number().int().nonnegative().optional(),
+  cache_creation_input_tokens: z.number().int().nonnegative().optional()
 })
 export type AnthropicSSEUsage = z.infer<typeof AnthropicSSEUsageSchema>
 
@@ -33,19 +33,23 @@ export type AnthropicSSEUsage = z.infer<typeof AnthropicSSEUsageSchema>
 
 export const AnthropicTextBlockSchema = z.object({
   type: z.literal('text'),
-  text: z.string()
+  // Empty on a content_block_start opener; filled by subsequent text_delta
+  // events. Final JSON-response content blocks carry the full string here.
+  text: z.string().min(0)
 })
 
 export const AnthropicToolUseBlockSchema = z.object({
   type: z.literal('tool_use'),
   id: z.string().nonempty(),
   name: z.string().nonempty(),
-  input: z.record(z.string(), z.unknown())
+  input: z.record(z.string().nonempty(), z.unknown())
 })
 
 export const AnthropicThinkingBlockSchema = z.object({
   type: z.literal('thinking'),
-  thinking: z.string()
+  // Same empty-opener pattern as AnthropicTextBlockSchema — thinking
+  // streams in via thinking_delta events.
+  thinking: z.string().min(0)
 })
 
 export const AnthropicContentBlockUnionSchema = z.discriminatedUnion('type', [
@@ -59,22 +63,24 @@ export type AnthropicContentBlockUnion = z.infer<typeof AnthropicContentBlockUni
 
 export const AnthropicTextDeltaSchema = z.object({
   type: z.literal('text_delta'),
-  text: z.string()
+  text: z.string().nonempty()
 })
 
 export const AnthropicInputJsonDeltaSchema = z.object({
   type: z.literal('input_json_delta'),
-  partial_json: z.string()
+  // Streams a tool's input JSON in chunks — the first chunk is
+  // observed as "" before the model has emitted any character.
+  partial_json: z.string().min(0)
 })
 
 export const AnthropicThinkingDeltaSchema = z.object({
   type: z.literal('thinking_delta'),
-  thinking: z.string()
+  thinking: z.string().nonempty()
 })
 
 export const AnthropicSignatureDeltaSchema = z.object({
   type: z.literal('signature_delta'),
-  signature: z.string()
+  signature: z.string().nonempty()
 })
 
 export const AnthropicDeltaUnionSchema = z.discriminatedUnion('type', [
@@ -122,7 +128,7 @@ export const AnthropicMessageDeltaPayloadSchema = z.object({
   type: z.literal('message_delta'),
   delta: z.object({
     stop_reason: z.string().nonempty(),
-    stop_sequence: z.string().nullable()
+    stop_sequence: z.string().nonempty().nullable()
   }),
   usage: AnthropicSSEUsageSchema
 })
@@ -156,7 +162,7 @@ export const AnthropicMessageResponseSchema = z.object({
   model: z.string().nonempty(),
   content: z.array(AnthropicContentBlockUnionSchema),
   stop_reason: z.string().nonempty(),
-  stop_sequence: z.string().nullable(),
+  stop_sequence: z.string().nonempty().nullable(),
   usage: AnthropicSSEUsageSchema
 })
 export type AnthropicMessageResponse = z.infer<typeof AnthropicMessageResponseSchema>

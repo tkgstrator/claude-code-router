@@ -24,7 +24,7 @@ export type RouterFormOutput = z.output<typeof RouterFormSchema>
 // is a list of arbitrary key/value pairs supplied to the transformer.
 export const TransformerFormSchema = z.object({
   path: z.string().min(1),
-  options: z.array(z.object({ key: z.string(), value: z.string() }))
+  options: z.array(z.object({ key: z.string().nonempty(), value: z.string().nonempty() }))
 })
 export type TransformerFormValues = z.infer<typeof TransformerFormSchema>
 

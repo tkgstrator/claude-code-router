@@ -17,8 +17,8 @@ export const UrlCitationSchema = z.object({
   url: z.string().nonempty(),
   title: z.string().nonempty(),
   content: z.string().nonempty(),
-  start_index: z.number(),
-  end_index: z.number()
+  start_index: z.number().int().nonnegative(),
+  end_index: z.number().int().nonnegative()
 })
 export type UrlCitation = z.infer<typeof UrlCitationSchema>
 
@@ -139,9 +139,9 @@ export const UnifiedChatResponseSchema = z.object({
   content: z.union([z.string().nonempty(), z.null()]),
   usage: z
     .object({
-      prompt_tokens: z.number(),
-      completion_tokens: z.number(),
-      total_tokens: z.number()
+      prompt_tokens: z.number().int().nonnegative(),
+      completion_tokens: z.number().int().nonnegative(),
+      total_tokens: z.number().int().nonnegative()
     })
     .optional(),
   tool_calls: z.array(UnifiedToolCallSchema).default([]),
@@ -242,7 +242,7 @@ export type AnthropicToolChoice = z.input<typeof AnthropicToolChoiceSchema>
 export const AnthropicIncomingRequestSchema = z.object({
   model: z.string().nonempty(),
   // max_tokens is required by the Anthropic Messages API spec.
-  max_tokens: z.number(),
+  max_tokens: z.number().int().positive(),
   temperature: z.number().optional(),
   stream: z.boolean().default(false),
   system: z.union([z.string().nonempty(), z.array(AnthropicSystemBlockSchema)]).optional(),
@@ -254,7 +254,7 @@ export const AnthropicIncomingRequestSchema = z.object({
       // When thinking is enabled, Anthropic mandates both fields —
       // type is the discriminator and budget_tokens is the ceiling.
       type: z.string().nonempty(),
-      budget_tokens: z.number()
+      budget_tokens: z.number().int().nonnegative()
     })
     .optional()
 })

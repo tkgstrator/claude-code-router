@@ -22,8 +22,8 @@ import { UnifiedChatRequestSchema } from './llm-chat.dto'
 export const ResponsesAnnotationSchema = z.object({
   url: z.string().default(''),
   title: z.string().default(''),
-  start_index: z.number().default(0),
-  end_index: z.number().default(0)
+  start_index: z.number().int().nonnegative().default(0),
+  end_index: z.number().int().nonnegative().default(0)
 })
 export type ResponsesAnnotation = z.infer<typeof ResponsesAnnotationSchema>
 
@@ -58,13 +58,13 @@ export const ResponsesAPIPayloadSchema = z.object({
   id: z.string().nonempty().optional(),
   object: z.string().nonempty().optional(),
   model: z.string().nonempty().optional(),
-  created_at: z.number().optional(),
+  created_at: z.number().int().nonnegative().optional(),
   output: z.array(ResponsesAPIOutputItemSchema).default([]),
   usage: z
     .object({
-      input_tokens: z.number(),
-      output_tokens: z.number(),
-      total_tokens: z.number()
+      input_tokens: z.number().int().nonnegative(),
+      output_tokens: z.number().int().nonnegative(),
+      total_tokens: z.number().int().nonnegative()
     })
     .optional()
 })
@@ -107,7 +107,7 @@ export type ResponsesStreamDelta = z.infer<typeof ResponsesStreamDeltaSchema>
 export const ResponsesStreamEventSchema = z.object({
   type: z.string().nonempty(),
   item_id: z.string().nonempty().optional(),
-  output_index: z.number().optional(),
+  output_index: z.number().int().nonnegative().optional(),
   delta: ResponsesStreamDeltaSchema.optional(),
   item: ResponsesStreamItemSchema.optional(),
   response: z

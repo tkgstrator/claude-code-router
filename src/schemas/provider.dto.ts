@@ -36,7 +36,7 @@ export const ProviderSchema = z
         z.object({ status: z.enum(['unknown', 'ok', 'fail']), passedAt: z.string().nullable() })
       )
       .optional(),
-    modelContextWindows: z.record(z.string().nonempty(), z.number()).optional(),
+    modelContextWindows: z.record(z.string().nonempty(), z.number().int().positive()).optional(),
     transformer: ProviderTransformerSchema.optional(),
     // Per-account enable/disable for subscription providers. Absent on
     // api_key providers. Only the { id, enabled } pairs the UI sends

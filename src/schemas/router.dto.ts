@@ -32,7 +32,7 @@ export const RouterConfigSchema = z.object({
   background: z.string().nullable(),
   think: z.string().nullable(),
   longContext: z.string().nullable(),
-  longContextThreshold: z.number(),
+  longContextThreshold: z.number().int().positive(),
   webSearch: z.string().nullable(),
   image: z.string().nullable(),
   custom: z.unknown().optional()

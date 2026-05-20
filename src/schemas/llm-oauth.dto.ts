@@ -22,7 +22,7 @@ import { z } from '@hono/zod-openapi'
 export const OauthClaudeBlockSchema = z.object({
   accessToken: z.string().nonempty(),
   refreshToken: z.string().nonempty(),
-  expiresAt: z.number(),
+  expiresAt: z.number().int().nonnegative(),
   scopes: z.array(z.string().nonempty()).default([]),
   subscriptionType: z.string().nonempty().optional(),
   rateLimitTier: z.string().nonempty().optional()
@@ -40,7 +40,7 @@ export type OauthClaudeCredentials = z.infer<typeof OauthClaudeCredentialsSchema
 export const OauthRefreshResponseSchema = z.object({
   access_token: z.string().nonempty(),
   refresh_token: z.string().nonempty().optional(),
-  expires_in: z.number().optional()
+  expires_in: z.number().int().nonnegative().optional()
 })
 export type OauthRefreshResponse = z.infer<typeof OauthRefreshResponseSchema>
 

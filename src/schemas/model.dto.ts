@@ -27,7 +27,7 @@ export const ModelTestResultSchema = z
     model: z.string().nonempty(),
     status: z.enum(['ok', 'fail']),
     error: z.string().optional(),
-    latencyMs: z.number()
+    latencyMs: z.number().int().nonnegative()
   })
   .openapi('ModelTestResult')
 
@@ -39,9 +39,9 @@ export const ModelTestAllRequestSchema = z
 
 export const ModelTestAllResponseSchema = z
   .object({
-    total: z.number(),
-    ok: z.number(),
-    fail: z.number(),
+    total: z.number().int().nonnegative(),
+    ok: z.number().int().nonnegative(),
+    fail: z.number().int().nonnegative(),
     results: z.array(ModelTestResultSchema)
   })
   .openapi('ModelTestAllResponse')

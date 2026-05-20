@@ -13,15 +13,15 @@ import { z } from '@hono/zod-openapi'
 
 export const UsageBlockSchema = z.object({
   // Anthropic
-  input_tokens: z.number().optional(),
-  output_tokens: z.number().optional(),
-  cache_read_input_tokens: z.number().optional(),
-  cache_creation_input_tokens: z.number().optional(),
+  input_tokens: z.number().int().nonnegative().optional(),
+  output_tokens: z.number().int().nonnegative().optional(),
+  cache_read_input_tokens: z.number().int().nonnegative().optional(),
+  cache_creation_input_tokens: z.number().int().nonnegative().optional(),
   // OpenAI Chat Completions
-  prompt_tokens: z.number().optional(),
-  completion_tokens: z.number().optional(),
+  prompt_tokens: z.number().int().nonnegative().optional(),
+  completion_tokens: z.number().int().nonnegative().optional(),
   // OpenAI Responses
-  input_tokens_details: z.object({ cached_tokens: z.number().optional() }).optional()
+  input_tokens_details: z.object({ cached_tokens: z.number().int().nonnegative().optional() }).optional()
 })
 export type UsageBlock = z.infer<typeof UsageBlockSchema>
 
@@ -73,13 +73,13 @@ export const UsageRecordSchema = z.object({
   sessionId: z.string().nonempty(),
   provider: z.string().nonempty(),
   model: z.string().nonempty(),
-  inputTokens: z.number(),
-  outputTokens: z.number(),
-  cacheReadTokens: z.number(),
-  cacheWriteTokens: z.number(),
-  totalInputTokens: z.number(),
-  cacheHitPct: z.number(),
-  durationMs: z.number(),
-  status: z.number()
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  cacheReadTokens: z.number().int().nonnegative(),
+  cacheWriteTokens: z.number().int().nonnegative(),
+  totalInputTokens: z.number().int().nonnegative(),
+  cacheHitPct: z.number().int().min(0).max(100),
+  durationMs: z.number().int().nonnegative(),
+  status: z.number().int()
 })
 export type UsageRecord = z.infer<typeof UsageRecordSchema>
