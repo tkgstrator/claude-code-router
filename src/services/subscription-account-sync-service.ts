@@ -408,6 +408,45 @@ export async function getSubAccountTokensForKind(
   return out
 }
 
+// Re-fetch profile data for all enabled Claude SubAccounts and update the
+// DB in-place. Codex profile comes from the id_token JWT which does not
+// change between OAuth sessions, so only Claude is refreshed here.
+// Returns a count of rows updated / skipped-due-to-error.
+export async function syncSubAccountProfiles(
+  prisma: PrismaClient = getPrismaClient()
+): Promise<{ updated: number; failed: number }> {
+  const key = encryptionKey()
+  const claudeProviders = await providersForKind(prisma, 'claude')
+  let updated = 0
+  let failed = 0
+
+  for (const p of claudeProviders) {
+    const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
+    for (const account of accounts) {
+      const accessToken = decryptString(account.accessTokenEnc, key)
+      if (!accessToken) continue
+      const profile = await fetchClaudeProfile(accessToken, { logger })
+      if (!profile) {
+        failed++
+        continue
+      }
+      await prisma.subAccount.update({
+        where: { id: account.id },
+        data: {
+          userName: firstString(profile.account.full_name, profile.account.display_name),
+          userEmail: firstString(profile.account.email),
+          plan: firstString(profile.organization?.organization_type),
+          rateLimitTier: firstString(profile.organization?.rate_limit_tier),
+          lastSyncedAt: dayjs().toDate()
+        }
+      })
+      updated++
+    }
+  }
+
+  return { updated, failed }
+}
+
 // pickActive is unused outside this file now, but keep it exported for
 // future per-test seeding; intentionally empty body otherwise.
 export { pickActive }

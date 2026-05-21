@@ -84,22 +84,6 @@ export function Providers() {
     }
   }
 
-  const refreshTemplates = async () => {
-    setRefreshingTemplates(true)
-    try {
-      // Ask the server to top each configured provider up from its
-      // /v1/models so e.g. claude-opus-4-7 shows up without waiting for
-      // llm-prices to catch up
-      await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
-      // Reload config so the new models show up in the UI
-      const fresh = await api.getConfig()
-      setConfig(fresh)
-    } catch (err) {
-      console.error('Failed to refresh:', err)
-    } finally {
-      setRefreshingTemplates(false)
-    }
-  }
   const [showApiKey, setShowApiKey] = useState<Record<number, boolean>>({})
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -107,6 +91,40 @@ export function Providers() {
   const comboInputRef = useRef<HTMLInputElement>(null)
 
   const [subscriptionByProvider, setSubscriptionByProvider] = useState<Record<string, SubscriptionView>>({})
+
+  const fetchSubscriptions = async () => {
+    try {
+      const response = await api.get<{ subscriptions: SubscriptionView[] }>('/subscriptions')
+      const subMap: Record<string, SubscriptionView> = {}
+      for (const entry of response.subscriptions) {
+        subMap[entry.providerName] = entry
+      }
+      setSubscriptionByProvider(subMap)
+    } catch (error) {
+      console.error('Failed to fetch subscriptions:', error)
+    }
+  }
+
+  const refreshTemplates = async () => {
+    setRefreshingTemplates(true)
+    try {
+      await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
+      const [fresh, syncResult] = await Promise.all([
+        api.getConfig(),
+        api.post<{ subscriptions: SubscriptionView[] }>('/subscriptions/sync', {})
+      ])
+      setConfig(fresh)
+      const subMap: Record<string, SubscriptionView> = {}
+      for (const entry of syncResult.subscriptions) {
+        subMap[entry.providerName] = entry
+      }
+      setSubscriptionByProvider(subMap)
+    } catch (err) {
+      console.error('Failed to refresh:', err)
+    } finally {
+      setRefreshingTemplates(false)
+    }
+  }
 
   // Fetch available transformers when component mounts
   useEffect(() => {
@@ -123,20 +141,6 @@ export function Providers() {
   }, [])
 
   useEffect(() => {
-    const fetchSubscriptions = async () => {
-      try {
-        const response = await api.get<{
-          subscriptions: SubscriptionView[]
-        }>('/subscriptions')
-        const subMap: Record<string, SubscriptionView> = {}
-        for (const entry of response.subscriptions) {
-          subMap[entry.providerName] = entry
-        }
-        setSubscriptionByProvider(subMap)
-      } catch (error) {
-        console.error('Failed to fetch subscriptions:', error)
-      }
-    }
     fetchSubscriptions()
   }, [config])
 
