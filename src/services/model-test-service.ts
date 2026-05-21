@@ -16,15 +16,12 @@
  * they fall back to the credential reachability check.
  */
 
-import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type { z } from '@hono/zod-openapi'
 import { getPrismaClient } from '../db/client'
 import { ApiStyle, AuthMode, ModelTestStatus, type PrismaClient } from '../generated/prisma/client'
 import dayjs from '../lib/dayjs'
 import type { ModelTestAllResponseSchema, ModelTestResultSchema } from '../schemas/model.dto'
-import { ClaudeOauthCredentialFileSchema, CodexAuthCredentialFileSchema } from '../schemas/subscription.dto'
+import { getActiveSubAccountAuth } from './subscription-account-sync-service'
 import { getSubscriptionsInfo } from './subscription-info-service'
 
 export type ModelTestResult = z.infer<typeof ModelTestResultSchema>
@@ -34,42 +31,23 @@ export type TestAllOutcome = z.infer<typeof ModelTestAllResponseSchema>
 // envelope is needed.
 type SubAuth = { token: string; extraHeaders?: Record<string, string> }
 
-const readJson = async <S extends z.ZodTypeAny>(path: string, schema: S): Promise<z.infer<S> | null> => {
-  try {
-    const raw = await readFile(path, 'utf-8')
-    const parsed = schema.safeParse(JSON.parse(raw))
-    return parsed.success ? parsed.data : null
-  } catch {
-    return null
-  }
-}
-
-// Read the OAuth access token a subscription provider authenticates
-// with, so the test makes a *real* authed call (not just a
-// file-presence check). Mirrors how the llms claude-code-oauth
-// transformer / subscriptionInfoService read the same files.
-const readSubscriptionAuth = async (apiBaseUrl: string): Promise<SubAuth | { error: string }> => {
-  if (apiBaseUrl.includes('anthropic.com')) {
-    const data = await readJson(join(homedir(), '.claude', '.credentials.json'), ClaudeOauthCredentialFileSchema)
-    const oauth = data?.claudeAiOauth
-    if (!oauth?.accessToken) return { error: 'no Claude subscription credentials on disk' }
-    if (typeof oauth.expiresAt === 'number' && oauth.expiresAt < dayjs().valueOf()) {
-      return { error: 'Claude subscription token expired — re-login with the Claude CLI' }
-    }
-    // Claude Code sends the OAuth token as x-api-key (see the llms
-    // claude-code-oauth transformer).
-    return { token: oauth.accessToken }
-  }
+// Read the OAuth access token the provider's active SubAccount is bound
+// to (decrypted in-memory). The test then makes a *real* authed call
+// against the upstream — file-presence checks went away with the move
+// to DB-only credential storage.
+const readSubscriptionAuth = async (providerName: string, apiBaseUrl: string): Promise<SubAuth | { error: string }> => {
+  const auth = await getActiveSubAccountAuth(providerName)
+  if (!auth?.accessToken) return { error: 'no active subscription account on this provider' }
   if (apiBaseUrl.includes('chatgpt.com') || apiBaseUrl.includes('openai.com')) {
-    const data = await readJson(join(homedir(), '.codex', 'auth.json'), CodexAuthCredentialFileSchema)
-    const tok = data?.tokens
-    if (!tok?.access_token) return { error: 'no Codex subscription credentials on disk' }
     return {
-      token: tok.access_token,
-      extraHeaders: tok.account_id ? { 'chatgpt-account-id': tok.account_id } : {}
+      token: auth.accessToken,
+      extraHeaders: auth.accountId ? { 'chatgpt-account-id': auth.accountId } : {}
     }
   }
-  return { error: `no subscription credential reader for ${apiBaseUrl}` }
+  // Claude Code sends the OAuth token as x-api-key (handled by the
+  // claude-code-oauth transformer at proxy time; the test path uses it
+  // as a bearer below).
+  return { token: auth.accessToken }
 }
 
 const TIMEOUT_MS = 20_000
@@ -301,7 +279,7 @@ const runSubscriptionTest = async (
   modelId: string,
   start: dayjs.Dayjs
 ): Promise<ModelTestResult> => {
-  const auth = await readSubscriptionAuth(apiBaseUrl)
+  const auth = await readSubscriptionAuth(providerName, apiBaseUrl)
   if ('error' in auth) {
     await persist(prisma, modelId, false, auth.error)
     return failResult(providerName, modelName, auth.error, start)
