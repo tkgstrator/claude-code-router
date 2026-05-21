@@ -428,7 +428,7 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
   const parsed = GeminiInboundRequestSchema.safeParse(request)
   if (!parsed.success) {
     throw new HTTPException(500, {
-      message: `Invalid inbound Gemini request: ${parsed.error.message}`
+      message: `Invalid inbound Gemini request: ${JSON.stringify(parsed.error.issues)}`
     })
   }
   const { contents, tools, model, max_tokens, temperature, stream, tool_choice } = parsed.data

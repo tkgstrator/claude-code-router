@@ -230,7 +230,10 @@ async function getProjectRouter(req: RouterRequest, _config: ConfigStore): Promi
     }
     const result = ProjectRouterFileSchema.safeParse(raw)
     if (!result.success) {
-      req.log.warn({ path, err: result.error.message }, 'Project router file does not match schema; skipping')
+      req.log.warn(
+        { path, err: JSON.stringify(result.error.issues) },
+        'Project router file does not match schema; skipping'
+      )
       continue
     }
     if (result.data.Router) return result.data.Router

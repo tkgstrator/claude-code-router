@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
+import { ZodError } from 'zod'
 import { apiKeyAuth } from './api/api-key-auth'
 import { configRoute } from './api/config/route'
 import { logsRoute } from './api/logs/route'
@@ -70,11 +71,10 @@ const app = new OpenAPIHono()
 app.use('/api/*', apiKeyAuth)
 app.use('/v1/*', apiKeyAuth)
 
-// Centralised error handler — catches unexpected throws only. Schema
-// validation does NOT flow through here: routes use `safeParse` and
-// return the typed error directly via `badRequestForZod`, which keeps
-// the request path exception-free. onError is the last-resort safety net.
 app.onError((err, c) => {
+  if (err instanceof ZodError) {
+    return c.json({ success: false as const, error: { type: 'validation_error' as const, issues: err.issues } }, 400)
+  }
   if (err instanceof HTTPException) {
     return err.getResponse()
   }
