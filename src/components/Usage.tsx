@@ -15,13 +15,9 @@ import dayjs from '@/lib/dayjs'
 
 const REFRESH_MS = 5 * 60_000
 
-// Subscription credentials come from the vendor CLI login, not a form
-// in this UI; when nothing is connected yet we point the user at the
-// vendor's own subscription page rather than showing an error.
 const CLAUDE_SUBSCRIBE_URL = 'https://claude.ai'
 const CODEX_SUBSCRIBE_URL = 'https://chatgpt.com'
 
-// The backend is a thin DB read; all chart shaping lives here.
 interface UsageSample {
   metric: string
   percent: number
@@ -37,40 +33,10 @@ interface SeriesPoint {
   v: number
 }
 
-// Display cap. Aggressive early usage extrapolates to a huge number;
-// clamp the line here so the axis stays readable — anything pinned at
-// the cap just reads as "well past sustainable".
 const CAP_PCT = 200
-
-// Trailing sample count for the smoothing pass below (~30 min at the
-// 5-min capture cadence). Count-based by request; it does blend across
-// capture gaps (a long outage averages points from either side).
 const SMOOTH_N = 6
-
-// A reset is the counter refilling: it drops below this fraction of its
-// prior value. Loose enough to catch every real reset in the data
-// (15->1, 99->1, 40->3, 29->2) yet immune to ±1 vendor jitter.
 const RESET_DROP_RATIO = 0.5
 
-// Projected utilization at the window's next reset, from the average
-// pace since the window last reset: pct * C / elapsed (C = cycle
-// length). 100% = exactly exhausted at reset, >100% = locked out
-// before it resets, <100% = headroom.
-//
-// `elapsed` is the LONGER of two estimates: time since the last
-// detected refill (counter dropping past RESET_DROP_RATIO of its prior
-// value) and the resetAt-implied window age (C - hoursToReset). Taking
-// the max makes it robust to both vendor quirks: Codex reports two
-// different windows under codex.secondary and switches between them
-// (pct steps down with no real refill — a spurious short anchor that
-// the resetAt age overrides), while codex.primary's 5h window is
-// rolling so its resetAt slides every sample and C - hoursToReset
-// reads ~0 (would pin at the cap unless the refill anchor floors it).
-// elapsed is capped at C. At the exact reset sample elapsed is 0 (no pace yet),
-// so we just show the actual pct there — no special boundary value;
-// the formula resumes once a little time has elapsed. A trailing
-// SMOOTH_N-sample average evens out the reactive early-cycle values
-// and the integer-pct staircase.
 function projectedUsage(samples: UsageSample[], metric: string): SeriesPoint[] {
   const cycle = metaFor(metric).windowHours
   let lastResetT: ReturnType<typeof dayjs> | null = null
@@ -96,7 +62,6 @@ function projectedUsage(samples: UsageSample[], metric: string): SeriesPoint[] {
       const projected = elapsed > 0 ? (s.percent * cycle) / elapsed : s.percent
       return { t: s.t, p: Math.min(CAP_PCT, Math.max(0, projected)) }
     })
-  // Plain trailing N-sample moving average of the projected value.
   return raw.map((r, i) => {
     const win = raw.slice(Math.max(0, i - SMOOTH_N + 1), i + 1)
     return { t: r.t, v: Math.round((win.reduce((acc, w) => acc + w.p, 0) / win.length) * 10) / 10 }
@@ -106,12 +71,9 @@ function projectedUsage(samples: UsageSample[], metric: string): SeriesPoint[] {
 interface MetricMeta {
   label: string
   color: string
-  // Reset cadence in hours (5h vs 7d window). Needed to turn the next
-  // resetAt into elapsed-since-last-reset for the average-pace projection.
   windowHours: number
 }
 
-// Stable color + readable label per known window metric.
 const METRIC_META: Record<string, MetricMeta> = {
   'claude.five_hour': { label: 'Claude 5h', color: '#d97757', windowHours: 5 },
   'claude.seven_day': { label: 'Claude 7d', color: '#b35a3f', windowHours: 168 },
@@ -121,7 +83,6 @@ const METRIC_META: Record<string, MetricMeta> = {
   'codex.secondary': { label: 'Codex 7d', color: '#0a6f57', windowHours: 168 }
 }
 
-// Definite lookup with an explicit default — no nullish/or fallback.
 function metaFor(metric: string): MetricMeta {
   const meta = METRIC_META[metric]
   if (meta) return meta
@@ -137,21 +98,25 @@ interface CodexWindow {
   resetAt: string | null
   windowSeconds: number | null
 }
+interface ClaudeAccountUsage {
+  accountLabel: string
+  fiveHour: ClaudeWindow | null
+  sevenDay: ClaudeWindow | null
+  sevenDaySonnet: ClaudeWindow | null
+  sevenDayOpus: ClaudeWindow | null
+  extraUsageEnabled: boolean
+  capturedAt: string
+}
+interface CodexAccountUsage {
+  accountLabel: string
+  planType: string | null
+  primary: CodexWindow | null
+  secondary: CodexWindow | null
+  capturedAt: string
+}
 interface UsageResponse {
-  claude: {
-    fiveHour: ClaudeWindow | null
-    sevenDay: ClaudeWindow | null
-    sevenDaySonnet: ClaudeWindow | null
-    sevenDayOpus: ClaudeWindow | null
-    extraUsageEnabled: boolean
-    capturedAt: string
-  } | null
-  codex: {
-    planType: string | null
-    primary: CodexWindow | null
-    secondary: CodexWindow | null
-    capturedAt: string
-  } | null
+  claude: ClaudeAccountUsage[]
+  codex: CodexAccountUsage[]
 }
 
 const fmtReset = (iso: string | null): string => {
@@ -176,10 +141,6 @@ function UsageBar({ label, percent, reset }: { label: string; percent: number; r
   )
 }
 
-// Soft "not connected yet" state for a subscription section: a muted
-// explanation plus a link to the vendor's subscription page. This is a
-// normal state (the operator simply has not logged in with the vendor
-// CLI), so it must not read like an error.
 function NotRegistered({ message, hint, href, cta }: { message: string; hint: string; href: string; cta: string }) {
   return (
     <div className='space-y-1 text-sm text-muted-foreground'>
@@ -193,6 +154,70 @@ function NotRegistered({ message, hint, href, cta }: { message: string; hint: st
       >
         {cta}
       </a>
+    </div>
+  )
+}
+
+function ClaudeAccountSection({ account, t }: { account: ClaudeAccountUsage; t: (k: string) => string }) {
+  return (
+    <div className='space-y-3 rounded-md border p-4'>
+      <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
+      {account.fiveHour && (
+        <UsageBar
+          label={t('usage.fiveHour')}
+          percent={account.fiveHour.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.fiveHour.resetsAt)}`}
+        />
+      )}
+      {account.sevenDay && (
+        <UsageBar
+          label={t('usage.sevenDay')}
+          percent={account.sevenDay.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDay.resetsAt)}`}
+        />
+      )}
+      {account.sevenDaySonnet && (
+        <UsageBar
+          label={t('usage.sevenDaySonnet')}
+          percent={account.sevenDaySonnet.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDaySonnet.resetsAt)}`}
+        />
+      )}
+      {account.sevenDayOpus && (
+        <UsageBar
+          label={t('usage.sevenDayOpus')}
+          percent={account.sevenDayOpus.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDayOpus.resetsAt)}`}
+        />
+      )}
+      <div className='text-xs text-muted-foreground'>
+        {t('usage.capturedAt')}: {fmtReset(account.capturedAt)}
+      </div>
+    </div>
+  )
+}
+
+function CodexAccountSection({ account, t }: { account: CodexAccountUsage; t: (k: string) => string }) {
+  return (
+    <div className='space-y-3 rounded-md border p-4'>
+      <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
+      {account.primary && (
+        <UsageBar
+          label={t('usage.primary')}
+          percent={account.primary.usedPercent}
+          reset={`${t('usage.resets')}: ${fmtReset(account.primary.resetAt)}`}
+        />
+      )}
+      {account.secondary && (
+        <UsageBar
+          label={t('usage.secondary')}
+          percent={account.secondary.usedPercent}
+          reset={`${t('usage.resets')}: ${fmtReset(account.secondary.resetAt)}`}
+        />
+      )}
+      <div className='text-xs text-muted-foreground'>
+        {t('usage.capturedAt')}: {fmtReset(account.capturedAt)}
+      </div>
     </div>
   )
 }
@@ -219,9 +244,6 @@ export function Usage() {
     return () => clearInterval(id)
   }, [])
 
-  // All metrics on one chart: each metric's hourly-consumption series
-  // merged into shared rows keyed by capture time. Recomputed only
-  // when a fetch replaces history.
   const { rows, metrics, config, ticks } = useMemo(() => {
     const metrics = [...new Set(history.samples.map((s) => s.metric))].sort()
     const byT = new Map<string, Record<string, number | string>>()
@@ -239,8 +261,6 @@ export function Usage() {
       config[m] = { label: meta.label, color: meta.color }
     }
     const rows = [...byT.values()].sort((a, b) => (String(a.t) < String(b.t) ? -1 : 1))
-    // Only clean 10-min marks are tick candidates, so the axis shows
-    // 10:00 / 10:10 / 10:20 … and never a stray 10:18.
     const ticks = rows.map((r) => String(r.t)).filter((iso) => dayjs(iso).minute() % 10 === 0)
     return { rows, metrics, config, ticks }
   }, [history])
@@ -253,78 +273,36 @@ export function Usage() {
 
         <section className='space-y-3'>
           <h3 className='text-sm font-semibold'>{t('usage.claude')}</h3>
-          {!data?.claude ? (
+          {data?.claude.length === 0 ? (
             <NotRegistered
               message={t('usage.claudeNotRegistered')}
-              hint={t('usage.notRegisteredHint', { cli: 'claude' })}
+              hint={t('usage.claudeNotRegisteredHint')}
               href={CLAUDE_SUBSCRIBE_URL}
               cta={t('usage.openSubscriptionPage')}
             />
           ) : (
-            <div className='space-y-4'>
-              {data.claude.fiveHour && (
-                <UsageBar
-                  label={t('usage.fiveHour')}
-                  percent={data.claude.fiveHour.utilization}
-                  reset={`${t('usage.resets')}: ${fmtReset(data.claude.fiveHour.resetsAt)}`}
-                />
-              )}
-              {data.claude.sevenDay && (
-                <UsageBar
-                  label={t('usage.sevenDay')}
-                  percent={data.claude.sevenDay.utilization}
-                  reset={`${t('usage.resets')}: ${fmtReset(data.claude.sevenDay.resetsAt)}`}
-                />
-              )}
-              {data.claude.sevenDaySonnet && (
-                <UsageBar
-                  label={t('usage.sevenDaySonnet')}
-                  percent={data.claude.sevenDaySonnet.utilization}
-                  reset={`${t('usage.resets')}: ${fmtReset(data.claude.sevenDaySonnet.resetsAt)}`}
-                />
-              )}
-              {data.claude.sevenDayOpus && (
-                <UsageBar
-                  label={t('usage.sevenDayOpus')}
-                  percent={data.claude.sevenDayOpus.utilization}
-                  reset={`${t('usage.resets')}: ${fmtReset(data.claude.sevenDayOpus.resetsAt)}`}
-                />
-              )}
-              <div className='text-xs text-muted-foreground'>
-                {t('usage.capturedAt')}: {fmtReset(data.claude.capturedAt)}
-              </div>
+            <div className='space-y-3'>
+              {data?.claude.map((account) => (
+                <ClaudeAccountSection key={account.accountLabel} account={account} t={t} />
+              ))}
             </div>
           )}
         </section>
 
         <section className='space-y-3'>
           <h3 className='text-sm font-semibold'>{t('usage.codex')}</h3>
-          {!data?.codex ? (
+          {data?.codex.length === 0 ? (
             <NotRegistered
               message={t('usage.codexNotRegistered')}
-              hint={t('usage.notRegisteredHint', { cli: 'codex' })}
+              hint={t('usage.codexNotRegisteredHint')}
               href={CODEX_SUBSCRIBE_URL}
               cta={t('usage.openSubscriptionPage')}
             />
           ) : (
-            <div className='space-y-4'>
-              {data.codex.primary && (
-                <UsageBar
-                  label={t('usage.primary')}
-                  percent={data.codex.primary.usedPercent}
-                  reset={`${t('usage.resets')}: ${fmtReset(data.codex.primary.resetAt)}`}
-                />
-              )}
-              {data.codex.secondary && (
-                <UsageBar
-                  label={t('usage.secondary')}
-                  percent={data.codex.secondary.usedPercent}
-                  reset={`${t('usage.resets')}: ${fmtReset(data.codex.secondary.resetAt)}`}
-                />
-              )}
-              <div className='text-xs text-muted-foreground'>
-                {t('usage.capturedAt')}: {fmtReset(data.codex.capturedAt)}
-              </div>
+            <div className='space-y-3'>
+              {data?.codex.map((account) => (
+                <CodexAccountSection key={account.accountLabel} account={account} t={t} />
+              ))}
             </div>
           )}
         </section>
