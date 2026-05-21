@@ -24,6 +24,7 @@ import { getPrismaClient } from '../db/client'
 import { AuthMode, type PrismaClient, type SubAccount } from '../generated/prisma/client'
 import dayjs from '../lib/dayjs'
 import { logger } from '../logger'
+import { OauthRefreshResponseSchema } from '../schemas/llm-oauth.dto'
 import type { DiscoveredAccount } from '../schemas/subscription.dto'
 import { fetchClaudeProfile } from './claude-profile-service'
 
@@ -408,10 +409,59 @@ export async function getSubAccountTokensForKind(
   return out
 }
 
-// Re-fetch profile data for all enabled Claude SubAccounts and update the
-// DB in-place. Codex profile comes from the id_token JWT which does not
-// change between OAuth sessions, so only Claude is refreshed here.
-// Returns a count of rows updated / skipped-due-to-error.
+const CLAUDE_REFRESH_URL = 'https://platform.claude.com/v1/oauth/token'
+const CLAUDE_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
+const REFRESH_LEEWAY_MS = 5 * 60 * 1000
+
+// Refresh the access token if it is expired or near expiry, persist the
+// new grant to the DB, and return the usable token. Falls back to the
+// original token on any error so callers always get something to try.
+const ensureFreshClaudeToken = async (
+  subAccountId: string,
+  accessToken: string,
+  refreshToken: string | null,
+  expiresAt: Date | null,
+  key: Buffer,
+  prisma: PrismaClient
+): Promise<string> => {
+  const needsRefresh = expiresAt === null || expiresAt.valueOf() - Date.now() <= REFRESH_LEEWAY_MS
+  if (!needsRefresh || !refreshToken) return accessToken
+  try {
+    const res = await fetch(CLAUDE_REFRESH_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: CLAUDE_OAUTH_CLIENT_ID
+      })
+    })
+    if (!res.ok) return accessToken
+    const parsed = OauthRefreshResponseSchema.safeParse(await res.json())
+    if (!parsed.success) return accessToken
+    const { access_token, refresh_token, expires_in } = parsed.data
+    const newExpiresAt = expires_in !== undefined ? new Date(Date.now() + expires_in * 1000) : null
+    const newAccessEnc = encryptString(access_token, key)
+    const newRefreshEnc = refresh_token ? encryptString(refresh_token, key) : undefined
+    await prisma.subAccount.update({
+      where: { id: subAccountId },
+      data: {
+        accessTokenEnc: newAccessEnc,
+        ...(newRefreshEnc !== undefined ? { refreshTokenEnc: newRefreshEnc } : {}),
+        expiresAt: newExpiresAt
+      }
+    })
+    return access_token
+  } catch {
+    return accessToken
+  }
+}
+
+// Re-fetch profile data for all Claude SubAccounts and update the DB in-place.
+// Refreshes expired tokens first so accounts with lapsed access tokens are
+// still reachable. Codex profile comes from the id_token JWT baked in at
+// OAuth time and does not change between sessions, so only Claude is synced.
+// Returns a count of rows updated / failed.
 export async function syncSubAccountProfiles(
   prisma: PrismaClient = getPrismaClient()
 ): Promise<{ updated: number; failed: number }> {
@@ -423,8 +473,17 @@ export async function syncSubAccountProfiles(
   for (const p of claudeProviders) {
     const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
     for (const account of accounts) {
-      const accessToken = decryptString(account.accessTokenEnc, key)
-      if (!accessToken) continue
+      const rawAccessToken = decryptString(account.accessTokenEnc, key)
+      if (!rawAccessToken) continue
+      const refreshToken = decryptString(account.refreshTokenEnc, key)
+      const accessToken = await ensureFreshClaudeToken(
+        account.id,
+        rawAccessToken,
+        refreshToken,
+        account.expiresAt,
+        key,
+        prisma
+      )
       const profile = await fetchClaudeProfile(accessToken, { logger })
       if (!profile) {
         failed++
