@@ -92,7 +92,7 @@ export const UnifiedToolSchema = z.object({
       type: z.literal('object'),
       properties: z.record(z.string().nonempty(), z.unknown()),
       required: z.array(z.string().nonempty()).default([]),
-      additionalProperties: z.boolean().default(false),
+      additionalProperties: z.union([z.boolean(), z.record(z.string(), z.unknown())]).optional(),
       $schema: z.string().nonempty().optional()
     })
   })
@@ -254,7 +254,7 @@ export const AnthropicIncomingRequestSchema = z.object({
       // When thinking is enabled, Anthropic mandates both fields —
       // type is the discriminator and budget_tokens is the ceiling.
       type: z.string().nonempty(),
-      budget_tokens: z.number().int().nonnegative()
+      budget_tokens: z.number().int().nonnegative().optional()
     })
     .optional()
 })

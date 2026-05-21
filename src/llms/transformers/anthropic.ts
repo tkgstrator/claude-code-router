@@ -402,14 +402,14 @@ export class AnthropicTransformer extends Transformer {
       tool_choice: buildToolChoice(req.tool_choice)
     }
 
-    if (req.thinking) {
+    if (req.thinking?.type === 'enabled') {
       const budget = req.thinking.budget_tokens
       if (budget === undefined) {
         throw new HTTPException(500, { message: 'Anthropic thinking block missing budget_tokens' })
       }
       unified.reasoning = {
         effort: getThinkLevel(budget),
-        enabled: req.thinking.type === 'enabled'
+        enabled: true
       }
     }
 
