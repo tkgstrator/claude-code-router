@@ -207,7 +207,7 @@ async function transformBlockingResponse(response: Response, providerName: strin
   const rawJson: unknown = await response.json()
   const parsed = GeminiResponseSchema.safeParse(rawJson)
   if (!parsed.success) {
-    throw new Error(`Invalid Gemini JSON response: ${parsed.error.message}`)
+    throw new Error(`Invalid Gemini JSON response: ${JSON.stringify(parsed.error.issues)}`)
   }
   logger?.debug({ response: parsed.data }, `${providerName} response:`)
   const body = buildBlockingResponseBody(parsed.data)
