@@ -541,7 +541,18 @@ function applySseBlock(block: string, current: UsageBlock | null): UsageBlock | 
   if (start.success) return { ...start.data.message.usage }
 
   const delta = AnthropicMessageDeltaEventSchema.safeParse(obj)
-  if (delta.success) return { ...(current !== null ? current : {}), ...delta.data.usage }
+  if (delta.success) {
+    const base = current !== null ? current : {}
+    const du = delta.data.usage
+    // Cache fields are established in message_start; prefer base value so a
+    // message_delta that carries 0 (incremental reads = 0) does not overwrite.
+    return {
+      ...base,
+      ...du,
+      cache_read_input_tokens: base.cache_read_input_tokens ?? du.cache_read_input_tokens,
+      cache_creation_input_tokens: base.cache_creation_input_tokens ?? du.cache_creation_input_tokens
+    }
+  }
 
   const completed = ResponsesCompletedEventSchema.safeParse(obj)
   if (completed.success) return { ...completed.data.response.usage }
