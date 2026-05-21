@@ -95,7 +95,8 @@ export const UnifiedToolSchema = z.object({
       additionalProperties: z.union([z.boolean(), z.record(z.string(), z.unknown())]).optional(),
       $schema: z.string().nonempty().optional()
     })
-  })
+  }),
+  cache_control: z.object({ type: z.string().nonempty() }).optional()
 })
 export type UnifiedTool = z.input<typeof UnifiedToolSchema>
 
@@ -200,7 +201,7 @@ export const AnthropicContentBlockSchema = z.object({
   content: z.unknown().optional(),
   cache_control: AnthropicCacheControlSchema.optional(),
   source: AnthropicImageSourceSchema.optional(),
-  thinking: z.string().nonempty().optional(),
+  thinking: z.string().min(0).optional(),
   signature: z.string().nonempty().optional()
 })
 export type AnthropicContentBlock = z.input<typeof AnthropicContentBlockSchema>
@@ -216,7 +217,8 @@ export const AnthropicToolDefSchema = z.object({
   // Anthropic API requires `description` on every tool definition —
   // the docs treat it as load-bearing for model tool selection.
   description: z.string().nonempty(),
-  input_schema: UnifiedToolSchema.shape.function.shape.parameters
+  input_schema: UnifiedToolSchema.shape.function.shape.parameters,
+  cache_control: AnthropicCacheControlSchema.optional()
 })
 export type AnthropicToolDef = z.input<typeof AnthropicToolDefSchema>
 
