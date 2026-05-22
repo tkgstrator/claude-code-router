@@ -36,6 +36,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarInset,
@@ -49,6 +50,7 @@ import {
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
+import pkg from '../../package.json'
 import '@/styles/animations.css'
 
 export type ToastFn = (message: string, type: 'success' | 'error' | 'warning') => void
@@ -94,6 +96,9 @@ function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className='px-4 py-3 group-data-[collapsible=icon]:hidden'>
+        <span className='text-xs text-muted-foreground'>v{pkg.version}</span>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )
