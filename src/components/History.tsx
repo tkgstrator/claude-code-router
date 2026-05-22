@@ -71,15 +71,28 @@ export function HistoryPage() {
     load()
   }, [load])
 
-  // SSE: reload sessions whenever a new RequestLog is written.
+  // SSE: patch the session list in-place whenever a new RequestLog is written.
+  // We fetch only the affected session's summary instead of reloading the full
+  // list so the sidebar doesn't flash/re-render on every streaming token.
   useEffect(() => {
     const apiKey = localStorage.getItem('apiKey') ?? ''
     if (!apiKey) return
     const es = new EventSource(`/api/request-logs/events?apikey=${encodeURIComponent(apiKey)}`)
     es.onmessage = (e) => {
-      void load()
       try {
         const { sessionId } = JSON.parse(e.data) as { sessionId: string }
+        void api.getSessionSummary(sessionId).then((summary) => {
+          setSessions((prev) => {
+            const idx = prev.findIndex((s) => s.sessionId === sessionId)
+            if (idx === -1) {
+              setTotal((t) => t + 1)
+              return [summary, ...prev]
+            }
+            const next = [...prev]
+            next[idx] = summary
+            return next
+          })
+        })
         setSelected((prev) => {
           if (prev?.sessionId === sessionId) setDetailRefresh((n) => n + 1)
           return prev
@@ -94,7 +107,7 @@ export function HistoryPage() {
     // response, which the browser treats as a permanent error and stops
     // retrying without any explicit close() call.
     return () => es.close()
-  }, [load])
+  }, [])
 
   const handleClearAll = async () => {
     if (!window.confirm(t('history.clear_confirm'))) return

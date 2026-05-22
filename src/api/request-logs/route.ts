@@ -10,6 +10,7 @@ import {
   RequestLogsSessionsQuerySchema,
   SessionIdParamSchema,
   SessionLogsResponseSchema,
+  SessionSummarySchema,
   SessionsResponseSchema
 } from '../../schemas'
 import { buildPriceMap, computeCosts } from '../../services/cost-service'
@@ -108,6 +109,91 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
   })
 
   return c.json({ sessions, total }, 200)
+})
+
+// ── GET /api/request-logs/sessions/:sessionId/summary ────────────────────────
+// Returns the aggregated SessionSummary for a single session without loading
+// all logs. Used by the SSE handler to patch the client list in-place.
+
+const getSessionSummaryRoute = createRoute({
+  method: 'get',
+  path: '/api/request-logs/sessions/:sessionId/summary',
+  request: { params: SessionIdParamSchema },
+  responses: {
+    200: {
+      description: 'Aggregated stats for a single session.',
+      content: { 'application/json': { schema: SessionSummarySchema } }
+    },
+    404: { description: 'Session not found.' }
+  }
+})
+
+requestLogsRoute.openapi(getSessionSummaryRoute, async (c) => {
+  const { sessionId } = c.req.valid('param')
+  const prisma = getPrismaClient()
+
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    include: {
+      logs: {
+        select: {
+          provider: true,
+          model: true,
+          inputTokens: true,
+          outputTokens: true,
+          cacheReadTokens: true,
+          cacheWriteTokens: true,
+          totalInputTokens: true,
+          cacheHitPct: true,
+          durationMs: true,
+          createdAt: true
+        }
+      }
+    }
+  })
+
+  if (!session) return c.json({ error: 'Not found' } as never, 404)
+
+  const logs = session.logs
+  const pairs = [...new Set(logs.map((l) => `${l.provider}||${l.model}`))]
+  const priceMap = await buildPriceMap(prisma, pairs)
+
+  const providers = [...new Set(logs.map((l) => l.provider))]
+  const models = [...new Set(logs.map((l) => l.model))]
+  const totalInputTokens = logs.reduce((a, l) => a + l.totalInputTokens, 0)
+  const totalOutputTokens = logs.reduce((a, l) => a + l.outputTokens, 0)
+  const totalCacheReadTokens = logs.reduce((a, l) => a + l.cacheReadTokens, 0)
+  const totalCacheWriteTokens = logs.reduce((a, l) => a + l.cacheWriteTokens, 0)
+  const totalDurationMs = logs.reduce((a, l) => a + l.durationMs, 0)
+  const avgCacheHitPct = logs.length > 0 ? Math.round(logs.reduce((a, l) => a + l.cacheHitPct, 0) / logs.length) : 0
+  const dates = logs.map((l) => l.createdAt.getTime())
+  const firstAt = dates.length > 0 ? new Date(Math.min(...dates)).toISOString() : session.createdAt.toISOString()
+  const lastAt = dates.length > 0 ? new Date(Math.max(...dates)).toISOString() : session.updatedAt.toISOString()
+
+  let totalCostUsd: number | null = null
+  for (const log of logs) {
+    const { totalCostUsd: c } = computeCosts(log, priceMap)
+    if (c != null) totalCostUsd = (totalCostUsd ?? 0) + c
+  }
+
+  return c.json(
+    {
+      sessionId,
+      requestCount: logs.length,
+      providers,
+      models,
+      totalInputTokens,
+      totalOutputTokens,
+      totalCacheReadTokens,
+      totalCacheWriteTokens,
+      avgCacheHitPct,
+      totalDurationMs,
+      totalCostUsd,
+      firstAt,
+      lastAt
+    },
+    200
+  )
 })
 
 // ── GET /api/request-logs/sessions/:sessionId ─────────────────────────────────
