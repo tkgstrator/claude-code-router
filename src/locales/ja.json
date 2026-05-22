@@ -76,6 +76,8 @@
     "apiCostOver": "{{amount}} 超過",
     "apiCostBreakEven": "トントン",
     "apiCostSyncNeeded": "サブスクの節約額を表示するにはプロファイルを同期してください",
+    "apiCostHistory": "日別コスト",
+    "apiCostHistoryEmpty": "選択した期間に価格データがありません。",
     "subscriptionSavings": "サブスク節約額",
     "sync": "同期"
   },

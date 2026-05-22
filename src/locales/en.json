@@ -76,6 +76,8 @@
     "apiCostOver": "Over by {{amount}}",
     "apiCostBreakEven": "Break even",
     "apiCostSyncNeeded": "Sync profiles to see subscription savings",
+    "apiCostHistory": "Daily Cost",
+    "apiCostHistoryEmpty": "No pricing data available for the selected period.",
     "subscriptionSavings": "Subscription Savings",
     "sync": "Sync"
   },

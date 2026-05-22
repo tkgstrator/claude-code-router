@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import {
@@ -106,6 +106,13 @@ interface UsageCostResponse {
   days: number
 }
 
+interface CostHistoryResponse {
+  points: Array<Record<string, string | number>>
+  providers: string[]
+  granularity: 'day' | 'week'
+  days: number
+}
+
 const fmtTokens = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${Math.round(n / 1_000)}K`
@@ -123,6 +130,7 @@ export function Usage() {
   const { t } = useTranslation()
   const [history, setHistory] = useState<HistoryResponse>({ samples: [] })
   const [costData, setCostData] = useState<UsageCostResponse | null>(null)
+  const [costHistory, setCostHistory] = useState<CostHistoryResponse | null>(null)
   const [costLoading, setCostLoading] = useState(false)
   const [costDays, setCostDays] = useState(30)
 
@@ -140,17 +148,27 @@ export function Usage() {
 
   useEffect(() => {
     setCostLoading(true)
-    api
-      .get<UsageCostResponse>(`/usage/cost?days=${costDays}`)
-      .then((d) => {
-        setCostData(d)
-        setCostLoading(false)
-      })
-      .catch(() => {
-        setCostData({ providers: [], days: costDays })
-        setCostLoading(false)
-      })
+    Promise.all([
+      api.get<UsageCostResponse>(`/usage/cost?days=${costDays}`).catch(() => ({ providers: [], days: costDays })),
+      api
+        .get<CostHistoryResponse>(`/usage/cost/history?days=${costDays}`)
+        .catch(() => ({ points: [], providers: [], granularity: 'day' as const, days: costDays }))
+    ]).then(([cost, history]) => {
+      setCostData(cost)
+      setCostHistory(history)
+      setCostLoading(false)
+    })
   }, [costDays])
+
+  const PROVIDER_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
+
+  const costHistoryConfig = useMemo<ChartConfig>(() => {
+    const cfg: ChartConfig = {}
+    for (const [i, p] of (costHistory?.providers ?? []).entries()) {
+      cfg[p] = { label: p, color: PROVIDER_COLORS[i % PROVIDER_COLORS.length] }
+    }
+    return cfg
+  }, [costHistory])
 
   const { rows, metrics, config, ticks } = useMemo(() => {
     const metrics = [...new Set(history.samples.map((s) => s.metric))].sort()
@@ -232,6 +250,55 @@ export function Usage() {
                   </table>
                 </div>
               ))}
+            </div>
+          )}
+        </section>
+
+        <section className='space-y-3'>
+          <h3 className='text-base font-semibold'>{t('usage.apiCostHistory')}</h3>
+          {costHistory === null || costHistory.points.length === 0 ? (
+            <p className='text-sm text-muted-foreground'>{t('usage.apiCostHistoryEmpty')}</p>
+          ) : (
+            <div className={`transition-opacity duration-150 ${costLoading ? 'pointer-events-none opacity-50' : ''}`}>
+              <ChartContainer config={costHistoryConfig} className='aspect-auto h-56 w-full'>
+                <BarChart data={costHistory.points} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey='date'
+                    tickFormatter={(v) =>
+                      costHistory.granularity === 'week'
+                        ? `${dayjs(String(v)).format('M/D')}~`
+                        : dayjs(String(v)).format('M/D')
+                    }
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={28}
+                  />
+                  <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `$${v}`} />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(l) =>
+                          costHistory.granularity === 'week'
+                            ? `${dayjs(String(l)).format('YYYY/M/D')}~`
+                            : dayjs(String(l)).format('YYYY/M/D')
+                        }
+                        formatter={(value) => `$${Number(value).toFixed(2)}`}
+                      />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  {(costHistory.providers ?? []).map((p, i) => (
+                    <Bar
+                      key={p}
+                      dataKey={p}
+                      stackId='cost'
+                      fill={PROVIDER_COLORS[i % PROVIDER_COLORS.length]}
+                      isAnimationActive={false}
+                    />
+                  ))}
+                </BarChart>
+              </ChartContainer>
             </div>
           )}
         </section>

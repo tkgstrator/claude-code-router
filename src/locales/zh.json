@@ -76,6 +76,8 @@
     "apiCostOver": "超出 {{amount}}",
     "apiCostBreakEven": "持平",
     "apiCostSyncNeeded": "同步配置文件以查看订阅节省金额",
+    "apiCostHistory": "每日费用",
+    "apiCostHistoryEmpty": "所选时段内无定价数据。",
     "subscriptionSavings": "订阅节省",
     "sync": "同步"
   },
