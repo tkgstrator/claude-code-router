@@ -18,68 +18,62 @@ const toDate = (iso: string | null): Date | null => {
   return d.isValid() ? d.toDate() : null
 }
 
-// Flatten the live usage snapshot into one row per account-window. Each
-// account gets its own metric key ("claude.five_hour:AccountLabel") so the
-// chart can draw a separate line per account. The `:label` suffix is omitted
-// only when accountLabel is empty (should not happen in practice).
+// Flatten the live usage snapshot into one row per window, taking the
+// maximum utilization across all accounts for that vendor so the chart
+// reflects the most-constrained account.
 const flatten = (u: Awaited<ReturnType<typeof getUsage>>): SnapshotRow[] => {
-  const rows: SnapshotRow[] = []
-  const seen = new Set<string>()
-  const push = (row: SnapshotRow) => {
-    if (!seen.has(row.metric)) {
-      seen.add(row.metric)
-      rows.push(row)
-    }
+  const best = new Map<string, SnapshotRow>()
+  const keep = (row: SnapshotRow) => {
+    const prev = best.get(row.metric)
+    if (!prev || row.percent > prev.percent) best.set(row.metric, row)
   }
   for (const c of u.claude) {
-    const sfx = c.accountLabel ? `:${c.accountLabel}` : ''
     if (c.fiveHour)
-      push({
+      keep({
         provider: 'claude',
-        metric: `claude.five_hour${sfx}`,
+        metric: 'claude.five_hour',
         percent: c.fiveHour.utilization,
         resetAt: toDate(c.fiveHour.resetsAt)
       })
     if (c.sevenDay)
-      push({
+      keep({
         provider: 'claude',
-        metric: `claude.seven_day${sfx}`,
+        metric: 'claude.seven_day',
         percent: c.sevenDay.utilization,
         resetAt: toDate(c.sevenDay.resetsAt)
       })
     if (c.sevenDaySonnet)
-      push({
+      keep({
         provider: 'claude',
-        metric: `claude.seven_day_sonnet${sfx}`,
+        metric: 'claude.seven_day_sonnet',
         percent: c.sevenDaySonnet.utilization,
         resetAt: toDate(c.sevenDaySonnet.resetsAt)
       })
     if (c.sevenDayOpus)
-      push({
+      keep({
         provider: 'claude',
-        metric: `claude.seven_day_opus${sfx}`,
+        metric: 'claude.seven_day_opus',
         percent: c.sevenDayOpus.utilization,
         resetAt: toDate(c.sevenDayOpus.resetsAt)
       })
   }
   for (const x of u.codex) {
-    const sfx = x.accountLabel ? `:${x.accountLabel}` : ''
     if (x.primary)
-      push({
+      keep({
         provider: 'codex',
-        metric: `codex.primary${sfx}`,
+        metric: 'codex.primary',
         percent: x.primary.usedPercent,
         resetAt: toDate(x.primary.resetAt)
       })
     if (x.secondary)
-      push({
+      keep({
         provider: 'codex',
-        metric: `codex.secondary${sfx}`,
+        metric: 'codex.secondary',
         percent: x.secondary.usedPercent,
         resetAt: toDate(x.secondary.resetAt)
       })
   }
-  return rows
+  return [...best.values()]
 }
 
 export async function recordUsageSnapshots(): Promise<void> {

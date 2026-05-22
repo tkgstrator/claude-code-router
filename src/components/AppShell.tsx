@@ -71,8 +71,10 @@ function AppSidebar() {
 
   return (
     <Sidebar collapsible='icon'>
-      <SidebarHeader className='h-16 justify-center border-b px-4'>
-        <span className='text-sm font-semibold group-data-[collapsible=icon]:hidden'>{t('app.title')}</span>
+      <SidebarHeader className='h-16 justify-center border-b overflow-hidden px-4'>
+        <span className='text-sm font-semibold whitespace-nowrap transition-opacity duration-200 group-data-[collapsible=icon]:opacity-0'>
+          {t('app.title')}
+        </span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
