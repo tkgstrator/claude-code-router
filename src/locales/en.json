@@ -43,7 +43,7 @@
     "settings": "Settings"
   },
   "usage": {
-    "title": "Subscription Usage",
+    "title": "Usage",
     "loadError": "Failed to load usage",
     "claude": "Claude (claude-code)",
     "claudeNotRegistered": "No Claude subscription connected yet.",

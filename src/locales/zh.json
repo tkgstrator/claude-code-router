@@ -43,7 +43,7 @@
     "settings": "设置"
   },
   "usage": {
-    "title": "订阅用量",
+    "title": "用量",
     "loadError": "加载用量失败",
     "claude": "Claude（claude-code）",
     "claudeNotRegistered": "尚未连接 Claude 订阅。",

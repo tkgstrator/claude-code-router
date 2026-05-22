@@ -43,7 +43,7 @@
     "settings": "設定"
   },
   "usage": {
-    "title": "サブスク使用状況",
+    "title": "使用状況",
     "loadError": "使用状況の取得に失敗しました",
     "claude": "Claude（claude-code）",
     "claudeNotRegistered": "Claude サブスクは未登録です。",

@@ -41,18 +41,26 @@ interface UsageResponse {
   codex: CodexAccountUsage[]
 }
 
-interface ModelCost {
-  model: string
-  requestCount: number
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  totalCostUsd: number | null
+interface SubscriptionAccount {
+  id: string
+  label: string
+  enabled: boolean
+  userName: string | null
+  userEmail: string | null
+  plan: string | null
+  monthlyPriceUsd: number | null
+}
+interface SubscriptionProvider {
+  providerName: string
+  enabled: boolean
+  accounts: SubscriptionAccount[]
+  activeAccount: SubscriptionAccount | null
+}
+interface SubscriptionsResponse {
+  subscriptions: SubscriptionProvider[]
 }
 interface ProviderCost {
   provider: string
-  models: ModelCost[]
   totalCostUsd: number | null
   isSubscription: boolean
   subscriptionMonthlyUsd: number | null
@@ -184,16 +192,18 @@ export function Subscriptions() {
   const [data, setData] = useState<UsageResponse | null>(null)
   const [error, setError] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [subData, setSubData] = useState<SubscriptionsResponse | null>(null)
   const [costData, setCostData] = useState<UsageCostResponse | null>(null)
 
-  const fetchUsage = () => {
+  const fetchAll = () => {
     api
       .get<UsageResponse>('/usage')
       .then(setData)
       .catch(() => setError(true))
-  }
-
-  const fetchCost = () => {
+    api
+      .get<SubscriptionsResponse>('/subscriptions')
+      .then(setSubData)
+      .catch(() => {})
     api
       .get<UsageCostResponse>('/usage/cost?days=30')
       .then(setCostData)
@@ -201,12 +211,8 @@ export function Subscriptions() {
   }
 
   useEffect(() => {
-    fetchUsage()
-    fetchCost()
-    const id = setInterval(() => {
-      fetchUsage()
-      fetchCost()
-    }, REFRESH_MS)
+    fetchAll()
+    const id = setInterval(fetchAll, REFRESH_MS)
     return () => clearInterval(id)
   }, [])
 
@@ -214,16 +220,18 @@ export function Subscriptions() {
     setSyncing(true)
     try {
       await api.post('/subscriptions/sync', {})
-      fetchUsage()
-      fetchCost()
+      fetchAll()
     } catch {
-      // ignore sync errors silently
+      // ignore
     } finally {
       setSyncing(false)
     }
   }
 
-  const subscriptionProviders = costData?.providers.filter((p) => p.isSubscription) ?? []
+  // Build savings rows from /subscriptions (always available, not log-dependent).
+  // Merge with /usage/cost for the API equivalent cost figure.
+  const costByProvider = new Map((costData?.providers ?? []).map((p) => [p.provider, p.totalCostUsd]))
+  const savingsRows = (subData?.subscriptions ?? []).filter((p) => p.accounts.some((a) => a.monthlyPriceUsd != null))
 
   return (
     <PageContainer>
@@ -276,31 +284,29 @@ export function Subscriptions() {
           )}
         </section>
 
-        {subscriptionProviders.length > 0 && (
+        {savingsRows.length > 0 && (
           <section className='space-y-3'>
-            <h3 className='text-sm font-semibold'>{t('usage.subscriptionSavings')}</h3>
             <div className='space-y-3'>
-              {subscriptionProviders.map((p) => {
-                const days = 30
-                const proratedSubUsd = p.subscriptionMonthlyUsd != null ? p.subscriptionMonthlyUsd * (days / 30) : null
-                const savingsUsd =
-                  p.totalCostUsd != null && proratedSubUsd != null ? p.totalCostUsd - proratedSubUsd : null
+              {savingsRows.map((p) => {
+                const monthlyUsd = p.accounts.find((a) => a.monthlyPriceUsd != null)?.monthlyPriceUsd ?? null
+                const apiCostUsd = costByProvider.get(p.providerName) ?? null
+                const savingsUsd = apiCostUsd != null && monthlyUsd != null ? apiCostUsd - monthlyUsd : null
                 return (
-                  <div key={p.provider} className='rounded-md border'>
+                  <div key={p.providerName} className='rounded-md border'>
                     <div className='flex items-center justify-between border-b px-4 py-2'>
-                      <span className='text-sm font-medium'>{p.provider}</span>
-                      {p.subscriptionMonthlyUsd != null && (
-                        <span className='text-xs text-muted-foreground'>${p.subscriptionMonthlyUsd.toFixed(0)}/mo</span>
+                      <span className='text-sm font-medium'>{p.providerName}</span>
+                      {monthlyUsd != null && (
+                        <span className='text-xs text-muted-foreground'>${monthlyUsd.toFixed(0)}/mo</span>
                       )}
                     </div>
                     <div className='flex items-center justify-between px-4 py-2 text-xs text-muted-foreground'>
                       <span>
                         {t('usage.apiCostPeriod30d')} API:{' '}
                         <span className='font-medium text-foreground'>
-                          {fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}
+                          {fmtCost(apiCostUsd, t('usage.apiCostNoPricing'))}
                         </span>
                       </span>
-                      {proratedSubUsd != null ? (
+                      {monthlyUsd != null ? (
                         <span
                           className={
                             savingsUsd != null && savingsUsd > 0
@@ -316,20 +322,12 @@ export function Subscriptions() {
                               : savingsUsd < 0
                                 ? t('usage.apiCostOver', { amount: fmtCost(-savingsUsd, '') })
                                 : t('usage.apiCostBreakEven')
-                            : fmtCost(proratedSubUsd, '')}
+                            : '—'}
                         </span>
                       ) : (
                         <span className='italic'>{t('usage.apiCostSyncNeeded')}</span>
                       )}
                     </div>
-                    {proratedSubUsd != null && (
-                      <div className='border-t px-4 py-2 text-xs text-muted-foreground'>
-                        {t('usage.apiCostSubProrated', {
-                          price: `$${p.subscriptionMonthlyUsd!.toFixed(0)}/mo`,
-                          days
-                        })}
-                      </div>
-                    )}
                   </div>
                 )
               })}
