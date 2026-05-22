@@ -112,13 +112,23 @@ docker compose logs -f
 docker compose restart
 ```
 
-## 🔌 连接 Claude Code 订阅（无需 API Key）
+## 🔌 连接提供商
 
-CCR 支持通过您现有的 **Claude Code** 订阅或 **OpenAI Codex** 订阅进行路由，无需单独的 API Key。
+### API Key 型提供商
 
-打开 **Providers** 页面 → **Subscription** 标签页 → **Connect**，按照 OAuth 流程授权即可。CCR 会自动存储和刷新凭据。将订阅中的模型分配到路由槽位即完成配置。
+在 **Providers** 页面选择任意 API Key 型提供商（Anthropic、OpenAI、DeepSeek、Gemini 等），输入 API Key 并保存。支持 `$VAR` 格式的环境变量插值，无需将密钥明文写入配置文件。
+
+### 订阅型提供商（Claude Code 与 Codex）
+
+CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
+
+**Claude Code** — 打开 **Providers** 页面 → **Subscription** 标签页 → **Connect**，完成 OAuth 授权流程。CCR 会自动存储并刷新凭据。
+
+**Codex（OpenAI）** — 目前不支持通过浏览器登录，仅支持通过上传凭据文件的方式进行认证。
 
 ![Subscriptions 页面](docs/images/screenshot-subscriptions.webp)
+
+> **服务条款提示：** 将 Claude Code 订阅用于 Claude Code 以外的应用程序请求，可能违反 [Anthropic 使用政策](https://www.anthropic.com/legal/aup)。请自行评估风险后使用此功能。
 
 ## ⚙️ 配置
 
@@ -136,7 +146,7 @@ CCR 支持通过您现有的 **Claude Code** 订阅或 **OpenAI Codex** 订阅�
 | `PROXY_URL` | 上游 API 请求的 HTTP 代理 |
 | `API_TIMEOUT_MS` | 上游 API 调用超时时间（ms，默认：`600000`）|
 | `CLAUDE_PATH` | `claude` 可执行文件路径 |
-| `NON_INTERACTIVE_MODE` | Docker / CI / GitHub Actions 下设为 `true`（防止 stdin 挂起）|
+| `NON_INTERACTIVE_MODE` | Docker / CI 环境下设为 `true`（防止 stdin 挂起）|
 | `CUSTOM_ROUTER_PATH` | 自定义 JavaScript 路由器模块的绝对路径 |
 
 ### 提供商、模型与路由器（数据库）
@@ -267,64 +277,6 @@ module.exports = async function router(req, config) {
 <CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
 请帮我分析这段代码...
 ```
-
-## 🤖 GitHub Actions 集成
-
-设置 [Claude Code Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions) 后，修改 `.github/workflows/claude.yaml`：
-
-```yaml
-name: Claude Code
-
-on:
-  issue_comment:
-    types: [created]
-
-jobs:
-  claude:
-    if: contains(github.event.comment.body, '@claude')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Prepare Environment
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          mkdir -p $HOME/.claude-code-router
-          cat << 'EOF' > $HOME/.claude-code-router/config.json
-          {
-            "NON_INTERACTIVE_MODE": true,
-            "Providers": [
-              {
-                "name": "openai",
-                "api_base_url": "https://api.openai.com/v1/chat/completions",
-                "api_key": "${{ secrets.OPENAI_API_KEY }}",
-                "models": ["gpt-4o"],
-                "transformer": { "use": ["OpenAI"] }
-              }
-            ],
-            "Router": { "default": "openai,gpt-4o" }
-          }
-          EOF
-
-      - name: Start Claude Code Router
-        run: nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
-
-      - name: Run Claude Code
-        uses: anthropics/claude-code-action@beta
-        env:
-          ANTHROPIC_BASE_URL: http://localhost:3456
-        with:
-          anthropic_api_key: "any-string-is-ok"
-```
-
-> 在自动化环境中务必设置 `"NON_INTERACTIVE_MODE": true` 以防止进程挂起。
 
 ## 📊 日志
 

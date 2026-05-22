@@ -112,13 +112,23 @@ docker compose logs -f
 docker compose restart
 ```
 
-## 🔌 Connecting Claude Code Subscription (No API Key Needed)
+## 🔌 Connecting Providers
 
-CCR supports routing through your existing **Claude Code** subscription or **OpenAI Codex** subscription without a separate API key.
+### API key providers
 
-Open the **Providers** page → **Subscription** tab → **Connect**, then follow the OAuth flow. CCR stores and auto-refreshes the credentials. Map one of the subscription models to any router slot and you're done.
+On the **Providers** page, select any API-key provider (Anthropic, OpenAI, DeepSeek, Gemini, etc.), enter your API key, and save. Environment-variable interpolation (`$VAR`) is supported so you can keep secrets out of the config file.
+
+### Subscription providers (Claude Code & Codex)
+
+CCR can route through subscription-based providers without a per-call API key.
+
+**Claude Code** — Open the **Providers** page → **Subscription** tab → **Connect**, then complete the OAuth flow. CCR stores and auto-refreshes the credentials.
+
+**Codex (OpenAI)** — Browser-based login is not currently supported. Authentication is handled via credential file upload only.
 
 ![Subscriptions page](docs/images/screenshot-subscriptions.webp)
+
+> **Terms of service notice:** Using a Claude Code subscription to serve requests from applications other than Claude Code may violate [Anthropic's usage policies](https://www.anthropic.com/legal/aup). Use this feature at your own discretion and risk.
 
 ## ⚙️ Configuration
 
@@ -136,7 +146,7 @@ Boot-time scalars and disk-resident objects live here. Environment-variable inte
 | `PROXY_URL` | HTTP proxy for upstream API requests |
 | `API_TIMEOUT_MS` | Upstream API call timeout in ms (default: `600000`) |
 | `CLAUDE_PATH` | Path to the `claude` executable |
-| `NON_INTERACTIVE_MODE` | Set `true` for Docker / CI / GitHub Actions to prevent stdin hangs |
+| `NON_INTERACTIVE_MODE` | Set `true` for Docker / CI environments to prevent stdin hangs |
 | `CUSTOM_ROUTER_PATH` | Absolute path to a custom JavaScript router module |
 
 ### Providers, Models, and Router (database)
@@ -267,64 +277,6 @@ Pin a specific model for a subagent by prefixing its prompt with:
 <CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
 Please help me analyze this code...
 ```
-
-## 🤖 GitHub Actions Integration
-
-After setting up [Claude Code Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions), modify your `.github/workflows/claude.yaml`:
-
-```yaml
-name: Claude Code
-
-on:
-  issue_comment:
-    types: [created]
-
-jobs:
-  claude:
-    if: contains(github.event.comment.body, '@claude')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Prepare Environment
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          mkdir -p $HOME/.claude-code-router
-          cat << 'EOF' > $HOME/.claude-code-router/config.json
-          {
-            "NON_INTERACTIVE_MODE": true,
-            "Providers": [
-              {
-                "name": "openai",
-                "api_base_url": "https://api.openai.com/v1/chat/completions",
-                "api_key": "${{ secrets.OPENAI_API_KEY }}",
-                "models": ["gpt-4o"],
-                "transformer": { "use": ["OpenAI"] }
-              }
-            ],
-            "Router": { "default": "openai,gpt-4o" }
-          }
-          EOF
-
-      - name: Start Claude Code Router
-        run: nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
-
-      - name: Run Claude Code
-        uses: anthropics/claude-code-action@beta
-        env:
-          ANTHROPIC_BASE_URL: http://localhost:3456
-        with:
-          anthropic_api_key: "any-string-is-ok"
-```
-
-> Always set `"NON_INTERACTIVE_MODE": true` in automated environments to prevent process hangs.
 
 ## 📊 Logging
 

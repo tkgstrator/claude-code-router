@@ -112,13 +112,23 @@ docker compose logs -f
 docker compose restart
 ```
 
-## 🔌 Claude Code サブスクリプション連携（API キー不要）
+## 🔌 プロバイダーの接続
 
-CCR は **Claude Code** サブスクリプションや **OpenAI Codex** サブスクリプションを API キーなしで直接利用できます。
+### API キー型プロバイダー
 
-**Providers** ページ → **Subscription** タブ → **Connect** から OAuth フローに従って認証してください。CCR が認証情報を保存・自動更新します。サブスクリプションのモデルをルータースロットに割り当てれば設定完了です。
+**Providers** ページで任意の API キー型プロバイダー（Anthropic、OpenAI、DeepSeek、Gemini など）を選択し、API キーを入力して保存します。`$VAR` 形式の環境変数補間に対応しているため、シークレットをファイルに直書きせず管理できます。
+
+### サブスクリプション型プロバイダー（Claude Code・Codex）
+
+CCR はサブスクリプション型プロバイダーを API キーなしでルーティングに利用できます。
+
+**Claude Code** — **Providers** ページ → **Subscription** タブ → **Connect** から OAuth フローを完了してください。CCR が認証情報を保存・自動更新します。
+
+**Codex（OpenAI）** — 現在、ブラウザ経由のログインは未対応です。認証はファイルアップロードによる認証情報の登録のみサポートしています。
 
 ![Subscriptions ページ](docs/images/screenshot-subscriptions.webp)
+
+> **利用規約に関する注意：** Claude Code のサブスクリプションを Claude Code 以外のアプリケーションからのリクエストに使用することは、[Anthropic の利用ポリシー](https://www.anthropic.com/legal/aup) に違反する可能性があります。この機能の使用は自己責任で判断してください。
 
 ## ⚙️ 設定
 
@@ -136,7 +146,7 @@ CCR は **Claude Code** サブスクリプションや **OpenAI Codex** サブ�
 | `PROXY_URL` | アップストリーム API リクエスト用 HTTP プロキシ |
 | `API_TIMEOUT_MS` | アップストリーム API コールタイムアウト（ms、デフォルト：`600000`）|
 | `CLAUDE_PATH` | `claude` 実行ファイルへのパス |
-| `NON_INTERACTIVE_MODE` | Docker / CI / GitHub Actions で `true` を設定（stdin ハング防止）|
+| `NON_INTERACTIVE_MODE` | Docker / CI 環境で `true` を設定（stdin ハング防止）|
 | `CUSTOM_ROUTER_PATH` | カスタム JavaScript ルーターモジュールへの絶対パス |
 
 ### プロバイダー・モデル・ルーター（データベース）
@@ -267,64 +277,6 @@ module.exports = async function router(req, config) {
 <CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
 このコードの分析をお願いします...
 ```
-
-## 🤖 GitHub Actions 連携
-
-[Claude Code Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions) のセットアップ後、`.github/workflows/claude.yaml` を修正します：
-
-```yaml
-name: Claude Code
-
-on:
-  issue_comment:
-    types: [created]
-
-jobs:
-  claude:
-    if: contains(github.event.comment.body, '@claude')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Prepare Environment
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          mkdir -p $HOME/.claude-code-router
-          cat << 'EOF' > $HOME/.claude-code-router/config.json
-          {
-            "NON_INTERACTIVE_MODE": true,
-            "Providers": [
-              {
-                "name": "openai",
-                "api_base_url": "https://api.openai.com/v1/chat/completions",
-                "api_key": "${{ secrets.OPENAI_API_KEY }}",
-                "models": ["gpt-4o"],
-                "transformer": { "use": ["OpenAI"] }
-              }
-            ],
-            "Router": { "default": "openai,gpt-4o" }
-          }
-          EOF
-
-      - name: Start Claude Code Router
-        run: nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
-
-      - name: Run Claude Code
-        uses: anthropics/claude-code-action@beta
-        env:
-          ANTHROPIC_BASE_URL: http://localhost:3456
-        with:
-          anthropic_api_key: "any-string-is-ok"
-```
-
-> 自動化環境では必ず `"NON_INTERACTIVE_MODE": true` を設定してプロセスのハングを防いでください。
 
 ## 📊 ログ
 
