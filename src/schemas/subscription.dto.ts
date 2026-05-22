@@ -13,6 +13,7 @@ export const DiscoveredAccountSchema = z.object({
   accountId: z.string().nonempty().nullable(),
   plan: z.string().nonempty().nullable(),
   rateLimitTier: z.string().nonempty().nullable(),
+  monthlyPriceUsd: z.number().nullable(),
   expiresAt: z.date().nullable(),
   scopes: z.array(z.string().nonempty()),
   accessToken: z.string().nonempty().nullable(),

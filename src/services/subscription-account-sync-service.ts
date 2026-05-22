@@ -123,6 +123,29 @@ const stableIdentityFor = (
   a: Pick<DiscoveredAccount | SubAccount, 'userId' | 'accountId' | 'sourcePath'>
 ): StableIdentity => a.userId ?? a.accountId ?? `path:${a.sourcePath}`
 
+// Monthly USD prices for known subscription plan identifiers.
+// Claude: derived from has_claude_max / has_claude_pro booleans on the
+// account profile (more reliable than organization_type strings).
+// Codex: derived from chatgpt_plan_type in the id_token JWT claims.
+// Values reflect publicly-listed individual plan prices; team/enterprise
+// plans are per-seat and left null since total cost isn't inferrable.
+const CODEX_PLAN_PRICES: Record<string, number> = {
+  plus: 20,
+  pro: 200
+}
+
+const claudeMonthlyPrice = (profile: { has_claude_max?: boolean; has_claude_pro?: boolean } | null): number | null => {
+  if (!profile) return null
+  if (profile.has_claude_max) return 100
+  if (profile.has_claude_pro) return 20
+  return null
+}
+
+const codexMonthlyPrice = (planType: string | null): number | null => {
+  if (!planType) return null
+  return CODEX_PLAN_PRICES[planType.toLowerCase()] ?? null
+}
+
 const buildAccountPayload = (providerName: string, account: DiscoveredAccount, key: Buffer) => ({
   label: `${providerName}:${account.label}`,
   userName: account.userName,
@@ -131,6 +154,7 @@ const buildAccountPayload = (providerName: string, account: DiscoveredAccount, k
   accountId: account.accountId,
   plan: account.plan,
   rateLimitTier: account.rateLimitTier,
+  monthlyPriceUsd: account.monthlyPriceUsd,
   expiresAt: account.expiresAt,
   scopes: account.scopes,
   accessTokenEnc: encryptString(account.accessToken, key),
@@ -218,6 +242,7 @@ const buildClaudeDiscoveredAccount = async (tokens: {
     accountId: null,
     plan: firstString(profile?.organization?.organization_type),
     rateLimitTier: firstString(profile?.organization?.rate_limit_tier),
+    monthlyPriceUsd: claudeMonthlyPrice(profile?.account ?? null),
     expiresAt,
     scopes: tokens.scopes,
     accessToken: tokens.accessToken,
@@ -254,6 +279,7 @@ const buildCodexDiscoveredAccount = (tokens: {
     accountId,
     plan: stringOrNull(auth.chatgpt_plan_type),
     rateLimitTier: null,
+    monthlyPriceUsd: codexMonthlyPrice(stringOrNull(auth.chatgpt_plan_type)),
     expiresAt: activeUntil !== null ? dayjs(activeUntil).toDate() : null,
     scopes: [],
     accessToken: tokens.accessToken,
@@ -496,6 +522,7 @@ export async function syncSubAccountProfiles(
           userEmail: firstString(profile.account.email),
           plan: firstString(profile.organization?.organization_type),
           rateLimitTier: firstString(profile.organization?.rate_limit_tier),
+          monthlyPriceUsd: claudeMonthlyPrice(profile.account),
           lastSyncedAt: dayjs().toDate()
         }
       })

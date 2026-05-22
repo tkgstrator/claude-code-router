@@ -112,6 +112,10 @@ model SubAccount {
   accessTokenEnc  String?
   refreshTokenEnc String?
   idTokenEnc      String?
+  // Monthly subscription price in USD, derived from the plan at sync
+  // time (e.g. claude max → 100, codex pro → 200). Null when the plan
+  // is unknown or free.
+  monthlyPriceUsd Float?
   lastSyncedAt DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

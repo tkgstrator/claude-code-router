@@ -69,7 +69,11 @@
     "apiCostTotal": "合计",
     "apiCostPeriod7d": "7天",
     "apiCostPeriod30d": "30天",
-    "apiCostPeriodAll": "全部"
+    "apiCostPeriodAll": "全部",
+    "apiCostSubProrated": "{{price}} 订阅 · {{days}}天按比例",
+    "apiCostSaved": "节省 {{amount}}",
+    "apiCostOver": "超出 {{amount}}",
+    "apiCostBreakEven": "持平"
   },
   "models": {
     "provider": "供应商",

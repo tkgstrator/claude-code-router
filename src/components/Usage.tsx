@@ -101,6 +101,7 @@ interface ProviderCost {
   provider: string
   models: ModelCost[]
   totalCostUsd: number | null
+  subscriptionMonthlyUsd: number | null
 }
 interface UsageCostResponse {
   providers: ProviderCost[]
@@ -375,32 +376,67 @@ export function Usage() {
             <p className='text-sm text-muted-foreground'>{t('usage.apiCostEmpty')}</p>
           ) : (
             <div className='space-y-3'>
-              {costData.providers.map((p) => (
-                <div key={p.provider} className='rounded-md border'>
-                  <div className='flex items-center justify-between border-b px-4 py-2'>
-                    <span className='text-sm font-medium'>{p.provider}</span>
-                    <span className='text-sm font-medium'>{fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}</span>
+              {costData.providers.map((p) => {
+                const proratedSubUsd =
+                  p.subscriptionMonthlyUsd != null && costDays > 0 ? p.subscriptionMonthlyUsd * (costDays / 30) : null
+                const savingsUsd =
+                  p.totalCostUsd != null && proratedSubUsd != null ? p.totalCostUsd - proratedSubUsd : null
+                return (
+                  <div key={p.provider} className='rounded-md border'>
+                    <div className='flex items-center justify-between border-b px-4 py-2'>
+                      <span className='text-sm font-medium'>{p.provider}</span>
+                      <span className='text-sm font-medium'>
+                        {fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}
+                      </span>
+                    </div>
+                    <table className='w-full text-xs'>
+                      <tbody>
+                        {p.models.map((m) => (
+                          <tr key={m.model} className='border-b last:border-0'>
+                            <td className='px-4 py-2 font-mono text-muted-foreground'>{m.model}</td>
+                            <td className='px-2 py-2 text-right text-muted-foreground whitespace-nowrap'>
+                              {m.requestCount.toLocaleString()} {t('usage.apiCostRequests')}
+                            </td>
+                            <td className='px-2 py-2 text-right text-muted-foreground whitespace-nowrap'>
+                              ↑{fmtTokens(m.inputTokens + m.cacheWriteTokens)} ↓{fmtTokens(m.outputTokens)}
+                            </td>
+                            <td className='px-4 py-2 text-right font-medium whitespace-nowrap'>
+                              {fmtCost(m.totalCostUsd, t('usage.apiCostNoPricing'))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {proratedSubUsd != null && (
+                      <div className='flex items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground'>
+                        <span>
+                          {t('usage.apiCostSubProrated', {
+                            price: `$${p.subscriptionMonthlyUsd!.toFixed(0)}/mo`,
+                            days: costDays
+                          })}
+                        </span>
+                        <span
+                          className={
+                            savingsUsd != null && savingsUsd > 0
+                              ? 'font-medium text-green-600'
+                              : savingsUsd != null && savingsUsd < 0
+                                ? 'font-medium text-red-500'
+                                : ''
+                          }
+                        >
+                          {savingsUsd != null
+                            ? savingsUsd > 0
+                              ? t('usage.apiCostSaved', { amount: fmtCost(savingsUsd, '') })
+                              : savingsUsd < 0
+                                ? t('usage.apiCostOver', { amount: fmtCost(-savingsUsd, '') })
+                                : t('usage.apiCostBreakEven')
+                            : fmtCost(proratedSubUsd, '')}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <table className='w-full text-xs'>
-                    <tbody>
-                      {p.models.map((m) => (
-                        <tr key={m.model} className='border-b last:border-0'>
-                          <td className='px-4 py-2 font-mono text-muted-foreground'>{m.model}</td>
-                          <td className='px-2 py-2 text-right text-muted-foreground whitespace-nowrap'>
-                            {m.requestCount.toLocaleString()} {t('usage.apiCostRequests')}
-                          </td>
-                          <td className='px-2 py-2 text-right text-muted-foreground whitespace-nowrap'>
-                            ↑{fmtTokens(m.inputTokens + m.cacheWriteTokens)} ↓{fmtTokens(m.outputTokens)}
-                          </td>
-                          <td className='px-4 py-2 text-right font-medium whitespace-nowrap'>
-                            {fmtCost(m.totalCostUsd, t('usage.apiCostNoPricing'))}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>

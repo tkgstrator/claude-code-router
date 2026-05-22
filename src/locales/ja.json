@@ -69,7 +69,11 @@
     "apiCostTotal": "合計",
     "apiCostPeriod7d": "7日",
     "apiCostPeriod30d": "30日",
-    "apiCostPeriodAll": "全期間"
+    "apiCostPeriodAll": "全期間",
+    "apiCostSubProrated": "{{price}} サブスク · {{days}}日分按分",
+    "apiCostSaved": "{{amount}} お得",
+    "apiCostOver": "{{amount}} 超過",
+    "apiCostBreakEven": "トントン"
   },
   "models": {
     "provider": "プロバイダー",

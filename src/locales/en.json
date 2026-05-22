@@ -69,7 +69,11 @@
     "apiCostTotal": "Total",
     "apiCostPeriod7d": "7d",
     "apiCostPeriod30d": "30d",
-    "apiCostPeriodAll": "All"
+    "apiCostPeriodAll": "All",
+    "apiCostSubProrated": "{{price}} subscription · {{days}}d prorated",
+    "apiCostSaved": "Saved {{amount}}",
+    "apiCostOver": "Over by {{amount}}",
+    "apiCostBreakEven": "Break even"
   },
   "models": {
     "provider": "Provider",
