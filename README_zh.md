@@ -1,42 +1,54 @@
-![](blog/images/claude-code-router-img.png)
-
-[![](https://img.shields.io/badge/%F0%9F%87%AC%F0%9F%87%A7-English-000aff?style=flat)](README.md)
+[![](https://img.shields.io/badge/🇬🇧-English-000aff?style=flat)](README.md)
+[![](https://img.shields.io/badge/🇯🇵-日本語-bc002d?style=flat)](README_ja.md)
+[![](https://img.shields.io/badge/🇨🇳-中文版-ff0000?style=flat)](README_zh.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
-[![](https://img.shields.io/github/license/musistudio/claude-code-router)](https://github.com/musistudio/claude-code-router/blob/main/LICENSE)
+[![](https://img.shields.io/github/license/tkgstrator/claude-code-router)](https://github.com/tkgstrator/claude-code-router/blob/master/LICENSE)
 
 <hr>
 
-![](blog/images/sponsors/glm-zh.jpg)
-> 本项目由 Z智谱 提供赞助, 他们通过 GLM CODING PLAN 对本项目提供技术支持。
-> GLM CODING PLAN 是专为AI编码打造的订阅套餐，每月最低仅需20元，即可在十余款主流AI编码工具如 Claude Code、Cline、Roo Code 中畅享智谱旗舰模型GLM-4.7（受限于算力，目前仅限Pro用户开放），为开发者提供顶尖的编码体验。
-> 智谱AI为本产品提供了特别优惠，使用以下链接购买可以享受九折优惠：https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII
-
-> [从CLI工具风格看工具渐进式披露](/blog/zh/从CLI工具风格看工具渐进式披露.md)
-
-> 一款强大的工具，可将 Claude Code 请求路由到不同的模型，并自定义任何请求。
-
-![](blog/images/claude-code.png)
-
+> 无需更改 Claude Code 配置，即可将请求路由到任意 LLM 提供商的强大代理。
 
 ## ✨ 功能
 
--   **模型路由**: 根据您的需求将请求路由到不同的模型（例如，后台任务、思考、长上下文）。
--   **多提供商支持**: 支持 OpenRouter、DeepSeek、Ollama、Gemini、Volcengine 和 SiliconFlow 等各种模型提供商。
--   **请求/响应转换**: 使用转换器为不同的提供商自定义请求和响应。
--   **动态模型切换**: 在 Claude Code 中使用 `/model` 命令动态切换模型。
--   **CLI 模型管理**: 使用 `ccr model` 直接从终端管理模型和提供商。
--   **GitHub Actions 集成**: 在您的 GitHub 工作流程中触发 Claude Code 任务。
--   **插件系统**: 使用自定义转换器扩展功能。
--   **Claude Code 订阅直连**: 通过 `claude-code-credentials` 转换器，直接使用本地 Claude Code OAuth Token 作为后端，无需单独申请 API Key。
--   **OpenAI Codex 支持**: 通过 `openai-responses` 转换器和 OpenAI API Key，将 Claude Code 请求路由到 OpenAI 的编程 Agent Codex（`gpt-5-codex`、`gpt-5.1-codex-mini`）。
+- **基于任务的路由** — 为六个内置场景分别指定不同模型：`default`、`background`、`think`（计划模式）、`longContext`、`webSearch`、`image`。
+- **多提供商支持** — 连接 API Key 型提供商（Anthropic、OpenAI、DeepSeek、Gemini、Groq、OpenRouter 等）或订阅型提供商（Claude Code OAuth、OpenAI Codex）。
+- **订阅监控** — 追踪速率限制窗口，比较实际 API 费用与订阅费用。
+- **用量与成本仪表板** — 按提供商和模型细分的费用明细及每日费用图表。
+- **请求历史** — 浏览和重放过去的 LLM 请求。
+- **Web 管理界面** — 完整的浏览器端配置管理，无需手动编辑 JSON。
+- **转换器管道** — 内置和自定义转换器将 Anthropic 格式请求适配至各提供商 API。
+- **自定义 JavaScript 路由器** — 实现超出六个内置场景的任意路由逻辑。
+- **子代理模型锁定** — 通过内联提示标签将子代理定向到指定提供商和模型。
+- **状态栏** — 在 Claude Code 状态栏中实时显示 CCR 状态。
+- **Docker 优先部署** — 包含 PostgreSQL 和 Redis 的一键 `docker compose up -d`。
 
-## 🚀 快速入门
+## 🖥️ Web 界面
 
-### 1. Docker 快速启动（推荐）
+![Models 页面](docs/images/screenshot-models.webp)
 
-推荐使用 Docker Compose 运行 Claude Code Router。需要提前安装 [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/)。镜像已发布至 Docker Hub，无需克隆仓库。
+Web 界面（默认在端口 **3456** 提供服务）让您全面掌控路由器的各项设置：
 
-**第一步 — 创建工作目录和配置文件：**
+| 页面 | 用途 |
+|------|------|
+| **Models** | 查看已启用模型、价格、上下文窗口及连接测试 |
+| **Providers** | 添加、编辑或删除 API Key 型和订阅型提供商 |
+| **Router** | 为每个路由场景分配模型 |
+| **Subscriptions** | 监控速率限制窗口，比较订阅费用与 API 支出 |
+| **Usage** | 按提供商和模型细分的 API 费用及时序图表 |
+| **History** | 浏览历史请求日志 |
+| **Settings** | 配置主机、端口、代理、日志、状态栏和 API Key |
+
+![Providers 页面](docs/images/screenshot-providers.webp)
+
+![Router 页面](docs/images/screenshot-router.webp)
+
+![Usage 页面](docs/images/screenshot-usage.webp)
+
+## 🚀 Docker 快速启动（推荐）
+
+安装 [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/) 后：
+
+**第一步 — 创建工作目录和最小配置文件：**
 
 ```shell
 mkdir -p ~/ccr ~/.claude-code-router
@@ -44,35 +56,26 @@ cd ~/ccr
 
 cat > ~/.claude-code-router/config.json << 'EOF'
 {
-  "APIKEY": "your-secret-key",
-  "Providers": [
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o", "gpt-4o-mini"],
-      "transformer": { "use": ["OpenAI"] }
-    }
-  ],
-  "Router": {
-    "default": "openai,gpt-4o-mini"
-  }
+  "APIKEY": "your-secret-key"
 }
 EOF
 ```
 
+> `APIKEY` 用于保护 Web 界面和 `/v1/*` 代理。如果省略，首次启动时会自动生成并打印到服务器控制台。
+
 **第二步 — 下载 `compose.yaml`：**
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/musistudio/claude-code-router/main/compose.yaml -o compose.yaml
+curl -fsSL https://raw.githubusercontent.com/tkgstrator/claude-code-router/master/compose.yaml -o compose.yaml
 ```
 
-**第三步 — （可选）创建 `.env` 文件存放 API Key：**
+**第三步 — （可选）将提供商凭据写入 `.env`：**
 
 ```shell
 cat > .env << 'EOF'
 OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
+GEMINI_API_KEY=AIza...
+ANTHROPIC_API_KEY=sk-ant-...
 EOF
 ```
 
@@ -82,9 +85,9 @@ EOF
 docker compose up -d
 ```
 
-服务将在 `http://127.0.0.1:3456` 启动。
+服务在 `http://127.0.0.1:3456` 启动。在浏览器中打开该地址，使用 `APIKEY` 登录，然后在 **Providers** 和 **Router** 页面完成配置。
 
-**第五步 — 配置 Claude Code 使用路由器：**
+**第五步 — 将 Claude Code 指向路由器：**
 
 ```shell
 ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
@@ -97,739 +100,257 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 export ANTHROPIC_AUTH_TOKEN=your-secret-key
 ```
 
-> **注意**: 修改 `config.json` 后，重启容器使配置生效：
->
-> ```shell
-> docker compose restart
-> ```
-
 **查看日志：**
 
 ```shell
 docker compose logs -f
 ```
 
----
-
-### 替代方案：全局 CLI 安装
-
-如果您偏好非 Docker 方式，也可以将 Claude Code Router 安装为全局 CLI 工具。
-
-首先，请确保您已安装 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/quickstart)：
+**应用配置更改：**
 
 ```shell
-npm install -g @anthropic-ai/claude-code
+docker compose restart
 ```
 
-然后，安装 Claude Code Router：
+## 🔌 连接提供商
 
-```shell
-# 通过 Bun 安装（推荐 — 项目内部基于 Bun 运行）
-bun install -g @musistudio/claude-code-router
+### API Key 型提供商
 
-# 通过 npm 安装
-npm install -g @musistudio/claude-code-router
-```
+在 **Providers** 页面选择任意 API Key 型提供商（Anthropic、OpenAI、DeepSeek、Gemini 等），输入 API Key 并保存。支持 `$VAR` 格式的环境变量插值，无需将密钥明文写入配置文件。
 
-使用 router 启动 Claude Code：
+### 订阅型提供商（Claude Code 与 Codex）
 
-```shell
-ccr code
-```
+CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 
-> **注意**: 修改配置文件后，需要重启服务使配置生效：
-> ```shell
-> ccr restart
-> ```
+**Claude Code** — 打开 **Providers** 页面 → **Subscription** 标签页 → **Connect**，完成 OAuth 授权流程。CCR 会自动存储并刷新凭据。
 
----
+**Codex（OpenAI）** — 目前不支持通过浏览器登录，仅支持通过上传凭据文件的方式进行认证。
 
-### 2. 配置
+![Subscriptions 页面](docs/images/screenshot-subscriptions.webp)
 
-创建并配置您的 `~/.claude-code-router/config.json` 文件。有关更多详细信息，您可以参考 `config.example.json`。
+> **服务条款提示：** 将 Claude Code 订阅用于 Claude Code 以外的应用程序请求，可能违反 [Anthropic 使用政策](https://www.anthropic.com/legal/aup)。请自行评估风险后使用此功能。
 
-`config.json` 文件有几个关键部分：
-- **`PROXY_URL`** (可选): 为 API 请求设置代理。例如：`"PROXY_URL": "http://127.0.0.1:7890"`。
-- **`LOG`** (可选): 设置为 `true` 启用日志记录，设置为 `false` 则不创建日志文件。默认值为 `true`。
-- **`LOG_LEVEL`** (可选): 日志级别。可选项：`"fatal"`、`"error"`、`"warn"`、`"info"`、`"debug"`、`"trace"`。默认值为 `"debug"`。
-- **日志系统**: Claude Code Router 使用两个独立的日志系统：
-  - **服务器级别日志**: HTTP 请求、API 调用和服务器事件使用 pino 记录在 `~/.claude-code-router/logs/` 目录中，文件名类似于 `ccr-*.log`
-  - **应用程序级别日志**: 路由决策和业务逻辑事件记录在 `~/.claude-code-router/claude-code-router.log` 文件中
-- **`APIKEY`** (可选): 设置请求鉴权密钥。客户端需在 `Authorization` 请求头（如 `Bearer your-secret-key`）或 `x-api-key` 请求头中提供。
-- **`HOST`** (可选): 服务的监听地址。如果未设置 `APIKEY`，出于安全考虑会强制设为 `127.0.0.1`。例如：`"HOST": "0.0.0.0"`。
-- **`NON_INTERACTIVE_MODE`** (可选): 设置为 `true` 以兼容非交互式环境（GitHub Actions、Docker、CI/CD 等），防止进程因 stdin 挂起。
-- **`Providers`**: 配置不同的模型提供商。
-- **`Router`**: 路由规则。`default` 为未匹配其他路由时的默认模型。
-- **`API_TIMEOUT_MS`**: API 请求超时时间（毫秒）。
+## ⚙️ 配置
 
-#### 环境变量插值
+### 磁盘配置（`~/.claude-code-router/config.json`）
 
-Claude Code Router 支持在 `config.json` 中使用 `$VAR_NAME` 或 `${VAR_NAME}` 语法引用环境变量，以避免将 API Key 明文写入配置文件：
+存储启动时的标量值和磁盘常驻对象。支持环境变量插值（`$VAR` / `${VAR}`）和 JSON5 注释。自动保留最近三个备份。
 
-```json
-{
-  "Providers": [
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o"]
-    }
-  ]
-}
-```
+| 键 | 说明 |
+|----|------|
+| `APIKEY` | 客户端须通过 `x-api-key` 或 `Authorization: Bearer` 发送的密钥 |
+| `HOST` | 监听地址。默认 `127.0.0.1`；反向代理后端使用 `0.0.0.0`（需要 `APIKEY`）|
+| `PORT` | 监听端口（默认：`3456`）|
+| `LOG` | `true` 以启用日志文件 |
+| `LOG_LEVEL` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |
+| `PROXY_URL` | 上游 API 请求的 HTTP 代理 |
+| `API_TIMEOUT_MS` | 上游 API 调用超时时间（ms，默认：`600000`）|
+| `CLAUDE_PATH` | `claude` 可执行文件路径 |
+| `NON_INTERACTIVE_MODE` | Docker / CI 环境下设为 `true`（防止 stdin 挂起）|
+| `CUSTOM_ROUTER_PATH` | 自定义 JavaScript 路由器模块的绝对路径 |
 
-使用 Docker Compose 时，将 API Key 写入项目根目录的 `.env` 文件即可自动注入容器：
+### 提供商、模型与路由器（数据库）
 
-```shell
-# .env
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=AIza...
-ANTHROPIC_API_KEY=sk-ant-...
-```
+首次启动后，提供商、模型和路由槽位通过 Web 界面或配置 API 在 PostgreSQL 中管理（而非 `config.json`）。首次启动时，`config.json` 中的 `Providers` / `Router` 会自动迁移到数据库（一次性、幂等）。
 
-插值在嵌套对象和数组中均递归生效。
+### 路由场景
 
-这是一个综合示例：
+在 **Router** 页面为每个场景配置使用的模型：
 
-```json
-{
-  "APIKEY": "your-secret-key",
-  "PROXY_URL": "http://127.0.0.1:7890",
-  "LOG": true,
-  "API_TIMEOUT_MS": 600000,
-  "NON_INTERACTIVE_MODE": false,
-  "Providers": [
-    {
-      "name": "openrouter",
-      "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
-      "api_key": "sk-xxx",
-      "models": [
-        "google/gemini-2.5-pro-preview",
-        "anthropic/claude-sonnet-4",
-        "anthropic/claude-3.5-sonnet",
-        "anthropic/claude-3.7-sonnet:thinking"
-      ],
-      "transformer": {
-        "use": ["openrouter"]
-      }
-    },
-    {
-      "name": "deepseek",
-      "api_base_url": "https://api.deepseek.com/chat/completions",
-      "api_key": "sk-xxx",
-      "models": ["deepseek-chat", "deepseek-reasoner"],
-      "transformer": {
-        "use": ["deepseek"],
-        "deepseek-chat": {
-          "use": ["tooluse"]
-        }
-      }
-    },
-    {
-      "name": "ollama",
-      "api_base_url": "http://localhost:11434/v1/chat/completions",
-      "api_key": "ollama",
-      "models": ["qwen2.5-coder:latest"]
-    },
-    {
-      "name": "gemini",
-      "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
-      "api_key": "$GEMINI_API_KEY",
-      "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
-      "transformer": {
-        "use": ["gemini"]
-      }
-    },
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o", "gpt-4o-mini", "o4-mini", "o3"],
-      "transformer": {
-        "use": ["OpenAI"]
-      }
-    },
-    {
-      "name": "codex",
-      "api_base_url": "https://api.openai.com/v1/responses",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-5.1-codex-mini", "gpt-5-codex"],
-      "transformer": {
-        "use": ["openai-responses"]
-      }
-    },
-    {
-      "name": "claude-code",
-      "api_base_url": "https://api.anthropic.com/v1/messages",
-      "api_key": "placeholder",
-      "models": ["claude-opus-4-5", "claude-sonnet-4-5"],
-      "transformer": {
-        "use": ["claude-code-credentials"]
-      }
-    },
-    {
-      "name": "volcengine",
-      "api_base_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-      "api_key": "sk-xxx",
-      "models": ["deepseek-v3-250324", "deepseek-r1-250528"],
-      "transformer": {
-        "use": ["deepseek"]
-      }
-    },
-    {
-      "name": "modelscope",
-      "api_base_url": "https://api-inference.modelscope.cn/v1/chat/completions",
-      "api_key": "",
-      "models": ["Qwen/Qwen3-Coder-480B-A35B-Instruct", "Qwen/Qwen3-235B-A22B-Thinking-2507"],
-      "transformer": {
-        "use": [
-          [
-            "maxtoken",
-            {
-              "max_tokens": 65536
-            }
-          ],
-          "enhancetool"
-        ],
-        "Qwen/Qwen3-235B-A22B-Thinking-2507": {
-          "use": ["reasoning"]
-        }
-      }
-    },
-    {
-      "name": "dashscope",
-      "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-      "api_key": "",
-      "models": ["qwen3-coder-plus"],
-      "transformer": {
-        "use": [
-          [
-            "maxtoken",
-            {
-              "max_tokens": 65536
-            }
-          ],
-          "enhancetool"
-        ]
-      }
-    },
-    {
-      "name": "aihubmix",
-      "api_base_url": "https://aihubmix.com/v1/chat/completions",
-      "api_key": "sk-",
-      "models": [
-        "Z/glm-4.5",
-        "claude-opus-4-20250514",
-        "gemini-2.5-pro"
-      ]
-    }
-  ],
-  "Router": {
-    "default": "deepseek,deepseek-chat",
-    "background": "ollama,qwen2.5-coder:latest",
-    "think": "deepseek,deepseek-reasoner",
-    "longContext": "openrouter,google/gemini-2.5-pro-preview",
-    "longContextThreshold": 60000,
-    "webSearch": "gemini,gemini-2.5-flash"
-  }
-}
-```
+| 场景 | 触发时机 |
+|------|---------|
+| `default` | 未匹配其他场景的所有请求 |
+| `background` | 轻量级后台任务 |
+| `think` | 推理密集型任务（计划模式）|
+| `longContext` | 超过上下文阈值的请求（默认 60 000 token）|
+| `webSearch` | 网络搜索任务（需要模型原生支持搜索）|
+| `image` | 图像相关任务（使用 CCR 内置图像代理）|
 
-### 3. 使用 Router 运行 Claude Code（CLI 模式）
+### 转换器
 
-使用 router 启动 Claude Code：
+转换器将 Anthropic 格式请求适配为各提供商的接口格式。
 
-```shell
-ccr code
-```
+**内置转换器：**
 
-> **注意**: 修改配置文件后，需要重启服务使配置生效：
-> ```shell
-> ccr restart
-> ```
+| 转换器 | 说明 |
+|--------|------|
+| `Anthropic` | 原生 Anthropic 端点的直通转发 |
+| `claude-code-credentials` | 使用本地 Claude Code OAuth Token（`~/.claude/.credentials.json`），支持自动刷新 |
+| `openai-responses` | OpenAI Responses API（`/v1/responses`）—用于 Codex 模型 |
+| `OpenAI` | 标准 OpenAI Chat Completions API |
+| `deepseek` | DeepSeek API |
+| `gemini` | Google Gemini API |
+| `openrouter` | OpenRouter API（支持 `provider` 路由参数）|
+| `groq` | Groq API |
+| `maxtoken` | 覆盖 `max_tokens`（接受 `{ "max_tokens": N }` 选项）|
+| `tooluse` | 通过 `tool_choice` 优化工具调用 |
+| `reasoning` | 处理 `reasoning_content` 字段 |
+| `sampling` | 处理采样字段（`temperature`、`top_p`、`top_k`、`repetition_penalty`）|
+| `enhancetool` | 为工具调用参数增加容错处理（禁用流式工具调用）|
+| `cleancache` | 从请求中移除 `cache_control` |
+| `vertex-gemini` | 通过 Vertex AI 认证访问 Gemini |
+| `gemini-cli` *（实验性）* | 通过 Gemini CLI 的非官方 Gemini 支持 |
+| `qwen-cli` *（实验性）* | 通过 Qwen CLI 的非官方 qwen3-coder-plus 支持 |
+| `rovo-cli` *（实验性）* | 通过 Atlassian Rovo Dev CLI 的非官方 GPT-5 支持 |
 
-### 4. UI 模式
+**自定义转换器插件：**
 
-为了获得更直观的体验，您可以使用 UI 模式来管理您的配置：
-
-```shell
-ccr ui
-```
-
-这将打开一个基于 Web 的界面，您可以在其中轻松查看和编辑您的 `config.json` 文件。
-
-![UI](/blog/images/ui.png)
-
-### 5. CLI 模型管理
-
-对于偏好终端工作流的用户，可以使用交互式 CLI 模型选择器：
-
-```shell
-ccr model
-```
-
-该命令提供交互式界面来：
-
-- 查看当前配置
-- 查看所有配置的模型（default、background、think、longContext、webSearch、image）
-- 切换模型：快速更改每个路由器类型使用的模型
-- 添加新模型：向现有提供商添加模型
-- 创建新提供商：设置完整的提供商配置，包括：
-   - 提供商名称和 API 端点
-   - API 密钥
-   - 可用模型
-   - Transformer 配置，支持：
-     - 多个转换器（openrouter、deepseek、gemini 等）
-     - Transformer 选项（例如，带自定义限制的 maxtoken）
-     - 特定于提供商的路由（例如，OpenRouter 提供商偏好）
-
-CLI 工具验证所有输入并提供有用的提示来引导您完成配置过程，使管理复杂的设置变得容易，无需手动编辑 JSON 文件。
-
-### 6. 预设管理
-
-预设允许您轻松保存、共享和重用配置。您可以将当前配置导出为预设，并从文件或 URL 安装预设。
-
-```shell
-# 将当前配置导出为预设
-ccr preset export my-preset
-
-# 使用元数据导出
-ccr preset export my-preset --description "我的 OpenAI 配置" --author "您的名字" --tags "openai,生产环境"
-
-# 从本地目录安装预设
-ccr preset install /path/to/preset
-
-# 列出所有已安装的预设
-ccr preset list
-
-# 显示预设信息
-ccr preset info my-preset
-
-# 删除预设
-ccr preset delete my-preset
-```
-
-**预设功能：**
-- **导出**：将当前配置保存为预设目录（包含 manifest.json）
-- **安装**：从本地目录安装预设
-- **敏感数据处理**：导出期间自动清理 API 密钥和其他敏感数据（标记为 `{{field}}` 占位符）
-- **动态配置**：预设可以包含输入架构，用于在安装期间收集所需信息
-- **版本控制**：每个预设包含版本元数据，用于跟踪更新
-
-**预设文件结构：**
-```
-~/.claude-code-router/presets/
-├── my-preset/
-│   └── manifest.json    # 包含配置和元数据
-```
-
-### 7. Activate 命令（环境变量设置）
-
-`activate` 命令允许您在 shell 中全局设置环境变量，使您能够直接使用 `claude` 命令或将 Claude Code Router 与使用 Agent SDK 构建的应用程序集成。
-
-要激活环境变量，请运行：
-
-```shell
-eval "$(ccr activate)"
-```
-
-此命令会以 shell 友好的格式输出必要的环境变量，这些变量将在当前的 shell 会话中设置。激活后，您可以：
-
-- **直接使用 `claude` 命令**：无需使用 `ccr code` 即可运行 `claude` 命令。`claude` 命令将自动通过 Claude Code Router 路由请求。
-- **与 Agent SDK 应用程序集成**：使用 Anthropic Agent SDK 构建的应用程序将自动使用配置的路由器和模型。
-
-`activate` 命令设置以下环境变量：
-
-- `ANTHROPIC_AUTH_TOKEN`: 来自配置的 API 密钥
-- `ANTHROPIC_BASE_URL`: 本地路由器端点（默认：`http://127.0.0.1:3456`）
-- `NO_PROXY`: 设置为 `127.0.0.1` 以防止代理干扰
-- `DISABLE_TELEMETRY`: 禁用遥测
-- `DISABLE_COST_WARNINGS`: 禁用成本警告
-- `API_TIMEOUT_MS`: 来自配置的 API 超时时间
-
-> **注意**：在使用激活的环境变量之前，请确保 Claude Code Router 服务正在运行（`ccr start`）。环境变量仅在当前 shell 会话中有效。要使其持久化，您可以将 `eval "$(ccr activate)"` 添加到您的 shell 配置文件（例如 `~/.zshrc` 或 `~/.bashrc`）中。
-
-#### Providers
-
-`Providers` 数组是您定义要使用的不同模型提供商的地方。每个提供商对象都需要：
-
--   `name`: 提供商的唯一名称。
--   `api_base_url`: 聊天补全的完整 API 端点。
--   `api_key`: 您提供商的 API 密钥。
--   `models`: 此提供商可用的模型名称列表。
--   `transformer` (可选): 指定用于处理请求和响应的转换器。
-
-#### Transformers
-
-Transformers 允许您修改请求和响应负载，以确保与不同提供商 API 的兼容性。
-
--   **全局 Transformer**: 将转换器应用于提供商的所有模型。在此示例中，`openrouter` 转换器将应用于 `openrouter` 提供商下的所有模型。
-    ```json
-     {
-       "name": "openrouter",
-       "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
-       "api_key": "sk-xxx",
-       "models": [
-         "google/gemini-2.5-pro-preview",
-         "anthropic/claude-sonnet-4",
-         "anthropic/claude-3.5-sonnet"
-       ],
-       "transformer": { "use": ["openrouter"] }
-     }
-    ```
--   **特定于模型的 Transformer**: 将转换器应用于特定模型。在此示例中，`deepseek` 转换器应用于所有模型，而额外的 `tooluse` 转换器仅应用于 `deepseek-chat` 模型。
-    ```json
-     {
-       "name": "deepseek",
-       "api_base_url": "https://api.deepseek.com/chat/completions",
-       "api_key": "sk-xxx",
-       "models": ["deepseek-chat", "deepseek-reasoner"],
-       "transformer": {
-         "use": ["deepseek"],
-         "deepseek-chat": { "use": ["tooluse"] }
-       }
-     }
-    ```
-
--   **向 Transformer 传递选项**: 某些转换器（如 `maxtoken`）接受选项。要传递选项，请使用嵌套数组，其中第一个元素是转换器名称，第二个元素是选项对象。
-    ```json
-    {
-      "name": "siliconflow",
-      "api_base_url": "https://api.siliconflow.cn/v1/chat/completions",
-      "api_key": "sk-xxx",
-      "models": ["moonshotai/Kimi-K2-Instruct"],
-      "transformer": {
-        "use": [
-          [
-            "maxtoken",
-            {
-              "max_tokens": 16384
-            }
-          ]
-        ]
-      }
-    }
-    ```
-
-**可用的内置 Transformer：**
-
--   `Anthropic`: 直接透传 Anthropic 格式的请求和响应，不做任何修改（可用于接入原生 Anthropic 端点或其他兼容端点）。
--   `claude-code-credentials`: 使用本地 Claude Code 的 OAuth Token（`~/.claude/.credentials.json`）作为 API Key，支持自动刷新。无需单独申请 API Key，但需要有效的 Claude Code 订阅。使用 Docker 时，`~/.claude` 目录已通过 `compose.yaml` 挂载到容器中。
--   `openai-responses`: 适配 OpenAI Responses API（`/v1/responses`）。用于 Codex 模型（`gpt-5.1-codex-mini`、`gpt-5-codex`）等通过 Responses API 访问的模型。
--   `OpenAI`: 适配标准 OpenAI Chat Completions API 的请求/响应。
--   `deepseek`: 适配 DeepSeek API 的请求/响应。
--   `gemini`: 适配 Gemini API 的请求/响应。
--   `openrouter`: 适配 OpenRouter API 的请求/响应。它还可以接受一个 `provider` 路由参数，以指定 OpenRouter 应使用哪些底层提供商。有关更多详细信息，请参阅 [OpenRouter 文档](https://openrouter.ai/docs/features/provider-routing)。请参阅下面的示例：
-    ```json
-      "transformer": {
-        "use": ["openrouter"],
-        "moonshotai/kimi-k2": {
-          "use": [
-            [
-              "openrouter",
-              {
-                "provider": {
-                  "only": ["moonshotai/fp8"]
-                }
-              }
-            ]
-          ]
-        }
-      }
-    ```
--   `groq`: 适配 groq API 的请求/响应
--   `maxtoken`: 设置特定的 `max_tokens` 值。
--   `tooluse`: 优化某些模型的工具使用(通过`tool_choice`参数)。
--   `gemini-cli` (实验性): 通过 Gemini CLI [gemini-cli.js](https://gist.github.com/musistudio/1c13a65f35916a7ab690649d3df8d1cd) 对 Gemini 的非官方支持。
--   `reasoning`: 用于处理 `reasoning_content` 字段。
--   `sampling`: 用于处理采样信息字段，如 `temperature`、`top_p`、`top_k` 和 `repetition_penalty`。
--   `enhancetool`: 对 LLM 返回的工具调用参数增加一层容错处理（这会导致不再流式返回工具调用信息）。
--   `cleancache`: 清除请求中的 `cache_control` 字段。
--   `vertex-gemini`: 处理使用 vertex 鉴权的 gemini api。
--   `qwen-cli` (实验性): 通过 Qwen CLI [qwen-cli.js](https://gist.github.com/musistudio/f5a67841ced39912fd99e42200d5ca8b) 对 qwen3-coder-plus 的非官方支持。
--   `rovo-cli` (experimental): 通过 Atlassian Rovo Dev CLI [rovo-cli.js](https://gist.github.com/SaseQ/c2a20a38b11276537ec5332d1f7a5e53) 对 GPT-5 的非官方支持。
-
-**自定义 Transformer:**
-
-您还可以创建自己的转换器，并通过 `config.json` 中的 `transformers` 字段加载它们。
+通过磁盘配置加载 JavaScript 模块来添加自定义转换器：
 
 ```json
 {
   "transformers": [
-      {
-        "path": "/User/xxx/.claude-code-router/plugins/gemini-cli.js",
-        "options": {
-          "project": "xxx"
-        }
-      }
+    {
+      "path": "/home/user/.claude-code-router/plugins/my-transformer.js",
+      "options": { "someOption": "value" }
+    }
   ]
 }
 ```
 
-#### Router
-
-`Router` 对象定义了在不同场景下使用哪个模型：
-
--   `default`: 用于常规任务的默认模型。
--   `background`: 用于后台任务的模型。这可以是一个较小的本地模型以节省成本。
--   `think`: 用于推理密集型任务（如计划模式）的模型。
--   `longContext`: 用于处理长上下文（例如，> 60K 令牌）的模型。
--   `longContextThreshold` (可选): 触发长上下文模型的令牌数阈值。如果未指定，默认为 60000。
--   `webSearch`: 用于处理网络搜索任务，需要模型本身支持。如果使用`openrouter`需要在模型后面加上`:online`后缀。
--   `image`(测试版): 用于处理图片类任务（采用CCR内置的agent支持），如果该模型不支持工具调用，需要将`config.forceUseImageAgent`属性设置为`true`。
-
-您还可以使用 `/model` 命令在 Claude Code 中动态切换模型：
-`/model provider_name,model_name`
-示例: `/model openrouter,anthropic/claude-3.5-sonnet`
-
-#### 自定义路由器
-
-对于更高级的路由逻辑，您可以在 `config.json` 中通过 `CUSTOM_ROUTER_PATH` 字段指定一个自定义路由器脚本。这允许您实现超出默认场景的复杂路由规则。
-
-在您的 `config.json` 中配置:
+**转换器配置示例：**
 
 ```json
 {
-  "CUSTOM_ROUTER_PATH": "/User/xxx/.claude-code-router/custom-router.js"
+  "name": "openrouter",
+  "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
+  "api_key": "$OPENROUTER_API_KEY",
+  "models": ["google/gemini-2.5-pro", "anthropic/claude-sonnet-4"],
+  "transformer": { "use": ["openrouter"] }
 }
 ```
 
-自定义路由器文件必须是一个导出 `async` 函数的 JavaScript 模块。该函数接收请求对象和配置对象作为参数，并应返回提供商和模型名称的字符串（例如 `"provider_name,model_name"`），如果返回 `null` 则回退到默认路由。
+特定模型的转换器：
 
-这是一个基于 `custom-router.example.js` 的 `custom-router.js` 示例：
+```json
+{
+  "name": "deepseek",
+  "api_base_url": "https://api.deepseek.com/chat/completions",
+  "api_key": "$DEEPSEEK_API_KEY",
+  "models": ["deepseek-chat", "deepseek-reasoner"],
+  "transformer": {
+    "use": ["deepseek"],
+    "deepseek-chat": { "use": ["tooluse"] }
+  }
+}
+```
+
+带选项的转换器：
+
+```json
+{
+  "transformer": {
+    "use": [["maxtoken", { "max_tokens": 65536 }], "enhancetool"]
+  }
+}
+```
+
+### 自定义 JavaScript 路由器
+
+对于超出六个内置场景的路由逻辑，在磁盘配置中设置 `CUSTOM_ROUTER_PATH`：
+
+```json
+{
+  "CUSTOM_ROUTER_PATH": "/home/user/.claude-code-router/custom-router.js"
+}
+```
+
+该模块必须导出一个返回 `"provider,model"` 或 `null`（回退到默认路由）的 `async` 函数：
 
 ```javascript
-// /User/xxx/.claude-code-router/custom-router.js
-
-/**
- * 一个自定义路由函数，用于根据请求确定使用哪个模型。
- *
- * @param {object} req - 来自 Claude Code 的请求对象，包含请求体。
- * @param {object} config - 应用程序的配置对象。
- * @returns {Promise<string|null>} - 一个解析为 "provider,model_name" 字符串的 Promise，如果返回 null，则使用默认路由。
- */
 module.exports = async function router(req, config) {
   const userMessage = req.body.messages.find(m => m.role === 'user')?.content;
-
-  if (userMessage && userMessage.includes('解释这段代码')) {
-    // 为代码解释任务使用更强大的模型
+  if (userMessage?.includes('解释这段代码')) {
     return 'openrouter,anthropic/claude-3.5-sonnet';
   }
-
-  // 回退到默认的路由配置
   return null;
 };
 ```
 
-##### 子代理路由
+完整示例请参阅仓库根目录的 `custom-router.example.js`。
 
-对于子代理内的路由，您必须在子代理提示词的**开头**包含 `<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>` 来指定特定的提供商和模型。这样可以将特定的子代理任务定向到指定的模型。
+### 子代理路由
 
-**示例：**
+在子代理提示词开头添加以下标签将其锁定到特定模型：
 
 ```
-<CCR-SUBAGENT-MODEL>openrouter,anthropic/claude-3.5-sonnet</CCR-SUBAGENT-MODEL>
-请帮我分析这段代码是否存在潜在的优化空间...
+<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+请帮我分析这段代码...
 ```
 
-## Status Line (Beta)
-为了在运行时更好的查看claude-code-router的状态，claude-code-router在v1.0.40内置了一个statusline工具，你可以在UI中启用它，
-![statusline-config.png](/blog/images/statusline-config.png)
+## 📊 日志
 
-效果如下：
-![statusline](/blog/images/statusline.png)
+- **服务器级日志**（pino）：`~/.claude-code-router/logs/ccr-*.log` — HTTP 请求、API 调用、服务器事件。级别由 `LOG_LEVEL` 控制。
+- **应用级日志**：`~/.claude-code-router/claude-code-router.log` — 路由决策和业务逻辑事件。
 
-## 🤖 GitHub Actions
+## 🛠️ 开发
 
-将 Claude Code Router 集成到您的 CI/CD 管道中。在设置 [Claude Code Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions) 后，修改您的 `.github/workflows/claude.yaml` 以使用路由器：
+### 前置条件
 
-```yaml
-name: Claude Code
+- Bun ≥ 1.1.0
+- PostgreSQL
+- Redis
 
-on:
-  issue_comment:
-    types: [created]
-  # ... other triggers
+开发容器（`.devcontainer/compose.yaml`）会自动提供 `postgres` 和 `redis`。
 
-jobs:
-  claude:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      # ... other conditions
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+### 初始化
 
-      - name: Prepare Environment
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          mkdir -p $HOME/.claude-code-router
-          cat << 'EOF' > $HOME/.claude-code-router/config.json
-          {
-            "log": true,
-            "NON_INTERACTIVE_MODE": true,
-            "OPENAI_API_KEY": "${{ secrets.OPENAI_API_KEY }}",
-            "OPENAI_BASE_URL": "https://api.deepseek.com",
-            "OPENAI_MODEL": "deepseek-chat"
-          }
-          EOF
-        shell: bash
-
-      - name: Start Claude Code Router
-        run: |
-          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
-        shell: bash
-
-      - name: Run Claude Code
-        id: claude
-        uses: anthropics/claude-code-action@beta
-        env:
-          ANTHROPIC_BASE_URL: http://localhost:3456
-        with:
-          anthropic_api_key: "any-string-is-ok"
+```shell
+bun install
 ```
 
-这种设置可以实现有趣的自动化，例如在非高峰时段运行任务以降低 API 成本。
+```shell
+# .env
+DATABASE_URL=postgres://postgres:password@postgres:5432/ccr
+REDIS_URL=redis://redis:6379
+```
 
-## 📝 深入阅读
+```shell
+bun run db:migrate
+bun run dev         # Vite 开发服务器（端口 16173）
+```
 
--   [项目动机和工作原理](blog/zh/项目初衷及原理.md)
--   [也许我们可以用路由器做更多事情](blog/zh/或许我们能在Router中做更多事情.md)
+### 构建
 
-## ❤️ 支持与赞助
+```shell
+bun run build       # Vite 生产构建（SPA 输出到 dist/）
+```
 
-如果您觉得这个项目有帮助，请考虑赞助它的开发。非常感谢您的支持！
+### 测试
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F31GN2GM)
+```shell
+bun run test              # 单元测试和数据库测试
+bun run test:providers    # 提供商集成测试
+```
 
-[Paypal](https://paypal.me/musistudio1999)
+### 数据库工具
 
-<table>
-  <tr>
-    <td><img src="/blog/images/alipay.jpg" width="200" alt="Alipay" /></td>
-    <td><img src="/blog/images/wechat.jpg" width="200" alt="WeChat Pay" /></td>
-  </tr>
-</table>
+| 脚本 | 用途 |
+|------|------|
+| `bun run db:generate` | 重新生成 Prisma 客户端 |
+| `bun run db:migrate` | 创建并应用迁移（开发）|
+| `bun run db:migrate:deploy` | 应用现有迁移（生产 / CI）|
+| `bun run db:reset` | 删除并重建 schema（破坏性）|
+| `bun run db:studio` | 打开 Prisma Studio |
 
-### 我们的赞助商
+请始终通过 Prisma 迁移管理 schema，切勿直接编辑 DDL。
 
-非常感谢所有赞助商的慷慨支持！
+### 价格数据抓取
 
-- [AIHubmix](https://aihubmix.com/)
-- [BurnCloud](https://ai.burncloud.com)
-- [302.AI](https://share.302.ai/ZGVF9w)
-- [Z智谱](https://www.bigmodel.cn/claude-code?ic=FPF9IVAGFJ)
-- @Simon Leischnig
-- [@duanshuaimin](https://github.com/duanshuaimin)
-- [@vrgitadmin](https://github.com/vrgitadmin)
-- @*o
-- [@ceilwoo](https://github.com/ceilwoo)
-- @*说
-- @*更
-- @K*g
-- @R*R
-- [@bobleer](https://github.com/bobleer)
-- @*苗
-- @*划
-- [@Clarence-pan](https://github.com/Clarence-pan)
-- [@carter003](https://github.com/carter003)
-- @S*r
-- @*晖
-- @*敏
-- @Z*z
-- @*然
-- [@cluic](https://github.com/cluic)
-- @*苗
-- [@PromptExpert](https://github.com/PromptExpert)
-- @*应
-- [@yusnake](https://github.com/yusnake)
-- @*飞
-- @董*
-- @*汀
-- @*涯
-- @*:-）
-- @**磊
-- @*琢
-- @*成
-- @Z*o
-- @\*琨
-- [@congzhangzh](https://github.com/congzhangzh)
-- @*_
-- @Z\*m
-- @*鑫
-- @c\*y
-- @\*昕
-- [@witsice](https://github.com/witsice)
-- @b\*g
-- @\*亿
-- @\*辉
-- @JACK 
-- @\*光
-- @W\*l
-- [@kesku](https://github.com/kesku)
-- [@biguncle](https://github.com/biguncle)
-- @二吉吉
-- @a\*g
-- @\*林
-- @\*咸
-- @\*明
-- @S\*y
-- @f\*o
-- @\*智
-- @F\*t
-- @r\*c
-- [@qierkang](http://github.com/qierkang)
-- @\*军
-- [@snrise-z](http://github.com/snrise-z)
-- @\*王
-- [@greatheart1000](http://github.com/greatheart1000)
-- @\*王
-- @zcutlip
-- [@Peng-YM](http://github.com/Peng-YM)
-- @\*更
-- @\*.
-- @F\*t
-- @\*政
-- @\*铭
-- @\*叶
-- @七\*o
-- @\*青
-- @\*\*晨
-- @\*远
-- @\*霄
-- @\*\*吉
-- @\*\*飞
-- @\*\*驰
-- @x\*g
-- @\*\*东
-- @\*落
-- @哆\*k
-- @\*涛
-- [@苗大](https://github.com/WitMiao)
-- @\*呢
-- @\d*u
-- @crizcraig
-- s\*s
-- \*火
-- \*勤
-- \*\*锟
-- \*涛
-- \*\*明
-- \*知
-- \*语
-- \*瓜
+| 脚本 | 用途 |
+|------|------|
+| `bun run scrape:openai-prices` | 抓取 OpenAI 模型价格 |
+| `bun run scrape:anthropic-prices` | 抓取 Anthropic 模型价格 |
+| `bun run scrape:google-prices` | 抓取 Google / Gemini 价格 |
+| `bun run scrape:prices` | 抓取以上所有价格 |
 
-（如果您的名字被屏蔽，请通过我的主页电子邮件与我联系，以便使用您的 GitHub 用户名进行更新。）
+### 发布
 
+| 脚本 | 用途 |
+|------|------|
+| `bun run release` | 构建并发布 Docker 镜像 |
+| `bun run release:docker` | 仅发布 Docker 镜像 |
 
-## 交流群
-<img src="/blog/images/wechat_group.jpg" width="200" alt="wechat_group" />
+## 许可证
+
+MIT — 详见 `LICENSE`。
