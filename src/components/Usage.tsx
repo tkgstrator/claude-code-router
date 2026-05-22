@@ -179,7 +179,7 @@ export function Usage() {
       <PageContent className='space-y-6'>
         <section className='space-y-3'>
           <div className='flex items-center justify-between'>
-            <h3 className='text-sm font-semibold'>{t('usage.apiCost')}</h3>
+            <h3 className='text-base font-semibold'>{t('usage.apiCost')}</h3>
             <div className='flex gap-1'>
               {([7, 30, 0] as const).map((d) => (
                 <Button
@@ -237,7 +237,7 @@ export function Usage() {
         </section>
 
         <section className='space-y-3'>
-          <h3 className='text-sm font-semibold'>{t('usage.history')}</h3>
+          <h3 className='text-base font-semibold'>{t('usage.history')}</h3>
           {rows.length === 0 ? (
             <p className='text-sm text-muted-foreground'>{t('usage.historyEmpty')}</p>
           ) : (

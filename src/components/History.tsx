@@ -277,7 +277,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
       {/* Token stats */}
       <div>
-        <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.tokens')}</h3>
+        <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.tokens')}</h3>
         <div className='bg-muted rounded-lg divide-y'>
           {tokenRows.map((row) => (
             <div key={row.label} className='flex items-center justify-between px-4 py-2.5 text-sm'>
@@ -290,7 +290,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
       {/* Cache hit rate */}
       <div>
-        <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.cache')}</h3>
+        <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.cache')}</h3>
         <div className='bg-muted rounded-lg px-4 py-3 flex items-center gap-4'>
           <CacheBar pct={session.avgCacheHitPct} />
           <span className='text-sm text-muted-foreground'>{t('history.detail.cache_hit_rate')}</span>
@@ -300,7 +300,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       {/* Per-model breakdown */}
       {modelBreakdown.length > 0 && (
         <div>
-          <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.model_breakdown')}</h3>
+          <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.model_breakdown')}</h3>
           <div className='bg-muted rounded-lg divide-y'>
             {modelBreakdown.map((entry) => (
               <div key={entry.model} className='flex items-center gap-2 px-4 py-2 text-[11px]'>
@@ -328,7 +328,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
       {/* Individual requests */}
       <div>
-        <h3 className='text-sm font-semibold text-foreground mb-2'>{t('history.detail.requests_list')}</h3>
+        <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.requests_list')}</h3>
         {loadingLogs ? (
           <p className='text-sm text-muted-foreground'>{t('history.loading')}</p>
         ) : (

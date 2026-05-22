@@ -249,7 +249,7 @@ export function Subscriptions() {
         {error && <div className='text-sm text-red-500'>{t('usage.loadError')}</div>}
 
         <section className='space-y-3'>
-          <h3 className='text-sm font-semibold'>{t('usage.claude')}</h3>
+          <h3 className='text-base font-semibold'>{t('usage.claude')}</h3>
           {data?.claude.length === 0 ? (
             <NotRegistered
               message={t('usage.claudeNotRegistered')}
@@ -267,7 +267,7 @@ export function Subscriptions() {
         </section>
 
         <section className='space-y-3'>
-          <h3 className='text-sm font-semibold'>{t('usage.codex')}</h3>
+          <h3 className='text-base font-semibold'>{t('usage.codex')}</h3>
           {data?.codex.length === 0 ? (
             <NotRegistered
               message={t('usage.codexNotRegistered')}
