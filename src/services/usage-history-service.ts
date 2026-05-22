@@ -111,7 +111,7 @@ export interface UsageHistory {
 export async function getUsageHistory(days: number): Promise<UsageHistory> {
   const since = dayjs().subtract(days, 'day').toDate()
   const rows = await getPrismaClient().usageSnapshot.findMany({
-    where: { capturedAt: { gte: since } },
+    where: { capturedAt: { gte: since }, metric: { not: { contains: ':' } } },
     orderBy: { capturedAt: 'asc' },
     select: { metric: true, percent: true, capturedAt: true, resetAt: true }
   })
