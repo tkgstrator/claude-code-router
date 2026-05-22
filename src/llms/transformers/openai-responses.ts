@@ -290,7 +290,7 @@ export class OpenAIResponsesTransformer extends Transformer {
     const parsed = ResponsesAPIPayloadSchema.safeParse(raw)
     if (!parsed.success) {
       throw new HTTPException(500, {
-        message: `Invalid OpenAI Responses payload: ${parsed.error.message}`
+        message: `Invalid OpenAI Responses payload: ${JSON.stringify(parsed.error.issues)}`
       })
     }
     const jsonResponse = parsed.data

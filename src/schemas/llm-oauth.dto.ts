@@ -107,6 +107,41 @@ export const OauthProviderTransformerSchema = z.object({
 })
 export type OauthProviderTransformer = z.infer<typeof OauthProviderTransformerSchema>
 
+// ─── Credential file import schemas ────────────────────────────────────
+//
+// Accepted formats for POST /api/oauth/import-credentials.
+
+const ClaudeTokensSchema = z.object({
+  accessToken: z.string().nonempty(),
+  refreshToken: z.string().default(''),
+  expiresAt: z.number().nullable().optional(),
+  scopes: z.array(z.string()).optional()
+})
+
+// ~/.claude/.credentials.json wraps tokens under a `claudeAiOauth` key;
+// the flat variant is also accepted for convenience.
+export const ClaudeCredentialsFileSchema = z.union([
+  z.object({ claudeAiOauth: ClaudeTokensSchema }).transform((v) => v.claudeAiOauth),
+  ClaudeTokensSchema
+])
+export type ClaudeCredentialsFile = z.infer<typeof ClaudeCredentialsFileSchema>
+
+// ~/.codex/auth.json nests tokens under a `tokens` key using snake_case.
+export const CodexCredentialsFileSchema = z
+  .object({
+    tokens: z.object({
+      access_token: z.string().nonempty(),
+      refresh_token: z.string().default(''),
+      id_token: z.string().nonempty()
+    })
+  })
+  .transform((v) => ({
+    accessToken: v.tokens.access_token,
+    refreshToken: v.tokens.refresh_token,
+    idToken: v.tokens.id_token
+  }))
+export type CodexCredentialsFile = z.infer<typeof CodexCredentialsFileSchema>
+
 // ─── PackageJson (codex CLI version probe) ─────────────────────────────
 
 /** Minimal `package.json` shape codex-oauth reads to fingerprint the

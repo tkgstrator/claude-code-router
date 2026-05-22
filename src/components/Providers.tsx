@@ -1,4 +1,4 @@
-import { Eye, EyeOff, LogIn, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Eye, EyeOff, FileUp, LogIn, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -56,6 +56,18 @@ export function Providers() {
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
   const [connectChoiceOpen, setConnectChoiceOpen] = useState(false)
+  const [manualCallbackOpen, setManualCallbackOpen] = useState(false)
+  const [manualCallbackUrl, setManualCallbackUrl] = useState('')
+  const [manualCallbackLoading, setManualCallbackLoading] = useState(false)
+  const [manualCallbackError, setManualCallbackError] = useState<string | null>(null)
+  const [importCredOpen, setImportCredOpen] = useState(false)
+  const [importCredProvider, setImportCredProvider] = useState<'claude' | 'codex'>('claude')
+  const [importCredFile, setImportCredFile] = useState<File | null>(null)
+  const [importCredLoading, setImportCredLoading] = useState(false)
+  const [importCredError, setImportCredError] = useState<string | null>(null)
+  const importCredFileRef = useRef<HTMLInputElement>(null)
+
+  const isRemoteAccess = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
 
   // Subscription OAuth loopback flow:
   // 1. UI asks user to pick a provider (claude or codex) in a dialog.
@@ -67,6 +79,11 @@ export function Providers() {
   // 4. Server completes the token exchange, writes the credentials file,
   //    and triggers SubAccount sync. User closes the success tab and
   //    refreshes the subscription panel to see the new account.
+  //
+  // For remote deployments (non-localhost), the loopback callback cannot
+  // be reached from the user's browser. In that case we show a dialog
+  // asking the user to copy the redirect URL from the address bar so the
+  // server can complete the exchange via /api/oauth/manual-callback.
   const handleConnectProvider = async (provider: 'claude' | 'codex') => {
     setConnectChoiceOpen(false)
     try {
@@ -79,8 +96,71 @@ export function Providers() {
         return
       }
       window.open(res.authorizeUrl, '_blank', 'noopener,noreferrer')
+      if (provider === 'claude' && isRemoteAccess) {
+        setManualCallbackUrl('')
+        setManualCallbackError(null)
+        setManualCallbackOpen(true)
+      }
     } catch (err) {
       console.error(t('providers.connect_failed'), err)
+    }
+  }
+
+  const handleManualCallback = async () => {
+    if (!manualCallbackUrl.trim()) return
+    setManualCallbackLoading(true)
+    setManualCallbackError(null)
+    try {
+      const res = await api.post<{ success: boolean; error?: string }>('/oauth/manual-callback', {
+        url: manualCallbackUrl.trim()
+      })
+      if (res.success) {
+        setManualCallbackOpen(false)
+        await fetchSubscriptions()
+        showToast(t('providers.oauth_result_success_title'), 'success')
+      } else {
+        setManualCallbackError(res.error ?? 'Unknown error')
+      }
+    } catch (err) {
+      setManualCallbackError(err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setManualCallbackLoading(false)
+    }
+  }
+
+  const handleImportCredentials = async () => {
+    setImportCredError(null)
+    if (!importCredFile) {
+      setImportCredError(t('providers.import_cred_no_file'))
+      return
+    }
+    let parsed: unknown
+    try {
+      const text = await importCredFile.text()
+      parsed = JSON.parse(text)
+    } catch {
+      setImportCredError(t('providers.import_cred_invalid_json'))
+      return
+    }
+    setImportCredLoading(true)
+    try {
+      const res = await api.post<{ success: boolean; error?: string }>('/oauth/import-credentials', {
+        provider: importCredProvider,
+        credentials: parsed
+      })
+      if (res.success) {
+        setImportCredOpen(false)
+        setImportCredFile(null)
+        if (importCredFileRef.current) importCredFileRef.current.value = ''
+        await fetchSubscriptions()
+        showToast(t('providers.oauth_result_success_title'), 'success')
+      } else {
+        setImportCredError(res.error ?? 'Unknown error')
+      }
+    } catch (err) {
+      setImportCredError(err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setImportCredLoading(false)
     }
   }
 
@@ -1236,6 +1316,105 @@ export function Providers() {
             <Button variant='outline' className='justify-start' onClick={() => handleConnectProvider('codex')}>
               <LogIn className='h-4 w-4' />
               {t('providers.connect_codex_option')}
+            </Button>
+            <Button
+              variant='outline'
+              className='justify-start'
+              onClick={() => {
+                setConnectChoiceOpen(false)
+                setImportCredFile(null)
+                setImportCredError(null)
+                setImportCredProvider('claude')
+                setImportCredOpen(true)
+              }}
+            >
+              <FileUp className='h-4 w-4' />
+              {t('providers.connect_import_option')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual callback relay — for remote deployments where localhost is unreachable */}
+      <Dialog open={manualCallbackOpen} onOpenChange={setManualCallbackOpen}>
+        <DialogContent className='sm:max-w-lg'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.manual_callback_title')}</DialogTitle>
+            <DialogDescription>{t('providers.manual_callback_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='space-y-3 py-2'>
+            <Label htmlFor='callback-url'>{t('providers.manual_callback_label')}</Label>
+            <Input
+              id='callback-url'
+              placeholder='yA88Lgr...#pj8oVX_...'
+              value={manualCallbackUrl}
+              onChange={(e) => setManualCallbackUrl(e.target.value)}
+            />
+            {manualCallbackError && <p className='text-sm text-destructive'>{manualCallbackError}</p>}
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' onClick={() => setManualCallbackOpen(false)}>
+              {t('app.cancel')}
+            </Button>
+            <Button onClick={handleManualCallback} disabled={manualCallbackLoading || !manualCallbackUrl.trim()}>
+              {manualCallbackLoading ? t('app.loading') : t('providers.manual_callback_submit')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import credentials file — accepts ~/.claude/.credentials.json or ~/.codex/auth.json */}
+      <Dialog open={importCredOpen} onOpenChange={setImportCredOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.import_cred_title')}</DialogTitle>
+            <DialogDescription>{t('providers.import_cred_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-2'>
+            <div className='space-y-2'>
+              <Label>{t('providers.import_cred_provider_label')}</Label>
+              <div className='flex gap-2'>
+                <Button
+                  size='sm'
+                  variant={importCredProvider === 'claude' ? 'default' : 'outline'}
+                  onClick={() => setImportCredProvider('claude')}
+                >
+                  Claude
+                </Button>
+                <Button
+                  size='sm'
+                  variant={importCredProvider === 'codex' ? 'default' : 'outline'}
+                  onClick={() => setImportCredProvider('codex')}
+                >
+                  Codex
+                </Button>
+              </div>
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='cred-file'>
+                {importCredProvider === 'claude'
+                  ? t('providers.import_cred_file_label_claude')
+                  : t('providers.import_cred_file_label_codex')}
+              </Label>
+              <Input
+                id='cred-file'
+                type='file'
+                accept='.json,application/json'
+                ref={importCredFileRef}
+                onChange={(e) => {
+                  setImportCredFile(e.target.files?.[0] ?? null)
+                  setImportCredError(null)
+                }}
+              />
+            </div>
+            {importCredError && <p className='text-sm text-destructive'>{importCredError}</p>}
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' onClick={() => setImportCredOpen(false)}>
+              {t('app.cancel')}
+            </Button>
+            <Button onClick={handleImportCredentials} disabled={importCredLoading || !importCredFile}>
+              {importCredLoading ? t('app.loading') : t('providers.import_cred_submit')}
             </Button>
           </div>
         </DialogContent>

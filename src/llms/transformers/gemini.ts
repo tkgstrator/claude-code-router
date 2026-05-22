@@ -43,13 +43,7 @@ export class GeminiTransformer extends Transformer {
   }
 
   async transformRequestOut(request: unknown, _context: TransformerContext): Promise<UnifiedChatRequest> {
-    const parsed = RecordSchema.safeParse(request)
-    if (!parsed.success) {
-      throw new HTTPException(400, {
-        message: 'Gemini request body must be a JSON object'
-      })
-    }
-    return transformRequestOut(parsed.data)
+    return transformRequestOut(RecordSchema.parse(request))
   }
 
   async transformResponseOut(response: Response, _context: TransformerContext): Promise<Response> {

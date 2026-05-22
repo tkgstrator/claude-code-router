@@ -16,6 +16,18 @@
  *     token exchange + credentials writer, then trigger the
  *     SubAccount sync.
  *
+ *   POST /api/oauth/manual-callback   (gated by APIKEY)
+ *     For remote deployments where the browser cannot reach the loopback
+ *     callback directly (e.g. Cloudflare Tunnel). The UI instructs the
+ *     user to copy the redirect URL from the browser address bar and
+ *     submit it here; the server extracts code+state and completes the
+ *     exchange server-side.
+ *
+ *   POST /api/oauth/import-credentials   (gated by APIKEY)
+ *     Accepts a raw credentials payload (or a parsed ~/.claude/.credentials.json
+ *     / ~/.codex/auth.json object) and upserts the SubAccount directly,
+ *     bypassing the OAuth dance entirely.
+ *
  * Pending flows live in a process-memory map (PoC scope). CSRF
  * protection is the single-use `state` token issued at /initiate;
  * /callback validates against that and rejects unknown / expired
@@ -25,6 +37,7 @@
 
 import { Hono } from 'hono'
 import { logger } from '../../logger'
+import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../schemas/llm-oauth.dto'
 import { buildClaudeAuthorizeUrl, CLAUDE_SCOPES, exchangeClaudeCode } from '../../services/claude-oauth-service'
 import { CODEX_CALLBACK_PORT, ensureCodexCallbackListener } from '../../services/codex-callback-listener'
 import { buildCodexAuthorizeUrl, CODEX_CALLBACK_PATH } from '../../services/codex-oauth-service'
@@ -34,7 +47,7 @@ import {
   generateState,
   storePendingFlow
 } from '../../services/oauth-flow-service'
-import { recordClaudeOAuthAccount } from '../../services/subscription-account-sync-service'
+import { recordClaudeOAuthAccount, recordCodexOAuthAccount } from '../../services/subscription-account-sync-service'
 
 export const oauthRoute = new Hono()
 
@@ -68,7 +81,17 @@ oauthRoute.post('/api/oauth/initiate/:provider', async (c) => {
     }
     redirectUri = `http://localhost:${CODEX_CALLBACK_PORT}${callbackPath}`
   } else {
-    redirectUri = `http://localhost:${initiateUrl.port}${callbackPath}`
+    const isLoopback = initiateUrl.hostname === 'localhost' || initiateUrl.hostname === '127.0.0.1'
+    if (isLoopback) {
+      // Local access: use the loopback callback so the server handles the exchange automatically.
+      const port = initiateUrl.port || process.env.PORT || '3456'
+      redirectUri = `http://localhost:${port}${callbackPath}`
+    } else {
+      // Remote access (e.g. Cloudflare Tunnel): use Anthropic's own display callback.
+      // Instead of redirecting the browser to an unreachable localhost, Anthropic shows
+      // the authorization code on their platform page so the user can copy it manually.
+      redirectUri = 'https://platform.claude.com/oauth/code/callback'
+    }
   }
 
   const state = generateState()
@@ -129,4 +152,112 @@ oauthRoute.get(CLAUDE_CALLBACK_PATH, async (c) => {
     const message = err instanceof Error ? err.message : 'Unknown error during token exchange.'
     return c.redirect(resultUrl('error', message))
   }
+})
+
+// Remote-deployment relay: the browser cannot reach the loopback callback
+// when CCR is hosted behind a reverse proxy, so the UI asks the user to
+// copy the redirect URL and POST it here. Extracts code+state and runs the
+// same token exchange as the loopback GET /callback handler above.
+oauthRoute.post('/api/oauth/manual-callback', async (c) => {
+  const body = await c.req.json<{ url?: string; code?: string; state?: string }>()
+
+  let code: string | undefined
+  let state: string | undefined
+
+  if (typeof body.url === 'string' && body.url.length > 0) {
+    const raw = body.url.trim()
+    // Support three input formats:
+    //   1. Full URL:   https://platform.claude.com/oauth/code/callback?code=...&state=...
+    //   2. code#state: yA88L...#pj8oV...  (displayed by platform.claude.com)
+    //   3. code only:  yA88L...           (state must be in body.state)
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      try {
+        const parsed = new URL(raw)
+        code = parsed.searchParams.get('code') ?? undefined
+        state = parsed.searchParams.get('state') ?? undefined
+      } catch {
+        return c.json({ success: false as const, error: 'Invalid URL.' }, 400)
+      }
+    } else if (raw.includes('#')) {
+      const [c_, s_] = raw.split('#', 2)
+      code = c_
+      state = s_
+    } else {
+      code = raw
+      state = typeof body.state === 'string' ? body.state : undefined
+    }
+  } else {
+    code = typeof body.code === 'string' ? body.code : undefined
+    state = typeof body.state === 'string' ? body.state : undefined
+  }
+
+  if (!code) return c.json({ success: false as const, error: 'Missing `code` in URL.' }, 400)
+  if (!state) return c.json({ success: false as const, error: 'Missing `state` in URL.' }, 400)
+
+  const pending = consumePendingFlow(state)
+  if (!pending)
+    return c.json({ success: false as const, error: 'Unknown or expired state. Start the flow again.' }, 400)
+  if (pending.provider !== 'claude')
+    return c.json(
+      { success: false as const, error: `State belongs to provider "${pending.provider}", not "claude".` },
+      400
+    )
+
+  try {
+    const tokens = await exchangeClaudeCode({
+      code,
+      codeVerifier: pending.codeVerifier,
+      redirectUri: pending.redirectUri,
+      state
+    })
+    await recordClaudeOAuthAccount({
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiresAt: Date.now() + tokens.expires_in * 1000,
+      scopes: CLAUDE_SCOPES
+    })
+    return c.json({ success: true as const })
+  } catch (err) {
+    logger.error({ err, provider: 'claude' }, '[oauth] manual-callback failed')
+    const message = err instanceof Error ? err.message : 'Unknown error during token exchange.'
+    return c.json({ success: false as const, error: message }, 500)
+  }
+})
+
+// Bypass the OAuth dance: accept a raw credential payload and upsert the
+// SubAccount directly. Useful for remote deployments where the loopback
+// callback is unreachable and the user already has a credentials file.
+oauthRoute.post('/api/oauth/import-credentials', async (c) => {
+  const body = await c.req.json<{ provider: string; credentials: unknown }>()
+
+  if (body.provider === 'claude') {
+    const { accessToken, refreshToken, expiresAt, scopes } = ClaudeCredentialsFileSchema.parse(body.credentials)
+    try {
+      await recordClaudeOAuthAccount({
+        accessToken,
+        refreshToken,
+        expiresAt: expiresAt ?? null,
+        scopes: scopes ?? CLAUDE_SCOPES
+      })
+      return c.json({ success: true as const })
+    } catch (err) {
+      logger.error({ err }, '[oauth] import-credentials (claude) failed')
+      const message = err instanceof Error ? err.message : 'Failed to record account.'
+      return c.json({ success: false as const, error: message }, 500)
+    }
+  }
+
+  if (body.provider === 'codex') {
+    const data = CodexCredentialsFileSchema.parse(body.credentials)
+    try {
+      await recordCodexOAuthAccount(data)
+      return c.json({ success: true as const })
+    } catch (err) {
+      logger.error({ err }, '[oauth] import-credentials (codex) failed')
+      const message = err instanceof Error ? err.message : 'Failed to record account.'
+      return c.json({ success: false as const, error: message }, 500)
+    }
+  }
+
+  return c.json({ success: false as const, error: `Unsupported provider "${body.provider}".` }, 400)
 })
