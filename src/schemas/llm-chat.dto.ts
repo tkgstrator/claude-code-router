@@ -258,6 +258,37 @@ export const AnthropicIncomingRequestSchema = z.object({
       type: z.string().nonempty(),
       budget_tokens: z.number().int().nonnegative().optional()
     })
-    .optional()
+    .optional(),
+  // Claude Code extension fields observed in captured traffic.
+  // Typed loosely — internal shapes may evolve without notice.
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  context_management: z.record(z.string(), z.unknown()).optional(),
+  output_config: z.record(z.string(), z.unknown()).optional(),
+  diagnostics: z.record(z.string(), z.unknown()).optional()
 })
 export type AnthropicIncomingRequest = z.input<typeof AnthropicIncomingRequestSchema>
+
+// ─── Anthropic incoming request headers ────────────────────────────────
+// Headers that Claude Code (or any compliant client) must send to CCR's
+// /v1/messages endpoint. Validated against the captured fixture corpus in
+// fixture-schemas.test.ts so a breaking change to the expected header set
+// surfaces as a test failure rather than a runtime surprise.
+
+export const AnthropicIncomingRequestHeadersSchema = z
+  .object({
+    // Required by the Anthropic Messages API spec.
+    'anthropic-version': z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'anthropic-version must be YYYY-MM-DD'),
+    // Exactly one of these auth headers must be present.
+    'x-api-key': z.string().min(1).optional(),
+    authorization: z.string().min(1).optional(),
+    // Standard MIME type — optional but always sent by Claude Code.
+    'content-type': z.string().optional(),
+    // Comma-separated beta feature flags e.g. "interleaved-thinking-2025-05-14".
+    'anthropic-beta': z.string().optional()
+  })
+  .passthrough()
+  .refine((h) => h['x-api-key'] !== undefined || h['authorization'] !== undefined, {
+    message: 'Request must carry either x-api-key or authorization header'
+  })
+
+export type AnthropicIncomingRequestHeaders = z.input<typeof AnthropicIncomingRequestHeadersSchema>

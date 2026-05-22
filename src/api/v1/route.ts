@@ -211,6 +211,13 @@ async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response |
   // supports — BEFORE the upstream call.
   normalizeEffort(body, model)
 
+  // Consume and remove CCR-internal extensions that Claude Code adds for
+  // CCR-specific features (context management, diagnostics, effort tuning).
+  // These must not reach any upstream provider API.
+  delete body.context_management
+  delete body.output_config
+  delete body.diagnostics
+
   // Resolve the provider; an unknown one fails fast.
   const provider = ctx.providers.get(providerName)
   if (!provider) {
