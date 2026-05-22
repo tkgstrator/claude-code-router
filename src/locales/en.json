@@ -37,6 +37,7 @@
     "providers": "Providers",
     "router": "Router",
     "transformers": "Transformers",
+    "subscriptions": "Subscriptions",
     "usage": "Usage",
     "history": "History",
     "settings": "Settings"
@@ -74,7 +75,9 @@
     "apiCostSaved": "Saved {{amount}}",
     "apiCostOver": "Over by {{amount}}",
     "apiCostBreakEven": "Break even",
-    "apiCostSyncNeeded": "Sync profiles to see subscription savings"
+    "apiCostSyncNeeded": "Sync profiles to see subscription savings",
+    "subscriptionSavings": "Subscription Savings",
+    "sync": "Sync"
   },
   "models": {
     "provider": "Provider",

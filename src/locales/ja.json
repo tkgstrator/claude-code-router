@@ -37,6 +37,7 @@
     "providers": "プロバイダー",
     "router": "ルーター",
     "transformers": "Transformer",
+    "subscriptions": "サブスクリプション",
     "usage": "使用状況",
     "history": "履歴",
     "settings": "設定"
@@ -74,7 +75,9 @@
     "apiCostSaved": "{{amount}} お得",
     "apiCostOver": "{{amount}} 超過",
     "apiCostBreakEven": "トントン",
-    "apiCostSyncNeeded": "サブスクの節約額を表示するにはプロファイルを同期してください"
+    "apiCostSyncNeeded": "サブスクの節約額を表示するにはプロファイルを同期してください",
+    "subscriptionSavings": "サブスク節約額",
+    "sync": "同期"
   },
   "models": {
     "provider": "プロバイダー",

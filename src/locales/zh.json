@@ -37,6 +37,7 @@
     "providers": "供应商",
     "router": "路由",
     "transformers": "转换器",
+    "subscriptions": "订阅",
     "usage": "用量",
     "history": "历史",
     "settings": "设置"
@@ -74,7 +75,9 @@
     "apiCostSaved": "节省 {{amount}}",
     "apiCostOver": "超出 {{amount}}",
     "apiCostBreakEven": "持平",
-    "apiCostSyncNeeded": "同步配置文件以查看订阅节省金额"
+    "apiCostSyncNeeded": "同步配置文件以查看订阅节省金额",
+    "subscriptionSavings": "订阅节省",
+    "sync": "同步"
   },
   "models": {
     "provider": "供应商",

@@ -1,5 +1,6 @@
 import {
   CircleArrowUp,
+  CreditCard,
   FileJson,
   FileText,
   Gauge,
@@ -59,6 +60,7 @@ interface ShellOutletContext {
 const NAV_ITEMS = [
   { to: '/models', icon: LayoutDashboard, key: 'nav.models' },
   { to: '/providers', icon: Server, key: 'nav.providers' },
+  { to: '/subscriptions', icon: CreditCard, key: 'nav.subscriptions' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
   { to: '/usage', icon: Gauge, key: 'nav.usage' },
   { to: '/history', icon: History, key: 'nav.history' },
