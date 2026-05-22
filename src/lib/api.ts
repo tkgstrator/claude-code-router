@@ -177,6 +177,10 @@ class ApiClient {
   }
 
   // Request logs
+  async getSessionSummary(sessionId: string): Promise<SessionSummary> {
+    return this.get<SessionSummary>(`/request-logs/sessions/${encodeURIComponent(sessionId)}/summary`)
+  }
+
   async getSessionLogs(sessionId: string): Promise<{ items: RequestLogItem[] }> {
     return this.get<{ items: RequestLogItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}`)
   }
