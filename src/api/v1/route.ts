@@ -271,8 +271,13 @@ async function formatResponse(c: Context, response: Response, stream: boolean): 
     connection: 'keep-alive'
   })
   // Forward upstream cache / x-ratelimit headers when present.
+  // Strip encoding headers: Bun's fetch auto-decompresses the body, so
+  // content-encoding / transfer-encoding no longer describe what we send.
+  // Forwarding them would cause Claude Code to attempt double-decompression
+  // (ZlibError).
+  const SKIP = new Set(['content-type', 'content-encoding', 'transfer-encoding'])
   for (const [k, v] of response.headers.entries()) {
-    if (k.toLowerCase() === 'content-type') continue
+    if (SKIP.has(k.toLowerCase())) continue
     headers.set(k, v)
   }
   return new Response(response.body, { status: response.status, headers })

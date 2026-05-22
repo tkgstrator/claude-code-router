@@ -154,10 +154,19 @@ async function processRequestTransformers(
   let config: TransformerConfig = {}
 
   if (bypass) {
-    // Strip content-length: the upstream body will be re-serialized.
+    // Strip hop-by-hop and client-negotiation headers that must not be
+    // forwarded to the upstream provider:
+    //  - content-length: the body will be re-serialised by fetchProvider
+    //  - accept-encoding: CCR's fetch handles its own decompression; passing
+    //    the inbound value causes the upstream to return a compressed body
+    //    that Bun auto-decompresses, but the content-encoding header lingers
+    //    in the response and triggers a double-decompress ZlibError on the
+    //    Claude Code client side.
     const headers: Record<string, string | undefined> = { ...input.headers }
-    delete headers['content-length']
-    delete headers['Content-Length']
+    for (const key of Object.keys(headers)) {
+      const lower = key.toLowerCase()
+      if (lower === 'content-length' || lower === 'accept-encoding') delete headers[key]
+    }
     config = { headers }
     return { requestBody, config }
   }
