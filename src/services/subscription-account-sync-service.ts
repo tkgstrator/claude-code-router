@@ -489,10 +489,11 @@ const ensureFreshClaudeToken = async (
   }
 }
 
-// Re-fetch profile data for all Claude SubAccounts and update the DB in-place.
-// Refreshes expired tokens first so accounts with lapsed access tokens are
-// still reachable. Codex profile comes from the id_token JWT baked in at
-// OAuth time and does not change between sessions, so only Claude is synced.
+// Re-fetch profile data for all SubAccounts and update the DB in-place.
+// Claude: refreshes token first, then pulls /api/oauth/profile for name/plan/tier.
+// Codex: calls wham/usage which returns the live plan_type; updates plan +
+// monthlyPriceUsd in-place. The id_token JWT baked in at OAuth time is a
+// static snapshot — wham/usage is the authoritative live source.
 // Returns a count of rows updated / failed.
 export async function syncSubAccountProfiles(
   prisma: PrismaClient = getPrismaClient()
@@ -533,6 +534,44 @@ export async function syncSubAccountProfiles(
         }
       })
       updated++
+    }
+  }
+
+  // Codex: call wham/usage for each account to get the live plan_type.
+  const codexProviders = await providersForKind(prisma, 'codex')
+  for (const p of codexProviders) {
+    const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
+    for (const account of accounts) {
+      const accessToken = decryptString(account.accessTokenEnc, key)
+      if (!accessToken) continue
+      try {
+        const res = await fetch('https://chatgpt.com/backend-api/wham/usage', {
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            'content-type': 'application/json',
+            ...(account.accountId ? { 'chatgpt-account-id': account.accountId } : {})
+          }
+        })
+        if (!res.ok) {
+          logger.warn({ status: res.status }, '[subaccount] codex wham/usage non-OK')
+          failed++
+          continue
+        }
+        const raw = (await res.json()) as Record<string, unknown>
+        const planType = typeof raw.plan_type === 'string' && raw.plan_type.length > 0 ? raw.plan_type : null
+        await prisma.subAccount.update({
+          where: { id: account.id },
+          data: {
+            plan: planType ?? account.plan,
+            monthlyPriceUsd: planType !== null ? codexMonthlyPrice(planType) : account.monthlyPriceUsd,
+            lastSyncedAt: dayjs().toDate()
+          }
+        })
+        updated++
+      } catch (err) {
+        logger.warn({ err }, '[subaccount] codex wham/usage threw')
+        failed++
+      }
     }
   }
 
