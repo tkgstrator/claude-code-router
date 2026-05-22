@@ -37,12 +37,13 @@
     "providers": "Providers",
     "router": "Router",
     "transformers": "Transformers",
+    "subscriptions": "Subscriptions",
     "usage": "Usage",
     "history": "History",
     "settings": "Settings"
   },
   "usage": {
-    "title": "Subscription Usage",
+    "title": "Usage",
     "loadError": "Failed to load usage",
     "claude": "Claude (claude-code)",
     "claudeNotRegistered": "No Claude subscription connected yet.",
@@ -69,7 +70,16 @@
     "apiCostTotal": "Total",
     "apiCostPeriod7d": "7d",
     "apiCostPeriod30d": "30d",
-    "apiCostPeriodAll": "All"
+    "apiCostPeriodAll": "All",
+    "apiCostSubProrated": "{{price}} subscription · {{days}}d prorated",
+    "apiCostSaved": "Saved {{amount}}",
+    "apiCostOver": "Over by {{amount}}",
+    "apiCostBreakEven": "Break even",
+    "apiCostSyncNeeded": "Sync profiles to see subscription savings",
+    "apiCostHistory": "Daily Cost",
+    "apiCostHistoryEmpty": "No pricing data available for the selected period.",
+    "subscriptionSavings": "Subscription Savings",
+    "sync": "Sync"
   },
   "models": {
     "provider": "Provider",

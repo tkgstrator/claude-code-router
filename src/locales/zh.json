@@ -37,12 +37,13 @@
     "providers": "供应商",
     "router": "路由",
     "transformers": "转换器",
+    "subscriptions": "订阅",
     "usage": "用量",
     "history": "历史",
     "settings": "设置"
   },
   "usage": {
-    "title": "订阅用量",
+    "title": "用量",
     "loadError": "加载用量失败",
     "claude": "Claude（claude-code）",
     "claudeNotRegistered": "尚未连接 Claude 订阅。",
@@ -69,7 +70,16 @@
     "apiCostTotal": "合计",
     "apiCostPeriod7d": "7天",
     "apiCostPeriod30d": "30天",
-    "apiCostPeriodAll": "全部"
+    "apiCostPeriodAll": "全部",
+    "apiCostSubProrated": "{{price}} 订阅 · {{days}}天按比例",
+    "apiCostSaved": "节省 {{amount}}",
+    "apiCostOver": "超出 {{amount}}",
+    "apiCostBreakEven": "持平",
+    "apiCostSyncNeeded": "同步配置文件以查看订阅节省金额",
+    "apiCostHistory": "每日费用",
+    "apiCostHistoryEmpty": "所选时段内无定价数据。",
+    "subscriptionSavings": "订阅节省",
+    "sync": "同步"
   },
   "models": {
     "provider": "供应商",

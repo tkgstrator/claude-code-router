@@ -12,6 +12,7 @@ import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
 import { Router as RouterPanel } from '@/components/Router'
 import { SettingsPage } from '@/components/SettingsPage'
+import { Subscriptions } from '@/components/Subscriptions'
 import { Transformers } from '@/components/Transformers'
 import { Usage } from '@/components/Usage'
 
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/models', element: fullHeight(<ModelsDashboard />) },
       { path: '/providers', element: fullHeight(<Providers />) },
+      { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
       { path: '/router', element: fullHeight(<RouterPanel />) },
       { path: '/transformers', element: fullHeight(<Transformers />) },
       { path: '/usage', element: fullHeight(<Usage />) },
