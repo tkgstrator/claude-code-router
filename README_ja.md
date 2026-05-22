@@ -2,7 +2,7 @@
 [![](https://img.shields.io/badge/🇯🇵-日本語-bc002d?style=flat)](README_ja.md)
 [![](https://img.shields.io/badge/🇨🇳-中文版-ff0000?style=flat)](README_zh.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
-[![](https://img.shields.io/github/license/musistudio/claude-code-router)](https://github.com/musistudio/claude-code-router/blob/main/LICENSE)
+[![](https://img.shields.io/github/license/tkgstrator/claude-code-router)](https://github.com/tkgstrator/claude-code-router/blob/master/LICENSE)
 
 <hr>
 
@@ -66,7 +66,7 @@ EOF
 **ステップ 2 — `compose.yaml` をダウンロード：**
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/musistudio/claude-code-router/main/compose.yaml -o compose.yaml
+curl -fsSL https://raw.githubusercontent.com/tkgstrator/claude-code-router/master/compose.yaml -o compose.yaml
 ```
 
 **ステップ 3 — （任意）プロバイダー認証情報を `.env` に記述：**
