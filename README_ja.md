@@ -1,37 +1,54 @@
-[![](https://img.shields.io/badge/%F0%9F%87%AC%F0%9F%87%A7-English-000aff?style=flat)](README.md)
-[![](https://img.shields.io/badge/%F0%9F%87%A8%F0%9F%87%B3-%E4%B8%AD%E6%96%87%E7%89%88-ff0000?style=flat)](README_zh.md)
+[![](https://img.shields.io/badge/🇬🇧-English-000aff?style=flat)](README.md)
+[![](https://img.shields.io/badge/🇯🇵-日本語-bc002d?style=flat)](README_ja.md)
+[![](https://img.shields.io/badge/🇨🇳-中文版-ff0000?style=flat)](README_zh.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
 [![](https://img.shields.io/github/license/musistudio/claude-code-router)](https://github.com/musistudio/claude-code-router/blob/main/LICENSE)
 
 <hr>
 
-> このプロジェクトは Z.ai のスポンサーを受けており、GLM CODING PLAN によってサポートされています。
-
-> GLM CODING PLAN は AI コーディング向けサブスクリプションサービスで、月額 $10 からご利用いただけます。Claude Code、Cline、Roo Code などの 10 以上の AI コーディングツールで旗艦モデル GLM-4.7 にアクセスでき、開発者に最高水準の高速・安定したコーディング体験を提供します。
-
-> GLM CODING PLAN 10% OFF：https://z.ai/subscribe?ic=8JVLJQFSKB
-
-> Claude Code のリクエストを異なるモデルにルーティングし、あらゆるリクエストをカスタマイズする強力なツール。
+> Claude Code のセットアップを変えることなく、あらゆる LLM プロバイダーへリクエストをルーティングする強力なプロキシ。
 
 ## ✨ 機能
 
-- **モデルルーティング**: 用途に応じてリクエストを異なるモデルにルーティング（バックグラウンドタスク、思考、長コンテキストなど）。
-- **マルチプロバイダー対応**: OpenRouter、DeepSeek、Ollama、Gemini、Volcengine、SiliconFlow など多様なモデルプロバイダーをサポート。
-- **リクエスト/レスポンス変換**: トランスフォーマーを使って各プロバイダー向けにリクエスト・レスポンスをカスタマイズ。
-- **動的モデル切り替え**: Claude Code 内で `/model` コマンドを使ってモデルをその場で切り替え。
-- **CLI モデル管理**: `ccr model` コマンドでターミナルからモデルとプロバイダーを管理。
-- **GitHub Actions 連携**: GitHub ワークフローから Claude Code タスクをトリガー。
-- **プラグインシステム**: カスタムトランスフォーマーで機能を拡張。
-- **Claude Code サブスクリプション直結**: `claude-code-credentials` トランスフォーマーにより、ローカルの Claude Code OAuth トークンをそのまま利用。別途 API キー不要。
-- **OpenAI Codex 対応**: `openai-responses` トランスフォーマーと OpenAI API キーを使い、Claude Code のリクエストを OpenAI のコーディングエージェント Codex（`gpt-5-codex`、`gpt-5.1-codex-mini`）にルーティング。
+- **タスクベースのルーティング** — 6 つの組み込みシナリオにそれぞれ異なるモデルを割り当て：`default`、`background`、`think`（プランモード）、`longContext`、`webSearch`、`image`。
+- **マルチプロバイダー対応** — API キー型プロバイダー（Anthropic、OpenAI、DeepSeek、Gemini、Groq、OpenRouter など）やサブスクリプション型プロバイダー（Claude Code OAuth、OpenAI Codex）に接続。
+- **サブスクリプション監視** — レート制限ウィンドウを追跡し、実際の API コストとサブスクリプション料金を比較。
+- **使用量・コストダッシュボード** — プロバイダー別・モデル別のコスト内訳と日別コストグラフ。
+- **リクエスト履歴** — 過去の LLM リクエストの閲覧と再実行。
+- **Web 管理 UI** — ブラウザで完結する設定管理。手動 JSON 編集不要。
+- **トランスフォーマーパイプライン** — 組み込み・カスタムトランスフォーマーにより Anthropic 形式のリクエストを各プロバイダー API に適合。
+- **カスタム JavaScript ルーター** — 組み込みシナリオを超えた任意のルーティングロジックを実装。
+- **サブエージェントモデル固定** — インラインプロンプトタグで個々のサブエージェントを特定のプロバイダー・モデルに誘導。
+- **ステータスライン** — Claude Code のステータスバーに CCR のリアルタイム状態を表示。
+- **Docker ファーストデプロイ** — PostgreSQL と Redis を含む `docker compose up -d` 一発起動。
 
-## 🚀 クイックスタート
+## 🖥️ Web UI
 
-### 1. Docker で起動（推奨）
+![Models ページ](docs/images/screenshot-models.webp)
 
-推奨される実行方法は Docker Compose です。[Docker](https://docs.docker.com/get-docker/) と [Docker Compose](https://docs.docker.com/compose/install/) を事前にインストールしてください。イメージは Docker Hub で公開済みのため、リポジトリのクローンは不要です。
+Web UI（デフォルトでポート **3456** で提供）でルーターのあらゆる設定を管理できます：
 
-**ステップ 1 — 作業ディレクトリと設定ファイルを作成：**
+| ページ | 目的 |
+|--------|------|
+| **Models** | 有効なモデル、価格、コンテキストウィンドウの確認と接続テスト |
+| **Providers** | API キー型・サブスクリプション型プロバイダーの追加・編集・削除 |
+| **Router** | 各ルーティングシナリオへのモデル割り当て |
+| **Subscriptions** | レート制限ウィンドウの監視とサブスクリプションコスト対 API 支出の比較 |
+| **Usage** | プロバイダー・モデル別 API コスト内訳と時系列グラフ |
+| **History** | 過去のリクエストログ閲覧 |
+| **Settings** | ホスト、ポート、プロキシ、ログ、ステータスライン、API キーの設定 |
+
+![Providers ページ](docs/images/screenshot-providers.webp)
+
+![Router ページ](docs/images/screenshot-router.webp)
+
+![Usage ページ](docs/images/screenshot-usage.webp)
+
+## 🚀 Docker クイックスタート（推奨）
+
+[Docker](https://docs.docker.com/get-docker/) と [Docker Compose](https://docs.docker.com/compose/install/) をインストール後：
+
+**ステップ 1 — 作業ディレクトリと最小限の設定ファイルを作成：**
 
 ```shell
 mkdir -p ~/ccr ~/.claude-code-router
@@ -39,22 +56,12 @@ cd ~/ccr
 
 cat > ~/.claude-code-router/config.json << 'EOF'
 {
-  "APIKEY": "your-secret-key",
-  "Providers": [
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o", "gpt-4o-mini"],
-      "transformer": { "use": ["OpenAI"] }
-    }
-  ],
-  "Router": {
-    "default": "openai,gpt-4o-mini"
-  }
+  "APIKEY": "your-secret-key"
 }
 EOF
 ```
+
+> `APIKEY` は Web UI と `/v1/*` プロキシを保護します。省略すると初回起動時に自動生成されサーバーコンソールに表示されます。
 
 **ステップ 2 — `compose.yaml` をダウンロード：**
 
@@ -62,12 +69,13 @@ EOF
 curl -fsSL https://raw.githubusercontent.com/musistudio/claude-code-router/main/compose.yaml -o compose.yaml
 ```
 
-**ステップ 3 — （任意）API キーを `.env` ファイルに記述：**
+**ステップ 3 — （任意）プロバイダー認証情報を `.env` に記述：**
 
 ```shell
 cat > .env << 'EOF'
 OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
+GEMINI_API_KEY=AIza...
+ANTHROPIC_API_KEY=sk-ant-...
 EOF
 ```
 
@@ -77,7 +85,7 @@ EOF
 docker compose up -d
 ```
 
-ルーターが `http://127.0.0.1:3456` で起動します。
+サーバーが `http://127.0.0.1:3456` で起動します。ブラウザで開き `APIKEY` でサインインした後、**Providers** ページと **Router** ページで設定を完了します。
 
 **ステップ 5 — Claude Code からルーターに接続：**
 
@@ -85,18 +93,12 @@ docker compose up -d
 ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
 ```
 
-シェルの設定ファイルに永続的に追記する場合：
+シェル設定ファイルに永続的に追記する場合：
 
 ```shell
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 export ANTHROPIC_AUTH_TOKEN=your-secret-key
 ```
-
-> **注意**: `config.json` を変更した場合、設定を反映するにはコンテナを再起動してください：
->
-> ```shell
-> docker compose restart
-> ```
 
 **ログを確認：**
 
@@ -104,457 +106,171 @@ export ANTHROPIC_AUTH_TOKEN=your-secret-key
 docker compose logs -f
 ```
 
----
-
-### 代替手段：グローバル CLI インストール
-
-Docker を使わない場合は、グローバル CLI ツールとしてインストールできます。
-
-まず [Claude Code](https://docs.anthropic.com/en/docs/claude-code/quickstart) をインストール：
+**設定変更を反映：**
 
 ```shell
-npm install -g @anthropic-ai/claude-code
+docker compose restart
 ```
 
-次に Claude Code Router をインストール：
+## 🔌 Claude Code サブスクリプション連携（API キー不要）
 
-```shell
-# Bun 経由（推奨 — プロジェクトは内部的に Bun で動作）
-bun install -g @musistudio/claude-code-router
+CCR は **Claude Code** サブスクリプションや **OpenAI Codex** サブスクリプションを API キーなしで直接利用できます。
 
-# npm 経由
-npm install -g @musistudio/claude-code-router
-```
+**Providers** ページ → **Subscription** タブ → **Connect** から OAuth フローに従って認証してください。CCR が認証情報を保存・自動更新します。サブスクリプションのモデルをルータースロットに割り当てれば設定完了です。
 
-ルーター経由で Claude Code を起動：
+![Subscriptions ページ](docs/images/screenshot-subscriptions.webp)
 
-```shell
-ccr code
-```
+## ⚙️ 設定
 
-> **注意**: 設定ファイルを変更した場合、サービスを再起動して変更を反映してください：
->
-> ```shell
-> ccr restart
-> ```
+### ディスクエンベロープ（`~/.claude-code-router/config.json`）
 
----
+起動時のスカラー値とディスク常駐オブジェクトを格納します。環境変数補間（`$VAR` / `${VAR}`）と JSON5 コメントをサポート。直近 3 世代のバックアップを自動保持。
 
-### 2. 設定
+| キー | 説明 |
+|------|------|
+| `APIKEY` | クライアントが `x-api-key` または `Authorization: Bearer` で送信する必要があるシークレットキー |
+| `HOST` | リスニングアドレス。デフォルトは `127.0.0.1`。リバースプロキシ背後では `0.0.0.0`（`APIKEY` 必須）|
+| `PORT` | リスニングポート（デフォルト：`3456`）|
+| `LOG` | `true` でログファイルを有効化 |
+| `LOG_LEVEL` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |
+| `PROXY_URL` | アップストリーム API リクエスト用 HTTP プロキシ |
+| `API_TIMEOUT_MS` | アップストリーム API コールタイムアウト（ms、デフォルト：`600000`）|
+| `CLAUDE_PATH` | `claude` 実行ファイルへのパス |
+| `NON_INTERACTIVE_MODE` | Docker / CI / GitHub Actions で `true` を設定（stdin ハング防止）|
+| `CUSTOM_ROUTER_PATH` | カスタム JavaScript ルーターモジュールへの絶対パス |
 
-`~/.claude-code-router/config.json` を作成・編集します。詳細は `config.example.json` を参照してください。
+### プロバイダー・モデル・ルーター（データベース）
 
-`config.json` の主なセクション：
+初回起動後、プロバイダー・モデル・ルータースロットは Web UI または設定 API を通じて PostgreSQL で管理されます（`config.json` ではありません）。初回起動時に `config.json` の `Providers` / `Router` キーがデータベースに自動マイグレーションされます（一回限り・冪等）。
 
-- **`PROXY_URL`** (任意): API リクエストのプロキシ設定。例：`"PROXY_URL": "http://127.0.0.1:7890"`
-- **`LOG`** (任意): `true` でログを有効化、`false` でログファイルを作成しない。デフォルトは `true`。
-- **`LOG_LEVEL`** (任意): ログレベル。`"fatal"` / `"error"` / `"warn"` / `"info"` / `"debug"` / `"trace"`。デフォルトは `"debug"`。
-- **ログシステム**: 2 種類の独立したログシステム：
-  - **サーバーレベルログ**: HTTP リクエスト・API コール・サーバーイベントを pino で `~/.claude-code-router/logs/ccr-*.log` に記録
-  - **アプリレベルログ**: ルーティング決定・ビジネスロジックを `~/.claude-code-router/claude-code-router.log` に記録
-- **`APIKEY`** (任意): リクエスト認証用のシークレットキー。クライアントは `Authorization: Bearer your-secret-key` または `x-api-key` ヘッダーで提供する必要があります。
-- **`HOST`** (任意): サーバーのリスニングアドレス。`APIKEY` が未設定の場合、セキュリティのため強制的に `127.0.0.1` になります。
-- **`NON_INTERACTIVE_MODE`** (任意): `true` で非インタラクティブ環境（GitHub Actions・Docker・CI/CD）との互換性を有効化。stdin 待機によるプロセスハングを防止。
-- **`Providers`**: モデルプロバイダーの設定。
-- **`Router`**: ルーティングルール。`default` は他のルートにマッチしない場合に使用するモデル。
-- **`API_TIMEOUT_MS`**: API コールのタイムアウト（ミリ秒）。
+### ルーティングシナリオ
 
-#### 環境変数の展開
+**Router** ページで各シナリオに使用するモデルを設定します：
 
-`config.json` 内で `$VAR_NAME` または `${VAR_NAME}` 構文を使って環境変数を参照できます。API キーをファイルにハードコードせずに管理できます：
+| シナリオ | 適用タイミング |
+|----------|--------------|
+| `default` | 他のシナリオにマッチしないすべてのリクエスト |
+| `background` | 軽量なバックグラウンドタスク |
+| `think` | 推論集約型タスク（プランモード）|
+| `longContext` | コンテキスト閾値超過のリクエスト（デフォルト 60 000 トークン）|
+| `webSearch` | ウェブ検索タスク（モデルがネイティブに検索をサポートしている必要あり）|
+| `image` | 画像関連タスク（CCR 組み込み画像エージェントを使用）|
 
-```json
-{
-  "Providers": [
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o"]
-    }
-  ]
-}
-```
+### トランスフォーマー
 
-Docker Compose を使う場合は、プロジェクトルートの `.env` ファイルにキーを記述するだけでコンテナに自動注入されます：
+トランスフォーマーは Anthropic 形式のリクエストを各プロバイダーのワイヤーフォーマットに変換します。
 
-```shell
-# .env
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=AIza...
-ANTHROPIC_API_KEY=sk-ant-...
-```
+**組み込みトランスフォーマー：**
 
-展開はネストされたオブジェクト・配列にも再帰的に適用されます。
+| トランスフォーマー | 説明 |
+|------------------|------|
+| `Anthropic` | ネイティブ Anthropic エンドポイント向けパススルー |
+| `claude-code-credentials` | ローカル Claude Code OAuth トークン（`~/.claude/.credentials.json`）を使用・自動更新 |
+| `openai-responses` | OpenAI Responses API（`/v1/responses`）— Codex モデル向け |
+| `OpenAI` | 標準 OpenAI Chat Completions API |
+| `deepseek` | DeepSeek API |
+| `gemini` | Google Gemini API |
+| `openrouter` | OpenRouter API（`provider` ルーティングパラメータ対応）|
+| `groq` | Groq API |
+| `maxtoken` | `max_tokens` を上書き（`{ "max_tokens": N }` オプション対応）|
+| `tooluse` | `tool_choice` によるツールコール最適化 |
+| `reasoning` | `reasoning_content` フィールドの処理 |
+| `sampling` | サンプリングフィールド（`temperature`、`top_p`、`top_k`、`repetition_penalty`）の処理 |
+| `enhancetool` | ツールコールパラメータへのエラー耐性追加（ストリーミングツールコールは無効化）|
+| `cleancache` | リクエストから `cache_control` を除去 |
+| `vertex-gemini` | Vertex AI 認証経由の Gemini |
+| `gemini-cli` *（実験的）* | Gemini CLI 経由の非公式 Gemini サポート |
+| `qwen-cli` *（実験的）* | Qwen CLI 経由の非公式 qwen3-coder-plus サポート |
+| `rovo-cli` *（実験的）* | Atlassian Rovo Dev CLI 経由の非公式 GPT-5 サポート |
 
-設定の総合例：
+**カスタムトランスフォーマープラグイン：**
 
-```json
-{
-  "APIKEY": "your-secret-key",
-  "PROXY_URL": "http://127.0.0.1:7890",
-  "LOG": true,
-  "API_TIMEOUT_MS": 600000,
-  "NON_INTERACTIVE_MODE": false,
-  "Providers": [
-    {
-      "name": "openrouter",
-      "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
-      "api_key": "sk-xxx",
-      "models": [
-        "google/gemini-2.5-pro-preview",
-        "anthropic/claude-sonnet-4",
-        "anthropic/claude-3.5-sonnet",
-        "anthropic/claude-3.7-sonnet:thinking"
-      ],
-      "transformer": {
-        "use": ["openrouter"]
-      }
-    },
-    {
-      "name": "deepseek",
-      "api_base_url": "https://api.deepseek.com/chat/completions",
-      "api_key": "sk-xxx",
-      "models": ["deepseek-chat", "deepseek-reasoner"],
-      "transformer": {
-        "use": ["deepseek"],
-        "deepseek-chat": {
-          "use": ["tooluse"]
-        }
-      }
-    },
-    {
-      "name": "ollama",
-      "api_base_url": "http://localhost:11434/v1/chat/completions",
-      "api_key": "ollama",
-      "models": ["qwen2.5-coder:latest"]
-    },
-    {
-      "name": "gemini",
-      "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
-      "api_key": "$GEMINI_API_KEY",
-      "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
-      "transformer": {
-        "use": ["gemini"]
-      }
-    },
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-4o", "gpt-4o-mini", "o4-mini", "o3"],
-      "transformer": {
-        "use": ["OpenAI"]
-      }
-    },
-    {
-      "name": "codex",
-      "api_base_url": "https://api.openai.com/v1/responses",
-      "api_key": "$OPENAI_API_KEY",
-      "models": ["gpt-5.1-codex-mini", "gpt-5-codex"],
-      "transformer": {
-        "use": ["openai-responses"]
-      }
-    },
-    {
-      "name": "claude-code",
-      "api_base_url": "https://api.anthropic.com/v1/messages",
-      "api_key": "placeholder",
-      "models": ["claude-opus-4-5", "claude-sonnet-4-5"],
-      "transformer": {
-        "use": ["claude-code-credentials"]
-      }
-    },
-    {
-      "name": "volcengine",
-      "api_base_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-      "api_key": "sk-xxx",
-      "models": ["deepseek-v3-250324", "deepseek-r1-250528"],
-      "transformer": {
-        "use": ["deepseek"]
-      }
-    },
-    {
-      "name": "modelscope",
-      "api_base_url": "https://api-inference.modelscope.cn/v1/chat/completions",
-      "api_key": "",
-      "models": ["Qwen/Qwen3-Coder-480B-A35B-Instruct", "Qwen/Qwen3-235B-A22B-Thinking-2507"],
-      "transformer": {
-        "use": [
-          ["maxtoken", { "max_tokens": 65536 }],
-          "enhancetool"
-        ],
-        "Qwen/Qwen3-235B-A22B-Thinking-2507": {
-          "use": ["reasoning"]
-        }
-      }
-    },
-    {
-      "name": "dashscope",
-      "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-      "api_key": "",
-      "models": ["qwen3-coder-plus"],
-      "transformer": {
-        "use": [
-          ["maxtoken", { "max_tokens": 65536 }],
-          "enhancetool"
-        ]
-      }
-    },
-    {
-      "name": "aihubmix",
-      "api_base_url": "https://aihubmix.com/v1/chat/completions",
-      "api_key": "sk-",
-      "models": ["Z/glm-4.5", "claude-opus-4-20250514", "gemini-2.5-pro"]
-    }
-  ],
-  "Router": {
-    "default": "deepseek,deepseek-chat",
-    "background": "ollama,qwen2.5-coder:latest",
-    "think": "deepseek,deepseek-reasoner",
-    "longContext": "openrouter,google/gemini-2.5-pro-preview",
-    "longContextThreshold": 60000,
-    "webSearch": "gemini,gemini-2.5-flash"
-  }
-}
-```
-
-### 3. ルーター経由で Claude Code を起動（CLI モード）
-
-```shell
-ccr code
-```
-
-> **注意**: 設定ファイルを変更した後は、サービスを再起動して変更を反映してください：
->
-> ```shell
-> ccr restart
-> ```
-
-### 4. UI モード
-
-Web UI で設定を管理できます：
-
-```shell
-ccr ui
-```
-
-ブラウザが開き、`config.json` を視覚的に編集できます。
-
-### 5. CLI モデル管理
-
-```shell
-ccr model
-```
-
-このコマンドで以下の操作をインタラクティブに行えます：
-
-- 現在の設定を確認
-- 設定済みモデルの一覧表示（default・background・think・longContext・webSearch・image）
-- モデルの切り替え
-- モデルの追加
-- 新しいプロバイダーの作成（API エンドポイント・API キー・モデル一覧・トランスフォーマー設定）
-
-### 6. プリセット管理
-
-設定をプリセットとして保存・共有・再利用できます。
-
-```shell
-# 現在の設定をプリセットとしてエクスポート
-ccr preset export my-preset
-
-# メタデータ付きでエクスポート
-ccr preset export my-preset --description "My OpenAI config" --author "Your Name" --tags "openai,production"
-
-# ローカルディレクトリからプリセットをインストール
-ccr preset install /path/to/preset
-
-# インストール済みプリセットの一覧
-ccr preset list
-
-# プリセット情報を表示
-ccr preset info my-preset
-
-# プリセットを削除
-ccr preset delete my-preset
-```
-
-**プリセットの特徴：**
-- **エクスポート**: 現在の設定をプリセットディレクトリ（manifest.json）として保存
-- **インストール**: ローカルディレクトリからプリセットをインストール
-- **機密データの処理**: エクスポート時に API キー等の機密データを自動サニタイズ（`{{field}}` プレースホルダーに置換）
-- **動的設定**: インストール時に必要情報を収集するための入力スキーマをプリセットに含められる
-- **バージョン管理**: 各プリセットにバージョンメタデータを含む
-
-### 7. activate コマンド（環境変数の設定）
-
-`activate` コマンドでシェルにグローバルな環境変数を設定し、`claude` コマンドを直接使用したり Agent SDK アプリと連携できます。
-
-```shell
-eval "$(ccr activate)"
-```
-
-設定される環境変数：
-
-- `ANTHROPIC_AUTH_TOKEN`: 設定ファイルの API キー
-- `ANTHROPIC_BASE_URL`: ローカルルーターのエンドポイント（デフォルト: `http://127.0.0.1:3456`）
-- `NO_PROXY`: `127.0.0.1`（プロキシ干渉を防止）
-- `DISABLE_TELEMETRY`: テレメトリを無効化
-- `DISABLE_COST_WARNINGS`: コスト警告を無効化
-- `API_TIMEOUT_MS`: 設定ファイルの API タイムアウト
-
-> **注意**: 永続的に設定するには `eval "$(ccr activate)"` をシェル設定ファイル（`~/.zshrc` や `~/.bashrc`）に追記してください。
-
-#### Providers
-
-`Providers` 配列で各モデルプロバイダーを定義します。各エントリに必要なフィールド：
-
-- `name`: プロバイダーの一意な名前
-- `api_base_url`: チャット補完の API エンドポイント
-- `api_key`: プロバイダーの API キー
-- `models`: このプロバイダーで利用可能なモデル名のリスト
-- `transformer` (任意): リクエスト・レスポンスを処理するトランスフォーマーの指定
-
-#### Transformers
-
-トランスフォーマーはリクエスト・レスポンスのペイロードを変換し、各プロバイダー API との互換性を確保します。
-
-- **グローバルトランスフォーマー**: プロバイダーの全モデルにトランスフォーマーを適用：
-  ```json
-  {
-    "name": "openrouter",
-    "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
-    "api_key": "sk-xxx",
-    "models": ["google/gemini-2.5-pro-preview", "anthropic/claude-sonnet-4"],
-    "transformer": { "use": ["openrouter"] }
-  }
-  ```
-
-- **モデル固有のトランスフォーマー**: 特定モデルにのみトランスフォーマーを適用：
-  ```json
-  {
-    "name": "deepseek",
-    "api_base_url": "https://api.deepseek.com/chat/completions",
-    "api_key": "sk-xxx",
-    "models": ["deepseek-chat", "deepseek-reasoner"],
-    "transformer": {
-      "use": ["deepseek"],
-      "deepseek-chat": { "use": ["tooluse"] }
-    }
-  }
-  ```
-
-- **オプション付きトランスフォーマー**: `maxtoken` など一部のトランスフォーマーはオプションを受け付けます：
-  ```json
-  {
-    "transformer": {
-      "use": [["maxtoken", { "max_tokens": 16384 }]]
-    }
-  }
-  ```
-
-**組み込みトランスフォーマー一覧：**
-
-- `Anthropic`: Anthropic 形式のリクエスト・レスポンスをそのまま透過（Anthropic エンドポイントへの直接接続に使用）。
-- `claude-code-credentials`: ローカルの Claude Code OAuth トークン（`~/.claude/.credentials.json`）を API キーとして使用。自動トークンリフレッシュ対応。Claude Code サブスクリプションが必要。Docker 使用時は `compose.yaml` で `~/.claude` がコンテナにマウント済み。
-- `openai-responses`: OpenAI Responses API（`/v1/responses`）向けのリクエスト/レスポンス変換。Codex モデル（`gpt-5.1-codex-mini`、`gpt-5-codex`）などに使用。
-- `OpenAI`: 標準 OpenAI Chat Completions API 向けのリクエスト/レスポンス変換。
-- `deepseek`: DeepSeek API 向けのリクエスト/レスポンス変換。
-- `gemini`: Gemini API 向けのリクエスト/レスポンス変換。
-- `openrouter`: OpenRouter API 向けのリクエスト/レスポンス変換。`provider` ルーティングパラメータで使用する下位プロバイダーを指定可能。詳細は [OpenRouter ドキュメント](https://openrouter.ai/docs/features/provider-routing) 参照：
-  ```json
-  "transformer": {
-    "use": ["openrouter"],
-    "moonshotai/kimi-k2": {
-      "use": [["openrouter", { "provider": { "only": ["moonshotai/fp8"] } }]]
-    }
-  }
-  ```
-- `groq`: Groq API 向けのリクエスト/レスポンス変換。
-- `maxtoken`: 特定の `max_tokens` 値を設定。
-- `tooluse`: `tool_choice` パラメータで特定モデルのツール使用を最適化。
-- `gemini-cli` (実験的): Gemini CLI 経由の非公式 Gemini サポート [gemini-cli.js](https://gist.github.com/musistudio/1c13a65f35916a7ab690649d3df8d1cd)。
-- `reasoning`: `reasoning_content` フィールドの処理。
-- `sampling`: `temperature`・`top_p`・`top_k`・`repetition_penalty` などサンプリングフィールドの処理。
-- `enhancetool`: LLM が返すツールコールパラメータにエラー耐性を追加（ツールコールのストリーミングは無効になる）。
-- `cleancache`: リクエストから `cache_control` フィールドを除去。
-- `vertex-gemini`: Vertex 認証を使った Gemini API の処理。
-- `qwen-cli` (実験的): Qwen CLI 経由の非公式 qwen3-coder-plus サポート [qwen-cli.js](https://gist.github.com/musistudio/f5a67841ced39912fd99e42200d5ca8b)。
-- `rovo-cli` (実験的): Atlassian Rovo Dev CLI 経由の非公式 gpt-5 サポート [rovo-cli.js](https://gist.github.com/SaseQ/c2a20a38b11276537ec5332d1f7a5e53)。
-
-**カスタムトランスフォーマー：**
-
-独自のトランスフォーマーを作成し、`config.json` の `transformers` フィールドで読み込めます：
+ディスクエンベロープから JavaScript モジュールを読み込んで独自トランスフォーマーを追加：
 
 ```json
 {
   "transformers": [
     {
-      "path": "/User/xxx/.claude-code-router/plugins/gemini-cli.js",
-      "options": {
-        "project": "xxx"
-      }
+      "path": "/home/user/.claude-code-router/plugins/my-transformer.js",
+      "options": { "someOption": "value" }
     }
   ]
 }
 ```
 
-#### Router
-
-`Router` オブジェクトで各シナリオに使用するモデルを定義します：
-
-- `default`: 通常タスクのデフォルトモデル。
-- `background`: バックグラウンドタスク用モデル（コスト削減のため小型・ローカルモデルを推奨）。
-- `think`: 推論集約タスク（プランモードなど）用モデル。
-- `longContext`: 長コンテキスト（例：60K トークン超）処理用モデル。
-- `longContextThreshold` (任意): 長コンテキストモデルを起動するトークン数のしきい値。未指定の場合は 60000。
-- `webSearch`: ウェブ検索タスク用モデル（モデル自体が対応している必要あり。OpenRouter 使用時はモデル名に `:online` サフィックスを追加）。
-- `image` (ベータ): 画像関連タスク用モデル（CCR 組み込みエージェントで対応）。ツールコール非対応のモデルの場合は `config.forceUseImageAgent: true` を設定。
-
-Claude Code 内で `/model` コマンドを使ってモデルを動的に切り替え：
-`/model provider_name,model_name`
-例：`/model openrouter,anthropic/claude-3.5-sonnet`
-
-#### カスタムルーター
-
-より高度なルーティングロジックが必要な場合、`config.json` の `CUSTOM_ROUTER_PATH` でカスタムルータースクリプトを指定できます：
+**トランスフォーマー設定例：**
 
 ```json
 {
-  "CUSTOM_ROUTER_PATH": "/User/xxx/.claude-code-router/custom-router.js"
+  "name": "openrouter",
+  "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
+  "api_key": "$OPENROUTER_API_KEY",
+  "models": ["google/gemini-2.5-pro", "anthropic/claude-sonnet-4"],
+  "transformer": { "use": ["openrouter"] }
 }
 ```
 
-カスタムルーターファイルは `async` 関数をエクスポートする JavaScript モジュールです。リクエストオブジェクトと設定オブジェクトを受け取り、`"provider_name,model_name"` 形式の文字列（またはデフォルトルーターへのフォールバックとして `null`）を返します：
+モデル固有のトランスフォーマー：
+
+```json
+{
+  "name": "deepseek",
+  "api_base_url": "https://api.deepseek.com/chat/completions",
+  "api_key": "$DEEPSEEK_API_KEY",
+  "models": ["deepseek-chat", "deepseek-reasoner"],
+  "transformer": {
+    "use": ["deepseek"],
+    "deepseek-chat": { "use": ["tooluse"] }
+  }
+}
+```
+
+オプション付きトランスフォーマー：
+
+```json
+{
+  "transformer": {
+    "use": [["maxtoken", { "max_tokens": 65536 }], "enhancetool"]
+  }
+}
+```
+
+### カスタム JavaScript ルーター
+
+組み込みシナリオを超えたルーティングロジックには、ディスクエンベロープで `CUSTOM_ROUTER_PATH` を設定します：
+
+```json
+{
+  "CUSTOM_ROUTER_PATH": "/home/user/.claude-code-router/custom-router.js"
+}
+```
+
+モジュールは `"provider,model"` または `null`（デフォルトルーターへのフォールバック）を返す `async` 関数をエクスポートする必要があります：
 
 ```javascript
 module.exports = async function router(req, config) {
-  const userMessage = req.body.messages.find((m) => m.role === "user")?.content;
-
-  if (userMessage && userMessage.includes("このコードを説明して")) {
-    return "openrouter,anthropic/claude-3.5-sonnet";
+  const userMessage = req.body.messages.find(m => m.role === 'user')?.content;
+  if (userMessage?.includes('このコードを説明して')) {
+    return 'openrouter,anthropic/claude-3.5-sonnet';
   }
-
   return null;
 };
 ```
 
-##### サブエージェントルーティング
+完全な例はリポジトリルートの `custom-router.example.js` を参照してください。
 
-サブエージェント内のルーティングには、プロンプトの**先頭**に `<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>` を記述してモデルを指定します：
+### サブエージェントルーティング
+
+サブエージェントのプロンプト先頭に以下のタグを付けて特定モデルに固定します：
 
 ```
-<CCR-SUBAGENT-MODEL>openrouter,anthropic/claude-3.5-sonnet</CCR-SUBAGENT-MODEL>
-このコードスニペットを分析して潜在的な最適化点を見つけてください...
+<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+このコードの分析をお願いします...
 ```
 
-## ステータスライン（ベータ）
+## 🤖 GitHub Actions 連携
 
-claude-code-router のリアルタイムステータスを表示するためのステータスラインツールを v1.0.40 から内蔵しています。UI から有効化できます。
-
-## 🤖 GitHub Actions
-
-[Claude Code Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions) を設定後、`.github/workflows/claude.yaml` を以下のように変更してルーターを使用します：
+[Claude Code Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions) のセットアップ後、`.github/workflows/claude.yaml` を修正します：
 
 ```yaml
 name: Claude Code
@@ -562,13 +278,10 @@ name: Claude Code
 on:
   issue_comment:
     types: [created]
-  # ... other triggers
 
 jobs:
   claude:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      # ... other conditions
+    if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -576,8 +289,7 @@ jobs:
       issues: read
       id-token: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -600,15 +312,11 @@ jobs:
             "Router": { "default": "openai,gpt-4o" }
           }
           EOF
-        shell: bash
 
       - name: Start Claude Code Router
-        run: |
-          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
-        shell: bash
+        run: nohup ~/.bun/bin/bunx @musistudio/claude-code-router@latest start &
 
       - name: Run Claude Code
-        id: claude
         uses: anthropics/claude-code-action@beta
         env:
           ANTHROPIC_BASE_URL: http://localhost:3456
@@ -616,12 +324,81 @@ jobs:
           anthropic_api_key: "any-string-is-ok"
 ```
 
-> **注意**: GitHub Actions などの自動化環境で実行する場合、`"NON_INTERACTIVE_MODE": true` を設定してプロセスのハングを防いでください。
+> 自動化環境では必ず `"NON_INTERACTIVE_MODE": true` を設定してプロセスのハングを防いでください。
 
-## ❤️ サポートとスポンサー
+## 📊 ログ
 
-このプロジェクトが役立つと感じたら、開発のスポンサーをご検討ください。
+- **サーバーレベルログ**（pino）：`~/.claude-code-router/logs/ccr-*.log` — HTTP リクエスト、API コール、サーバーイベント。レベルは `LOG_LEVEL` で制御。
+- **アプリレベルログ**：`~/.claude-code-router/claude-code-router.log` — ルーティング決定とビジネスロジックイベント。
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F31GN2GM)
+## 🛠️ 開発
 
-[Paypal](https://paypal.me/musistudio1999)
+### 前提条件
+
+- Bun ≥ 1.1.0
+- PostgreSQL
+- Redis
+
+デブコンテナ（`.devcontainer/compose.yaml`）が `postgres` と `redis` を自動的に提供します。
+
+### セットアップ
+
+```shell
+bun install
+```
+
+```shell
+# .env
+DATABASE_URL=postgres://postgres:password@postgres:5432/ccr
+REDIS_URL=redis://redis:6379
+```
+
+```shell
+bun run db:migrate
+bun run dev         # Vite 開発サーバー（ポート 16173）
+```
+
+### ビルド
+
+```shell
+bun run build       # Vite プロダクションビルド（SPA → dist/）
+```
+
+### テスト
+
+```shell
+bun run test              # ユニット・DB テスト
+bun run test:providers    # プロバイダー統合テスト
+```
+
+### データベースツール
+
+| スクリプト | 目的 |
+|-----------|------|
+| `bun run db:generate` | Prisma クライアント再生成 |
+| `bun run db:migrate` | マイグレーション作成・適用（開発）|
+| `bun run db:migrate:deploy` | 既存マイグレーション適用（本番 / CI）|
+| `bun run db:reset` | スキーマ削除・再作成（破壊的）|
+| `bun run db:studio` | Prisma Studio を開く |
+
+DDL を直接編集せず、必ず Prisma マイグレーションを使用してください。
+
+### 価格スクレイピング
+
+| スクリプト | 目的 |
+|-----------|------|
+| `bun run scrape:openai-prices` | OpenAI モデル価格をスクレイピング |
+| `bun run scrape:anthropic-prices` | Anthropic モデル価格をスクレイピング |
+| `bun run scrape:google-prices` | Google / Gemini 価格をスクレイピング |
+| `bun run scrape:prices` | 上記すべてをスクレイピング |
+
+### リリース
+
+| スクリプト | 目的 |
+|-----------|------|
+| `bun run release` | ビルドして Docker イメージを公開 |
+| `bun run release:docker` | Docker イメージのみ公開 |
+
+## ライセンス
+
+MIT — `LICENSE` を参照。
