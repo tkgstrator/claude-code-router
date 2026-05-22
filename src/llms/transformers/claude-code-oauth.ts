@@ -52,7 +52,7 @@ function toSystemBlock(value: unknown): AnthropicSystemBlock {
   }
 }
 
-function withClaudeCodeIdentity(system: unknown): AnthropicSystemBlock[] {
+export function withClaudeCodeIdentity(system: unknown): AnthropicSystemBlock[] {
   let blocks: AnthropicSystemBlock[]
   if (typeof system === 'string') {
     blocks = system.length > 0 ? [{ type: 'text', text: system }] : []
