@@ -124,8 +124,9 @@ const stableIdentityFor = (
 ): StableIdentity => a.userId ?? a.accountId ?? `path:${a.sourcePath}`
 
 // Monthly USD prices for known subscription plan identifiers.
-// Claude: derived from has_claude_max / has_claude_pro booleans on the
-// account profile (more reliable than organization_type strings).
+// Claude: derived from has_claude_max / has_claude_pro booleans combined
+// with rate_limit_tier to distinguish Max 5x ($100) from Max 20x ($200).
+// rate_limit_tier "default_claude_max_20x" identifies the $200 tier.
 // Codex: derived from chatgpt_plan_type in the id_token JWT claims.
 // Values reflect publicly-listed individual plan prices; team/enterprise
 // plans are per-seat and left null since total cost isn't inferrable.
@@ -134,9 +135,14 @@ const CODEX_PLAN_PRICES: Record<string, number> = {
   pro: 200
 }
 
-const claudeMonthlyPrice = (profile: { has_claude_max?: boolean; has_claude_pro?: boolean } | null): number | null => {
+const claudeMonthlyPrice = (
+  profile: { has_claude_max?: boolean; has_claude_pro?: boolean } | null,
+  rateLimitTier?: string | null
+): number | null => {
   if (!profile) return null
-  if (profile.has_claude_max) return 100
+  if (profile.has_claude_max) {
+    return rateLimitTier?.includes('20x') ? 200 : 100
+  }
   if (profile.has_claude_pro) return 20
   return null
 }
@@ -242,7 +248,7 @@ const buildClaudeDiscoveredAccount = async (tokens: {
     accountId: null,
     plan: firstString(profile?.organization?.organization_type),
     rateLimitTier: firstString(profile?.organization?.rate_limit_tier),
-    monthlyPriceUsd: claudeMonthlyPrice(profile?.account ?? null),
+    monthlyPriceUsd: claudeMonthlyPrice(profile?.account ?? null, profile?.organization?.rate_limit_tier),
     expiresAt,
     scopes: tokens.scopes,
     accessToken: tokens.accessToken,
@@ -522,7 +528,7 @@ export async function syncSubAccountProfiles(
           userEmail: firstString(profile.account.email),
           plan: firstString(profile.organization?.organization_type),
           rateLimitTier: firstString(profile.organization?.rate_limit_tier),
-          monthlyPriceUsd: claudeMonthlyPrice(profile.account),
+          monthlyPriceUsd: claudeMonthlyPrice(profile.account, profile.organization?.rate_limit_tier),
           lastSyncedAt: dayjs().toDate()
         }
       })
