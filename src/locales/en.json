@@ -73,7 +73,8 @@
     "apiCostSubProrated": "{{price}} subscription · {{days}}d prorated",
     "apiCostSaved": "Saved {{amount}}",
     "apiCostOver": "Over by {{amount}}",
-    "apiCostBreakEven": "Break even"
+    "apiCostBreakEven": "Break even",
+    "apiCostSyncNeeded": "Sync profiles to see subscription savings"
   },
   "models": {
     "provider": "Provider",

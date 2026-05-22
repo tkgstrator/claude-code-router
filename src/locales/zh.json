@@ -73,7 +73,8 @@
     "apiCostSubProrated": "{{price}} 订阅 · {{days}}天按比例",
     "apiCostSaved": "节省 {{amount}}",
     "apiCostOver": "超出 {{amount}}",
-    "apiCostBreakEven": "持平"
+    "apiCostBreakEven": "持平",
+    "apiCostSyncNeeded": "同步配置文件以查看订阅节省金额"
   },
   "models": {
     "provider": "供应商",

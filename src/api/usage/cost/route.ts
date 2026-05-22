@@ -18,8 +18,10 @@ const ProviderCostSchema = z.object({
   provider: z.string(),
   models: z.array(ModelCostSchema),
   totalCostUsd: z.number().nullable(),
+  // True when the provider uses subscription auth (not api_key).
+  isSubscription: z.boolean(),
   // Monthly subscription price for enabled accounts on this provider.
-  // Null for api_key providers or when no price is known.
+  // Null for api_key providers or when no price has been synced yet.
   subscriptionMonthlyUsd: z.number().nullable()
 })
 
@@ -112,8 +114,9 @@ usageCostRoute.openapi(
           totalCostUsd
         }
       })
-      const subscriptionMonthlyUsd = subMonthlyMap.has(provider) ? (subMonthlyMap.get(provider) ?? null) : null
-      return { provider, models, totalCostUsd: providerTotal, subscriptionMonthlyUsd }
+      const isSubscription = subMonthlyMap.has(provider)
+      const subscriptionMonthlyUsd = isSubscription ? (subMonthlyMap.get(provider) ?? null) : null
+      return { provider, models, totalCostUsd: providerTotal, isSubscription, subscriptionMonthlyUsd }
     })
 
     return c.json({ providers, days }, 200)

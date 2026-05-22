@@ -101,6 +101,7 @@ interface ProviderCost {
   provider: string
   models: ModelCost[]
   totalCostUsd: number | null
+  isSubscription: boolean
   subscriptionMonthlyUsd: number | null
 }
 interface UsageCostResponse {
@@ -260,6 +261,7 @@ export function Usage() {
   const [error, setError] = useState(false)
   const [history, setHistory] = useState<HistoryResponse>({ samples: [] })
   const [costData, setCostData] = useState<UsageCostResponse | null>(null)
+  const [costLoading, setCostLoading] = useState(false)
   const [costDays, setCostDays] = useState(30)
 
   useEffect(() => {
@@ -279,11 +281,17 @@ export function Usage() {
   }, [])
 
   useEffect(() => {
-    setCostData(null)
+    setCostLoading(true)
     api
       .get<UsageCostResponse>(`/usage/cost?days=${costDays}`)
-      .then(setCostData)
-      .catch(() => setCostData({ providers: [], days: costDays }))
+      .then((d) => {
+        setCostData(d)
+        setCostLoading(false)
+      })
+      .catch(() => {
+        setCostData({ providers: [], days: costDays })
+        setCostLoading(false)
+      })
   }, [costDays])
 
   const { rows, metrics, config, ticks } = useMemo(() => {
@@ -375,7 +383,9 @@ export function Usage() {
           ) : costData.providers.length === 0 ? (
             <p className='text-sm text-muted-foreground'>{t('usage.apiCostEmpty')}</p>
           ) : (
-            <div className='space-y-3'>
+            <div
+              className={`space-y-3 transition-opacity duration-150 ${costLoading ? 'opacity-50 pointer-events-none' : ''}`}
+            >
               {costData.providers.map((p) => {
                 const proratedSubUsd =
                   p.subscriptionMonthlyUsd != null && costDays > 0 ? p.subscriptionMonthlyUsd * (costDays / 30) : null
@@ -407,31 +417,37 @@ export function Usage() {
                         ))}
                       </tbody>
                     </table>
-                    {proratedSubUsd != null && (
+                    {p.isSubscription && costDays > 0 && (
                       <div className='flex items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground'>
-                        <span>
-                          {t('usage.apiCostSubProrated', {
-                            price: `$${p.subscriptionMonthlyUsd!.toFixed(0)}/mo`,
-                            days: costDays
-                          })}
-                        </span>
-                        <span
-                          className={
-                            savingsUsd != null && savingsUsd > 0
-                              ? 'font-medium text-green-600'
-                              : savingsUsd != null && savingsUsd < 0
-                                ? 'font-medium text-red-500'
-                                : ''
-                          }
-                        >
-                          {savingsUsd != null
-                            ? savingsUsd > 0
-                              ? t('usage.apiCostSaved', { amount: fmtCost(savingsUsd, '') })
-                              : savingsUsd < 0
-                                ? t('usage.apiCostOver', { amount: fmtCost(-savingsUsd, '') })
-                                : t('usage.apiCostBreakEven')
-                            : fmtCost(proratedSubUsd, '')}
-                        </span>
+                        {proratedSubUsd != null ? (
+                          <>
+                            <span>
+                              {t('usage.apiCostSubProrated', {
+                                price: `$${p.subscriptionMonthlyUsd!.toFixed(0)}/mo`,
+                                days: costDays
+                              })}
+                            </span>
+                            <span
+                              className={
+                                savingsUsd != null && savingsUsd > 0
+                                  ? 'font-medium text-green-600'
+                                  : savingsUsd != null && savingsUsd < 0
+                                    ? 'font-medium text-red-500'
+                                    : ''
+                              }
+                            >
+                              {savingsUsd != null
+                                ? savingsUsd > 0
+                                  ? t('usage.apiCostSaved', { amount: fmtCost(savingsUsd, '') })
+                                  : savingsUsd < 0
+                                    ? t('usage.apiCostOver', { amount: fmtCost(-savingsUsd, '') })
+                                    : t('usage.apiCostBreakEven')
+                                : fmtCost(proratedSubUsd, '')}
+                            </span>
+                          </>
+                        ) : (
+                          <span className='italic'>{t('usage.apiCostSyncNeeded')}</span>
+                        )}
                       </div>
                     )}
                   </div>
