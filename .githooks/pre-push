@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Auto-bump semver in package.json before pushing.
+# Skipped when:
+#   - pushing to main/master (version bumps come via PR merges)
+#   - SKIP_VERSION_BUMP=1 is set
+#   - ANTHROPIC_API_KEY is not available
+#   - the push target is not a feature/fix branch
+
+set -euo pipefail
+
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo '')
+
+# Only run on feature/fix branches; let main/develop/master pass through.
+case "$CURRENT_BRANCH" in
+  main|master|develop|release/*) exit 0 ;;
+esac
+
+if [[ "${SKIP_VERSION_BUMP:-0}" == "1" ]]; then
+  exit 0
+fi
+
+if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+  echo "[pre-push] ANTHROPIC_API_KEY not set — skipping auto version bump"
+  exit 0
+fi
+
+echo "[pre-push] Running auto version bump…"
+bun run scripts/auto-bump-version.ts develop
+
+# If a new commit was created by the bump script, push it as well.
+# The hook re-runs implicitly when git push retries; `git push` below
+# sends the bump commit on behalf of the caller.
+BUMP_COMMIT=$(git log --oneline -1 | grep "^[0-9a-f]* chore: bump version" || true)
+if [[ -n "$BUMP_COMMIT" ]]; then
+  echo "[pre-push] Version bumped — pushing bump commit too"
+  git push origin "$CURRENT_BRANCH" --no-verify
+fi
