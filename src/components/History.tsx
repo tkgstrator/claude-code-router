@@ -86,7 +86,13 @@ export function HistoryPage() {
         })
       } catch {}
     }
-    es.onerror = () => es.close()
+    // Do not close on error: the browser's EventSource reconnects
+    // automatically after transient network failures. Calling es.close()
+    // here suppressed that reconnection, so History stopped updating
+    // whenever the server restarted or the connection briefly dropped.
+    // For persistent auth failures (401) the server returns a non-SSE
+    // response, which the browser treats as a permanent error and stops
+    // retrying without any explicit close() call.
     return () => es.close()
   }, [load])
 
