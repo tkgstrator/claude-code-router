@@ -83,9 +83,25 @@ const METRIC_META: Record<string, MetricMeta> = {
   'codex.secondary': { label: 'Codex 7d', color: '#0a6f57', windowHours: 168 }
 }
 
+// Multiple color shades per base metric for multi-account chart lines.
+const METRIC_SHADES: Record<string, string[]> = {
+  'claude.five_hour': ['#d97757', '#e8a484', '#c05030'],
+  'claude.seven_day': ['#b35a3f', '#d07a5e', '#8a3520'],
+  'claude.seven_day_sonnet': ['#e6a08c', '#f5c4ae', '#cc7060'],
+  'claude.seven_day_opus': ['#8c3d28', '#b05540', '#651c0f'],
+  'codex.primary': ['#10a37f', '#35c49f', '#0a7058'],
+  'codex.secondary': ['#0a6f57', '#259078', '#064535']
+}
+
+// Handles both plain ("claude.five_hour") and account-qualified
+// ("claude.five_hour:AccountLabel") metric keys.
 function metaFor(metric: string): MetricMeta {
-  const meta = METRIC_META[metric]
-  if (meta) return meta
+  if (METRIC_META[metric]) return METRIC_META[metric]
+  const colonIdx = metric.indexOf(':')
+  if (colonIdx !== -1) {
+    const base = metric.slice(0, colonIdx)
+    if (METRIC_META[base]) return METRIC_META[base]
+  }
   return { label: metric, color: '#888888', windowHours: 0 }
 }
 
@@ -246,6 +262,16 @@ export function Usage() {
 
   const { rows, metrics, config, ticks } = useMemo(() => {
     const metrics = [...new Set(history.samples.map((s) => s.metric))].sort()
+
+    // Group account-qualified metrics by base key for per-account color/label assignment.
+    const baseToMetrics = new Map<string, string[]>()
+    for (const m of metrics) {
+      const colonIdx = m.indexOf(':')
+      const base = colonIdx !== -1 ? m.slice(0, colonIdx) : m
+      if (!baseToMetrics.has(base)) baseToMetrics.set(base, [])
+      baseToMetrics.get(base)!.push(m)
+    }
+
     const byT = new Map<string, Record<string, number | string>>()
     for (const m of metrics) {
       for (const p of projectedUsage(history.samples, m)) {
@@ -255,11 +281,24 @@ export function Usage() {
         byT.set(p.t, row)
       }
     }
+
     const config: ChartConfig = {}
     for (const m of metrics) {
-      const meta = metaFor(m)
-      config[m] = { label: meta.label, color: meta.color }
+      const colonIdx = m.indexOf(':')
+      const base = colonIdx !== -1 ? m.slice(0, colonIdx) : m
+      const account = colonIdx !== -1 ? m.slice(colonIdx + 1) : null
+      const baseMeta = METRIC_META[base] ?? METRIC_META[m]
+      const siblings = baseToMetrics.get(base) ?? [m]
+      const idx = siblings.indexOf(m)
+      const shades = METRIC_SHADES[base]
+      const color = shades
+        ? (shades[Math.min(idx, shades.length - 1)] ?? baseMeta?.color ?? '#888888')
+        : (baseMeta?.color ?? '#888888')
+      const baseLabel = baseMeta?.label ?? base
+      const label = account && siblings.length > 1 ? `${baseLabel} (${account})` : baseLabel
+      config[m] = { label, color }
     }
+
     const rows = [...byT.values()].sort((a, b) => (String(a.t) < String(b.t) ? -1 : 1))
     const ticks = rows.map((r) => String(r.t)).filter((iso) => dayjs(iso).minute() % 10 === 0)
     return { rows, metrics, config, ticks }
@@ -341,7 +380,7 @@ export function Usage() {
                     key={m}
                     type='monotone'
                     dataKey={m}
-                    stroke={metaFor(m).color}
+                    stroke={config[m]?.color ?? metaFor(m).color}
                     dot={false}
                     strokeWidth={2}
                     connectNulls
