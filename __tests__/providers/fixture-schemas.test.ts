@@ -18,6 +18,8 @@ import { describe, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
+  AnthropicErrorResponseSchema,
+  AnthropicIncomingRequestHeadersSchema,
   AnthropicIncomingRequestSchema,
   AnthropicMessageResponseSchema,
   AnthropicSSEPayloadSchema,
@@ -26,7 +28,8 @@ import {
 const FIXTURES_DIR = join(import.meta.dir, "__fixtures__");
 
 // Some fixtures intentionally lie outside the Anthropic message shape.
-const SKIP_FIXTURE = /^api-config\./;
+// health-* captures health-check endpoints, not LLM responses.
+const SKIP_FIXTURE = /^api-config\.|^health-/;
 
 interface ParsedSSE {
   event: string;
@@ -62,6 +65,7 @@ interface FixtureSpec {
   body: string;
   contentType: string | undefined;
   requestBody: unknown;
+  requestHeaders: Record<string, string> | undefined;
   requestMethod: string;
 }
 
@@ -80,6 +84,7 @@ function loadFixtures(): FixtureSpec[] {
     };
     const req = JSON.parse(readFileSync(requestPath, "utf8")) as {
       method?: string;
+      headers?: Record<string, string>;
       body?: unknown;
     };
     const contentType = meta.headers?.["content-type"];
@@ -88,6 +93,7 @@ function loadFixtures(): FixtureSpec[] {
       body,
       contentType,
       requestBody: req.body ?? null,
+      requestHeaders: req.headers,
       requestMethod: req.method ?? "GET",
     });
   }
@@ -111,7 +117,12 @@ describe("fixture response schema validation", () => {
           AnthropicSSEPayloadSchema.parse(e.data);
         }
       } else {
-        AnthropicMessageResponseSchema.parse(JSON.parse(spec.body));
+        const parsed = JSON.parse(spec.body) as { type?: string };
+        if (parsed?.type === 'error') {
+          AnthropicErrorResponseSchema.parse(parsed);
+        } else {
+          AnthropicMessageResponseSchema.parse(parsed);
+        }
       }
     });
   }
@@ -127,7 +138,22 @@ describe("fixture request schema validation", () => {
   for (const spec of fixtures) {
     if (spec.requestMethod !== "POST" || spec.requestBody === null) continue;
     test(spec.dir, () => {
-      AnthropicIncomingRequestSchema.parse(spec.requestBody);
+      AnthropicIncomingRequestSchema.strict().parse(spec.requestBody);
+    });
+  }
+});
+
+// Validate request headers stored in each fixture's request.json against
+// AnthropicIncomingRequestHeadersSchema. Fixtures that pre-date header
+// capture (no `headers` field) are skipped — they will gain headers on
+// the next capture run.
+describe("fixture request header validation", () => {
+  const fixtures = loadFixtures();
+  for (const spec of fixtures) {
+    if (spec.requestMethod !== "POST") continue;
+    if (!spec.requestHeaders) continue;
+    test(spec.dir, () => {
+      AnthropicIncomingRequestHeadersSchema.strict().parse(spec.requestHeaders);
     });
   }
 });
