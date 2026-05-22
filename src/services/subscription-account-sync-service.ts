@@ -123,6 +123,35 @@ const stableIdentityFor = (
   a: Pick<DiscoveredAccount | SubAccount, 'userId' | 'accountId' | 'sourcePath'>
 ): StableIdentity => a.userId ?? a.accountId ?? `path:${a.sourcePath}`
 
+// Monthly USD prices for known subscription plan identifiers.
+// Claude: derived from has_claude_max / has_claude_pro booleans combined
+// with rate_limit_tier to distinguish Max 5x ($100) from Max 20x ($200).
+// rate_limit_tier "default_claude_max_20x" identifies the $200 tier.
+// Codex: derived from chatgpt_plan_type in the id_token JWT claims.
+// Values reflect publicly-listed individual plan prices; team/enterprise
+// plans are per-seat and left null since total cost isn't inferrable.
+const CODEX_PLAN_PRICES: Record<string, number> = {
+  plus: 20,
+  pro: 200
+}
+
+const claudeMonthlyPrice = (
+  profile: { has_claude_max?: boolean; has_claude_pro?: boolean } | null,
+  rateLimitTier?: string | null
+): number | null => {
+  if (!profile) return null
+  if (profile.has_claude_max) {
+    return rateLimitTier?.includes('20x') ? 200 : 100
+  }
+  if (profile.has_claude_pro) return 20
+  return null
+}
+
+const codexMonthlyPrice = (planType: string | null): number | null => {
+  if (!planType) return null
+  return CODEX_PLAN_PRICES[planType.toLowerCase()] ?? null
+}
+
 const buildAccountPayload = (providerName: string, account: DiscoveredAccount, key: Buffer) => ({
   label: `${providerName}:${account.label}`,
   userName: account.userName,
@@ -131,6 +160,7 @@ const buildAccountPayload = (providerName: string, account: DiscoveredAccount, k
   accountId: account.accountId,
   plan: account.plan,
   rateLimitTier: account.rateLimitTier,
+  monthlyPriceUsd: account.monthlyPriceUsd,
   expiresAt: account.expiresAt,
   scopes: account.scopes,
   accessTokenEnc: encryptString(account.accessToken, key),
@@ -218,6 +248,7 @@ const buildClaudeDiscoveredAccount = async (tokens: {
     accountId: null,
     plan: firstString(profile?.organization?.organization_type),
     rateLimitTier: firstString(profile?.organization?.rate_limit_tier),
+    monthlyPriceUsd: claudeMonthlyPrice(profile?.account ?? null, profile?.organization?.rate_limit_tier),
     expiresAt,
     scopes: tokens.scopes,
     accessToken: tokens.accessToken,
@@ -254,6 +285,7 @@ const buildCodexDiscoveredAccount = (tokens: {
     accountId,
     plan: stringOrNull(auth.chatgpt_plan_type),
     rateLimitTier: null,
+    monthlyPriceUsd: codexMonthlyPrice(stringOrNull(auth.chatgpt_plan_type)),
     expiresAt: activeUntil !== null ? dayjs(activeUntil).toDate() : null,
     scopes: [],
     accessToken: tokens.accessToken,
@@ -457,10 +489,11 @@ const ensureFreshClaudeToken = async (
   }
 }
 
-// Re-fetch profile data for all Claude SubAccounts and update the DB in-place.
-// Refreshes expired tokens first so accounts with lapsed access tokens are
-// still reachable. Codex profile comes from the id_token JWT baked in at
-// OAuth time and does not change between sessions, so only Claude is synced.
+// Re-fetch profile data for all SubAccounts and update the DB in-place.
+// Claude: refreshes token first, then pulls /api/oauth/profile for name/plan/tier.
+// Codex: calls wham/usage which returns the live plan_type; updates plan +
+// monthlyPriceUsd in-place. The id_token JWT baked in at OAuth time is a
+// static snapshot — wham/usage is the authoritative live source.
 // Returns a count of rows updated / failed.
 export async function syncSubAccountProfiles(
   prisma: PrismaClient = getPrismaClient()
@@ -496,10 +529,49 @@ export async function syncSubAccountProfiles(
           userEmail: firstString(profile.account.email),
           plan: firstString(profile.organization?.organization_type),
           rateLimitTier: firstString(profile.organization?.rate_limit_tier),
+          monthlyPriceUsd: claudeMonthlyPrice(profile.account, profile.organization?.rate_limit_tier),
           lastSyncedAt: dayjs().toDate()
         }
       })
       updated++
+    }
+  }
+
+  // Codex: call wham/usage for each account to get the live plan_type.
+  const codexProviders = await providersForKind(prisma, 'codex')
+  for (const p of codexProviders) {
+    const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
+    for (const account of accounts) {
+      const accessToken = decryptString(account.accessTokenEnc, key)
+      if (!accessToken) continue
+      try {
+        const res = await fetch('https://chatgpt.com/backend-api/wham/usage', {
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            'content-type': 'application/json',
+            ...(account.accountId ? { 'chatgpt-account-id': account.accountId } : {})
+          }
+        })
+        if (!res.ok) {
+          logger.warn({ status: res.status }, '[subaccount] codex wham/usage non-OK')
+          failed++
+          continue
+        }
+        const raw = (await res.json()) as Record<string, unknown>
+        const planType = typeof raw.plan_type === 'string' && raw.plan_type.length > 0 ? raw.plan_type : null
+        await prisma.subAccount.update({
+          where: { id: account.id },
+          data: {
+            plan: planType ?? account.plan,
+            monthlyPriceUsd: planType !== null ? codexMonthlyPrice(planType) : account.monthlyPriceUsd,
+            lastSyncedAt: dayjs().toDate()
+          }
+        })
+        updated++
+      } catch (err) {
+        logger.warn({ err }, '[subaccount] codex wham/usage threw')
+        failed++
+      }
     }
   }
 

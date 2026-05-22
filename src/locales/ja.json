@@ -37,12 +37,13 @@
     "providers": "プロバイダー",
     "router": "ルーター",
     "transformers": "Transformer",
+    "subscriptions": "サブスクリプション",
     "usage": "使用状況",
     "history": "履歴",
     "settings": "設定"
   },
   "usage": {
-    "title": "サブスク使用状況",
+    "title": "使用状況",
     "loadError": "使用状況の取得に失敗しました",
     "claude": "Claude（claude-code）",
     "claudeNotRegistered": "Claude サブスクは未登録です。",
@@ -69,7 +70,16 @@
     "apiCostTotal": "合計",
     "apiCostPeriod7d": "7日",
     "apiCostPeriod30d": "30日",
-    "apiCostPeriodAll": "全期間"
+    "apiCostPeriodAll": "全期間",
+    "apiCostSubProrated": "{{price}} サブスク · {{days}}日分按分",
+    "apiCostSaved": "{{amount}} お得",
+    "apiCostOver": "{{amount}} 超過",
+    "apiCostBreakEven": "トントン",
+    "apiCostSyncNeeded": "サブスクの節約額を表示するにはプロファイルを同期してください",
+    "apiCostHistory": "日別コスト",
+    "apiCostHistoryEmpty": "選択した期間に価格データがありません。",
+    "subscriptionSavings": "サブスク節約額",
+    "sync": "同期"
   },
   "models": {
     "provider": "プロバイダー",

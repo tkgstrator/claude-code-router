@@ -19,6 +19,7 @@ import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
 import { updateCheckRoute } from './api/update/check/route'
 import { updatePerformRoute } from './api/update/perform/route'
+import { usageCostHistoryRoute } from './api/usage/cost/history/route'
 import { usageCostRoute } from './api/usage/cost/route'
 import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
@@ -98,6 +99,7 @@ app.route('/', subscriptionsRoute)
 app.route('/', usageRoute)
 app.route('/', usageHistoryRoute)
 app.route('/', usageCostRoute)
+app.route('/', usageCostHistoryRoute)
 app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
 app.route('/', refreshModelsRoute)
