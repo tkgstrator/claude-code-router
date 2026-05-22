@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
+import { Button } from '@/components/ui/button'
 import {
   type ChartConfig,
   ChartContainer,
@@ -85,6 +86,38 @@ const METRIC_META: Record<string, MetricMeta> = {
 
 function metaFor(metric: string): MetricMeta {
   return METRIC_META[metric] ?? { label: metric, color: '#888888', windowHours: 0 }
+}
+
+interface ModelCost {
+  model: string
+  requestCount: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalCostUsd: number | null
+}
+interface ProviderCost {
+  provider: string
+  models: ModelCost[]
+  totalCostUsd: number | null
+}
+interface UsageCostResponse {
+  providers: ProviderCost[]
+  days: number
+}
+
+const fmtTokens = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`
+  return String(n)
+}
+
+const fmtCost = (usd: number | null, noPricingLabel: string): string => {
+  if (usd === null) return noPricingLabel
+  if (usd === 0) return '$0.00'
+  if (usd < 0.01) return '<$0.01'
+  return `$${usd.toFixed(2)}`
 }
 
 interface ClaudeWindow {
@@ -225,6 +258,8 @@ export function Usage() {
   const [data, setData] = useState<UsageResponse | null>(null)
   const [error, setError] = useState(false)
   const [history, setHistory] = useState<HistoryResponse>({ samples: [] })
+  const [costData, setCostData] = useState<UsageCostResponse | null>(null)
+  const [costDays, setCostDays] = useState(30)
 
   useEffect(() => {
     const refresh = () => {
@@ -241,6 +276,14 @@ export function Usage() {
     const id = setInterval(refresh, REFRESH_MS)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    setCostData(null)
+    api
+      .get<UsageCostResponse>(`/usage/cost?days=${costDays}`)
+      .then(setCostData)
+      .catch(() => setCostData({ providers: [], days: costDays }))
+  }, [costDays])
 
   const { rows, metrics, config, ticks } = useMemo(() => {
     const metrics = [...new Set(history.samples.map((s) => s.metric))].sort()
@@ -300,6 +343,63 @@ export function Usage() {
             <div className='space-y-3'>
               {data?.codex.map((account) => (
                 <CodexAccountSection key={account.accountLabel} account={account} t={t} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className='space-y-3'>
+          <div className='flex items-center justify-between'>
+            <h3 className='text-sm font-semibold'>{t('usage.apiCost')}</h3>
+            <div className='flex gap-1'>
+              {([7, 30, 0] as const).map((d) => (
+                <Button
+                  key={d}
+                  variant={costDays === d ? 'default' : 'ghost'}
+                  size='sm'
+                  className='h-6 px-2 text-xs'
+                  onClick={() => setCostDays(d)}
+                >
+                  {d === 7
+                    ? t('usage.apiCostPeriod7d')
+                    : d === 30
+                      ? t('usage.apiCostPeriod30d')
+                      : t('usage.apiCostPeriodAll')}
+                </Button>
+              ))}
+            </div>
+          </div>
+          {costData === null ? (
+            <p className='text-sm text-muted-foreground'>…</p>
+          ) : costData.providers.length === 0 ? (
+            <p className='text-sm text-muted-foreground'>{t('usage.apiCostEmpty')}</p>
+          ) : (
+            <div className='space-y-3'>
+              {costData.providers.map((p) => (
+                <div key={p.provider} className='rounded-md border'>
+                  <div className='flex items-center justify-between border-b px-4 py-2'>
+                    <span className='text-sm font-medium'>{p.provider}</span>
+                    <span className='text-sm font-medium'>{fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}</span>
+                  </div>
+                  <table className='w-full text-xs'>
+                    <tbody>
+                      {p.models.map((m) => (
+                        <tr key={m.model} className='border-b last:border-0'>
+                          <td className='px-4 py-2 font-mono text-muted-foreground'>{m.model}</td>
+                          <td className='px-2 py-2 text-right text-muted-foreground whitespace-nowrap'>
+                            {m.requestCount.toLocaleString()} {t('usage.apiCostRequests')}
+                          </td>
+                          <td className='px-2 py-2 text-right text-muted-foreground whitespace-nowrap'>
+                            ↑{fmtTokens(m.inputTokens + m.cacheWriteTokens)} ↓{fmtTokens(m.outputTokens)}
+                          </td>
+                          <td className='px-4 py-2 text-right font-medium whitespace-nowrap'>
+                            {fmtCost(m.totalCostUsd, t('usage.apiCostNoPricing'))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ))}
             </div>
           )}

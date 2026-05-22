@@ -61,7 +61,15 @@
     "resets": "Resets",
     "capturedAt": "Captured at",
     "history": "Past week",
-    "historyEmpty": "No data yet — utilization is captured every 5 minutes. Check back shortly."
+    "historyEmpty": "No data yet — utilization is captured every 5 minutes. Check back shortly.",
+    "apiCost": "API Cost",
+    "apiCostEmpty": "No API requests recorded yet.",
+    "apiCostNoPricing": "—",
+    "apiCostRequests": "req",
+    "apiCostTotal": "Total",
+    "apiCostPeriod7d": "7d",
+    "apiCostPeriod30d": "30d",
+    "apiCostPeriodAll": "All"
   },
   "models": {
     "provider": "Provider",

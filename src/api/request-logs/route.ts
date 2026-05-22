@@ -12,86 +12,10 @@ import {
   SessionLogsResponseSchema,
   SessionsResponseSchema
 } from '../../schemas'
+import { buildPriceMap, computeCosts } from '../../services/cost-service'
 import { type RequestLogEvent, requestLogEmitter } from './events'
 
 export const requestLogsRoute = new OpenAPIHono()
-
-// ── shared helpers ────────────────────────────────────────────────────────────
-
-type PriceEntry = { inputPer1M: number | null; outputPer1M: number | null; cachedInputPer1M: number | null }
-
-async function buildPriceMap(prisma: ReturnType<typeof getPrismaClient>, pairs: string[]) {
-  if (pairs.length === 0) return new Map<string, PriceEntry>()
-
-  const modelNames = [...new Set(pairs.map((p) => p.slice(p.indexOf('||') + 2)))]
-
-  // Fetch all rows matching the provider+model pairs, plus any api_key-priced
-  // rows for the same model names (fallback for subscription providers).
-  const rows = await prisma.model.findMany({
-    where: {
-      OR: [
-        ...pairs.map((p) => {
-          const sep = p.indexOf('||')
-          return { name: p.slice(sep + 2), provider: { name: p.slice(0, sep) } }
-        }),
-        { name: { in: modelNames }, inputPer1M: { not: null } }
-      ]
-    },
-    select: {
-      name: true,
-      inputPer1M: true,
-      outputPer1M: true,
-      cachedInputPer1M: true,
-      provider: { select: { name: true } }
-    }
-  })
-
-  // Build map keyed by provider||model. Also build a fallback map keyed by
-  // model name alone (first priced row wins) for subscription providers.
-  const map = new Map<string, PriceEntry>()
-  const fallback = new Map<string, PriceEntry>()
-  for (const m of rows) {
-    map.set(`${m.provider.name}||${m.name}`, m)
-    if (m.inputPer1M != null && !fallback.has(m.name)) fallback.set(m.name, m)
-  }
-
-  // Inject fallback entries for pairs that have no price (missing or null)
-  for (const pair of pairs) {
-    const existing = map.get(pair)
-    if (!existing || existing.inputPer1M == null) {
-      const modelName = pair.slice(pair.indexOf('||') + 2)
-      const fb = fallback.get(modelName)
-      if (fb) map.set(pair, fb)
-    }
-  }
-
-  return map
-}
-
-function computeCosts(
-  log: {
-    provider: string
-    model: string
-    inputTokens: number
-    outputTokens: number
-    cacheReadTokens: number
-    cacheWriteTokens: number
-  },
-  priceMap: Map<string, { inputPer1M: number | null; outputPer1M: number | null; cachedInputPer1M: number | null }>
-) {
-  const price = priceMap.get(`${log.provider}||${log.model}`)
-  const inputCostUsd = price?.inputPer1M != null ? (log.inputTokens / 1_000_000) * price.inputPer1M : null
-  const outputCostUsd = price?.outputPer1M != null ? (log.outputTokens / 1_000_000) * price.outputPer1M : null
-  const cacheReadCostUsd =
-    price?.cachedInputPer1M != null ? (log.cacheReadTokens / 1_000_000) * price.cachedInputPer1M : null
-  const cacheWriteCostUsd =
-    price?.inputPer1M != null ? (log.cacheWriteTokens / 1_000_000) * price.inputPer1M * 1.25 : null
-  const totalCostUsd =
-    inputCostUsd != null && outputCostUsd != null
-      ? inputCostUsd + outputCostUsd + (cacheReadCostUsd ?? 0) + (cacheWriteCostUsd ?? 0)
-      : null
-  return { inputCostUsd, outputCostUsd, cacheReadCostUsd, totalCostUsd }
-}
 
 // ── GET /api/request-logs/sessions ───────────────────────────────────────────
 
