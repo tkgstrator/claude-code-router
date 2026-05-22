@@ -61,8 +61,11 @@ function withClaudeCodeIdentity(system: unknown): AnthropicSystemBlock[] {
   } else {
     blocks = []
   }
-  const firstText = typeof blocks[0]?.text === 'string' ? blocks[0].text : ''
-  if (firstText.startsWith(CLAUDE_CODE_IDENTITY)) return blocks
+  // Claude Code (≥2.1.146) places a billing-header block at [0] and the
+  // identity at [1], so checking only blocks[0] missed the identity and
+  // prepended a duplicate — breaking the prompt-cache prefix every turn.
+  const hasIdentity = blocks.some((b) => typeof b.text === 'string' && b.text.startsWith(CLAUDE_CODE_IDENTITY))
+  if (hasIdentity) return blocks
   return [{ type: 'text', text: CLAUDE_CODE_IDENTITY }, ...blocks]
 }
 
