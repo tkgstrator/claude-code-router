@@ -129,6 +129,71 @@ describe('non-Claude-Code request — no identity block present', () => {
   })
 })
 
+// ─── Regression: old blocks[0]-only check caused duplicate identity ──────────
+//
+// The original implementation checked only blocks[0]:
+//
+//   const firstText = typeof blocks[0]?.text === 'string' ? blocks[0].text : ''
+//   if (firstText.startsWith(CLAUDE_CODE_IDENTITY)) return blocks
+//
+// Claude Code ≥2.1.146 places a billing-header at [0] and the identity at [1].
+// The old check saw the billing header as the first block → prepended a new
+// identity at [0] → shifted every cache_control breakpoint → 100% cache misses.
+
+function oldWithClaudeCodeIdentity(system: unknown): Array<{ type?: string; text?: string; cache_control?: unknown }> {
+  type Block = { type?: string; text?: string; cache_control?: unknown }
+  function toBlock(value: unknown): Block {
+    if (typeof value === 'string') return { type: 'text', text: value }
+    if (value === null || typeof value !== 'object') return {}
+    return {
+      type: typeof Reflect.get(value, 'type') === 'string' ? (Reflect.get(value, 'type') as string) : undefined,
+      text: typeof Reflect.get(value, 'text') === 'string' ? (Reflect.get(value, 'text') as string) : undefined,
+      cache_control: Reflect.get(value, 'cache_control'),
+    }
+  }
+  let blocks: Block[]
+  if (typeof system === 'string') {
+    blocks = system.length > 0 ? [{ type: 'text', text: system }] : []
+  } else if (Array.isArray(system)) {
+    blocks = system.map(toBlock)
+  } else {
+    blocks = []
+  }
+  // OLD logic: only checks blocks[0]
+  const firstText = typeof blocks[0]?.text === 'string' ? blocks[0].text : ''
+  if (firstText.startsWith(IDENTITY)) return blocks
+  return [{ type: 'text', text: IDENTITY }, ...blocks]
+}
+
+describe('regression — old blocks[0]-only check vs. new any() check', () => {
+  const system = [billingBlock, identityBlock, mainBlock, additionalBlock]
+
+  test('old code: prepends a duplicate identity, producing 5 blocks instead of 4', () => {
+    const result = oldWithClaudeCodeIdentity(system)
+    expect(result).toHaveLength(5)
+    expect(result[0].text).toBe(IDENTITY)
+    expect(result[1].text).toBe(billingBlock.text)
+    expect(result[2].text).toBe(IDENTITY) // duplicate
+  })
+
+  test('old code: cache_control blocks are shifted to positions [3] and [4]', () => {
+    const result = oldWithClaudeCodeIdentity(system)
+    expect(result[3].cache_control).toEqual(mainBlock.cache_control)
+    expect(result[4].cache_control).toEqual(additionalBlock.cache_control)
+    // positions [0]–[2] have no cache_control
+    expect(result[0].cache_control).toBeUndefined()
+    expect(result[1].cache_control).toBeUndefined()
+    expect(result[2].cache_control).toBeUndefined()
+  })
+
+  test('new code: passes blocks through unchanged — 4 blocks, cache_control at [2] and [3]', () => {
+    const result = withClaudeCodeIdentity(system)
+    expect(result).toHaveLength(4)
+    expect(result[2].cache_control).toEqual(mainBlock.cache_control)
+    expect(result[3].cache_control).toEqual(additionalBlock.cache_control)
+  })
+})
+
 // ─── String system that IS the identity ─────────────────────────────────────
 
 describe('system passed as a plain string equal to the identity', () => {
