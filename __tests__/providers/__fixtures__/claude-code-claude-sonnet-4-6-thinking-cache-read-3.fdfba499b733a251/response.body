@@ -1,0 +1,60 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-sonnet-4-6","id":"msg_013M6ytAW8FLrtB9iuZ23fx3","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":3,"cache_creation_input_tokens":10782,"cache_read_input_tokens":12390,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":10782},"output_tokens":0,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":null}    }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}      }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EroKCmUIDRgCKkBBrqCdROUUMb/jugRyGzkd5uzGY/Oc2XLyI76IqwJy8FpH+FVmLBFX/Ebs+wo6U3pO59Iefp09If/6wzhxJl3oMhFjbGF1ZGUtc29ubmV0LTQtNjgAQgh0aGlua2luZxIMz2hHLnY3UdXTXnmUGgx50mHJmnQyETYimVsiMIQunEyOB66P3HCfaNjainP0+ma4i9+p84pBKhDZTFEGmImSI+Miu6Hlo9W0QuF/DSqCCSxsUt9AHjKAXz+UEbd1YKOb/Hx+jNeOn3Dm3L7SXwX0JbkOdhDCl3LlsA42tC5tpJ6DXi6zQGwgP0ncGxtnSr42coZUa6O8HITDTXyJrzSlRhJaJKkk2URvpG8ekBWdrwMTFiz399mseQHwIKQo7WLnYjn1VCiUNsdwNpdttYVRygCCDvsI5jEBwKtgH/5PE8+/87IPCl6KiQkR9bCYYSLRZQihwOmGPhJh8TnRXFuurUkg1JmV3fZZTOX0AFYDzMITNR1pOSx7TTMPR8Xc2z+TCUlcafst+T5m/yQXh316ZecDLYc+FMpn8/3/0G1BI9fm57VtxfJ/PeGcAZ+dzJLvPjbn3e6ko14SuOO7MU0Y8UypulCzaZIjKgt9FX8JN6IcSpl1PtYoKSeTWJmAKi+UDjnG2qy7BQMQCi2Jbo2GHL9KUEh2CvoPD9p01jOT98+Pw2Anku2EDicfx/l7DEmZH7vrMbDuMjb6zKhiDZwV+1nsk6MPouJYJ0K07PBHkQRQP79ZM5GsXudY1iMnrbm13cTNr6DnHyCtYwGcUbxyyHi8WSINaBjKmHbkCYrcr6QLokGsTzp5G4F4kdfpHl3KPk9UytUynmpOLVnOvGYUo+R1DiOFCS5rh+R8tt51Lx3RpKsNpHXzNhIfIYh+n0i4yvh9q1YyWMahQniZIW6NcR2R+A7EBVnrBDcijnEvJ5XPevtEbNIp8U946w6Ai5AIpbVlK9/So3BYe02E50HUA1hQ07GPNvLQwl/NWzw9F19QPGEut1bCuxk5nMy5JvE0jfWxoj1rvUVSBYKzJWYh2t8R19RDd0Q2jZ1C5/sLZQ8OMzH6BVV4YWrFpi/SrR1yyqBYdapfkB1NKFO4PcY+uMvivrdMzTZOWFEkbTUS3l36V0mH5sF7oRHcdL/1JrPilPAWEm6XXrry7Hr0UhXLfCPIakAUjR7vg+hOSYUMkRrmqi5dRd9jcuFAxOvNpeoCz2HxK+hpycHPXwpb5znI0k9gtdjsu/sXJyvXAiydvM+z/gFxbC5KXJT6gqqf6BXUYYr+kgMhpOq0ToizzO2IhNbWSDOO6GrV2LU8H1haaMLPIopJRjS7g15vBPH8P+mr8t1c6F91SukG7n4w6oCKXXoEaVI1qySiFJiJjlFmwiCBO1i9gzdoHrKzEwvb3X2rc75Gv1W92+odGxBdKVj+j7XonRCVeQEz+kWBnbsxeWCAT/l0vOZO+1o2zooZn0M3eTBRrCB6c1d638Cf/iPG61vo+CKQ1DBDc1WHOaWyYrR7cyG3p4FZv5Q22bHhpzw1LGrzUmhD00Sv3bYN5A61zWV4hixoADh89V+vueN/xYVf/M8vMkpDQm4JCEqqKxnjWg/cIwdsO4rzQCXLQqZbYgWekoJDIXiPqljVAQ2ueSOkty1LclMZQJf2diC3tlSWdrWTfiiSquiJPPfI2JgfHW6V7nP4owfZ5a9F9S6y/Ogwja+MUQgWYfxLnh+5BaIAZsNsL9nh459yx76M/Nm0x3CtWDj1JrygCgxJbT1FdsKxGAE="}              }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"「GPT 5.5」「GPT 5.3 Codex」という"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"名称のモデルは私の知識にありません。OpenAIのモデル命"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"名規則と一致しておらず、存在しないモデル名の可能性があります。\n\n**確"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"認できる点:**\n\n- **Claude Opus 4.7** は実在します"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"。Anthropicの最上位モデルで、複雑なコーディング・推論タ"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"スクに優れています\n- **GPT 5.5 / GPT 5.3 Codex** — 2025年8月時"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"点の私の知識では該当するモデルが見当たりません\n\nモ"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"デル名が間違っている可能性があります。例えば：\n- `GPT-4o` や `o3"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"` / `o4-mini` のことを指していますか？\n- `"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Codex` は以前のOpenAIのコーディング特化モデルです"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"が、現在は廃止されています\n\n正確な比較のために、実際に使おうとしているモデル名を教えていただけますか？"}           }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1   }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":3,"cache_creation_input_tokens":10782,"cache_read_input_tokens":12390,"output_tokens":664,"iterations":[{"input_tokens":3,"output_tokens":664,"cache_read_input_tokens":12390,"cache_creation_input_tokens":10782,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":10782},"type":"message"}]},"context_management":{"applied_edits":[]}           }
+
+event: message_stop
+data: {"type":"message_stop"      }
+

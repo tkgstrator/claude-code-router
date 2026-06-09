@@ -200,7 +200,10 @@ describe("multi-turn", () => {
 
 // ─── Extended thinking (Anthropic only) ─────────────────────────────────
 
-const THINKING_TARGETS = [{ provider: "claude-code", model: "claude-opus-4-7", gate: hasClaudeOauth }];
+const THINKING_TARGETS = [
+  { provider: "claude-code", model: "claude-opus-4-8", gate: hasClaudeOauth },
+  { provider: "claude-code", model: "claude-opus-4-7", gate: hasClaudeOauth },
+];
 
 describe("extended thinking", () => {
   for (const { provider, model, gate } of THINKING_TARGETS) {
@@ -377,6 +380,7 @@ function redactedThinkingBody(provider: string, model: string) {
 }
 
 const REDACTED_THINKING_TARGETS = [
+  { provider: "claude-code", model: "claude-opus-4-8", gate: hasClaudeOauth },
   { provider: "claude-code", model: "claude-opus-4-7", gate: hasClaudeOauth },
 ];
 

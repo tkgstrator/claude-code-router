@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "statusText": "OK",
+  "headers": {
+    "anthropic-organization-id": "164b30bb-8177-4fa4-a7aa-c359056e6c41",
+    "cache-control": "no-cache",
+    "content-type": "text/event-stream",
+    "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+    "x-robots-tag": "none",
+    "vary": "Accept-Encoding"
+  }
+}

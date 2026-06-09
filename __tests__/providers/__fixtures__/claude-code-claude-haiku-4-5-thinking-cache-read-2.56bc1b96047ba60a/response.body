@@ -1,0 +1,48 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_012XxePYCvvPjZn9LJuUxnHK","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":10,"cache_creation_input_tokens":483,"cache_read_input_tokens":48967,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":483},"output_tokens":62,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":null}         }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"Et0ICm0IDRgCKkCFJwjfQRvrmv6L5iD48dKGbYsbPxPhMMOyhrx6oDWQIcOeqpZ9+kOy4Z4iUC9Zkagy7e/dwSBc75yRfhJgU9T/MhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nEgwkD7dkHtFnBMtufmcaDLL248MecxVRRgc/SyIwLv5+YXfOQL1Duuuaqpx+55P+Z28uf5wzcjCQYiEmSNE8NuXKL+Z3abU1ltumwbjqKp0HM7vIOF/306y+fozozIlbFy0uYG34eHFWkzdTtr8wT/rEcsHCnvulBywmKMXLofxQafTOruHJXAPS8nsH0+cWiUdL/dcnMxzbkwRu17Mkluq8PJEBbVUyynDOJ/DmuXrZFQc7y8cneVMXFru6CYOV7CszGxhn3N3IAvl1bXQT6VKZWk9E30tHmcaAC10Up+Qyw+l/WOwrQgpd0OiH7Un0OzPbKnlffqxQxDaLhkrwvqfhKWgBq4mo0zkeWWHnDQk6XBYRf0uM0gDzCSRIkjfE2Mp1Z4wfMZxCKCKpEDVLL0344W0Xj5jjaHUHxUaUqjtssgE1p0onwmGRHG4uuLoBGELlD/MA/lAG3F+06GJG/Wdci1SZNG5vo2Yt+SDUmsYPvrUZ7qMt3C3ha8x0IlEciPf9CPpv3fejVkN1cRZQuZVZ1U9RSVBEfRoHu07BMNNw1dV9V9LMk0+V/GOZwaP0TQaeUCoQ60UMhiueyduoKOEQjcW8X65dZVFJZrkI41mlT5njP4pJ3kjpusd5P5qABrrq3XHM1IF6mHLQaJSiEyYLfsGwLFAzeoU+csY05y/XtnRK/teA9W70wMbFIcPY2gE4uDTuJHecRMbOj5mh139odMU+elJ9PbF70fRkbFOSbo0WQnG6wQHWoqHbG0erpEpGYoStjM/ds1mIfw5J9eXuqBMqmQQ8xFrrKAB3iI6WXaJvDr+fVuFBumNaITt27ASY/KnnSCsfjMTeTFRYA28ZbTOqwHtC55rkFRBSIl7ydNcBg67Ik773JYiRZCovxvKEu0VKGDyBuTVpgC1/f+T2wzltc6wmj0xxreXY4roBmtSeOmbQSQtytmUnVxedJk9PUMqv+t9kjaRyzwfAWP7vikn0WK9iz/2hXRmc9rqYSYzCmtM02PRlKjuTOBNy+zwX/IonL14c9Hd4QFV+kIrSbBnuyQTbNpHeEbiN4oG9CJ/3OL6ljp46N19gZoXmiI7ECOrQoTLy8FCJQ1kOzuj13jSCClAExpjuR7qOHSjjsqgy7wwM20mT2aKX2FsXBlsdfqY+GkEj0pHDEV5Vv01+7CLr0FWwZ6T0HgavCljbsdjWCVaQ+5BU9H1uwO4vDKAQ97AvHw++hfEM2e2M84XMKjM4T6WIHAoOm6uCd4K7V5gAd5gmf8snt1bAq+sdQ/6L2EVyRcp7+Tu+ErkKR8ofFduzcL5bs3aTbJfKZG6xM4VduZEhKaXQ5TGYGhgB"} }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0      }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"おっしゃる通りです。申し訳ありません。\n\nユーザーが `/model`"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" コマンドで **Haiku 4.5** に切り替えたので、**現在のセッションは Haiku 4.5** を使用しています。\n\n私"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"が「Sonnet 4.6」と言ったのは、セッション開"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"始時のデフォルト情報を参照してしまったためです。\n\n---"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n## 訂正\n\n**このセッションで使用中：Haiku 4.5**\n- ナレッジカットオフ：2025年8月（"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Claudeモデル共通）\n- 特徴：軽量・高速で、シンプルなタスク向け"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n混乱させてしまい申し訳ありませんでした。"}   }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1    }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":10,"cache_creation_input_tokens":483,"cache_read_input_tokens":48967,"output_tokens":521,"iterations":[{"input_tokens":10,"output_tokens":521,"cache_read_input_tokens":48967,"cache_creation_input_tokens":483,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":483},"type":"message"}]},"context_management":{"applied_edits":[]}             }
+
+event: message_stop
+data: {"type":"message_stop"              }
+

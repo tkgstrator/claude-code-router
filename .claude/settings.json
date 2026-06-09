@@ -1,0 +1,69 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(bun run dev:*)",
+      "Bash(bun run preview:*)",
+      "Bash(bun dev:*)",
+      "Bash(vite:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler pages deploy:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf /:*)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "docker",
+    "github",
+    "tailwindcss",
+    "shadcn",
+    "zod",
+    "prisma",
+    "playwright",
+    "context7",
+    "chrome-devtools",
+    "sequential-thinking"
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/biome-fix.sh\"",
+            "timeout": 30,
+            "statusMessage": "Biome (auto-fix)"
+          },
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/dart-format.sh\"",
+            "timeout": 30,
+            "statusMessage": "dart format"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/repo-check.sh\"",
+            "timeout": 120,
+            "statusMessage": "Biome + tsc + test (repo check)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-commit.sh\"",
+            "timeout": 180,
+            "statusMessage": "auto-commit (biome+tsc gate, LLM message)",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

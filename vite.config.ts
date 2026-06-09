@@ -13,7 +13,13 @@ export default defineConfig({
     allowedHosts: true
   },
   resolve: {
-    alias: [{ find: '@', replacement: resolve(__dirname, './src') }]
+    alias: [{ find: '@', replacement: resolve(__dirname, './src') }],
+    // Force a single physical copy of React into the bundle. node_modules
+    // can end up with duplicate react/react-dom (e.g. a stale .pnpm store
+    // beside .bun, or a dep pinning its own react), and two copies mean two
+    // hook dispatchers → "Invalid hook call" at runtime (next-themes vs the
+    // app loading different Reacts). dedupe collapses them to the hoisted one.
+    dedupe: ['react', 'react-dom']
   },
   plugins: [
     react(),

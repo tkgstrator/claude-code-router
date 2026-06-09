@@ -32,7 +32,10 @@ const EFFORT_LADDER = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 // — 400. Normalise BEFORE sending. Ordered low→high so the last entry is
 // the model's max supported level.
 const EFFORT_BY_MODEL: Record<string, readonly string[]> = {
+  'claude-fable-5': ['low', 'medium', 'high', 'xhigh', 'max'],
+  'claude-mythos-5': ['low', 'medium', 'high', 'xhigh', 'max'],
   'claude-opus-4-7': ['low', 'medium', 'high', 'xhigh', 'max'],
+  'claude-opus-4-8': ['low', 'medium', 'high', 'xhigh', 'max'],
   'claude-opus-4-6': ['low', 'medium', 'high', 'max'],
   'claude-sonnet-4-6': ['low', 'medium', 'high', 'max'],
   'claude-opus-4-5': ['low', 'medium', 'high']
