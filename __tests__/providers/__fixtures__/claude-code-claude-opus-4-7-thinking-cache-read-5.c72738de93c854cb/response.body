@@ -1,0 +1,600 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-7","id":"msg_01WBsEQR15NJkGMSHUqrA7NV","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":6,"cache_creation_input_tokens":2326,"cache_read_input_tokens":31612,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":2326},"output_tokens":8,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":null}              }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""} }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"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"}           }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0             }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"# iOSアプリのリバースエンジニアリングと"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"暗号解析\n\n> ⚠️ **前提**: 自分が権利を持つアプリ"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"、CTF、認可された診断、研究目的に限ること。App"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Store アプリの解析でも、得た知見"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"の利用範囲によっては DMCA /"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" 不正アクセス禁止法 / 利用規約違反に触れ"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"る可能性があります。\n\nワークフローは大きく **「①"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"バイナリ取得 → ②静的解析 → ③動的解析 → ④暗号ロジック"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"特定 → ⑤鍵/平文の抽出」** の5段。\n\n---\n\n## 0. 必要な環境"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n| 項目 | 推奨 |\n|---|---|\n| デバイス | **Jailbreak 済み iP"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"hone** (checkra1n / palera1n /"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Dopamine)。A11以下なら checkra1n が"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"安定 |\n| iOS バージョン | Dopamine: iOS 15"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-16.6.1 (arm64e)、palera1n: iOS 15"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-17 (A10以下は永続) |\n| ホスト | macOS が"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"圧倒的に楽 (codesign, lldb, ot"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ool が標準)。Linux でも可 |\n| パッケージ管理 | Sile"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"o / Zebra |\n| 必須リポ | `https://build.frida.re` ("}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Frida)、Procursus / Eluc"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ubratus |\n\nJailbreak が無理なら **"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"frida-gadget を再署名で同梱** する"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"方法もあります(後述)。\n\n---\n\n## 1. バイナリ取得 ("}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"デコード)\n\nApp Store からの ipa は **FairPlay DRM で暗号化**されています。"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"`otool -l Foo | grep -A4"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" LC_ENCRYPTION_INFO` で `cryptid 1` な"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ら暗号化済み。\n\n### 方法A: 実行時メモリダンプ"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nプロセスにロードされた時点で復号されているので、メモリから"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"抜き出します。\n\n- **frida-ios-dump** (定番): `python3 dump.py \""}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"App Name\"`\n- **bagbak**: `bagbak com.example.app"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" -o ./out`\n- **flexdecrypt** /"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **iridium**: デバイス側で完結\n\n### 方法B:"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" TrollStore + AppDb "}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"等\n最新 iOS で JB せずに復号 ipa を"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"入手するルートもあるが、グレーゾーンが大きい。"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nダンプ後は `cryptid 0` になっていることを確認。\n\n---\n\n## 2. 静的解析\n\n### IP"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"A展開\n```bash\nunzip Foo.ipa -d Foo\ncd Foo/Payload/Foo."}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"app\nfile Foo                              # Mach-O fat or arm64\notool -L"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Foo                          # リンクされている dylib\notool -l Foo | grep -A2 LC_ENCRYPTION #"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" 復号確認\n```\n\n### 逆アセンブラ"}           }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/デコンパイラ\n| ツール | 特徴 |\n|---|---|\n| **Ghidra**"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | 無料、ARM64 デコンパイル可、Swift/"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ObjC のシンボル復元プラグインあ"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"り |\n| **IDA Pro + Hex-Rays ARM64** | 業界標準。`"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"objc_msgSend` のクロスリファレンスが強"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"力 |\n| **Binary Ninja** | UI が現代的、Cloud 版あ"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"り |\n| **Hopper** | macOS ネイティブ、安価 |\n\n### Objective-C のメソ"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ッド一覧\n```bash\nclass-dump Foo > headers.txt           # ObjC "} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ランタイム情報を吸い出し\n```"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nSwift は名前マングル(`_$s"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"...`)されているので、`swift-demangle` か Ghidra の Swift Demangler を"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"使用。\n\n### 文字列・定数からあたりを"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"つける\n```bash\nstrings -a Foo | grep -iE \"aes|encrypt|decrypt|key|iv"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"|hmac|salt|pkcs\"\nstrings -a Foo | grep -iE \"B"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"EGIN|RSA|password\"\n```\n\n### Cryptoルー"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"チンの自動検出\n- **FindCrypt** (Ghidra/"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"IDA プラグイン): S-Box やマジック定"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"数(AES の Rijndael Sbox、SHA-256 の `0x6a09"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"e667` 等)から AES/DES/SHA を自動マ"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ーク\n- **signsrch** / **signatures**: 既知の暗号定"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"数を検出\n\n---\n\n## 3. 動的解析 — Frida を中心に\n\n前回説"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"明した Frida を iOS に向けます。\n\n### セットアップ\n```bash"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n# デバイス\nSileo で \"Frida\" を追加 (build.frida.re)\n\n# ホスト\np"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ip install frida-tools\nfrida-ps -Ua          # 起動中のアプリ"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"一覧\n```\n\n### アプリ起動 & スポーン\n```bash\nfrida"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" -U -f com.example.app -l script.js --no-p"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ause\n```\n\n### ObjC ランタイム経由のフック"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\niOS の暗号化処理は **CommonCrypto** (`"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"CCCrypt`, `CCCryptor"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Create`) か **CryptoKit** に集約されることが多い。"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ここを横取りすれば鍵と IV、"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"平文/暗号文がそのまま見えます。\n\n```javascript\n// CCCrypt の引"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"数を全部ダンプ\nconst CCCrypt = Module.findExportByName(\"libcommonCrypto."}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"dylib\", \"CCCrypt\");\n\nInterceptor.attach(CCCrypt, {\n  onEnter(args) {\n    // CCCrypt(op,"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" alg, options, key, keyLen, iv, dataIn, dataInLen, dataOut, dataOutAvail, dataOutMoved)\n    this.op"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"    = args[0].toInt32();    // 0=Encrypt 1=Decrypt\n    this.alg   = args[1].toInt32();    // 0=AES128"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ...\n    this.key   = args[3];\n    this.keyLen= args[4].toInt32();\n    this.iv    = args[5];\n    this"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":".in    = args[6];\n    this.inLen = args[7].toInt32();\n    this.out   = args[8];\n\n    console.log(\"[CCCrypt]"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\",\n      this.op === 0 ? \"ENC\" : \"DEC\",\n      \"alg=\", this.alg,\n      \"key=\", h"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"exdump(this.key, {length: this.keyLen, ansi:false}),\n      \"iv="}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\",  this.iv.isNull() ? \"null\" : hexdump(this.iv,  {length: "}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"16}),\n      \"in=\",  hexdump(this.in,  {length: Math.min(this.inLen, 64)})\n    );\n  },\n  onLeave(retval) {\n    if ("}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"retval.toInt32() === 0) {\n      const outLen = this.context.x10;"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" // dataOutMoved がレジスタ経由の場合あり\n      console.log(\"[CCCrypt] out"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"=\", hexdump(this.out, {length: 64}));\n    }\n  }\n});\n```\n\n### Swift CryptoKit / 自前実"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"装の場合\n`CCCrypt` を経由せず、Swift で"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" AES-GCM を自作していたり、ホワ"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"イトボックス暗号を埋め込んでいることがあります。その場合は:\n\n```jav"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ascript\n// Swift シンボルは demangle してから attach\nconst s"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ym = \"_$s9MyApp10CryptoU"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"tilC7encrypt4dataAA"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"10CipherTextVAA0E"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"0V_tF\";\nInterceptor.attach(Module.findExportByName(null"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", sym), {\n  onEnter(args) {\n    // self は最後の引数 ("}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Swift calling convention)\n    console.log(\"encrypt called\");\n  }\n});\n```\n\n### objc_msgSend を漁"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"る (究極の手段)\nクラス名・"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"メソッド名がランタイムで決まる場合、`objc_msgSend`"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" を引数付きでログる:\n```javascript\nInterceptor.attach("}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Module.findExportByName(null, \"objc_msgSend\"), {\n  onEnter(args) {\n    const sel = args[1].readCString();\n    if"}               }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (sel && /crypt|key|sign/i.test(sel)) {\n      console.log(ObjC."}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Object(args[0]).$className + \" \" + sel);\n    }\n  }\n});\n```\n\n### 通信を"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"見たい\n- **SSL Pinning バイパ"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ス**: Objection の `ios sslpinning disable` か **SSL-Kill-"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Switch3**\n- **プロキシ**: mitmproxy / Burp Suite / Charles\n- 上記"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"が刺さらない場合は **boringssl の `SSL_read`/`SSL_write` を直接フック"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"** して平文を取る:\n\n```javascript\nconst SSL_read = Module.findExportByName(\"libbo"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ringssl.dylib\", \"SSL_read\");\nInterceptor.attach(SSL_read, {\n  onEnter(args) { this.buf = args[1]; this.n"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" = args[2].toInt32(); },\n  onLeave(ret)  {\n    const len = ret.toInt32();\n    if (len > 0) console.log(hexdump"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(this.buf, {length: len}));\n  }\n});\n```\n\n---\n\n## 4. アプリ固有の「暗号化」を解く"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"アプローチ\n\n**「暗号化」と一口に言っても種"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"類がある**ので、まず分類:\n\n| 観点"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | 典型例 | 攻略の入り口 |\n|---|---|---|\n| 通信の保護"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | TLS + body のさらなる暗号化 / "}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"署名 | SSL Pinning 外し → CCCrypt フック |\n| ローカル保存 | Keychain / S"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"qlite / Plist / Realm の暗号化 | Keychain "}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ダンプ (keychain-dumper)、SQLCip"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"her 鍵抽出 |\n| アセット保護 | 画像/音声/JS"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" の独自暗号 | ファイルを開く `open"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"`/`read` をフック、復号関数を特定 |\n| トークン"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/ライセンス | 端末固有鍵を使った難読化"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | `SecKeyCreate*`、`De"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"viceCheck`、`identifierForVendor` 周辺 |\n| アンチタ"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ンパー | 文字列暗号化、関数毎の"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"復号 | エントリポイントで decrypt → 実行直"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"前にメモリダンプ |\n\n### 鍵の出所を突き止める3"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"つの定石\n\n1. **鍵生成関数を遡る**: `CCKeyDerivation"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"PBKDF`, `SecKeyGeneratePair`, `CC_SHA256`"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" を呼んでいる箇所のスタックトレースを取る\n   "}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"```javascript\n   onEnter(args) {\n     console.log(Thread.backtrace(this.context, Backtracer."}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ACCURATE)\n       .map(DebugSymbol.fromAddress).join(\"\\n\"));\n   }\n   ```\n2. **"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Keychain を覗く**: jailbreak 環境で `keychain_dumper` か `objection"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ios keychain dump`\n3. **メモリスキャン**: 既知の暗号文"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/平文の一部を `Memory.scan` で探し、近"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"傍に鍵があるか確認\n\n### ホワイトボックス暗号 / 文字列暗号化 が施"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"されている場合\n- Hopper/IDA で復号ルーチンを特定 "}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"→ **逆向きに Python で再実装** が王道\n- **Fr"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ida Stalker** で復号関数の前後だけトレ"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ースし、各 basic block のレジスタを記録 → 鍵スケ"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ジュールを再構成\n- **unicorn-engine** で復号関数を"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"抜き出してエミュレート(I"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"DA からエクスポートしたバイト"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"を食わせる)\n- LLVM Obfuscator (OLL"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"VM) が使われていれば **`d810`** や **OLLVM-De"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"obfuscator** で CFG 平坦化を解く\n\n---\n\n## 5. 実践テンプレート"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nありがちな「リクエストボディが独"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"自AES暗号」を解く流れ:\n\n1. m"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"itmproxy で通信観察 → body が base64 のバイナリだと"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"判明\n2. `frida-trace -U -i \"CC*\" -i \"*ss"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"l_write*\" -f com.example.app` で粒度の粗いト"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"レース\n3. `CCCrypt` の引数で鍵32B/IV16"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"B/平文(JSON) を取得 → **AES-256-CBC 確定**\n4. "}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"鍵が固定 or 動的か確認。動的なら鍵生成パスを"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Frida のバックトレースで特定\n5. Python (`cryptography` ライブラリ) で同"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"じ復号を再現してオフライン解析へ\n\n```"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"python\nfrom cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\nimport base64, json\n\nK"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"EY = bytes.fromhex(\"....32B....\")\nIV  = bytes.fromhex(\"....16B....\")\nct  = base64.b64"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"decode(\"...\")\n\nc   = Cipher(algorithms.AES(KEY), modes.CBC(IV)).decryptor()\npt  = c.update(ct)"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" + c.finalize()\nprint(json.loads(pt.rstrip(b\"\\x00\")))\n```\n\n---\n\n## 6. アンチ計"}             }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"装の典型と回避\n\niOSアプリが Frida を"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"弾いてくる典型:\n\n| 検知方"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"法 | 回避 |\n|---|---|\n| `/usr/sbin/frida-server` プロセス名 | `frida-server -"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"l 0.0.0.0:31337` でポート/名前"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"変更、または **Frida Patcher** で別名化 |\n| デフ"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ォルトポート 27042 スキャン | ポート変更 + `"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"frida -H ip:port` |\n| `dlopen(\"FridaG"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"adget\")` チェック | gadget 名変更 + シンボル削除リビル"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ド |\n| JB 検知 (`/Applications/Cydia."}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"app` 等) | **Liberty Lite** / **A-"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Bypass** / Objection の `ios jailbreak disable` |\n| `ptrace(PT_D"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ENY_ATTACH)` | `tweak で ptrace を"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" no-op 化`、または `setjm"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"p` 直前で Interceptor.replace |\n\n---\n\n## 7. 学習素"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"材\n\n- **OWASP MASTG**: <https://mas.owasp.org/MASTG/> — iOS 章は手"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"順が体系化されている\n- **HackTricks (iOS P"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"entesting)**: 実践 Tips の宝庫\n- **書"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"籍**: 『iOS Application Security』(Thiel)、『The"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Mobile Application Hacker's Handbook』\n- **CTF**: HackTheB"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ox の Mobile、DEF CON Mobile CTF、KIP"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"OD AfterDark\n- **トレー"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ニング**: 8kSec の iOS Ex"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ploitation、Mobile Hacking Lab\n\n---\n\n具体的に進めたい部"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"分はどこですか?例えば:\n\n- **a)** 実機"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (どのモデル/iOS) があ"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"るので JB セットアップから\n- **b)** すでに ipa はあるので"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"、Ghidra/IDA での静的解析の進め方\n- **c)** 通信暗号を"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"解きたいので、SSL Pinning バイパス + `CCCrypt` フックの"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"実例を深掘り\n- **d)** 自社アプリの暗号強度を診"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"断したい(防御側目線でのチェックリスト)"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nどれを掘り下げますか?"}               }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1   }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":6,"cache_creation_input_tokens":2326,"cache_read_input_tokens":31612,"output_tokens":5604,"iterations":[{"input_tokens":6,"output_tokens":5604,"cache_read_input_tokens":31612,"cache_creation_input_tokens":2326,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":2326},"type":"message"}]},"context_management":{"applied_edits":[]}           }
+
+event: message_stop
+data: {"type":"message_stop"            }
+

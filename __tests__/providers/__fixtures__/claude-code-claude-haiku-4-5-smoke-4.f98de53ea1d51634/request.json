@@ -1,0 +1,23 @@
+{
+  "label": "claude-code/claude-haiku-4-5: smoke-4",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "headers": {
+    "content-type": "application/json",
+    "x-api-key": "test",
+    "anthropic-version": "2023-06-01"
+  },
+  "body": {
+    "model": "claude-code,claude-haiku-4-5",
+    "max_tokens": 1,
+    "messages": [
+      {
+        "role": "user",
+        "content": "quota"
+      }
+    ],
+    "metadata": {
+      "user_id": "{\"device_id\":\"57d6a31b7b22792659043fa434934fa60bbb1a4a71e39869cb3347d120def2d1\",\"account_uuid\":\"0da73946-c09e-41c6-83df-6bbf4dcad223\",\"session_id\":\"4ca66988-d9cc-42fe-ac9f-4c1196255db4\"}"
+    }
+  }
+}

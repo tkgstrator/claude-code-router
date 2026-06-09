@@ -1,0 +1,16 @@
+{
+  "label": "claude-code/claude-haiku-4-5: subscription smoke",
+  "method": "POST",
+  "url": "http://127.0.0.1:3456/v1/messages",
+  "body": {
+    "model": "claude-code,claude-haiku-4-5",
+    "max_tokens": 64,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply with the word 'pong' only."
+      }
+    ],
+    "stream": true
+  }
+}

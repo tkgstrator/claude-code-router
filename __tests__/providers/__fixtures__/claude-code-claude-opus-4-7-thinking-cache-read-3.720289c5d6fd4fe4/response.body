@@ -1,0 +1,138 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-7","id":"msg_01ULTcphZyc2jZzoJ52wQjpT","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":6,"cache_creation_input_tokens":15095,"cache_read_input_tokens":16501,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":15095},"output_tokens":8,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":null}           }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}          }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"Ev4DCmMIDRgCKkBdTQQ8H1VQXyA8mof8ovLHH6q5470FUoqzoe8kwNdzvbpKTfVoXE2BhSFQQ2jdu3FxPNhj+ypHg8J0XkHNb7VjMg9jbGF1ZGUtb3B1cy00LTc4AEIIdGhpbmtpbmcSDJJl2kS7XyL4B4UCDxoMJwRg+RmkCwifku5zIjDrqqsbV1tSB+qZibOhwVCOye9cdC3cASA96R72vaRHVdzEmfmpLpjYHRfEVnSrBkUqyAJJU0bgK9gubP46hpcY5Ks/FMB1fKkKcaMUuNYvXK4FEKRPaa/a/78DoT6v1Qv+Iw5mrEb4C17BE+U4mMoGo0YQ4OY2tUSVcpUs/2tF4mrz6j7RfGWniD2yMl9QBef1a+N/KLBicSWULABRvFUglfd8UZd1dck3pe2qPXDWeH3rEwCJ9+lMUgsPdNwinzyghUf7CsZ4tEuHIOzO6Tu7sVOCgy7t5539UwEtnCe6lFATsSnjxuWCNdUFT0klGppx7b9vbgkDXVomNUCMYzyMiFO7b0Ik0zIZNiSZMODUBO0BzluKR0fXxfzD4mUhwbuxajWKaqZTCbZpbNwqBFbkXzCWlKMNfoGb6Dma8w+7HC2qZaHpAg4tSb/FC+kCMmcqf4ql+CK2Jm3mOGaOnGlynkB1NRqdAZPmMaCd3XKe3wRoBrl8Lbwegd9gGAE="}          }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0              }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Dev ContainerでFlutter開発環"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"境を構築する設定をご紹介します。\n\n## 1. 基本構成"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n`.devcontainer/devcontainer.json`:\n\n```json\n{\n  \"name\": \"Flutter Dev\",\n  \"image\":"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" \"mcr.microsoft.com/devcontainers/base:ubuntu-22.04\",\n  \"features\": {\n    \"ghcr.io/devc"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ontainers/features/common-utils:2\": {\n      \"installZs"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"h\": true,\n      \"username\": \"vscode\"\n    },\n    \"ghcr.io/devcontainers/features/git:1\": {},\n    \"ghcr."}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"io/flutter/flutter-devcontainer-feature/flutter:1\": {\n      \"version\": \"stable\"\n    }\n  },\n  \"customizations"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\": {\n    \"vscode\": {\n      \"extensions\": [\n        \"Dart-Code.dart-code\",\n        \"Dart"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-Code.flutter\",\n        \"usernamehw.errorlens\""}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n      ],\n      \"settings\": {\n        \"dart.flutterSdkPath\": \"/home/vscode/fl"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"utter\",\n        \"editor.formatOnSave\": true\n      }\n    }\n  },\n  \"forwardPorts\": [8080],"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n  \"remoteUser\": \"vscode\",\n  \"postCreateCommand\": \"flutter doctor && flutter pub get\"\n}\n```\n\n## 2. Docker"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"fileで構築する場合\n\nFlutter Feature を使わず"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"自前で入れるなら `.devcontainer/Dockerfile`:"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n```dockerfile\nFROM mcr.microsoft.com/devcontainers/base:ubuntu-22.04\n\nARG FLUTTER_VERSION=3.24"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":".0\nENV FLUTTER_HOME=/home/vscode/flutter\nENV PATH=$FLUTTER_HOME/"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"bin:$PATH\n\nRUN apt-get update && apt-get install -y \\\n    curl git un"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"zip xz-utils zip libglu1-mesa \\\n    cl"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ang cmake ninja-build pkg-config libgtk-3-dev \\\n    && rm -rf /var/lib"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/apt/lists/*\n\nUSER vscode\nRUN git clone https://github.com/flutter/flutter.git -b stable $FLUTTER_H"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"OME \\\n    && flutter precache \\\n    && flutter config --no-analytics\n```\n\nその場"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"合 `devcontainer.json` の `image` を `build` に置換:\n\n```json\n{\n  \"build\": { \"dockerf"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ile\": \"Dockerfile\" }\n}\n```\n\n## 3. ターゲット別の注意点\n\n| "}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ターゲット | Dev Container での扱い |\n|---|---|\n| **Web** (`flutter run"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" -d web-server`) | コンテナ内で完結。`forwardPorts`"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" でブラウザに公開できる。最も相"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"性が良い |\n| **Android** | コンテナ内に Android SDK は入れられ"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"るが、エミュレータは KVM が"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"必要でDocker内では動かしにくい。実"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"機を USB 経由で `adb` するか、ホスト側エ"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ミュレータに `adb connect` |\n| **iOS** | macOS + Xcode が"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"必須なのでコンテナ不可 |\n| **Linux desktop** | X11/"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Wayland forwarding が必要 |\n\nWeb開発が主目的ならそのまま使えますが、Android/iOS の実"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"機開発も必要なら Dev Container は Web/解"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"析/フォーマット用、ビルドはホストで、"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"という構成が現実的です。\n\nどのターゲット向けに使いたいですか?用"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"途を教えていただければ、より絞った設定をお出しできます。"}           }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1            }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":6,"cache_creation_input_tokens":15095,"cache_read_input_tokens":16501,"output_tokens":1269,"iterations":[{"input_tokens":6,"output_tokens":1269,"cache_read_input_tokens":16501,"cache_creation_input_tokens":15095,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":15095},"type":"message"}]},"context_management":{"applied_edits":[]}         }
+
+event: message_stop
+data: {"type":"message_stop"              }
+

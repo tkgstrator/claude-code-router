@@ -1,0 +1,78 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_01JKjFLuHWcyhYc1bxdCJAx1","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":10,"cache_creation_input_tokens":11760,"cache_read_input_tokens":36367,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":11760},"output_tokens":72,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":{"cache_miss_reason":{"type":"model_changed","cache_missed_input_tokens":22980}}}      }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}         }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EuMJCm0IDRgCKkB/rQlb6yu49/0DP4Ld/j1NWDnV9Jz2tJ8j5FJKHzEfnfTEzpV7Jke3L7pLHgObl0tjEj1ocUjA2BNrgXgQu0XjMhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nEgzeyyJaJ0dnOXA8/XUaDHZsmoiVXcXTMYoHxiIwifM8lty+Owi2NtLQCa4Dq/A7V8z27JUXrRtbMwJo5aR5+FML/+cua+7CPR2ayeQvKqMIQxolkdR0eWPHlUJMY/279fiBFy3cOJ+ZGVcgsiYMccFcePW2/5Ep5aA5VXQ6a4SVpN/w61Nj+lY5ThC8XNLJ/Xg2R6WW0DrcsCh0t5fR7FbjUeWjT2sFKRhiNzze/GVnjj/6TrHpj7uszlvnEutXngbRBLoEJeVGLz/s5wQI36NDjuTCgH5UZ8qoB1HDocwb5p3Mr4qdd/UxlpyhYm1Ndj8rRnMZvF5CJIVXOYk5VHUioYQU5lr4zDhUQW/DXP89sXZFfld72ixnbd9J/S2ZdMJFG1mY9a4m/rGK4QaZCCQaYwoHOI6+VnmbchvqnO2iJCbfTbj2iSFCjKsSKlH96Ff4Vsdb3mDPH8Wn7dS6W+Y6a7VDW0GkoAd5T58FLanryExlfG/qhvfHzoS8k8SeIiQmzVY3TjdvsYpspiHhm1b1eohDfEEyrNsf9zN9HenjmZC5FU1IlkksPIUZH42jIfQiajOijOmyiDbLs18jCnkSuA//uHkMSQy79mUP3fqQyhNfVDFMxqCWjCrhaOztpO17Kupcw7gHwRxw4nucu8cBMwOAYIxGUhw4IalT54Rc5DzH+42wtDfFuLs7HzKUVqLG7kvscGm5a7IF4Vmx4fpOp4MTqantlMYoJUB6/MRaeTb2VXR6Gg+nhsvHUSDtrrmy3rdaifE1wfNuKX7EITFDkWPXCXayI7pI/C7u0XxutyaRAJexGcmA7rDB3qWD+5ucPBWdQPzWIytozYfOOc6295xaDgHlYFteaWicZSjLIz1OwokR3mLrRYClaIr/6ux3eogQtTL21J6OXg59rZZKi4HfikSnipFm27eTk+LY0EX13tOV2etGuMMS7t7exMHkiCCpPxheH1zxH3fRHWLSClTDp+iMoZ7TpHezqIK6IlLK+zkCqdXt1pvXbLbfl0RDux/r4iCEsSGL5DHj+Pcylkjqtk5UmgwgjOwLxdfTmW5zMS8ZSMNSOZ59bSNlDCAGxYZKAvc6a7KHlMBEtm7O1xbLNO6oQfaiMI/v1PlmaO8xIRL543yzJnlEYWqt7dd6Jnwa6uNFzdFVQglU+8puX3rmql2fINPOPYPkNmLTfvRL/NGcPk8EPQ+2+AVtx2AvPKmpFDLDDdH6bXxlnUuXoNh0vUssRLGmEFR6Zf84fUSsjr/OYRy/oUPNgTEqJySGlLSgelNNRAGsgg6CHx8jzu0sQv+tmAiI++z67nG8hZCo6921fd6KSetHAfb4ddFFOcIqamqs8Cl4xTcdISSaBewAOslFO2MKz+zLPLipBs8smeme6uvVUfqeEWswfPJ9mZ85rVcO7qEWX+pBQ+B4DvabYqZ/y2+3QOvfrCc9vgzLg+Hc4XTXU6UvGLfLW+F5fZ/LlmrR1dxdvogwzrGYtyZbv7HTN6b2cG/x7fS/i1QlGAE="}             }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"現在のセッションで利用可能な **"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Claude モデル** についてご説明します。\n\n## Claude モデルの種類（Claude 4系）\n\n| モデル | ID | 特"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"徴 | 用途 |\n|--------|-----|------|------|\n| **Opus 4.7** | `claude-opus-4-7` | 最も高性能。複雑な推論"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"・コーディング | 難易度の高いタスク、深い分析 |\n| **Sonnet 4.6**"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | `claude-sonnet-4-6` | バランス型。高速か"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"つ高精度 | 一般的なコーディング・分析（私の"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"デフォルト） |\n| **Haiku 4.5** | `claude-haiku-4-5-20251001` | 軽量・高速。"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"レスポンス優先 | シンプルなタスク、高速が必"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"要な場合 |\n\n## コーディングの観点\n\n- **Opus 4.7** → "} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"複雑な設計・デバッグ・最"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"適化に最適\n- **Sonnet 4.6** → 日常的なコーディングに最適（バランス"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"が良い）\n- **Haiku 4.5** → シンプルなコードや速度重視なら"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"十分\n\n## 現在のセッション\n\nあなたが `/model` で **"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Haiku 4.5** に切り替えたため、このセッションではそち"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"らを使用します。元に戻したい場合は `/model` で変更できます。\n\nコ"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ーディングをメインにするなら **Opus 4.7** か **Sonnet 4.6"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"** がおすすめです。"}     }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1      }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":10,"cache_creation_input_tokens":11760,"cache_read_input_tokens":36367,"output_tokens":817,"iterations":[{"input_tokens":10,"output_tokens":817,"cache_read_input_tokens":36367,"cache_creation_input_tokens":11760,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":11760},"type":"message"}]},"context_management":{"applied_edits":[]}              }
+
+event: message_stop
+data: {"type":"message_stop"           }
+

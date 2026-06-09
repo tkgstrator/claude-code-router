@@ -40,6 +40,11 @@
       "resolved": "ghcr.io/dhoeric/features/act@sha256:2e99eed677768dff36de20e856f2f6fd285a30ea868dae229e848a2871c4462d",
       "integrity": "sha256:2e99eed677768dff36de20e856f2f6fd285a30ea868dae229e848a2871c4462d"
     },
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/jsburckhardt/devcontainer-features/uv@sha256:542a0bc2203205b3c696de650ba862f280b20af3543493cc232edd9ac35791f7",
+      "integrity": "sha256:542a0bc2203205b3c696de650ba862f280b20af3543493cc232edd9ac35791f7"
+    },
     "ghcr.io/schlich/devcontainer-features/playwright:0": {
       "version": "0.2.1",
       "resolved": "ghcr.io/schlich/devcontainer-features/playwright@sha256:c7537c4f60f2dcf4d232a76c8a86288de9ffbe084a9fd94e89e03f33b66d6978",

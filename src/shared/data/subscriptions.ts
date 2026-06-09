@@ -30,8 +30,25 @@ export const SUBSCRIPTION_PRESETS: SubscriptionPreset[] = [
     label: 'Claude Code',
     description: 'Claude Pro / Max subscription via Claude CLI OAuth',
     apiBaseUrl: 'https://api.anthropic.com/v1/messages',
-    availableModels: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
-    defaultEnabledModels: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    availableModels: [
+      'claude-fable-5',
+      'claude-mythos-5',
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-sonnet-4-6',
+      'claude-haiku-4-5'
+    ],
+    // claude-mythos-5 is selectable (availableModels) but NOT enabled by
+    // default: it's invitation-only (Project Glasswing) and a normal
+    // Pro / Max subscription can't serve it, so enabling it out of the
+    // box would 4xx for most users. Opt in from the UI when entitled.
+    defaultEnabledModels: [
+      'claude-fable-5',
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-sonnet-4-6',
+      'claude-haiku-4-5'
+    ],
     vendor: 'Anthropic',
     cli: 'Claude',
     credentialsPath: '~/.claude/.credentials.json'
@@ -41,8 +58,11 @@ export const SUBSCRIPTION_PRESETS: SubscriptionPreset[] = [
     label: 'Codex',
     description: 'ChatGPT subscription via Codex CLI OAuth',
     apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
-    availableModels: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.2'],
-    defaultEnabledModels: ['gpt-5.5', 'gpt-5.3-codex'],
+    // gpt-5.3-codex is rejected by the ChatGPT-account Codex backend
+    // ("not supported when using Codex with a ChatGPT account"), so it's
+    // not offered here. Re-add if/when the backend supports it.
+    availableModels: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.2'],
+    defaultEnabledModels: ['gpt-5.5'],
     vendor: 'OpenAI',
     cli: 'Codex',
     credentialsPath: '~/.codex/auth.json'
