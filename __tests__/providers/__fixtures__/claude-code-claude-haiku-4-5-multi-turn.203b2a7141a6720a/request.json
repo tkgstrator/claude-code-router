@@ -1,0 +1,24 @@
+{
+  "label": "claude-code/claude-haiku-4-5: multi-turn memory",
+  "method": "POST",
+  "url": "http://127.0.0.1:3456/v1/messages",
+  "body": {
+    "model": "claude-code,claude-haiku-4-5",
+    "max_tokens": 50,
+    "messages": [
+      {
+        "role": "user",
+        "content": "My favorite number is 17. Please remember it."
+      },
+      {
+        "role": "assistant",
+        "content": "Got it — your favorite number is 17."
+      },
+      {
+        "role": "user",
+        "content": "What is my favorite number? Reply with only the number."
+      }
+    ],
+    "stream": true
+  }
+}

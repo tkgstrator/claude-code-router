@@ -1,0 +1,16 @@
+{
+  "status": 404,
+  "statusText": "Not Found",
+  "headers": {
+    "cf-cache-status": "DYNAMIC",
+    "cf-ray": "9ff2e4365b1ffcb3-KIX",
+    "connection": "keep-alive",
+    "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+    "date": "Thu, 21 May 2026 10:27:56 GMT",
+    "server": "cloudflare",
+    "transfer-encoding": "chunked",
+    "vary": "Accept-Encoding",
+    "x-robots-tag": "none",
+    "set-cookie": "_cfuvid=sfVK3NPdoIY1exvkd2SwWCsk63GZKKW4aRyAimqAGp8-1779359276.5324132-1.0.1.1-JoWWXQu4n6UIhLw6SWyc9F.DELs0CA7dWs21ZABYTMo; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.anthropic.com"
+  }
+}

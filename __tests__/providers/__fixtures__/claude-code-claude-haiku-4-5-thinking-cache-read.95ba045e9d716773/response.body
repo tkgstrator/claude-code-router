@@ -1,0 +1,72 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_01Lx6mmngRywrNST6Kz4endP","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":10,"cache_creation_input_tokens":840,"cache_read_input_tokens":48127,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":840},"output_tokens":56,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":null}           }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}      }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EuQECm0IDRgCKkAqScm3p+1j/lblauNEQzc0ghJope9yBK0BNkYZL1HiSRRjUEE6SaJl83yzGQmudGWa1vzxWEFWNbpx/gNZipHcMhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nEgynW4Z7uj6LVMcIubIaDE/IFX7M8glp0E9ZFCIwqLrrd0Qcee8qMiXcqYk/8pGPMxBlK5QdzpLWblSgIU9UAcXVK50/C+HLbSr7bf9ZKqQDqknfFCvJlSaWdCYwqe/s2lrtu3HQ7BAvztC9uYQmpZZNNyvu/rIPQ06RQaUPx+tP5Mq4E1IHPTiSRlN3GLt0epQHdFju8pQgugt2y7FKY49zA33C0eH6Elya5kDFiyFMKyO4FtJpxK5VnjRIeTq4ke7/f5JANTh4+EX4Uxc5cl0zme/NByKahy9hulUZweLf9b5VITWOvqS/vvsLq/r9XpwTOELaJytTVN2qHbU/C7eY2iXEaqj0Wl0eEESbXNR866w3cRVoQQkPsJDd8TTHeyyRat9H3iEU1++jTGzINnG7/h3ACpdm4+HQzJaTbnNI1q0Lwzb/zSnht7oryH+18DAzbpx+exNXjCrTIGcrqaH2s9sMVHec2xAutTNYE3X0ETuRTTcG1hI10ldqu3t1ycbdhSHZpeeOpaWXavuXcwVVjIFr1cFItJWiCtSh3dX+mtS9Q3swoo6AbVyLloKKP6QE30oA8TCVbJ/H1K9h4766bXAHZQXqM2N8kT5IbyhpXPNKmel8QdiIrhaWrYTx9dOENoFxyeL/OmSMI67uuCaJjUDrGAE="}    }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0          }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"## ナレッジカットオフ\n\n**私"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"（Claude Sonnet 4.6）のカットオフ：2025年8月**\n\nつまり、8月以"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"降のニュース・API仕様・ライブラリのア"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ップデートなどは知識に含まれていません。\n\n---\n\n## Claude モデル全"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"般のカットオフ\n\nClaude 4系のモデルは概ね同じ時"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"期のデータでトレーニングされていますが、詳細なカ"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ットオフ日は公式ドキュメントで確認するのが確実です。\n\n### 知"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"識が古い場合の対策\n\nこのセッションで利用可能なツール"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"：\n- **WebSearch** — 最新情報を検索して回答に"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"反映\n- **mcp__context7__query"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-docs** — 各種ライブラリの最新ドキュメントを取得"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nライブラリの最新仕様や現在のベストプラクティスについて質"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"問する際は、これらを活用して最新情報を確保できます。\n\n---\n\n**コ"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ーディングに関する質問があれば、必要に応じてドキュメントや"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"検索で最新情報を取得しながらサポートします。**"}      }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1    }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":10,"cache_creation_input_tokens":840,"cache_read_input_tokens":48127,"output_tokens":457,"iterations":[{"input_tokens":10,"output_tokens":457,"cache_read_input_tokens":48127,"cache_creation_input_tokens":840,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":840},"type":"message"}]},"context_management":{"applied_edits":[]}    }
+
+event: message_stop
+data: {"type":"message_stop" }
+

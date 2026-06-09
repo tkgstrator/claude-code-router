@@ -1,0 +1,267 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-7","id":"msg_01PTmzpbtEyBB8eKq4Yfa5ca","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":6,"cache_creation_input_tokens":15105,"cache_read_input_tokens":16507,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":15105},"output_tokens":8,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":null}   }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"Eq8ECmMIDRgCKkDvisONHGSmNSJ5VlATFyOWR7mK0daAJPMWg/IU5vorPDz9SjBAuxPv15wxcKWp9SUSlrac1NlJwLtGRpMDWoVTMg9jbGF1ZGUtb3B1cy00LTc4AEIIdGhpbmtpbmcSDKofxbrGzPFpHoRKmBoMvh+vIKZqIRU5HfbWIjCCDDoukYS3ZPcZcCoTp3wwc/5X3mvbSAp/oWhg04XKL/T3aN1fzsWY3teabrPFEnUq+QJQ5gEeNzO1Zh5md7pbSws8QxvBeYUzlyc0CuFKKo6k4PV3G18TwOIS5lR/gofqvbU60ICaF6FEk7oKlycHe7yQFsZgdHg2XwTvTalgJHWPrNmS0baEu2PiEhm2LIZYEEsX9GY5Cu2eGuRdlcXqP8if9k51TNzI1CxRRHo6eDDShVWlIbotyjO37M+fpMl9Rb8uqSrqDF/xwg7YVyx7Whdpw/blvmrJpjFoPkfddubPiBFyCLHCLkSVr6aga0ZxGPE6VGZ0BumT+HZvTv1IoeXQOeRjKgTvfFs06b+h/jlZvyZXLXzVAZK6d4KsDV1OvhzlM4vhJTh0h7OWAQyBFEMm0fszaameF0uCTHo8PPnsjvnWnMEUowqf1zR77AyhELYhpJPeyGa99OZgza5Q/BHrldLKvNWFkjD4kHgEfw9JftQ4gHE2yuANWCiLHDTapKVKUk6T47/aOQZzFMgSYkzhrHM8/x8EF3ewlq+iUP2BdIwsN3vHptl01xgB"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0           }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"# Frida とは\n\n**Frida** は、Ole André V"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":". Ravnås が開発した動的計装(dynamic instrument"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ation)ツールキットです。実行中のプロセスに JavaScript コードを注"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"入して、関数の挙動を観察・改変できる、リ"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"バースエンジニアリングとセキュリティ研究の定"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"番ツールです。\n\n## 主な特徴\n\n- **マルチプラットフォーム**: Windows / macOS / Linux / i"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"OS / Android / QNX に対応\n- **言語バインディング**: Python, Node."}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"js, Swift, .NET, Qt/Qml"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", C\n- **スクリプト言語**: V8/QuickJS エ"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ンジン上で JavaScript (TypeScript も可) を実行\n- **再コンパイル"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"不要**: バイナリやソースを変更せず、ランタイムに後付"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"けで挙動を変更\n- **オープンソース**: wxWindows "}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ライセンス\n\n## アーキテクチャ\n\n```\n[ホ"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"スト側 (PC)]            [ターゲット側 (デバイス/プロセス)]\nPython/"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Node CLI  ──TCP──>  frida-server / frida-gadget\n                            └─"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" frida-agent (JS engine) ─ 注入先プロセス\n```\n\n-"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **frida-core**: C で書かれたコア。プロセスへの注"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"入、メモリ操作、シンボル解決\n- **frida-g"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"um**: 計装エンジン本体"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"。Stalker(コードトレース)、Interceptor("} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"関数フック)、Memory API などを提"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"供\n- **frida-agent**: ターゲットプロセス内で動く JS ランタイム\n\n## よ"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"く使う API\n\n### Interceptor — 関数フック\n```javascript"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nInterceptor.attach(Module.findExportByName(\"libc.so\", \"open\"), {\n  onEnter(args) {\n    console.log"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(\"open:\", args[0].readUtf8String());\n  },\n  onLeave(retval) {\n    console.log(\"fd:\", retval."}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"toInt32());\n  }\n});\n```\n\n### Memory — メモリ読み書き\n```javascript\nconst ptr = Memory.al"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"loc(16);\nMemory.writeUtf8String(ptr, \"hello\");\nconsole.log(Memory.readUtf8String(ptr));\n```\n\n### Java"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" / ObjC — 高レベル言語のフック"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```javascript\n// Android アプリの Java クラスをフック\nJava.perform(()"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" => {\n  const Activity = Java.use(\"android.app.Activity\");\n  Activity.onResume.implementation = function() {"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    console.log(\"onResume called\");\n    this.onResume();\n  };\n});\n```\n\n```javascript\n// iOS の"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Objective-C メソッドをフック\nconst NSURL = ObjC.classes."}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"NSURL;\nInterceptor.attach(NSURL[\"+ URLWithString:\"].implementation, {\n  onEnter(args) {\n    console.log(\""} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"URL:\", new ObjC.Object(args[2]).toString());\n  }\n});\n```\n\n### Stalker — コードトレース\n命令単"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"位/基本ブロック単位での実行トレースが可能。カバレ"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ッジ取得やファジングと組み合わせて使われ"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ます。\n\n## 利用モード\n\n| モード | 用途 |\n|---|---|\n| **Inj"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ected** | 起動済みプロセスに `frida-server` 経由で注入 |\n| **Embedded (Gadget)** | `fr"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ida-gadget.so` をアプリに同梱し、ルート権限なしで動作"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" |\n| **Preloaded** | `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` 等で起"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"動時注入 |\n| **Spawned** | プロセスを Frida 経由で起動し、`"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"main` 到達前から計装 |\n\n## 代表"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"的なツール群\n\n- **frida-trace**: ライブラリ関数を"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"一括トレース。`frida-trace -i \"open*\" -p 1234`\n- **frida"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-ps**: プロセス/デバイス一覧\n- **frida-ls-devices**: 接続デバイス一覧\n- **"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Objection** (Frida 上の高レベルツールキット): モ"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"バイルアプリの SSL ピン外"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"し、ルート検知バイパス等をワンライナ"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ーで実行\n\n## 主なユースケース\n\n1. **モバイルアプリのセキュリティ解析**:"}             }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" SSL Pinning バイパス、ルート/Jailbreak 検知の回"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"避、API 通信の傍受\n2. **マルウェア解析**: API コールト"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"レース、難読化された処理の動的解読\n3. **CTF / バ"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"グバウンティ**: バイナリエクス"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"プロイト、認証ロジックの解明\n4. **デバッグ補助**: GDB が"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"使いにくい環境での実行時イン"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"スペクション\n5. **ファジング基盤**: AFL++ や"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Honggfuzz と組み合わせたカバレッジ収集 "}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(frida-fuzzer 等)\n\n## インストール\n\n```bash\n# ホスト側 "}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(Python)\npip install frida-tools\n\n# Android デバイス側\n# frida-server-<version>-android"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-arm64.xz をリリースから取得\nadb push frida-server /"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"data/local/tmp/\nadb shell \"chmod +x /data/local/tmp/frida-server && /data/local/tmp/frida-server &\"\n\n# iOS は Cydia/"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Sileo の Frida リポジトリから\n```\n\n## 注意点\n\n- **検"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"知対策**: 最近のアプリは Frida 検知機構(`frida-server` プ"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ロセス名、`/proc/self/maps` 上の `frida-agent`、特定"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ポートのオープン等)を持つ。**Frid"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"aStealth** や **frida-gum-no-symbols** "}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ビルド、ポート変更などで回避可能\n- **Android 14"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"+ / iOS 17+**: ABI 変更や SEL"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"inux ポリシー強化でセットアップが複雑化\n- **法的範"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"囲**: 自分が権利を持つアプリ、CTF、認可された脆"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"弱性診断、研究目的に限定して使うこと\n\n## 学"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"習リソース\n\n- 公式: <https://frida.re/>\n- ドキュメント: <https://frida.re/docs"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/home/>\n- 書籍: 『Learning Android Forensics』"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"『iOS Application Security』(共に Frida "}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"章あり)\n- 演習: [OWASP MASTG"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"](https://mas.owasp.org/MASTG/) のモバイル解"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"析ハンズオン\n\n何か特定のユースケース"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(Android の SSL ピン外し、関数フックの書き方、Stalker でのトレースなど)"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"を深掘りしたい部分はありますか?"}         }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":6,"cache_creation_input_tokens":15105,"cache_read_input_tokens":16507,"output_tokens":2284,"iterations":[{"input_tokens":6,"output_tokens":2284,"cache_read_input_tokens":16507,"cache_creation_input_tokens":15105,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":15105},"type":"message"}]},"context_management":{"applied_edits":[]}   }
+
+event: message_stop
+data: {"type":"message_stop"           }
+
