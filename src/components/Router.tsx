@@ -6,6 +6,7 @@ import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
@@ -14,6 +15,10 @@ import type { Config } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { SelectCombobox } from './SelectCombobox'
+
+// Slots that carry an ordered fallback chain, in the order they're
+// rendered in the fallback section below.
+const FALLBACK_SLOTS = ['default', 'background', 'think', 'webSearch', 'longContext', 'image'] as const
 
 export function Router() {
   const { config } = useConfig()
@@ -37,6 +42,7 @@ function RouterForm({ config }: { config: Config }) {
       longContextThreshold: config.Router.longContextThreshold,
       webSearch: config.Router.webSearch,
       image: config.Router.image,
+      fallbacks: config.Router.fallbacks,
       forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
     }
   })
@@ -51,7 +57,8 @@ function RouterForm({ config }: { config: Config }) {
         longContext: values.longContext,
         longContextThreshold: values.longContextThreshold,
         webSearch: values.webSearch,
-        image: values.image
+        image: values.image,
+        fallbacks: values.fallbacks
       },
       forceUseImageAgent: values.forceUseImageAgent === 'true'
     }
@@ -240,6 +247,38 @@ function RouterForm({ config }: { config: Config }) {
                     </FormItem>
                   )}
                 />
+              </div>
+            </div>
+
+            <div className='space-y-3'>
+              <div>
+                <h3 className='text-sm font-medium'>{t('router.fallbacks')}</h3>
+                <p className='text-xs text-muted-foreground'>{t('router.fallbacksDescription')}</p>
+              </div>
+              <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start'>
+                {FALLBACK_SLOTS.map((slot) => (
+                  <FormField
+                    key={slot}
+                    control={form.control}
+                    name={`fallbacks.${slot}`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t(`router.${slot}`)}</FormLabel>
+                        <FormControl>
+                          <MultiCombobox
+                            options={modelOptions}
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder={t('router.selectModel')}
+                            searchPlaceholder={t('router.searchModel')}
+                            emptyPlaceholder={t('router.noModelFound')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
               </div>
             </div>
 

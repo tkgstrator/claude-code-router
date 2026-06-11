@@ -56,6 +56,35 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.think).toBeNull()
   })
 
+  test('per-slot fallbacks round-trip and unknown models are dropped with a warning', async () => {
+    const result = await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5', 'gpt-5-nano']
+        }
+      ],
+      Router: {
+        default: 'openai,gpt-5',
+        // A missing nested key defaults to [] (RouterFallbacksSchema),
+        // so a partial fallbacks object is enough to set one slot.
+        fallbacks: { default: ['openai,gpt-5-nano', 'openai,does-not-exist'] }
+      }
+    })
+
+    // The unknown model is dropped with a warning; the valid one stays,
+    // in order.
+    expect(result.warnings.some((w) => w.includes('does-not-exist'))).toBe(true)
+
+    const ui = await composeUiConfig()
+    expect(ui.Router.default).toBe('openai,gpt-5')
+    expect(ui.Router.fallbacks.default).toEqual(['openai,gpt-5-nano'])
+    expect(ui.Router.fallbacks.background).toEqual([])
+  })
+
   test('removing a model nulls any RouterSlot that referenced it and warns', async () => {
     await applyUiConfig({
       Providers: [

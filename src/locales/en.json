@@ -251,7 +251,9 @@
     "forceUseImageAgent": "Force Use Image Agent",
     "selectModel": "Select a model...",
     "searchModel": "Search model...",
-    "noModelFound": "No model found."
+    "noModelFound": "No model found.",
+    "fallbacks": "Fallback models",
+    "fallbacksDescription": "Tried in order when the primary slot is rate-limited (proactively on high usage, or on a 429). Returns to the primary once the limit resets."
   },
   "json_editor": {
     "title": "JSON Editor",

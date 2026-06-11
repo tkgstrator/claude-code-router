@@ -2,6 +2,37 @@ import { z } from '@hono/zod-openapi'
 import { SCENARIO_KEYS } from '@/shared/db/types'
 import { EmptyStringToNullSchema } from './common.dto'
 
+// Per-scenario ordered fallback chains. Each entry is a
+// "providerName,modelName" string; the router walks the list in order
+// when the primary slot model is rate-limited (proactively on a high
+// usage percentage, or reactively on a 429). A missing list is an empty
+// list — no fallbacks configured for that scenario.
+const FallbackListSchema = z.array(z.string().nonempty()).default([])
+
+export const RouterFallbacksSchema = z
+  .object({
+    default: FallbackListSchema,
+    background: FallbackListSchema,
+    think: FallbackListSchema,
+    longContext: FallbackListSchema,
+    webSearch: FallbackListSchema,
+    image: FallbackListSchema
+  })
+  .openapi('RouterFallbacks')
+export type RouterFallbacks = z.infer<typeof RouterFallbacksSchema>
+
+// The all-empty fallbacks object. Used as the schema default (the
+// object's output type requires every scenario key, so an empty `{}`
+// default would not type-check) and by composeUiConfig.
+export const emptyFallbacks = (): RouterFallbacks => ({
+  default: [],
+  background: [],
+  think: [],
+  longContext: [],
+  webSearch: [],
+  image: []
+})
+
 // API wire shape returned by /api/config.
 export const RouterSchema = z
   .object({
@@ -14,12 +45,19 @@ export const RouterSchema = z
     longContext: EmptyStringToNullSchema,
     webSearch: EmptyStringToNullSchema,
     image: EmptyStringToNullSchema,
+    // Ordered per-scenario fallback chains (see RouterFallbacksSchema).
+    // composeUiConfig always emits the full object (empty arrays for
+    // scenarios with no fallbacks), so the default covers an absent key.
+    fallbacks: RouterFallbacksSchema.default(emptyFallbacks),
     // Genuinely optional: composeUiConfig omits the key entirely when
     // there's no threshold (it is not emitted as null), so .optional()
     // matches the wire — .nullable() would reject the absent key.
     longContextThreshold: z.number().int().positive().default(60000)
   })
-  .catchall(z.union([z.string().nonempty(), z.number(), z.null()]))
+  // The fallbacks object is a declared field; the catchall union must
+  // include its shape so the (declared keys + index signature) type
+  // stays consistent. Unknown keys still accept scalar JSON.
+  .catchall(z.union([z.string().nonempty(), z.number(), z.null(), RouterFallbacksSchema]))
   .openapi('Router')
 export type Router = z.infer<typeof RouterSchema>
 
@@ -35,6 +73,7 @@ export const RouterConfigSchema = z.object({
   longContextThreshold: z.number().int().positive(),
   webSearch: z.string().nullable(),
   image: z.string().nullable(),
+  fallbacks: RouterFallbacksSchema.default(emptyFallbacks),
   custom: z.unknown().optional()
 })
 export type RouterConfig = z.infer<typeof RouterConfigSchema>
