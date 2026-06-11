@@ -1,0 +1,8 @@
+[submodule "biome-plugins"]
+	path = biome-plugins
+	url = https://github.com/qtmleap/biome-plugins.git
+	branch = master
+[submodule "claude-plugins"]
+	path = claude-plugins
+	url = https://github.com/qtmleap/claude-plugins.git
+	branch = master
