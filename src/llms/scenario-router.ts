@@ -153,11 +153,14 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     req.body.model = applyProactiveFailover(model, scenarioType, ctx.config, req.log)
     req.scenarioType = scenarioType
 
-    // Append the active persona's prompt AFTER subagent-tag handling
-    // (done inside selectModel) so it composes with — rather than
-    // clobbers — any per-call system content. Empty when no persona is
-    // active, which is a no-op (the cached prefix stays byte-stable).
-    req.body.system = applyGlobalSystemPrompt(req.body.system, resolveActivePersonaPrompt(ctx.config))
+    // Append the active persona's prompt to user-facing routes only,
+    // AFTER subagent-tag handling (done inside selectModel) so it
+    // composes with — rather than clobbers — any per-call system content.
+    // The `background` route runs lightweight internal tasks (e.g. title
+    // generation) where a persona voice would corrupt the output, so it is
+    // excluded. Empty is a no-op, keeping the cached prefix byte-stable.
+    const personaPrompt = scenarioType === 'background' ? '' : resolveActivePersonaPrompt(ctx.config)
+    req.body.system = applyGlobalSystemPrompt(req.body.system, personaPrompt)
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')
     const fallback = ctx.config.get<RouterConfig>('Router')?.default
