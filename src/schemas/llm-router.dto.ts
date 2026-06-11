@@ -24,7 +24,14 @@ export const ScenarioRouterConfigSchema = z.object({
   longContext: z.string().nonempty().optional(),
   webSearch: z.string().nonempty().optional(),
   /** Token threshold above which a request gets routed to longContext. */
-  longContextThreshold: z.number().optional()
+  longContextThreshold: z.number().optional(),
+  /**
+   * Name of the active persona for this router (looked up in the
+   * top-level Personas library). Optional so an existing per-project /
+   * session override file without a persona still parses; absent / empty
+   * means "no persona".
+   */
+  persona: z.string().nonempty().optional()
 })
 export type ScenarioRouterConfig = z.infer<typeof ScenarioRouterConfigSchema>
 

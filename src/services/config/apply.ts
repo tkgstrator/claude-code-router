@@ -56,13 +56,22 @@ export type SplitPayload = {
 // envelope / DB-bound parts. ApplyConfigPayloadSchema treats Providers
 // and Router as optional, so the schema is happy with partial payloads
 // (CRUD endpoints pass single-key shapes).
+//
+// The active persona arrives nested on Router.persona but is stored in
+// the disk envelope (no DB column), so we lift it out of the router slice
+// onto the envelope's ActivePersona backing key when present. An empty
+// string / null clears it (pruneUnsetEnvelopePaths drops it off disk);
+// an absent key leaves the envelope untouched so a router-only save that
+// omits persona doesn't wipe the current selection.
 export const splitPayload = (payload: Record<string, unknown>): SplitPayload => {
   const parsed = ApplyConfigPayloadSchema.parse(payload)
-  const { Providers, Router, ...envelope } = parsed
+  const { Providers, Router, ...rest } = parsed
+  const { persona, ...routerWithoutPersona } = Router !== undefined ? Router : {}
+  const envelope = 'persona' in (Router !== undefined ? Router : {}) ? { ...rest, ActivePersona: persona } : rest
   return {
     envelope,
     incomingProviders: Providers !== undefined ? Providers : [],
-    incomingRouter: Router !== undefined ? Router : {}
+    incomingRouter: routerWithoutPersona
   }
 }
 

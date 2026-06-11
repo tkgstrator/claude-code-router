@@ -52,7 +52,12 @@ export const RouterSchema = z
     // Genuinely optional: composeUiConfig omits the key entirely when
     // there's no threshold (it is not emitted as null), so .optional()
     // matches the wire — .nullable() would reject the absent key.
-    longContextThreshold: z.number().int().positive().default(60000)
+    longContextThreshold: z.number().int().positive().default(60000),
+    // Name of the active persona for this router, or null/absent for
+    // "no persona". composeUiConfig folds it in from the disk envelope;
+    // applyUiConfig reads it back out. Nullable so an explicit "clear"
+    // ('' coerced to null) travels on the wire alongside the absent key.
+    persona: EmptyStringToNullSchema.optional()
   })
   // The fallbacks object is a declared field; the catchall union must
   // include its shape so the (declared keys + index signature) type
@@ -74,6 +79,10 @@ export const RouterConfigSchema = z.object({
   webSearch: z.string().nullable(),
   image: z.string().nullable(),
   fallbacks: RouterFallbacksSchema.default(emptyFallbacks),
+  // Active persona name for this router. Optional so existing
+  // per-project/session router-override files (which never carried a
+  // persona) still parse; empty/absent means "no persona".
+  persona: z.string().nonempty().optional(),
   custom: z.unknown().optional()
 })
 export type RouterConfig = z.infer<typeof RouterConfigSchema>

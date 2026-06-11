@@ -1,0 +1,91 @@
+- generic [ref=e5]:
+  - generic [ref=e8]:
+    - generic [ref=e10]: Claude Code Router
+    - list [ref=e13]:
+      - listitem [ref=e14]:
+        - link "Models" [ref=e15] [cursor=pointer]:
+          - /url: /models
+          - img [ref=e16]
+          - generic [ref=e21]: Models
+      - listitem [ref=e22]:
+        - link "Providers" [ref=e23] [cursor=pointer]:
+          - /url: /providers
+          - img [ref=e24]
+          - generic [ref=e27]: Providers
+      - listitem [ref=e28]:
+        - link "Subscriptions" [ref=e29] [cursor=pointer]:
+          - /url: /subscriptions
+          - img [ref=e30]
+          - generic [ref=e32]: Subscriptions
+      - listitem [ref=e33]:
+        - link "Router" [ref=e34] [cursor=pointer]:
+          - /url: /router
+          - img [ref=e35]
+          - generic [ref=e41]: Router
+      - listitem [ref=e42]:
+        - link "Usage" [ref=e43] [cursor=pointer]:
+          - /url: /usage
+          - img [ref=e44]
+          - generic [ref=e47]: Usage
+      - listitem [ref=e48]:
+        - link "History" [ref=e49] [cursor=pointer]:
+          - /url: /history
+          - img [ref=e50]
+          - generic [ref=e54]: History
+      - listitem [ref=e55]:
+        - link "Personas" [active] [ref=e56] [cursor=pointer]:
+          - /url: /personas
+          - img [ref=e57]
+          - generic [ref=e62]: Personas
+      - listitem [ref=e63]:
+        - link "Settings" [ref=e64] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e65]
+          - generic [ref=e68]: Settings
+    - generic [ref=e70]: v2.0.2
+    - button "Toggle Sidebar" [ref=e71]
+  - main [ref=e72]:
+    - generic [ref=e73]:
+      - button "Toggle Sidebar" [ref=e74]:
+        - img
+        - generic [ref=e75]: Toggle Sidebar
+      - generic [ref=e76]:
+        - button [ref=e77]:
+          - img
+        - button [ref=e78]:
+          - img
+        - button [ref=e79]:
+          - img
+        - button [ref=e80]:
+          - img
+        - button [ref=e81]:
+          - img
+        - button "Save" [ref=e82]:
+          - img
+          - text: Save
+    - main [ref=e83]:
+      - generic [ref=e160]:
+        - generic [ref=e162]:
+          - heading "Personas (1)" [level=1] [ref=e163]
+          - generic [ref=e164]:
+            - button "Add persona" [ref=e165]:
+              - img
+              - text: Add persona
+            - button "Save" [ref=e166]
+        - generic [ref=e168]:
+          - paragraph [ref=e169]: Save named personas. Pick the active one to append on the Router page.
+          - generic [ref=e171]:
+            - generic [ref=e172]:
+              - generic [ref=e173]:
+                - generic [ref=e174]: Name
+                - textbox "Name" [ref=e175]:
+                  - /placeholder: e.g. Polite
+                  - text: イレイナ
+              - button "Delete persona" [ref=e176]:
+                - img
+            - generic [ref=e177]:
+              - generic [ref=e178]: Prompt
+              - textbox "Prompt" [ref=e179]:
+                - /placeholder: Describe how the assistant should behave...
+                - text: あなたはイレイナです。一人称は『わたし』、少し気取った口調で話してください。
+  - region "Notifications alt+T"
