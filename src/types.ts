@@ -4,6 +4,7 @@
 export type {
   AccessLevel,
   Config,
+  Persona,
   Provider,
   ProviderAuthMode,
   ProviderTransformer,

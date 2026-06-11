@@ -41,6 +41,7 @@
     "subscriptions": "Subscriptions",
     "usage": "Usage",
     "history": "History",
+    "personas": "Personas",
     "settings": "Settings"
   },
   "usage": {
@@ -253,7 +254,10 @@
     "searchModel": "Search model...",
     "noModelFound": "No model found.",
     "fallbacks": "Fallback models",
-    "fallbacksDescription": "Tried in order when the primary slot is rate-limited (proactively on high usage, or on a 429). Returns to the primary once the limit resets."
+    "fallbacksDescription": "Tried in order when the primary slot is rate-limited (proactively on high usage, or on a 429). Returns to the primary once the limit resets.",
+    "persona": "Active persona",
+    "personaNone": "None / Off",
+    "personaHelper": "Appended to user-facing routes (not background) for this router. Define personas on the Personas page."
   },
   "json_editor": {
     "title": "JSON Editor",
@@ -456,5 +460,21 @@
       "apply": "Apply",
       "cancel": "Cancel"
     }
+  },
+  "personas": {
+    "title": "Personas",
+    "description": "Save named personas. Pick the active one to append on the Router page.",
+    "add": "Add persona",
+    "delete": "Delete persona",
+    "save": "Save",
+    "name_label": "Name",
+    "name_placeholder": "e.g. Polite",
+    "prompt_label": "Prompt",
+    "prompt_placeholder": "Describe how the assistant should behave...",
+    "empty": "No personas yet. Add one to get started.",
+    "saved_success": "Personas saved",
+    "save_failed": "Failed to save personas",
+    "name_required": "Every persona needs a name",
+    "name_duplicate": "Persona names must be unique"
   }
 }

@@ -1,0 +1,161 @@
+- generic [ref=e16]:
+  - generic [ref=e19]:
+    - generic [ref=e21]: Claude Code Router
+    - list [ref=e24]:
+      - listitem [ref=e25]:
+        - link "Models" [ref=e26] [cursor=pointer]:
+          - /url: /models
+          - img [ref=e27]
+          - generic [ref=e32]: Models
+      - listitem [ref=e33]:
+        - link "Providers" [ref=e34] [cursor=pointer]:
+          - /url: /providers
+          - img [ref=e35]
+          - generic [ref=e38]: Providers
+      - listitem [ref=e39]:
+        - link "Subscriptions" [ref=e40] [cursor=pointer]:
+          - /url: /subscriptions
+          - img [ref=e41]
+          - generic [ref=e43]: Subscriptions
+      - listitem [ref=e44]:
+        - link "Router" [ref=e45] [cursor=pointer]:
+          - /url: /router
+          - img [ref=e46]
+          - generic [ref=e52]: Router
+      - listitem [ref=e53]:
+        - link "Usage" [ref=e54] [cursor=pointer]:
+          - /url: /usage
+          - img [ref=e55]
+          - generic [ref=e58]: Usage
+      - listitem [ref=e59]:
+        - link "History" [ref=e60] [cursor=pointer]:
+          - /url: /history
+          - img [ref=e61]
+          - generic [ref=e65]: History
+      - listitem [ref=e66]:
+        - link "Personas" [ref=e67] [cursor=pointer]:
+          - /url: /personas
+          - img [ref=e68]
+          - generic [ref=e73]: Personas
+      - listitem [ref=e74]:
+        - link "Settings" [ref=e75] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e76]
+          - generic [ref=e79]: Settings
+    - generic [ref=e81]: v2.0.2
+    - button "Toggle Sidebar" [ref=e82]
+  - main [ref=e83]:
+    - generic [ref=e84]:
+      - button "Toggle Sidebar" [ref=e85]:
+        - img
+        - generic [ref=e86]: Toggle Sidebar
+      - generic [ref=e87]:
+        - button [ref=e88]:
+          - img
+        - button [ref=e89]:
+          - img
+        - button [ref=e90]:
+          - img
+        - button [ref=e91]:
+          - img
+        - button [ref=e92]:
+          - img
+        - button "Save" [ref=e93]:
+          - img
+          - text: Save
+    - main [ref=e94]:
+      - generic [ref=e309]:
+        - heading "Router" [level=1] [ref=e312]
+        - generic [ref=e314]:
+          - generic [ref=e315]:
+            - generic [ref=e316]:
+              - generic [ref=e317]: Default
+              - combobox [ref=e318]:
+                - generic: Select a model...
+                - img
+              - combobox [ref=e319]
+            - generic [ref=e320]:
+              - generic [ref=e321]: Background
+              - combobox [ref=e322]:
+                - generic: Select a model...
+                - img
+              - combobox [ref=e323]
+            - generic [ref=e324]:
+              - generic [ref=e325]: Think
+              - combobox [ref=e326]:
+                - generic: Select a model...
+                - img
+              - combobox [ref=e327]
+            - generic [ref=e328]:
+              - generic [ref=e329]: Web Search
+              - combobox [ref=e330]:
+                - generic: Select a model...
+                - img
+              - combobox [ref=e331]
+            - generic [ref=e332]:
+              - generic [ref=e333]:
+                - generic [ref=e334]: Long Context
+                - combobox [ref=e335]:
+                  - generic: Select a model...
+                  - img
+                - combobox [ref=e336]
+              - generic [ref=e337]:
+                - generic [ref=e338]: Context Threshold
+                - spinbutton "Context Threshold" [ref=e339]: "60000"
+            - generic [ref=e340]:
+              - generic [ref=e341]:
+                - generic [ref=e342]: Image (beta)
+                - combobox [ref=e343]:
+                  - generic: Select a model...
+                  - img
+                - combobox [ref=e344]
+              - generic [ref=e345]:
+                - generic [ref=e346]: Force Use Image Agent
+                - combobox "Force Use Image Agent" [ref=e347]:
+                  - generic: "No"
+                  - img
+                - combobox [ref=e348]
+            - generic [ref=e349]:
+              - generic [ref=e350]: Active persona
+              - combobox "Active persona" [active] [ref=e351]:
+                - generic: イレイナ
+                - img
+              - combobox [ref=e352]
+              - paragraph [ref=e353]: Appended to user-facing routes (not background) for this router. Define personas on the Personas page.
+          - generic [ref=e354]:
+            - generic [ref=e355]:
+              - heading "Fallback models" [level=3] [ref=e356]
+              - paragraph [ref=e357]: Tried in order when the primary slot is rate-limited (proactively on high usage, or on a 429). Returns to the primary once the limit resets.
+            - generic [ref=e358]:
+              - generic [ref=e359]:
+                - generic [ref=e360]: Default
+                - combobox [ref=e362]:
+                  - text: Select a model...
+                  - img
+              - generic [ref=e363]:
+                - generic [ref=e364]: Background
+                - combobox [ref=e366]:
+                  - text: Select a model...
+                  - img
+              - generic [ref=e367]:
+                - generic [ref=e368]: Think
+                - combobox [ref=e370]:
+                  - text: Select a model...
+                  - img
+              - generic [ref=e371]:
+                - generic [ref=e372]: Web Search
+                - combobox [ref=e374]:
+                  - text: Select a model...
+                  - img
+              - generic [ref=e375]:
+                - generic [ref=e376]: Long Context
+                - combobox [ref=e378]:
+                  - text: Select a model...
+                  - img
+              - generic [ref=e379]:
+                - generic [ref=e380]: Image
+                - combobox [ref=e382]:
+                  - text: Select a model...
+                  - img
+          - button "Save" [ref=e383]
+  - region "Notifications alt+T"
