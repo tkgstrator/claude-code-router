@@ -103,6 +103,7 @@
     "input": "输入 / 1M",
     "output": "输出 / 1M",
     "cost_hint": "每 100 万 token 的美元价格,基础档,仅供参考",
+    "cost_hint_subscription": "每 100 万 token 的美元价格(参考),按月度套餐计费,非按 token 计费",
     "deprecated": "已弃用",
     "test_all_title": "连接测试",
     "test_all_desc": "发送真实推理请求以验证连通性。请选择测试范围。",

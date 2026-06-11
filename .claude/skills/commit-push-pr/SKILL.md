@@ -1,7 +1,6 @@
 ---
 name: commit-push-pr
 description: Commit the current working tree on a feature branch (cut from develop), push it, and open a pull request into develop. Use when the user says "ship this", "make a PR", "commit and push and open a PR", or wants to turn local changes into a reviewable PR. Handles branch-first safety, commitlint-format messages, and the GitHub PR.
-model: sonnet
 ---
 
 # commit-push-pr — commit, push, open a PR into develop

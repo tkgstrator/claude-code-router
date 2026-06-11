@@ -359,19 +359,19 @@ export function ModelsDashboard() {
                     </span>
                   </td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                    {row.isSubscription ? (
-                      <span className='text-muted-foreground/40'>—</span>
-                    ) : MODEL_PRICING[row.model] ? (
-                      <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].inputPer1M}</span>
+                    {MODEL_PRICING[row.model] ? (
+                      <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
+                        ${MODEL_PRICING[row.model].inputPer1M}
+                      </span>
                     ) : (
                       <span className='text-muted-foreground/40'>—</span>
                     )}
                   </td>
                   <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                    {row.isSubscription ? (
-                      <span className='text-muted-foreground/40'>—</span>
-                    ) : MODEL_PRICING[row.model] ? (
-                      <span title={t('models.cost_hint')}>${MODEL_PRICING[row.model].outputPer1M}</span>
+                    {MODEL_PRICING[row.model] ? (
+                      <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
+                        ${MODEL_PRICING[row.model].outputPer1M}
+                      </span>
                     ) : (
                       <span className='text-muted-foreground/40'>—</span>
                     )}
