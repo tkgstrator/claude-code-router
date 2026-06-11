@@ -480,6 +480,7 @@
     "saved_success": "Personas saved",
     "save_failed": "Failed to save personas",
     "name_required": "Every persona needs a name",
-    "name_duplicate": "Persona names must be unique"
+    "not_found": "This persona no longer exists.",
+    "back_to_list": "Back to personas"
   }
 }

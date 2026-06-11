@@ -7,11 +7,16 @@ import { RouterConfigSchema, RouterSchema } from './router.dto'
 import { StatusLineConfigSchema } from './status-line.dto'
 import { TransformerSchema } from './transformer.dto'
 
-// A single named persona in the library: a non-empty `name` (the value
-// `Router.persona` points at) and its `prompt` text (may be empty while
-// the user is still editing).
+// A single persona in the library. `id` is the stable uuid key every
+// reference points at — the URL (/personas/view|edit/:id), the active
+// selection (Router.persona), and the server-side prompt lookup — so the
+// `name` is a free-form display label and need not be unique. `id` is
+// optional in the schema only for back-compat: configs written before
+// the uuid migration have personas without one; the boot migration
+// (migratePersonaKeys) and the UI both backfill a uuid on load.
 export const PersonaSchema = z
   .object({
+    id: z.string().optional(),
     name: z.string().nonempty(),
     prompt: z.string()
   })
@@ -33,7 +38,7 @@ export const ConfigEnvelopeSchema = z
     CLAUDE_PATH: z.string().default(''),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
 
-    // Disk-only backing store for the active persona name (surfaced on
+    // Disk-only backing store for the active persona's id (surfaced on
     // the wire as `Router.persona`, not as a top-level field). Absent /
     // empty means "no persona". Round-trips through the disk envelope
     // like the other optional scalars (see CUSTOM_ROUTER_PATH).

@@ -480,6 +480,7 @@
     "saved_success": "人设已保存",
     "save_failed": "保存人设失败",
     "name_required": "每个人设都需要名称",
-    "name_duplicate": "人设名称必须唯一"
+    "not_found": "该人设已不存在。",
+    "back_to_list": "返回人设列表"
   }
 }

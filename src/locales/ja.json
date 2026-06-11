@@ -480,6 +480,7 @@
     "saved_success": "ペルソナを保存しました",
     "save_failed": "ペルソナの保存に失敗しました",
     "name_required": "すべてのペルソナに名前が必要です",
-    "name_duplicate": "ペルソナ名は重複できません"
+    "not_found": "このペルソナは存在しません。",
+    "back_to_list": "ペルソナ一覧へ戻る"
   }
 }
