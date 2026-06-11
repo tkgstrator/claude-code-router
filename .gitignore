@@ -44,3 +44,8 @@ ccr-config/
 # directories hold OAuth tokens / IDE configs and must never be committed.
 ccr-auth/
 .codex/
+
+# Artifacts dropped at the repo root by browser MCP tools (Playwright /
+# chrome-devtools save into the cwd). Never commit these.
+/*.png
+.playwright-mcp/
