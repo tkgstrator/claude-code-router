@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { SEED_PERSONAS } from '../../../src/shared/data'
 import { CONFIG_FILE } from '../../../src/shared/constants'
 import { applyEnvelopeToEnv, readConfigFile } from '../../../src/services/config/envelope'
 
@@ -88,6 +89,8 @@ describe('readConfigFile', () => {
   test('returns default config when file does not exist', async () => {
     const cfg = await readConfigFile()
     expect(cfg).toMatchObject({ PORT: expect.any(Number), Providers: [] })
+    // Fresh installs ship with the seed persona library.
+    expect(cfg.Personas).toEqual(SEED_PERSONAS)
   })
 })
 

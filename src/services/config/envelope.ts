@@ -6,6 +6,7 @@ import JSON5 from 'json5'
 import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas'
 import { ENVELOPE_ENV_KEYS } from '@/shared'
 import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
+import { SEED_PERSONAS } from '@/shared/data'
 import { logger } from '../../logger'
 
 // Function to interpolate environment variables in config values
@@ -72,7 +73,10 @@ const createDefaultConfig = async (): Promise<ConfigEnvelope> => {
     PORT: 3456,
     APIKEY: generateApiKey(),
     Providers: [],
-    Router: {}
+    Router: {},
+    // Ship a few ready-made personas in the default config so a fresh
+    // install has something to pick on the Router page out of the box.
+    Personas: SEED_PERSONAS
   }
   await writeConfigFile(raw)
   logger.info({ path: CONFIG_FILE }, 'Created default configuration file')
