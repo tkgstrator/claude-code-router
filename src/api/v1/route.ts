@@ -8,17 +8,20 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { type PipelineRequest, RecordSchema } from '@/schemas'
+import { type PipelineRequest, RecordSchema, type Router } from '@/schemas'
 import { getPrismaClient } from '../../db/client'
 import {
   getLlmsContext,
   type LlmsContext,
   type ResolvedProvider,
+  type RouterRequest,
   routeScenario,
   runPipeline,
+  type ScenarioType,
   type Transformer,
   type UsageRecord
 } from '../../llms'
+import { isProviderExhausted, markProviderExhausted } from '../../services/failover-state'
 import { requestLogEmitter } from '../request-logs/events'
 
 export const v1Route = new Hono()
@@ -135,6 +138,19 @@ function forwardUpstreamError(err: unknown): Response | null {
   return new Response(m[2], { status, headers: { 'content-type': 'application/json' } })
 }
 
+// Upstream statuses that mean "this model can't serve right now, move to
+// the next fallback": 429 is the subscription / plan rate-limit ceiling
+// the user hits. Kept narrow on purpose — genuine 4xx (bad request,
+// auth) should surface, not silently re-route.
+const FAILOVER_STATUSES = new Set([429])
+
+function isRateLimited(err: unknown): boolean {
+  if (!(err instanceof HTTPException)) return false
+  const m = err.message.match(PROVIDER_ERR_RE)
+  const status = m ? Number(m[1]) : err.status
+  return FAILOVER_STATUSES.has(status)
+}
+
 // ─── Resolve endpoint transformer by inbound path ──────────────────────
 
 function endpointTransformerMap(ctx: LlmsContext): Map<string, Map<string, Transformer>> {
@@ -149,7 +165,25 @@ function endpointTransformerMap(ctx: LlmsContext): Map<string, Map<string, Trans
 
 // ─── Invocation assembly ────────────────────────────────────────────────
 
-interface Invocation {
+// Resolved once per inbound request, before any model is picked off the
+// failover chain. routeScenario has run, so `primaryModel` is the
+// "provider,model" it landed on and `scenarioType` selects the matching
+// fallback chain. `routedBody` is the post-routeScenario body BEFORE
+// per-model shaping (effort clamp, internal-field strip) so every chain
+// attempt re-derives those from a clean copy.
+interface RoutePlan {
+  routedBody: Record<string, unknown>
+  headers: Record<string, string>
+  transformersByName: Map<string, Transformer>
+  defaultTransformer: Transformer
+  scenarioType: ScenarioType
+  primaryModel: string
+  path: string
+  search: string
+}
+
+// A single model's fully-resolved invocation, ready for the pipeline.
+interface ResolvedInvocation {
   body: Record<string, unknown>
   headers: Record<string, string>
   request: PipelineRequest
@@ -157,7 +191,7 @@ interface Invocation {
   transformer: Transformer
 }
 
-async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response | Invocation> {
+async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Response | RoutePlan> {
   const url = new URL(c.req.url)
   const path = url.pathname
 
@@ -165,10 +199,9 @@ async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response |
   if (!transformersByName) {
     return c.json({ type: 'error', error: { type: 'not_found', message: `No handler for ${path}` } }, 404)
   }
-
-  // Default to the first registered transformer at this endpoint —
-  // we may swap it below if the routed-to provider has a bypass single-use.
-  let transformer: Transformer = transformersByName.values().next().value!
+  // First registered transformer at this endpoint; resolveInvocationForModel
+  // may swap it per-model if the routed-to provider has a bypass single-use.
+  const defaultTransformer: Transformer = transformersByName.values().next().value!
 
   const bodyParsed = RecordSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!bodyParsed.success) {
@@ -186,29 +219,57 @@ async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response |
     headers[k] = v
   })
 
-  const request: PipelineRequest = {
-    body,
-    headers,
-    url: path + url.search
-  }
-
   // Scenario routing: rewrite body.model to the resolved provider,model
-  // and stamp req.scenarioType.
-  await routeScenario(
-    { body: body as PipelineRequest['body'] & { model: string }, log: ctx.log, sessionId: undefined },
-    { config: ctx.config, tokenizers: ctx.tokenizers }
-  )
+  // and stamp req.scenarioType. We keep the request object so we can read
+  // the scenario back — it selects the failover chain below.
+  const routeReq: RouterRequest = {
+    body: body as PipelineRequest['body'] & { model: string },
+    log: ctx.log,
+    sessionId: undefined
+  }
+  await routeScenario(routeReq, { config: ctx.config, tokenizers: ctx.tokenizers })
+  const scenarioType: ScenarioType = routeReq.scenarioType !== undefined ? routeReq.scenarioType : 'default'
 
-  // Split "provider,model" into separate fields.
-  const modelField = body.model
-  if (typeof modelField !== 'string' || modelField.length === 0) {
+  const primaryModel = typeof body.model === 'string' ? body.model : ''
+  if (primaryModel.length === 0) {
     return c.json({ type: 'error', error: { type: 'invalid_request', message: 'Missing model in request body' } }, 400)
   }
-  const [providerName, ...rest] = modelField.split(',')
+
+  return {
+    routedBody: body,
+    headers,
+    transformersByName,
+    defaultTransformer,
+    scenarioType,
+    primaryModel,
+    path,
+    search: url.search
+  }
+}
+
+// Resolve one "provider,model" string into a ready-to-run invocation, or
+// null when the model can't be used (malformed string / unknown
+// provider) — the caller skips a null and moves to the next chain entry.
+function resolveInvocationForModel(plan: RoutePlan, modelString: string, ctx: LlmsContext): ResolvedInvocation | null {
+  const [providerName, ...rest] = modelString.split(',')
   const model = rest.join(',')
+  if (!providerName || model.length === 0) {
+    ctx.log.warn({ modelString }, 'failover: malformed provider,model; skipping')
+    return null
+  }
+
+  const provider = ctx.providers.get(providerName)
+  if (!provider) {
+    ctx.log.warn({ providerName }, 'failover: provider not found; skipping')
+    return null
+  }
+
+  // Fresh per-attempt body / headers so per-model shaping (effort clamp,
+  // internal-field strip, subscription beta reshape) never leaks across
+  // chain attempts.
+  const body: Record<string, unknown> = { ...plan.routedBody }
+  const headers: Record<string, string> = { ...plan.headers }
   body.model = model
-  request.provider = providerName
-  request.model = model
 
   // Clamp / strip output_config.effort to what the routed-to model
   // supports — BEFORE the upstream call.
@@ -221,20 +282,13 @@ async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response |
   delete body.output_config
   delete body.diagnostics
 
-  // Resolve the provider; an unknown one fails fast.
-  const provider = ctx.providers.get(providerName)
-  if (!provider) {
-    return c.json(
-      { type: 'error', error: { type: 'invalid_request', message: `Provider '${providerName}' not found` } },
-      400
-    )
-  }
-
   // Bypass detection: if the provider has a single transformer that
   // matches the endpoint's path, use it instead of the default at this
   // endpoint. (Same logic the legacy registerApiRoutes used.)
   const soleUseName = provider.transformer?.use?.length === 1 ? provider.transformer.use[0].name : undefined
-  if (soleUseName && transformersByName.has(soleUseName)) transformer = transformersByName.get(soleUseName)!
+  const swapped =
+    soleUseName && plan.transformersByName.has(soleUseName) ? plan.transformersByName.get(soleUseName) : undefined
+  const transformer: Transformer = swapped !== undefined ? swapped : plan.defaultTransformer
 
   // Subscription path: subscriptions route through *-oauth transformers.
   // Reshape the anthropic-beta header (drop context-1m, add oauth beta).
@@ -242,7 +296,41 @@ async function buildInvocation(c: Context, ctx: LlmsContext): Promise<Response |
     prepareSubscriptionBetas(headers)
   }
 
+  const request: PipelineRequest = {
+    body,
+    headers,
+    url: plan.path + plan.search,
+    provider: providerName,
+    model,
+    scenarioType: plan.scenarioType
+  }
+
   return { body, headers, request, provider, transformer }
+}
+
+function providerNameOf(modelString: string): string {
+  return modelString.split(',')[0]
+}
+
+// Ordered list of "provider,model" candidates for this request: the
+// scenario's primary first, then its configured fallback chain. Skips
+// providers currently known to be rate-limited, but never returns empty
+// — if every candidate is exhausted we still try them (the window may
+// have reset since we last marked it).
+function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] {
+  const router = ctx.config.get<Router>('Router')
+  const configured = router?.fallbacks?.[plan.scenarioType]
+  const fallbacks = Array.isArray(configured) ? configured : []
+
+  const seen = new Set<string>()
+  const ordered = [plan.primaryModel, ...fallbacks].filter((m) => {
+    if (seen.has(m)) return false
+    seen.add(m)
+    return true
+  })
+
+  const live = ordered.filter((m) => !isProviderExhausted(providerNameOf(m)))
+  return live.length > 0 ? live : ordered
 }
 
 // ─── Usage capture sink ─────────────────────────────────────────────────
@@ -290,42 +378,79 @@ async function formatResponse(c: Context, response: Response, stream: boolean): 
 
 v1Route.post('/v1/*', async (c) => {
   const ctx = await getLlmsContext()
-  const built = await buildInvocation(c, ctx)
-  if (built instanceof Response) return built
-  const { body, headers, request, provider, transformer } = built
+  const plan = await buildRoutePlan(c, ctx)
+  if (plan instanceof Response) return plan
 
-  const runOnce = async (): Promise<Response> => {
+  const chain = buildFailoverChain(plan, ctx)
+
+  const runWith = async (inv: ResolvedInvocation): Promise<Response> => {
     const upstream = await runPipeline(
-      { body, headers, provider, transformer, context: { req: request } },
+      {
+        body: inv.body,
+        headers: inv.headers,
+        provider: inv.provider,
+        transformer: inv.transformer,
+        context: { req: inv.request }
+      },
       { log: ctx.log, httpsProxy: ctx.config.getHttpsProxy(), recordUsage }
     )
-    return formatResponse(c, upstream, body.stream === true)
+    return formatResponse(c, upstream, inv.body.stream === true)
   }
 
-  try {
-    return await runOnce()
-  } catch (err) {
-    // Forward genuine upstream errors verbatim (Anthropic rate_limit, etc.)
-    // before the safety net runs.
-    const forwarded = forwardUpstreamError(err)
-    if (forwarded) {
-      // Retry once if the upstream 400 told us which effort levels it
-      // actually supports for this model.
-      const message = err instanceof HTTPException ? err.message : ''
-      const fix = bestSupportedLevel(message)
-      if (fix && deepReplaceValue(body, fix.bad, fix.level)) {
-        try {
-          return await runOnce()
-        } catch (err2) {
-          return forwardUpstreamError(err2) ?? errorResponse(c, err2)
+  // One model attempt with the effort-level retry folded in: if the
+  // upstream 400 told us which effort levels it supports, swap and retry
+  // once against the SAME model before bubbling the error up to the
+  // failover loop.
+  const attempt = async (inv: ResolvedInvocation): Promise<Response> => {
+    try {
+      return await runWith(inv)
+    } catch (err) {
+      if (forwardUpstreamError(err)) {
+        const message = err instanceof HTTPException ? err.message : ''
+        const fix = bestSupportedLevel(message)
+        if (fix && deepReplaceValue(inv.body, fix.bad, fix.level)) {
+          return await runWith(inv)
         }
       }
-      return forwarded
+      throw err
     }
-
-    ctx.log.error({ err }, 'pipeline error')
-    return errorResponse(c, err)
   }
+
+  let lastForwarded: Response | null = null
+  for (let i = 0; i < chain.length; i++) {
+    const inv = resolveInvocationForModel(plan, chain[i], ctx)
+    if (inv === null) continue
+
+    try {
+      return await attempt(inv)
+    } catch (err) {
+      const forwarded = forwardUpstreamError(err)
+
+      // Rate-limited: remember it, and fail over to the next chain entry
+      // when there is one. Keep the forwarded body so we can still return
+      // the genuine upstream error if every candidate ends up limited.
+      if (forwarded && isRateLimited(err)) {
+        markProviderExhausted(inv.provider.name)
+        lastForwarded = forwarded
+        ctx.log.warn(
+          { provider: inv.provider.name, model: inv.request.model, scenario: plan.scenarioType },
+          'rate limited; failing over to next fallback model'
+        )
+        continue
+      }
+
+      // Any other forwardable upstream error (auth, bad request, ...) is
+      // surfaced verbatim — re-routing those would hide real problems.
+      if (forwarded) return forwarded
+
+      ctx.log.error({ err }, 'pipeline error')
+      return errorResponse(c, err)
+    }
+  }
+
+  // Chain exhausted: every candidate was rate-limited (or unresolvable).
+  if (lastForwarded) return lastForwarded
+  return c.json({ type: 'error', error: { type: 'invalid_request', message: 'No usable model for this request' } }, 400)
 })
 
 function errorResponse(c: Context, err: unknown): Response {
