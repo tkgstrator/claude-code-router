@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import { type SettingsFormInput, type SettingsFormOutput, SettingsFormSchema } from '@/schemas/forms.dto'
 import type { Config, StatusLineConfig } from '@/types'
@@ -41,7 +42,8 @@ function SettingsForm({ config }: { config: Config }) {
       API_TIMEOUT_MS: config.API_TIMEOUT_MS,
       PROXY_URL: config.PROXY_URL,
       APIKEY: config.APIKEY,
-      CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH
+      CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH,
+      SYSTEM_PROMPT: config.SYSTEM_PROMPT
     }
   })
 
@@ -215,6 +217,21 @@ function SettingsForm({ config }: { config: Config }) {
                   <FormControl>
                     <Input {...field} placeholder={t('toplevel.custom_router_path_placeholder')} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='SYSTEM_PROMPT'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('toplevel.system_prompt')}</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} rows={6} placeholder={t('toplevel.system_prompt_placeholder')} />
+                  </FormControl>
+                  <FormDescription>{t('toplevel.system_prompt_help')}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

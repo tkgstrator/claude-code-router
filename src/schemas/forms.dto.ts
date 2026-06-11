@@ -39,7 +39,8 @@ export const SettingsFormSchema = z.object({
   API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.string().default(''),
   APIKEY: z.string().default(''),
-  CUSTOM_ROUTER_PATH: z.string().default('')
+  CUSTOM_ROUTER_PATH: z.string().default(''),
+  SYSTEM_PROMPT: z.string().default('')
 })
 export type SettingsFormInput = z.input<typeof SettingsFormSchema>
 export type SettingsFormOutput = z.output<typeof SettingsFormSchema>

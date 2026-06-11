@@ -146,7 +146,10 @@
     "timeout": "API Timeout (ms)",
     "proxy_url": "Proxy URL",
     "custom_router_path": "Custom Router Script Path",
-    "custom_router_path_placeholder": "Enter absolute path to custom router script file"
+    "custom_router_path_placeholder": "Enter absolute path to custom router script file",
+    "system_prompt": "System Prompt",
+    "system_prompt_placeholder": "Enter a global system prompt / persona",
+    "system_prompt_help": "Appended to every request before it reaches the upstream LLM. Leave empty to disable."
   },
   "transformers": {
     "title": "Custom Transformers",

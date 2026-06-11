@@ -151,6 +151,11 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     const { model, scenarioType } = selectModel(req, tokenCount, router, ctx.config)
     req.body.model = applyProactiveFailover(model, scenarioType, ctx.config, req.log)
     req.scenarioType = scenarioType
+
+    // Append the configured global persona AFTER subagent-tag handling
+    // (done inside selectModel) so it composes with — rather than
+    // clobbers — any per-call system content.
+    req.body.system = applyGlobalSystemPrompt(req.body.system, ctx.config.get<string>('SYSTEM_PROMPT', ''))
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')
     const fallback = ctx.config.get<RouterConfig>('Router')?.default
@@ -257,6 +262,60 @@ function isWebSearchTool(tool: unknown): tool is { type: string } {
   if (tool === null || typeof tool !== 'object' || !('type' in tool)) return false
   const type: unknown = Reflect.get(tool, 'type')
   return typeof type === 'string' && type.startsWith('web_search')
+}
+
+// Whether a system block carries a truthy `cache_control` discriminator.
+// TokenizeSystemBlock doesn't model `cache_control` (the tokenizer
+// ignores it), so we probe the runtime value instead of casting.
+function hasCacheControl(block: unknown): boolean {
+  if (block === null || typeof block !== 'object' || !('cache_control' in block)) return false
+  const cacheControl: unknown = Reflect.get(block, 'cache_control')
+  return cacheControl !== null && cacheControl !== undefined
+}
+
+// Read a block's `text` only when it's a plain string (Anthropic also
+// allows string[] per TokenizeSystemBlock — we append solely to string
+// blocks so the cached prefix stays a single coherent text).
+function stringTextOf(block: unknown): string | undefined {
+  if (block === null || typeof block !== 'object' || !('text' in block)) return undefined
+  const text: unknown = Reflect.get(block, 'text')
+  return typeof text === 'string' ? text : undefined
+}
+
+/**
+ * Append the global persona to the request's `system` cache-safely.
+ *
+ * The persona is appended to the LAST system block carrying
+ * `cache_control` (falling back to the last string text block) so it
+ * stays INSIDE the cached prefix and consumes no extra cache breakpoint.
+ * The append is deterministic — same prompt yields the same bytes every
+ * request — which is what preserves Anthropic's prompt cache.
+ *
+ * Array blocks are mutated in place (matching extractSubagentModel);
+ * string / undefined system values can't be mutated in place, so the
+ * new value is returned and the caller assigns it back.
+ */
+function applyGlobalSystemPrompt(system: TokenizeSystem | undefined, prompt: string): TokenizeSystem | undefined {
+  if (prompt.trim().length === 0) return system
+
+  if (system === undefined) return prompt
+
+  if (typeof system === 'string') return `${system}\n\n${prompt}`
+
+  if (system.length === 0) return prompt
+
+  // Prefer the last cache_control-bearing block so the persona lands
+  // inside the cached prefix; otherwise fall back to the last string
+  // text block.
+  const withCacheText = system.filter((block) => hasCacheControl(block) && stringTextOf(block) !== undefined)
+  const withText = system.filter((block) => stringTextOf(block) !== undefined)
+  const target = withCacheText.length > 0 ? withCacheText[withCacheText.length - 1] : withText[withText.length - 1]
+  if (target === undefined) return system
+
+  const current = stringTextOf(target)
+  if (current === undefined) return system
+  target.text = `${current}\n\n${prompt}`
+  return system
 }
 
 function extractSubagentModel(system: TokenizeSystem | undefined): string | undefined {

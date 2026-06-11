@@ -22,6 +22,12 @@ export const ConfigEnvelopeSchema = z
     CLAUDE_PATH: z.string().default(''),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
 
+    // Global persona/system prompt appended to every request's `system`
+    // before it reaches the upstream LLM. Optional string; empty/absent
+    // means "no persona". Round-trips through the disk envelope like the
+    // other optional scalars (see CUSTOM_ROUTER_PATH).
+    SYSTEM_PROMPT: z.string().optional(),
+
     // Object-shaped envelope members that stay on disk for PR #1.
     StatusLine: JsonValueSchema.optional(),
     transformers: z.array(PresetTransformerConfigSchema).optional(),
@@ -43,7 +49,8 @@ export const AppConfigSchema = ConfigEnvelopeSchema.extend({
   Router: RouterSchema,
   PROXY_URL: z.string().nullable(),
   CLAUDE_PATH: z.string().nullable(),
-  CUSTOM_ROUTER_PATH: z.string().nullable()
+  CUSTOM_ROUTER_PATH: z.string().nullable(),
+  SYSTEM_PROMPT: z.string().nullable()
 }).openapi('Config')
 export type AppConfig = z.infer<typeof AppConfigSchema>
 
@@ -66,7 +73,8 @@ export const ConfigSchema = z.object({
   APIKEY: z.string().nonempty(),
   API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.url(),
-  CUSTOM_ROUTER_PATH: z.string().nonempty().optional()
+  CUSTOM_ROUTER_PATH: z.string().nonempty().optional(),
+  SYSTEM_PROMPT: z.string().nonempty().optional()
 })
 export type Config = z.infer<typeof ConfigSchema>
 
@@ -83,7 +91,8 @@ export const ApplyConfigPayloadSchema = z
     Router: RouterSchema.partial().optional(),
     CLAUDE_PATH: EmptyStringToNullSchema.optional(),
     PROXY_URL: EmptyStringToNullSchema.optional(),
-    CUSTOM_ROUTER_PATH: EmptyStringToNullSchema.optional()
+    CUSTOM_ROUTER_PATH: EmptyStringToNullSchema.optional(),
+    SYSTEM_PROMPT: EmptyStringToNullSchema.optional()
   })
   .catchall(JsonValueSchema)
   .openapi('ApplyConfigPayload')

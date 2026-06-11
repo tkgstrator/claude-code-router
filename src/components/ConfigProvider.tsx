@@ -113,7 +113,8 @@ function normalizeConfig(data: Config): Config {
             image: null,
             fallbacks: normalizeFallbacks(undefined)
           },
-    CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : ''
+    CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : '',
+    SYSTEM_PROMPT: typeof data.SYSTEM_PROMPT === 'string' ? data.SYSTEM_PROMPT : ''
   }
 }
 
@@ -139,7 +140,8 @@ const emptyConfig = (): Config => ({
     image: '',
     fallbacks: normalizeFallbacks(undefined)
   },
-  CUSTOM_ROUTER_PATH: ''
+  CUSTOM_ROUTER_PATH: '',
+  SYSTEM_PROMPT: ''
 })
 
 export function ConfigProvider({ children }: ConfigProviderProps) {

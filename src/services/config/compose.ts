@@ -118,6 +118,12 @@ export const toProvider = (p: ProviderWithModels): Provider => {
   }
 }
 
+// Optional string scalars travel as null on the wire when unset (absent
+// / '' on disk). Collapse a raw envelope value to that null-or-string
+// shape in one place so composeUiConfig stays flat.
+export const optionalScalarOrNull = (raw: unknown): string | null =>
+  typeof raw === 'string' && raw.length > 0 ? raw : null
+
 // Strip the DB-resident keys out of an on-disk envelope read so the
 // composed result reflects the DB, not stale disk content.
 export const stripDbKeys = (envelope: ConfigEnvelope): ConfigEnvelope => {
@@ -156,14 +162,12 @@ export async function composeUiConfig(): Promise<AppConfig> {
 
   // Optional path/url scalars: emit null when absent / '' on disk so
   // the JSON editor / wire shows "no value" consistently.
-  const claudePath = envelopeOnly.CLAUDE_PATH
-  const proxyUrl = envelopeOnly.PROXY_URL
-  const customRouterPath = envelopeOnly.CUSTOM_ROUTER_PATH
   return {
     ...envelopeOnly,
-    CLAUDE_PATH: typeof claudePath === 'string' && claudePath.length > 0 ? claudePath : null,
-    PROXY_URL: typeof proxyUrl === 'string' && proxyUrl.length > 0 ? proxyUrl : null,
-    CUSTOM_ROUTER_PATH: typeof customRouterPath === 'string' && customRouterPath.length > 0 ? customRouterPath : null,
+    CLAUDE_PATH: optionalScalarOrNull(envelopeOnly.CLAUDE_PATH),
+    PROXY_URL: optionalScalarOrNull(envelopeOnly.PROXY_URL),
+    CUSTOM_ROUTER_PATH: optionalScalarOrNull(envelopeOnly.CUSTOM_ROUTER_PATH),
+    SYSTEM_PROMPT: optionalScalarOrNull(envelopeOnly.SYSTEM_PROMPT),
     Providers: providers.map(toProvider),
     Router: router
   }

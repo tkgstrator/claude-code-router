@@ -146,7 +146,10 @@
     "timeout": "API タイムアウト (ms)",
     "proxy_url": "プロキシ URL",
     "custom_router_path": "カスタムルータースクリプトのパス",
-    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力"
+    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力",
+    "system_prompt": "システムプロンプト",
+    "system_prompt_placeholder": "グローバルなシステムプロンプト / ペルソナを入力",
+    "system_prompt_help": "上流の LLM に届く前に、すべてのリクエストへ追加されます。空にすると無効になります。"
   },
   "transformers": {
     "title": "カスタム Transformer",

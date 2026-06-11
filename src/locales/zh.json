@@ -146,7 +146,10 @@
     "timeout": "API 超时时间 (毫秒)",
     "proxy_url": "代理地址",
     "custom_router_path": "自定义路由脚本路径",
-    "custom_router_path_placeholder": "输入自定义路由脚本文件的绝对路径"
+    "custom_router_path_placeholder": "输入自定义路由脚本文件的绝对路径",
+    "system_prompt": "系统提示词",
+    "system_prompt_placeholder": "输入全局系统提示词 / 人设",
+    "system_prompt_help": "在每个请求到达上游 LLM 之前追加。留空则禁用。"
   },
   "transformers": {
     "title": "自定义转换器",
