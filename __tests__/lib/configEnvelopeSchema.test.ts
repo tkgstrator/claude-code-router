@@ -138,3 +138,48 @@ describe('ConfigEnvelopeSchema — catchall', () => {
     expect(result.success).toBe(true)
   })
 })
+
+describe('ConfigEnvelopeSchema — Personas / ActivePersona', () => {
+  test('defaults Personas to [] when absent', () => {
+    const result = ConfigEnvelopeSchema.safeParse({ ...BASE })
+    expect(result.success).toBe(true)
+    expect(result.data?.Personas).toEqual([])
+  })
+
+  test('accepts a persona library', () => {
+    const result = ConfigEnvelopeSchema.safeParse({
+      ...BASE,
+      Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }]
+    })
+    expect(result.success).toBe(true)
+    expect(result.data?.Personas).toEqual([{ name: 'pirate', prompt: 'Talk like a pirate.' }])
+  })
+
+  test('rejects a persona with an empty name', () => {
+    const result = ConfigEnvelopeSchema.safeParse({
+      ...BASE,
+      Personas: [{ name: '', prompt: 'x' }]
+    })
+    expect(result.success).toBe(false)
+  })
+
+  test('allows an empty persona prompt', () => {
+    const result = ConfigEnvelopeSchema.safeParse({
+      ...BASE,
+      Personas: [{ name: 'draft', prompt: '' }]
+    })
+    expect(result.success).toBe(true)
+  })
+
+  test('ActivePersona is optional', () => {
+    const result = ConfigEnvelopeSchema.safeParse({ ...BASE })
+    expect(result.success).toBe(true)
+    expect(result.data?.ActivePersona).toBeUndefined()
+  })
+
+  test('accepts an ActivePersona name', () => {
+    const result = ConfigEnvelopeSchema.safeParse({ ...BASE, ActivePersona: 'pirate' })
+    expect(result.success).toBe(true)
+    expect(result.data?.ActivePersona).toBe('pirate')
+  })
+})

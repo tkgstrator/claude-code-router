@@ -114,7 +114,8 @@ function normalizeConfig(data: Config): Config {
             fallbacks: normalizeFallbacks(undefined)
           },
     CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : '',
-    SYSTEM_PROMPT: typeof data.SYSTEM_PROMPT === 'string' ? data.SYSTEM_PROMPT : ''
+    ActivePersona: typeof data.ActivePersona === 'string' ? data.ActivePersona : undefined,
+    Personas: Array.isArray(data.Personas) ? data.Personas : []
   }
 }
 
@@ -141,7 +142,7 @@ const emptyConfig = (): Config => ({
     fallbacks: normalizeFallbacks(undefined)
   },
   CUSTOM_ROUTER_PATH: '',
-  SYSTEM_PROMPT: ''
+  Personas: []
 })
 
 export function ConfigProvider({ children }: ConfigProviderProps) {

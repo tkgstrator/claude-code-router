@@ -212,6 +212,47 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.API_TIMEOUT_MS).toBeUndefined()
   })
 
+  test('Personas and ActivePersona round-trip through apply then compose', async () => {
+    await applyUiConfig({
+      Providers: [],
+      Router: {},
+      APIKEY: 'test-key',
+      Personas: [
+        { name: 'pirate', prompt: 'Talk like a pirate.' },
+        { name: 'lawyer', prompt: 'Be precise and cite statutes.' }
+      ],
+      ActivePersona: 'pirate'
+    })
+    const ui = await composeUiConfig()
+    expect(ui.Personas).toEqual([
+      { name: 'pirate', prompt: 'Talk like a pirate.' },
+      { name: 'lawyer', prompt: 'Be precise and cite statutes.' }
+    ])
+    expect(ui.ActivePersona).toBe('pirate')
+  })
+
+  test('empty ActivePersona clears the active persona (composed as null)', async () => {
+    await applyUiConfig({
+      Providers: [],
+      Router: {},
+      APIKEY: 'test-key',
+      Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }],
+      ActivePersona: 'pirate'
+    })
+    // Empty string collapses to null on the wire and is pruned off disk,
+    // so the library survives but no persona is active.
+    await applyUiConfig({
+      Providers: [],
+      Router: {},
+      APIKEY: 'test-key',
+      Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }],
+      ActivePersona: ''
+    })
+    const ui = await composeUiConfig()
+    expect(ui.Personas).toEqual([{ name: 'pirate', prompt: 'Talk like a pirate.' }])
+    expect(ui.ActivePersona).toBeNull()
+  })
+
   test('unknown router scenarios are dropped with a warning', async () => {
     await applyUiConfig({
       Providers: [

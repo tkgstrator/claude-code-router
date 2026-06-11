@@ -41,6 +41,7 @@
     "subscriptions": "サブスクリプション",
     "usage": "使用状況",
     "history": "履歴",
+    "personas": "ペルソナ",
     "settings": "設定"
   },
   "usage": {
@@ -146,10 +147,7 @@
     "timeout": "API タイムアウト (ms)",
     "proxy_url": "プロキシ URL",
     "custom_router_path": "カスタムルータースクリプトのパス",
-    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力",
-    "system_prompt": "システムプロンプト",
-    "system_prompt_placeholder": "グローバルなシステムプロンプト / ペルソナを入力",
-    "system_prompt_help": "上流の LLM に届く前に、すべてのリクエストへ追加されます。空にすると無効になります。"
+    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力"
   },
   "transformers": {
     "title": "カスタム Transformer",
@@ -459,5 +457,24 @@
       "apply": "適用",
       "cancel": "キャンセル"
     }
+  },
+  "personas": {
+    "title": "ペルソナ",
+    "description": "名前付きのペルソナを保存し、毎回のリクエストに付与するものを選びます。",
+    "add": "ペルソナを追加",
+    "delete": "ペルソナを削除",
+    "save": "保存",
+    "name_label": "名前",
+    "name_placeholder": "例: 丁寧",
+    "prompt_label": "プロンプト",
+    "prompt_placeholder": "アシスタントの振る舞いを記述してください...",
+    "active_label": "有効なペルソナ",
+    "active_none": "なし / オフ",
+    "empty": "ペルソナがまだありません。追加して始めましょう。",
+    "saved_success": "ペルソナを保存しました",
+    "save_failed": "ペルソナの保存に失敗しました",
+    "name_required": "すべてのペルソナに名前が必要です",
+    "name_duplicate": "ペルソナ名は重複できません",
+    "active_missing": "有効なペルソナは既存のペルソナと一致する必要があります"
   }
 }

@@ -41,6 +41,7 @@
     "subscriptions": "订阅",
     "usage": "用量",
     "history": "历史",
+    "personas": "人设",
     "settings": "设置"
   },
   "usage": {
@@ -146,10 +147,7 @@
     "timeout": "API 超时时间 (毫秒)",
     "proxy_url": "代理地址",
     "custom_router_path": "自定义路由脚本路径",
-    "custom_router_path_placeholder": "输入自定义路由脚本文件的绝对路径",
-    "system_prompt": "系统提示词",
-    "system_prompt_placeholder": "输入全局系统提示词 / 人设",
-    "system_prompt_help": "在每个请求到达上游 LLM 之前追加。留空则禁用。"
+    "custom_router_path_placeholder": "输入自定义路由脚本文件的绝对路径"
   },
   "transformers": {
     "title": "自定义转换器",
@@ -459,5 +457,24 @@
       "apply": "应用",
       "cancel": "取消"
     }
+  },
+  "personas": {
+    "title": "人设",
+    "description": "保存命名人设，并选择追加到每个请求的人设。",
+    "add": "添加人设",
+    "delete": "删除人设",
+    "save": "保存",
+    "name_label": "名称",
+    "name_placeholder": "例如：礼貌",
+    "prompt_label": "提示词",
+    "prompt_placeholder": "描述助手应如何表现……",
+    "active_label": "当前人设",
+    "active_none": "无 / 关闭",
+    "empty": "暂无人设。添加一个开始吧。",
+    "saved_success": "人设已保存",
+    "save_failed": "保存人设失败",
+    "name_required": "每个人设都需要名称",
+    "name_duplicate": "人设名称必须唯一",
+    "active_missing": "当前人设必须与现有人设匹配"
   }
 }

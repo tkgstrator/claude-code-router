@@ -6,6 +6,7 @@ import { HistoryPage } from '@/components/History'
 import { Login } from '@/components/Login'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
 import { OauthResultPage } from '@/components/OauthResultPage'
+import { Personas } from '@/components/Personas'
 import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
@@ -45,6 +46,7 @@ export const router = createBrowserRouter([
       { path: '/transformers', element: fullHeight(<Transformers />) },
       { path: '/usage', element: fullHeight(<Usage />) },
       { path: '/history', element: fullHeight(<HistoryPage />) },
+      { path: '/personas', element: fullHeight(<Personas />) },
       { path: '/settings', element: fullHeight(<SettingsPage />) }
     ]
   },

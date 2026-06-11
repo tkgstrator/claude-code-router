@@ -17,6 +17,7 @@ import { opendir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Logger } from 'pino'
 import {
+  type Persona,
   ProjectRouterFileSchema,
   type Router,
   type ScenarioRouterConfig as RouterConfig,
@@ -152,10 +153,11 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     req.body.model = applyProactiveFailover(model, scenarioType, ctx.config, req.log)
     req.scenarioType = scenarioType
 
-    // Append the configured global persona AFTER subagent-tag handling
+    // Append the active persona's prompt AFTER subagent-tag handling
     // (done inside selectModel) so it composes with — rather than
-    // clobbers — any per-call system content.
-    req.body.system = applyGlobalSystemPrompt(req.body.system, ctx.config.get<string>('SYSTEM_PROMPT', ''))
+    // clobbers — any per-call system content. Empty when no persona is
+    // active, which is a no-op (the cached prefix stays byte-stable).
+    req.body.system = applyGlobalSystemPrompt(req.body.system, resolveActivePersonaPrompt(ctx.config))
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')
     const fallback = ctx.config.get<RouterConfig>('Router')?.default
@@ -280,6 +282,24 @@ function stringTextOf(block: unknown): string | undefined {
   if (block === null || typeof block !== 'object' || !('text' in block)) return undefined
   const text: unknown = Reflect.get(block, 'text')
   return typeof text === 'string' ? text : undefined
+}
+
+/**
+ * Resolve the active persona's prompt text from the config store.
+ *
+ * Reads the `ActivePersona` name and the `Personas` library, returns the
+ * matching persona's `prompt`. Returns '' when no persona is active, the
+ * name matches nothing, or the prompt is empty — applyGlobalSystemPrompt
+ * treats '' as a no-op so the cached prefix stays byte-stable.
+ */
+function resolveActivePersonaPrompt(config: ConfigStore): string {
+  // composeUiConfig emits ActivePersona as string | null, so a present
+  // key may legitimately hold null — guard the type rather than assert.
+  const activeName = config.get<string | null>('ActivePersona', null)
+  if (typeof activeName !== 'string' || activeName.length === 0) return ''
+  const personas = config.get<Persona[]>('Personas', [])
+  const match = personas.find((p) => p.name === activeName)
+  return match !== undefined ? match.prompt : ''
 }
 
 /**

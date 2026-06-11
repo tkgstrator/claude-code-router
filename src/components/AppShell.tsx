@@ -1,6 +1,7 @@
 import {
   CircleArrowUp,
   CreditCard,
+  Drama,
   FileJson,
   FileText,
   Gauge,
@@ -66,6 +67,7 @@ const NAV_ITEMS = [
   { to: '/router', icon: Shuffle, key: 'nav.router' },
   { to: '/usage', icon: Gauge, key: 'nav.usage' },
   { to: '/history', icon: History, key: 'nav.history' },
+  { to: '/personas', icon: Drama, key: 'nav.personas' },
   { to: '/settings', icon: Settings, key: 'nav.settings' }
 ] as const
 

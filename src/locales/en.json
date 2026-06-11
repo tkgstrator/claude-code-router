@@ -41,6 +41,7 @@
     "subscriptions": "Subscriptions",
     "usage": "Usage",
     "history": "History",
+    "personas": "Personas",
     "settings": "Settings"
   },
   "usage": {
@@ -146,10 +147,7 @@
     "timeout": "API Timeout (ms)",
     "proxy_url": "Proxy URL",
     "custom_router_path": "Custom Router Script Path",
-    "custom_router_path_placeholder": "Enter absolute path to custom router script file",
-    "system_prompt": "System Prompt",
-    "system_prompt_placeholder": "Enter a global system prompt / persona",
-    "system_prompt_help": "Appended to every request before it reaches the upstream LLM. Leave empty to disable."
+    "custom_router_path_placeholder": "Enter absolute path to custom router script file"
   },
   "transformers": {
     "title": "Custom Transformers",
@@ -459,5 +457,24 @@
       "apply": "Apply",
       "cancel": "Cancel"
     }
+  },
+  "personas": {
+    "title": "Personas",
+    "description": "Save named personas and choose which one is appended to every request.",
+    "add": "Add persona",
+    "delete": "Delete persona",
+    "save": "Save",
+    "name_label": "Name",
+    "name_placeholder": "e.g. Polite",
+    "prompt_label": "Prompt",
+    "prompt_placeholder": "Describe how the assistant should behave...",
+    "active_label": "Active persona",
+    "active_none": "None / Off",
+    "empty": "No personas yet. Add one to get started.",
+    "saved_success": "Personas saved",
+    "save_failed": "Failed to save personas",
+    "name_required": "Every persona needs a name",
+    "name_duplicate": "Persona names must be unique",
+    "active_missing": "The active persona must match an existing persona"
   }
 }

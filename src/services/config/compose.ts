@@ -167,7 +167,10 @@ export async function composeUiConfig(): Promise<AppConfig> {
     CLAUDE_PATH: optionalScalarOrNull(envelopeOnly.CLAUDE_PATH),
     PROXY_URL: optionalScalarOrNull(envelopeOnly.PROXY_URL),
     CUSTOM_ROUTER_PATH: optionalScalarOrNull(envelopeOnly.CUSTOM_ROUTER_PATH),
-    SYSTEM_PROMPT: optionalScalarOrNull(envelopeOnly.SYSTEM_PROMPT),
+    // Active persona name travels as null when unset; the library is
+    // always a plain array (default [] from the envelope schema).
+    ActivePersona: optionalScalarOrNull(envelopeOnly.ActivePersona),
+    Personas: envelopeOnly.Personas,
     Providers: providers.map(toProvider),
     Router: router
   }
