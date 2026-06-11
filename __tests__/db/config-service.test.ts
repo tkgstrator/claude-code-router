@@ -212,45 +212,43 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.API_TIMEOUT_MS).toBeUndefined()
   })
 
-  test('Personas and ActivePersona round-trip through apply then compose', async () => {
+  test('Personas (top-level) and Router.persona round-trip through apply then compose', async () => {
     await applyUiConfig({
       Providers: [],
-      Router: {},
+      Router: { persona: 'pirate' },
       APIKEY: 'test-key',
       Personas: [
         { name: 'pirate', prompt: 'Talk like a pirate.' },
         { name: 'lawyer', prompt: 'Be precise and cite statutes.' }
-      ],
-      ActivePersona: 'pirate'
+      ]
     })
     const ui = await composeUiConfig()
     expect(ui.Personas).toEqual([
       { name: 'pirate', prompt: 'Talk like a pirate.' },
       { name: 'lawyer', prompt: 'Be precise and cite statutes.' }
     ])
-    expect(ui.ActivePersona).toBe('pirate')
+    // The active persona now rides on Router.persona, not as a top-level field.
+    expect(ui.Router.persona).toBe('pirate')
   })
 
-  test('empty ActivePersona clears the active persona (composed as null)', async () => {
+  test('empty Router.persona clears the active persona (composed as null)', async () => {
     await applyUiConfig({
       Providers: [],
-      Router: {},
+      Router: { persona: 'pirate' },
       APIKEY: 'test-key',
-      Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }],
-      ActivePersona: 'pirate'
+      Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }]
     })
     // Empty string collapses to null on the wire and is pruned off disk,
     // so the library survives but no persona is active.
     await applyUiConfig({
       Providers: [],
-      Router: {},
+      Router: { persona: '' },
       APIKEY: 'test-key',
-      Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }],
-      ActivePersona: ''
+      Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }]
     })
     const ui = await composeUiConfig()
     expect(ui.Personas).toEqual([{ name: 'pirate', prompt: 'Talk like a pirate.' }])
-    expect(ui.ActivePersona).toBeNull()
+    expect(ui.Router.persona).toBeNull()
   })
 
   test('unknown router scenarios are dropped with a warning', async () => {

@@ -159,7 +159,7 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // The `background` route runs lightweight internal tasks (e.g. title
     // generation) where a persona voice would corrupt the output, so it is
     // excluded. Empty is a no-op, keeping the cached prefix byte-stable.
-    const personaPrompt = scenarioType === 'background' ? '' : resolveActivePersonaPrompt(ctx.config)
+    const personaPrompt = scenarioType === 'background' ? '' : resolveActivePersonaPrompt(router, ctx.config)
     req.body.system = applyGlobalSystemPrompt(req.body.system, personaPrompt)
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')
@@ -288,17 +288,18 @@ function stringTextOf(block: unknown): string | undefined {
 }
 
 /**
- * Resolve the active persona's prompt text from the config store.
+ * Resolve the active persona's prompt text for the resolved router.
  *
- * Reads the `ActivePersona` name and the `Personas` library, returns the
- * matching persona's `prompt`. Returns '' when no persona is active, the
- * name matches nothing, or the prompt is empty — applyGlobalSystemPrompt
- * treats '' as a no-op so the cached prefix stays byte-stable.
+ * Reads `router.persona` (the active persona name, carried on the
+ * possibly project/session-overridden router) and looks it up in the
+ * top-level `Personas` library, returning the matching persona's
+ * `prompt`. Returns '' when the router is undefined, no persona is
+ * active, the name matches nothing, or the prompt is empty —
+ * applyGlobalSystemPrompt treats '' as a no-op so the cached prefix stays
+ * byte-stable.
  */
-function resolveActivePersonaPrompt(config: ConfigStore): string {
-  // composeUiConfig emits ActivePersona as string | null, so a present
-  // key may legitimately hold null — guard the type rather than assert.
-  const activeName = config.get<string | null>('ActivePersona', null)
+function resolveActivePersonaPrompt(router: RouterConfig | undefined, config: ConfigStore): string {
+  const activeName = router?.persona
   if (typeof activeName !== 'string' || activeName.length === 0) return ''
   const personas = config.get<Persona[]>('Personas', [])
   const match = personas.find((p) => p.name === activeName)

@@ -139,7 +139,10 @@ describe('ConfigEnvelopeSchema — catchall', () => {
   })
 })
 
-describe('ConfigEnvelopeSchema — Personas / ActivePersona', () => {
+// ActivePersona is the disk-only backing key for the active persona; on
+// the wire it surfaces as Router.persona (see config-service tests), but
+// in the envelope it stays a top-level optional scalar.
+describe('ConfigEnvelopeSchema — Personas / ActivePersona (disk backing key)', () => {
   test('defaults Personas to [] when absent', () => {
     const result = ConfigEnvelopeSchema.safeParse({ ...BASE })
     expect(result.success).toBe(true)

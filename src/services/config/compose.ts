@@ -160,16 +160,23 @@ export async function composeUiConfig(): Promise<AppConfig> {
     if (fallbacks) router.fallbacks[key] = fallbacks
   }
 
+  // Fold the active persona into the composed Router from its disk-only
+  // backing key (ActivePersona). Emit null when unset so the wire shows
+  // "no persona" the same way the path scalars show "no value"; a present
+  // name rides on Router.persona. The persona library stays top-level.
+  router.persona = optionalScalarOrNull(envelopeOnly.ActivePersona)
+
+  // Drop the disk-only persona backing key so it never leaks onto the
+  // wire as a top-level field — it surfaces solely as Router.persona.
+  const { ActivePersona: _activePersona, ...envelopeWithoutPersona } = envelopeOnly
+
   // Optional path/url scalars: emit null when absent / '' on disk so
   // the JSON editor / wire shows "no value" consistently.
   return {
-    ...envelopeOnly,
+    ...envelopeWithoutPersona,
     CLAUDE_PATH: optionalScalarOrNull(envelopeOnly.CLAUDE_PATH),
     PROXY_URL: optionalScalarOrNull(envelopeOnly.PROXY_URL),
     CUSTOM_ROUTER_PATH: optionalScalarOrNull(envelopeOnly.CUSTOM_ROUTER_PATH),
-    // Active persona name travels as null when unset; the library is
-    // always a plain array (default [] from the envelope schema).
-    ActivePersona: optionalScalarOrNull(envelopeOnly.ActivePersona),
     Personas: envelopeOnly.Personas,
     Providers: providers.map(toProvider),
     Router: router

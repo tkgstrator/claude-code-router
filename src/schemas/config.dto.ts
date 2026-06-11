@@ -8,7 +8,7 @@ import { StatusLineConfigSchema } from './status-line.dto'
 import { TransformerSchema } from './transformer.dto'
 
 // A single named persona in the library: a non-empty `name` (the value
-// `ActivePersona` points at) and its `prompt` text (may be empty while
+// `Router.persona` points at) and its `prompt` text (may be empty while
 // the user is still editing).
 export const PersonaSchema = z
   .object({
@@ -33,9 +33,10 @@ export const ConfigEnvelopeSchema = z
     CLAUDE_PATH: z.string().default(''),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
 
-    // Name of the currently active persona, or absent/empty for "no
-    // persona". Round-trips through the disk envelope like the other
-    // optional scalars (see CUSTOM_ROUTER_PATH).
+    // Disk-only backing store for the active persona name (surfaced on
+    // the wire as `Router.persona`, not as a top-level field). Absent /
+    // empty means "no persona". Round-trips through the disk envelope
+    // like the other optional scalars (see CUSTOM_ROUTER_PATH).
     ActivePersona: z.string().optional(),
 
     // Object-shaped envelope members that stay on disk for PR #1.
@@ -55,19 +56,21 @@ export type ConfigEnvelope = z.infer<typeof ConfigEnvelopeSchema>
 // / loadFullConfig. Extends ConfigEnvelopeSchema with DB-resident fields
 // (Providers, Router) and overrides the optional path/url scalars so
 // "unset" travels as null (composeUiConfig emits null when absent / ''
-// on disk). Registered as .openapi('Config') for the generated OpenAPI
-// document.
-export const AppConfigSchema = ConfigEnvelopeSchema.extend({
-  Providers: z.array(ProviderSchema),
-  Router: RouterSchema,
-  PROXY_URL: z.string().nullable(),
-  CLAUDE_PATH: z.string().nullable(),
-  CUSTOM_ROUTER_PATH: z.string().nullable(),
-  // Active persona name travels as null on the wire when unset; the
-  // persona library is always a plain array (default []).
-  ActivePersona: z.string().nullable(),
-  Personas: z.array(PersonaSchema).default([])
-}).openapi('Config')
+// on disk). The disk-only ActivePersona backing key is omitted — it
+// surfaces solely as Router.persona. Registered as .openapi('Config')
+// for the generated OpenAPI document.
+export const AppConfigSchema = ConfigEnvelopeSchema.omit({ ActivePersona: true })
+  .extend({
+    Providers: z.array(ProviderSchema),
+    Router: RouterSchema,
+    PROXY_URL: z.string().nullable(),
+    CLAUDE_PATH: z.string().nullable(),
+    CUSTOM_ROUTER_PATH: z.string().nullable(),
+    // The persona library stays top-level and is always a plain array
+    // (default []); the active persona name rides on Router.persona.
+    Personas: z.array(PersonaSchema).default([])
+  })
+  .openapi('Config')
 export type AppConfig = z.infer<typeof AppConfigSchema>
 
 // UI-side config shape consumed by components. Differs from
@@ -90,7 +93,8 @@ export const ConfigSchema = z.object({
   API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.url(),
   CUSTOM_ROUTER_PATH: z.string().nonempty().optional(),
-  ActivePersona: z.string().nonempty().optional(),
+  // Active persona lives on Router.persona (RouterConfigSchema), not as a
+  // top-level field. The persona library stays top-level.
   Personas: z.array(PersonaSchema).default([])
 })
 export type Config = z.infer<typeof ConfigSchema>
@@ -109,9 +113,8 @@ export const ApplyConfigPayloadSchema = z
     CLAUDE_PATH: EmptyStringToNullSchema.optional(),
     PROXY_URL: EmptyStringToNullSchema.optional(),
     CUSTOM_ROUTER_PATH: EmptyStringToNullSchema.optional(),
-    // Empty string clears the active persona (collapsed to null, then
-    // pruned off disk); the persona library is written as an array.
-    ActivePersona: EmptyStringToNullSchema.optional(),
+    // The active persona arrives nested as Router.persona (RouterSchema,
+    // empty string clears); only the persona library is top-level here.
     Personas: z.array(PersonaSchema).optional()
   })
   .catchall(JsonValueSchema)

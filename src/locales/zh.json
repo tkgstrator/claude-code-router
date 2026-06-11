@@ -254,7 +254,10 @@
     "searchModel": "搜索模型...",
     "noModelFound": "未找到模型.",
     "fallbacks": "降级模型",
-    "fallbacksDescription": "当主模型达到速率限制时（使用率过高时主动切换，或收到 429 时）按顺序尝试。限制重置后自动切回主模型。"
+    "fallbacksDescription": "当主模型达到速率限制时（使用率过高时主动切换，或收到 429 时）按顺序尝试。限制重置后自动切回主模型。",
+    "persona": "当前人设",
+    "personaNone": "无 / 关闭",
+    "personaHelper": "追加到该路由的面向用户的请求（不含后台）。请在人设页面定义人设。"
   },
   "json_editor": {
     "title": "JSON 编辑器",
@@ -460,7 +463,7 @@
   },
   "personas": {
     "title": "人设",
-    "description": "保存命名人设，并选择追加到每个请求的人设。",
+    "description": "保存命名人设。在路由页面选择要追加的当前人设。",
     "add": "添加人设",
     "delete": "删除人设",
     "save": "保存",
@@ -468,13 +471,10 @@
     "name_placeholder": "例如：礼貌",
     "prompt_label": "提示词",
     "prompt_placeholder": "描述助手应如何表现……",
-    "active_label": "当前人设",
-    "active_none": "无 / 关闭",
     "empty": "暂无人设。添加一个开始吧。",
     "saved_success": "人设已保存",
     "save_failed": "保存人设失败",
     "name_required": "每个人设都需要名称",
-    "name_duplicate": "人设名称必须唯一",
-    "active_missing": "当前人设必须与现有人设匹配"
+    "name_duplicate": "人设名称必须唯一"
   }
 }

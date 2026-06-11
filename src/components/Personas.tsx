@@ -7,16 +7,10 @@ import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import type { Persona } from '@/types'
 import { useConfig } from './ConfigProvider'
-
-// Sentinel used for the "no active persona" choice. Radix Select cannot
-// carry an empty-string item value, so we map this back to '' (the wire
-// contract for "off") on save.
-const NONE_VALUE = '__none__'
 
 // UI-only row shape: a stable `id` keys each editable row so React keeps
 // per-row state across reorders/deletes. The id is stripped before the
@@ -36,9 +30,6 @@ export function Personas() {
   // Local editable copies seeded from config; persisted as a unit on Save.
   const [rows, setRows] = useState<PersonaRow[]>(
     toRows(config && Array.isArray(config.Personas) ? config.Personas : [])
-  )
-  const [activePersona, setActivePersona] = useState<string>(
-    config && typeof config.ActivePersona === 'string' ? config.ActivePersona : ''
   )
 
   if (!config) {
@@ -77,14 +68,14 @@ export function Personas() {
       showToast(t('personas.name_duplicate'), 'error')
       return
     }
-    // An active selection must point at a persona that exists.
-    if (activePersona !== '' && !trimmedNames.includes(activePersona)) {
-      showToast(t('personas.active_missing'), 'error')
-      return
-    }
 
     const normalizedPersonas: Persona[] = rows.map((row) => ({ name: row.name.trim(), prompt: row.prompt }))
-    const nextConfig = { ...config, Personas: normalizedPersonas, ActivePersona: activePersona }
+    // Library-only save: spread the existing config so Router (including
+    // the active Router.persona, owned by the Router page) is preserved.
+    const nextConfig = {
+      ...config,
+      Personas: normalizedPersonas
+    }
     try {
       await api.updateConfig(nextConfig)
       setConfig(nextConfig)
@@ -94,8 +85,6 @@ export function Personas() {
       showToast(`${t('personas.save_failed')}: ${err instanceof Error ? err.message : 'request failed'}`, 'error')
     }
   }
-
-  const activeSelectValue = activePersona === '' ? NONE_VALUE : activePersona
 
   return (
     <PageContainer>
@@ -109,31 +98,6 @@ export function Personas() {
       <PageContent>
         <div className='space-y-6'>
           <p className='text-sm text-muted-foreground'>{t('personas.description')}</p>
-
-          <div className='space-y-2'>
-            <Label htmlFor='active-persona'>{t('personas.active_label')}</Label>
-            <Select
-              value={activeSelectValue}
-              onValueChange={(value) => setActivePersona(value === NONE_VALUE ? '' : value)}
-            >
-              <SelectTrigger id='active-persona' className='w-72'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE_VALUE}>{t('personas.active_none')}</SelectItem>
-                {rows
-                  .filter((row) => row.name.trim() !== '')
-                  .map((row) => {
-                    const name = row.name.trim()
-                    return (
-                      <SelectItem key={row.id} value={name}>
-                        {name}
-                      </SelectItem>
-                    )
-                  })}
-              </SelectContent>
-            </Select>
-          </div>
 
           {rows.length === 0 ? (
             <div className='flex items-center justify-center rounded-md border bg-background p-8 text-muted-foreground'>

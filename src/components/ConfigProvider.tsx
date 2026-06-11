@@ -101,7 +101,8 @@ function normalizeConfig(data: Config): Config {
               typeof data.Router.longContextThreshold === 'number' ? data.Router.longContextThreshold : 60000,
             webSearch: typeof data.Router.webSearch === 'string' ? data.Router.webSearch : null,
             image: typeof data.Router.image === 'string' ? data.Router.image : null,
-            fallbacks: normalizeFallbacks(data.Router.fallbacks)
+            fallbacks: normalizeFallbacks(data.Router.fallbacks),
+            persona: typeof data.Router.persona === 'string' ? data.Router.persona : undefined
           }
         : {
             default: null,
@@ -111,10 +112,10 @@ function normalizeConfig(data: Config): Config {
             longContextThreshold: 60000,
             webSearch: null,
             image: null,
-            fallbacks: normalizeFallbacks(undefined)
+            fallbacks: normalizeFallbacks(undefined),
+            persona: undefined
           },
     CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : '',
-    ActivePersona: typeof data.ActivePersona === 'string' ? data.ActivePersona : undefined,
     Personas: Array.isArray(data.Personas) ? data.Personas : []
   }
 }
@@ -139,7 +140,8 @@ const emptyConfig = (): Config => ({
     longContextThreshold: 60000,
     webSearch: '',
     image: '',
-    fallbacks: normalizeFallbacks(undefined)
+    fallbacks: normalizeFallbacks(undefined),
+    persona: undefined
   },
   CUSTOM_ROUTER_PATH: '',
   Personas: []
