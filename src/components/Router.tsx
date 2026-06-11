@@ -37,12 +37,16 @@ function RouterForm({ config }: { config: Config }) {
   const { showToast } = useOutletContext<ShellOutletContext>()
   const modelOptions = useEnabledModelOptions()
 
-  // Persona names available to assign to this router. The active value
-  // defaults from Router.persona, but only when it still names a persona
-  // that exists in the library — a dangling name falls back to "None".
-  const personaNames = config.Personas.map((persona) => persona.name)
+  // Personas available to assign to this router, keyed by their uuid `id`
+  // (the value Router.persona stores) with the free-form name as the label.
+  // The active value defaults from Router.persona, but only when it still
+  // points at a persona in the library — a dangling id falls back to "None".
+  const personaOptions = config.Personas.map((persona) => ({
+    id: persona.id ?? '',
+    name: persona.name
+  }))
   const savedPersona = typeof config.Router.persona === 'string' ? config.Router.persona : ''
-  const defaultPersona = savedPersona !== '' && personaNames.includes(savedPersona) ? savedPersona : ''
+  const defaultPersona = savedPersona !== '' && personaOptions.some((p) => p.id === savedPersona) ? savedPersona : ''
 
   const form = useForm<RouterFormInput, unknown, RouterFormOutput>({
     resolver: zodResolver(RouterFormSchema),
@@ -291,9 +295,9 @@ function RouterForm({ config }: { config: Config }) {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value={PERSONA_NONE_VALUE}>{t('router.personaNone')}</SelectItem>
-                          {personaNames.map((name) => (
-                            <SelectItem key={name} value={name}>
-                              {name}
+                          {personaOptions.map((persona) => (
+                            <SelectItem key={persona.id} value={persona.id}>
+                              {persona.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

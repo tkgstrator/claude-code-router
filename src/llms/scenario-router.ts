@@ -290,19 +290,20 @@ function stringTextOf(block: unknown): string | undefined {
 /**
  * Resolve the active persona's prompt text for the resolved router.
  *
- * Reads `router.persona` (the active persona name, carried on the
+ * Reads `router.persona` (the active persona's uuid id, carried on the
  * possibly project/session-overridden router) and looks it up in the
  * top-level `Personas` library, returning the matching persona's
- * `prompt`. Returns '' when the router is undefined, no persona is
- * active, the name matches nothing, or the prompt is empty —
- * applyGlobalSystemPrompt treats '' as a no-op so the cached prefix stays
- * byte-stable.
+ * `prompt`. Falls back to a name match so a pre-migration config that
+ * still stores a name keeps resolving. Returns '' when the router is
+ * undefined, no persona is active, nothing matches, or the prompt is
+ * empty — applyGlobalSystemPrompt treats '' as a no-op so the cached
+ * prefix stays byte-stable.
  */
 function resolveActivePersonaPrompt(router: RouterConfig | undefined, config: ConfigStore): string {
-  const activeName = router?.persona
-  if (typeof activeName !== 'string' || activeName.length === 0) return ''
+  const active = router?.persona
+  if (typeof active !== 'string' || active.length === 0) return ''
   const personas = config.get<Persona[]>('Personas', [])
-  const match = personas.find((p) => p.name === activeName)
+  const match = personas.find((p) => p.id === active) ?? personas.find((p) => p.name === active)
   return match !== undefined ? match.prompt : ''
 }
 
