@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Setup Bun
@@ -40,7 +40,7 @@ jobs:
     name: Biome Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -51,7 +51,7 @@ jobs:
     name: Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -62,7 +62,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -79,7 +79,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
