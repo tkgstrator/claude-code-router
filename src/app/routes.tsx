@@ -6,7 +6,9 @@ import { HistoryPage } from '@/components/History'
 import { Login } from '@/components/Login'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
 import { OauthResultPage } from '@/components/OauthResultPage'
+import { PersonaEdit } from '@/components/PersonaEdit'
 import { Personas } from '@/components/Personas'
+import { PersonaView } from '@/components/PersonaView'
 import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
@@ -47,6 +49,9 @@ export const router = createBrowserRouter([
       { path: '/usage', element: fullHeight(<Usage />) },
       { path: '/history', element: fullHeight(<HistoryPage />) },
       { path: '/personas', element: fullHeight(<Personas />) },
+      { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
+      { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
+      { path: '/personas/edit/:id', element: fullHeight(<PersonaEdit />) },
       { path: '/settings', element: fullHeight(<SettingsPage />) }
     ]
   },
