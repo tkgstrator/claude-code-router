@@ -250,7 +250,9 @@
     "forceUseImageAgent": "强制使用图像代理",
     "selectModel": "选择一个模型...",
     "searchModel": "搜索模型...",
-    "noModelFound": "未找到模型."
+    "noModelFound": "未找到模型.",
+    "fallbacks": "降级模型",
+    "fallbacksDescription": "当主模型达到速率限制时（使用率过高时主动切换，或收到 429 时）按顺序尝试。限制重置后自动切回主模型。"
   },
   "json_editor": {
     "title": "JSON 编辑器",
