@@ -274,7 +274,11 @@ function RouterForm({ config }: { config: Config }) {
                   // to the sentinel for display and back to '' on change.
                   const selectValue = field.value === '' || field.value === null ? PERSONA_NONE_VALUE : field.value
                   return (
-                    <FormItem>
+                    // Full-width own row: the helper text makes this cell
+                    // taller than the model-slot selects, so on the shared
+                    // `items-end` grid it would misalign with a half-width
+                    // neighbor. Spanning every column keeps it on its own row.
+                    <FormItem className='md:col-span-2 xl:col-span-3'>
                       <FormLabel>{t('router.persona')}</FormLabel>
                       <Select
                         value={selectValue}
