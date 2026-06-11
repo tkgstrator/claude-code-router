@@ -2,6 +2,7 @@ import seed from './llm-prices.json'
 import { OFFICIAL_VENDOR_PRICES } from './providers'
 
 export { DEPRECATED_MODELS, isDeprecatedModel } from './deprecations'
+export { SEED_PERSONAS, type SeedPersona } from './personas'
 export { OFFICIAL_VENDOR_PRICES, type OfficialPricingEntry } from './providers'
 export { findSubscriptionPreset, SUBSCRIPTION_PRESETS, type SubscriptionPreset } from './subscriptions'
 
