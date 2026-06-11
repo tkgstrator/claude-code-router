@@ -251,7 +251,9 @@
     "forceUseImageAgent": "画像エージェントを強制使用",
     "selectModel": "モデルを選択...",
     "searchModel": "モデルを検索...",
-    "noModelFound": "モデルが見つかりません。"
+    "noModelFound": "モデルが見つかりません。",
+    "fallbacks": "フォールバック先",
+    "fallbacksDescription": "本命が上限に達したとき（使用率が高いときの事前回避、または 429 受信時）に上から順に使用します。上限がリセットされると本命へ自動的に戻ります。"
   },
   "json_editor": {
     "title": "JSON エディタ",

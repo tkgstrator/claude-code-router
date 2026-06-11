@@ -16,8 +16,15 @@
 import { opendir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Logger } from 'pino'
-import { ProjectRouterFileSchema, type ScenarioRouterConfig as RouterConfig, type ScenarioType } from '@/schemas'
+import {
+  ProjectRouterFileSchema,
+  type Router,
+  type ScenarioRouterConfig as RouterConfig,
+  type ScenarioType
+} from '@/schemas'
 import { CLAUDE_PROJECTS_DIR, HOME_DIR } from '@/shared/constants'
+import { isProviderExhausted, markProviderExhausted } from '../services/failover-state'
+import { getKindHeadroom } from '../services/usage-service'
 import type { ConfigStore } from './registry/config'
 import type { TokenizerRegistry } from './registry/tokenizer'
 import type { TokenizeMessage, TokenizeRequest, TokenizeSystem, TokenizeTool } from './tokenizers/base'
@@ -50,9 +57,72 @@ export type RouterContext = {
 type ConfigProvider = {
   name: string
   models?: string[]
+  api_base_url?: string
+  auth_mode?: string
 }
 
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
+
+// Map a provider name to the subscription usage "kind" whose limit we can
+// pre-empt, or null for api_key / non-subscription providers (they have
+// no usage ceiling to read; their limits are handled reactively on 429).
+// Mirrors the apiBaseUrl matching in subscription-account-sync-service.
+function subscriptionKindOf(providerName: string, providers: ConfigProvider[]): 'claude' | 'codex' | null {
+  const p = providers.find((x) => x.name === providerName)
+  if (p?.auth_mode !== 'subscription') return null
+  const url = typeof p.api_base_url === 'string' ? p.api_base_url : ''
+  if (url.includes('anthropic.com')) return 'claude'
+  if (url.includes('chatgpt.com') || url.includes('openai.com/v1')) return 'codex'
+  return null
+}
+
+// Whether a single chain candidate is usable right now. A subscription
+// provider that is already exhausted, or whose cached usage is at/over
+// the threshold, is not usable — and an over-threshold one is marked
+// exhausted here so the reactive path and later requests agree until its
+// window resets. Non-subscription providers are always usable (no usage
+// ceiling to read; their limits are handled reactively on 429).
+function candidateUsable(providerName: string, providers: ConfigProvider[]): boolean {
+  if (isProviderExhausted(providerName)) return false
+  const kind = subscriptionKindOf(providerName, providers)
+  if (kind === null) return true
+  const headroom = getKindHeadroom(kind)
+  if (!headroom.overLimit) return true
+  markProviderExhausted(providerName, headroom.resetAt !== null ? headroom.resetAt : undefined)
+  return false
+}
+
+/**
+ * Proactive failover: before sending, walk [primary, ...fallbacks] for
+ * the scenario and return the first candidate whose provider has
+ * headroom. When every candidate looks limited we keep the primary and
+ * let the upstream / reactive 429 path take over.
+ */
+function applyProactiveFailover(
+  primaryModel: string,
+  scenarioType: ScenarioType,
+  config: ConfigStore,
+  log: Logger
+): string {
+  const fullRouter = config.get<Router>('Router')
+  const configured = fullRouter?.fallbacks?.[scenarioType]
+  if (!Array.isArray(configured) || configured.length === 0) return primaryModel
+
+  const providers = config.get<ConfigProvider[]>('providers', [])
+  for (const candidate of [primaryModel, ...configured]) {
+    const providerName = candidate.split(',')[0]
+    if (!providerName || !candidateUsable(providerName, providers)) continue
+    if (candidate !== primaryModel) {
+      log.info(
+        { from: primaryModel, to: candidate, scenario: scenarioType },
+        'proactive failover: primary near rate limit'
+      )
+    }
+    return candidate
+  }
+
+  return primaryModel
+}
 
 /**
  * Mutates `req.body.model` to the selected target model and stamps
@@ -79,7 +149,7 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
 
     const { model, scenarioType } = selectModel(req, tokenCount, router, ctx.config)
-    req.body.model = model
+    req.body.model = applyProactiveFailover(model, scenarioType, ctx.config, req.log)
     req.scenarioType = scenarioType
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')

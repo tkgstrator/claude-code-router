@@ -325,6 +325,38 @@ export async function syncDeprecationFlags(tx: Tx, providerId: string, names: st
   }
 }
 
+// Validate a scenario's incoming fallback list against the DB: keep the
+// entries that resolve to a known provider/model (preserving order),
+// drop the rest with a warning. Mirrors the primary-slot validation so
+// the stored chain only ever points at models that actually exist.
+export async function resolveFallbackTargets(
+  tx: Tx,
+  scenario: string,
+  raw: readonly string[] | undefined,
+  warnings: string[]
+): Promise<string[]> {
+  if (raw === undefined || raw.length === 0) return []
+  const out: string[] = []
+  for (const entry of raw) {
+    const { providerName, modelName } = parseSlot(entry)
+    if (!providerName || !modelName) {
+      warnings.push(`Router fallback for "${scenario}" is malformed ("${entry}"); dropped.`)
+      continue
+    }
+    const model = await tx.model.findFirst({
+      where: { name: modelName, provider: { name: providerName } }
+    })
+    if (!model) {
+      warnings.push(
+        `Router fallback "${providerName},${modelName}" for "${scenario}" references unknown model; dropped.`
+      )
+      continue
+    }
+    out.push(`${providerName},${modelName}`)
+  }
+  return out
+}
+
 export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: string[]): Promise<void> {
   const longContextThreshold = typeof incoming.longContextThreshold === 'number' ? incoming.longContextThreshold : null
 
@@ -343,8 +375,17 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
       }
     }
 
+    const fallbacks = await resolveFallbackTargets(tx, scenario, incoming.fallbacks?.[scenario], warnings)
+
+    // params holds the scenario-scoped knobs: longContext keeps its
+    // threshold; any slot may carry a fallbacks chain. An empty object
+    // collapses to DbNull so a slot with no knobs stores NULL.
+    const paramsObj: Prisma.InputJsonObject = {
+      ...(scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : {}),
+      ...(fallbacks.length > 0 ? { fallbacks } : {})
+    }
     const params: Prisma.InputJsonValue | typeof Prisma.DbNull =
-      scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : Prisma.DbNull
+      Object.keys(paramsObj).length > 0 ? paramsObj : Prisma.DbNull
 
     await tx.routerSlot.upsert({
       where: { scenario },
@@ -354,7 +395,7 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
   }
 
   // Surface any catchall (custom) keys we silently drop.
-  const knownKeys = new Set<string>([...SCENARIO_KEYS, 'longContextThreshold'])
+  const knownKeys = new Set<string>([...SCENARIO_KEYS, 'longContextThreshold', 'fallbacks'])
   const dropped = Object.keys(incoming).filter((k) => !knownKeys.has(k))
   if (dropped.length > 0) {
     warnings.push(`Router fields not yet stored in DB and were ignored: ${dropped.join(', ')}. (See PR #2.)`)

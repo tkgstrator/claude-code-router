@@ -5,6 +5,7 @@
  */
 
 import type { AppConfig, Provider, Router } from '@/schemas'
+import { emptyFallbacks } from '@/schemas'
 import type { ConfigEnvelope, ScenarioKey } from '@/shared'
 import { getPrismaClient } from '../../db/client'
 import {
@@ -17,7 +18,8 @@ import { readConfigFile } from './envelope'
 import { isJsonObject, providerEnabledFromTransformer } from './transformer'
 
 // Unassigned slots are null (not '') so "no model bound" reads the
-// same on the wire as everywhere else.
+// same on the wire as everywhere else. fallbacks starts as all-empty
+// lists so composeUiConfig can assign per-scenario without a guard.
 export const emptyRouter = (): Router => ({
   default: null,
   background: null,
@@ -25,6 +27,7 @@ export const emptyRouter = (): Router => ({
   longContext: null,
   webSearch: null,
   image: null,
+  fallbacks: emptyFallbacks(),
   longContextThreshold: 60_000
 })
 
@@ -38,6 +41,17 @@ export const thresholdFromParams = (params: unknown): number | null => {
   if (!isJsonObject(params)) return null
   const t = params.threshold
   return typeof t === 'number' ? t : null
+}
+
+// Read the ordered `fallbacks` list off a routerSlot.params JSON column.
+// Returns the "provider,model" strings in order, or null when none are
+// configured (so callers can skip the assignment entirely).
+export const fallbacksFromParams = (params: unknown): string[] | null => {
+  if (!isJsonObject(params)) return null
+  const raw = params.fallbacks
+  if (!Array.isArray(raw)) return null
+  const list = raw.filter((v): v is string => typeof v === 'string' && v.length > 0)
+  return list.length > 0 ? list : null
 }
 
 export type ProviderWithModels = DbProvider & {
@@ -136,6 +150,8 @@ export async function composeUiConfig(): Promise<AppConfig> {
       const threshold = thresholdFromParams(slot.params)
       if (threshold !== null) router.longContextThreshold = threshold
     }
+    const fallbacks = fallbacksFromParams(slot.params)
+    if (fallbacks) router.fallbacks[key] = fallbacks
   }
 
   // Optional path/url scalars: emit null when absent / '' on disk so
