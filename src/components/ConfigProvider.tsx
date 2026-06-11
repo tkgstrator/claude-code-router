@@ -116,7 +116,17 @@ function normalizeConfig(data: Config): Config {
             persona: undefined
           },
     CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : '',
-    Personas: Array.isArray(data.Personas) ? data.Personas : []
+    // Guarantee every persona carries a stable uuid `id` (the key the URL
+    // and Router.persona reference). The server's boot migration backfills
+    // ids on disk; this is the defensive UI mirror for any persona that
+    // still arrives without one.
+    Personas: Array.isArray(data.Personas)
+      ? data.Personas.map((persona) => ({
+          id: typeof persona.id === 'string' && persona.id !== '' ? persona.id : crypto.randomUUID(),
+          name: persona.name,
+          prompt: persona.prompt
+        }))
+      : []
   }
 }
 
