@@ -46,7 +46,10 @@ export const RequestLogsListQuerySchema = z.object({
 
 export const RequestLogsSessionsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
-  offset: z.coerce.number().int().min(0).default(0)
+  offset: z.coerce.number().int().min(0).default(0),
+  // Only return sessions active within the last N hours (0 = no time limit).
+  // History tends to grow unbounded, so default to a recent window.
+  sinceHours: z.coerce.number().int().min(0).max(8760).default(6)
 })
 
 export const SessionIdParamSchema = z.object({ sessionId: z.string().nonempty() })

@@ -1,5 +1,5 @@
 import { ChevronRight, Clock, History, Layers, RefreshCw, Trash2, Zap } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { api, type RequestLogItem, type SessionSummary } from '@/lib/api'
@@ -55,7 +55,7 @@ export function HistoryPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.getRequestLogSessions({ limit: 100 })
+      const res = await api.getRequestLogSessions({ limit: 100, sinceHours: 6 })
       setSessions(res.sessions)
       setTotal(res.total)
       // Keep selected in sync with latest aggregated stats.
@@ -213,13 +213,33 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
   const [loadingLogs, setLoadingLogs] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
 
+  const loadedSessionRef = useRef<string | null>(null)
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTrigger is a refetch signal, not read in the body
   useEffect(() => {
-    setLoadingLogs(true)
+    // Only show the blocking loader when switching to a different session.
+    // SSE-driven refreshes (refreshTrigger bumps) refetch silently and swap
+    // the logs in place, so the request list never blanks/flickers mid-stream.
+    const isSwitch = loadedSessionRef.current !== session.sessionId
+    let cancelled = false
+    if (isSwitch) {
+      setLoadingLogs(true)
+      setExpanded(null)
+    }
     api
       .getSessionLogs(session.sessionId)
-      .then((res) => setLogs(res.items))
+      .then((res) => {
+        if (cancelled) return
+        loadedSessionRef.current = session.sessionId
+        setLogs(res.items)
+      })
       .catch(() => {})
-      .finally(() => setLoadingLogs(false))
+      .finally(() => {
+        if (!cancelled && isSwitch) setLoadingLogs(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [session.sessionId, refreshTrigger])
 
   const modelBreakdown = useMemo(() => {
@@ -318,19 +338,19 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
             {modelBreakdown.map((entry) => (
               <div key={entry.model} className='flex items-center gap-2 px-4 py-2 text-[11px]'>
                 <span className='font-mono text-foreground flex-1 min-w-0 truncate'>{entry.model}</span>
-                <span className='text-muted-foreground tabular-nums w-10 text-right shrink-0'>
+                <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0 whitespace-nowrap'>
                   {entry.requests} req
                 </span>
-                <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0'>
+                <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0 whitespace-nowrap'>
                   {fmtTokens(entry.inputTokens)}↑
                 </span>
-                <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0'>
+                <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0 whitespace-nowrap'>
                   {fmtTokens(entry.outputTokens)}↓
                 </span>
-                <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0'>
+                <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0 whitespace-nowrap'>
                   {entry.avgCacheHitPct}%
                 </span>
-                <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0'>
+                <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0 whitespace-nowrap'>
                   {fmtCost(entry.cost)}
                 </span>
               </div>
@@ -354,18 +374,20 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
                   onClick={() => setExpanded(expanded === log.id ? null : log.id)}
                 >
                   <Clock className='h-3 w-3 text-muted-foreground shrink-0' />
-                  <span className='tabular-nums text-muted-foreground w-14 shrink-0'>
+                  <span className='tabular-nums text-muted-foreground w-14 shrink-0 whitespace-nowrap'>
                     {dayjs(log.createdAt).format('HH:mm:ss')}
                   </span>
                   <span className='font-mono text-foreground flex-1 min-w-0 truncate text-left'>{log.model}</span>
-                  <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0'>
+                  <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0 whitespace-nowrap'>
                     {fmtTokens(log.totalInputTokens)}↑
                   </span>
-                  <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0'>
+                  <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0 whitespace-nowrap'>
                     {fmtTokens(log.outputTokens)}↓
                   </span>
-                  <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0'>{log.cacheHitPct}%</span>
-                  <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0'>
+                  <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0 whitespace-nowrap'>
+                    {log.cacheHitPct}%
+                  </span>
+                  <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0 whitespace-nowrap'>
                     {fmtCost(log.totalCostUsd)}
                   </span>
                   <StatusBadge status={log.status} />

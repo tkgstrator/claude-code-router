@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import { getPrismaClient } from '../../db/client'
+import dayjs from '../../lib/dayjs'
 import {
   RequestLogIdParamSchema,
   RequestLogsDeleteAllResponseSchema,
@@ -37,13 +38,19 @@ const getSessionsRoute = createRoute({
 })
 
 requestLogsRoute.openapi(getSessionsRoute, async (c) => {
-  const { limit, offset } = c.req.valid('query')
+  const { limit, offset, sinceHours } = c.req.valid('query')
   const prisma = getPrismaClient()
+
+  // Limit to sessions active within the recent window (0 = no limit) so the
+  // History list doesn't grow unbounded.
+  const since = sinceHours > 0 ? dayjs().subtract(sinceHours, 'hour').toDate() : null
+  const where = since ? { updatedAt: { gte: since } } : undefined
 
   // Sessions from the Session table (ordered by most-recently-updated first)
   const [total, sessionRows] = await Promise.all([
-    prisma.session.count(),
+    prisma.session.count({ where }),
     prisma.session.findMany({
+      where,
       orderBy: { updatedAt: 'desc' },
       skip: offset,
       take: limit,
