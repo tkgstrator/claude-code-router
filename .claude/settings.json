@@ -29,7 +29,8 @@
     "qtmleap-plugins": {
       "source": {
         "source": "github",
-        "repo": "qtmleap/claude-plugins"
+        "repo": "qtmleap/claude-plugins",
+        "ref": "v0.3.0"
       }
     }
   },
