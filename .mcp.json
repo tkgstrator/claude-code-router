@@ -1,5 +1,14 @@
 {
   "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "-c",
+        "set -e; GITHUB_PERSONAL_ACCESS_TOKEN=$(gh auth token); export GITHUB_PERSONAL_ACCESS_TOKEN; exec docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server"
+      ],
+      "env": {}
+    },
     "prisma": {
       "type": "stdio",
       "command": "bun",
