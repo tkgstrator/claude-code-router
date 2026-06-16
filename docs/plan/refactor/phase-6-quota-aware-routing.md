@@ -124,7 +124,8 @@ sticky マッピングは維持する（プロンプトキャッシュ継続の�
 - overall `sevenDay`（全体週次）も hard guard 対象にするか。Sonnet を積極消費しても全体 7d を割らないため、基本は対象にする方針。
 - ポリシー設定の置き場所: `RouterSlot.params`（scenario 毎）か、`Router` 直下の新フィールドか。
 - 5h を完全に無視するか、「直近の `resetsAt` まで」程度は緩く見るか。
-- short / long の境界は既存 `longContextThreshold`（60k）流用か、Sonnet の実コンテキスト上限に合わせるか。
+- short / long の境界（`longContextThreshold`）。既定 60k は Sonnet の実上限（200k〜）よりずっと小さく、Sonnet で処理可能な 60k〜上限帯まで `longContext`（Opus/Codex 想定）へ飛ばしてしまう。7d Sonnet を使い倒す方針なら **Sonnet 実上限近くまで引き上げ**、その帯域を `default`(=Sonnet) に残すのが本筋。`longContext` は「本当に Sonnet で無理な長さ」だけに絞る。
+- `longContext` と `think` は直交トリガ（サイズ vs 拡張思考の有無）で、`selectModel` では `longContext` が先に評価される。よって「長い & 拡張思考」は `longContext` に落ち、`think` スロットには来ない。`think` に来るのは閾値以下サイズで thinking が乗ったリクエストのみ。
 - throttle 時の既定挙動: 待つ / キューする（7d 超過 NG なので既定はこちら）。
 - Codex `secondary` 窓の扱い: 週次相当なら 7d 同様 hard とするか。
 
