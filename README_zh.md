@@ -11,6 +11,7 @@
 ## ✨ 功能
 
 - **基于任务的路由** — 为六个内置场景分别指定不同模型：`default`、`background`、`think`（计划模式）、`longContext`、`webSearch`、`image`。
+- **配额感知的兜底链** — 每个场景拥有有序的兜底链，当订阅型提供商越过其周维度排空目标时主动切换。effort 与模型层级信号将轻量请求引向 Sonnet，重量请求引向 Opus。
 - **多提供商支持** — 连接 API Key 型提供商（Anthropic、OpenAI、DeepSeek、Gemini、Groq、OpenRouter 等）或订阅型提供商（Claude Code OAuth、OpenAI Codex）。
 - **订阅监控** — 追踪速率限制窗口，比较实际 API 费用与订阅费用。
 - **用量与成本仪表板** — 按提供商和模型细分的费用明细及每日费用图表。
@@ -165,6 +166,18 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 | `longContext` | 超过上下文阈值的请求（默认 60 000 token）|
 | `webSearch` | 网络搜索任务（需要模型原生支持搜索）|
 | `image` | 图像相关任务（使用 CCR 内置图像代理）|
+
+### effort、层级与兜底
+
+除了上面的场景触发器，路由器还会对每个请求做分级，并按顺序遍历兜底链：
+
+- **分级信号** — `output_config.effort`（low/medium → `default`，high/xhigh/max → `longContext`），以及当 effort 缺失时从 `body.model` 解析出来的请求模型层级（opus → 重，sonnet/haiku → 轻）。显式的 low/medium effort 会抑制层级兜底，让调用方主动把默认的 opus 请求降级。
+- **每场景兜底链** — 每个槽位都接受一个 `provider,model` 格式的有序兜底列表。路由器遍历 `[primary, ...fallbacks]`，挑选第一个同时满足"周窗口仍有余量"和"声明的上下文窗口足以容纳本次请求"的候选。
+- **周维度排空守卫** — 当订阅型提供商的*周维度*用量越过线性排空目标时跳过（claude 看 `seven_day_opus` 或整体 `seven_day`，codex 看 `secondary`）。5h 与 codex primary 是*软*窗口，可以突发而不会触发切换。`Router.weeklyDrainMarginPct`（0..100，默认 0）允许用量在守卫触发前再多跑这么多个百分点 — 适合"宁愿把周窗口用满也不切换"的场景。
+- **能力门** — 切换永远不会落到一个 `contextWindow` 容不下本次请求的模型上。未声明窗口的模型默认放行（unknown = allow，保守默认值）。
+- **多账户均衡** — 当同一 Claude 提供商上启用了多个 SubAccount，会话路由器会挑选周维度余量最大（距离线性排空目标最远）的账户，并把同一会话内后续请求粘在该账户上。
+
+路由决策会以结构化日志记录：发生切换时会输出 `{ from, to, scenario, marginPct, tokenCount, trace }`，所有候选都被拒绝时会输出 "dead chain" 警告。trace 中每个候选都标注了 `rate-limited` / `capability` / `malformed` / `kept` 之一，运营人员可以从中看出尝试了哪些候选、又为何被拒。
 
 ### 转换器
 

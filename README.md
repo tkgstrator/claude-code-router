@@ -11,6 +11,7 @@
 ## ✨ Features
 
 - **Task-based routing** — assign different models to six built-in scenarios: `default`, `background`, `think` (Plan Mode), `longContext`, `webSearch`, and `image`.
+- **Quota-aware fallbacks** — per-scenario ordered fallback chains with proactive fail-over when a subscription provider crosses its weekly drain target. Effort and model-tier signals bias light traffic to Sonnet and heavy traffic to Opus.
 - **Multi-provider support** — connect API-key providers (Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, …) or subscription-based providers (Claude Code OAuth, OpenAI Codex).
 - **Subscription monitoring** — track rate-limit windows and compare actual API spend against subscription cost.
 - **Usage & cost dashboard** — per-provider and per-model cost breakdown with daily cost charts.
@@ -165,6 +166,18 @@ Configure which model to use for each scenario on the **Router** page:
 | `longContext` | Requests above the context threshold (default 60 000 tokens) |
 | `webSearch` | Web search tasks (the model must support search natively) |
 | `image` | Image-related tasks (uses CCR's built-in image agent) |
+
+### Effort, tier, and fallbacks
+
+Beyond the scenario triggers above, the router grades each request and walks an ordered fallback list:
+
+- **Grading signals** — `output_config.effort` (low/medium → `default`, high/xhigh/max → `longContext`) and the requested model tier from `body.model` (opus → heavy, sonnet/haiku → light). Tier is read only when effort is absent so older Claude Code traffic still grades correctly; an explicit low/medium effort suppresses the tier fallback so callers can downgrade an opus default.
+- **Per-scenario fallback chains** — every slot accepts an ordered list of `provider,model` fallbacks; the router walks `[primary, ...fallbacks]` and picks the first candidate that has weekly-window headroom and a context window large enough for the request.
+- **Weekly drain guard** — subscription providers are skipped when their *weekly* usage is over its linear drain target (`seven_day_opus` or overall `seven_day` for claude, `secondary` for codex). The 5h / codex-primary windows are *soft* and may burst without triggering fail-over. `Router.weeklyDrainMarginPct` (0..100, default 0) lets traffic run that many points hot before the guard trips — useful when you'd rather burst the weekly window than fail over.
+- **Capability gate** — fail-over never lands on a model whose declared `contextWindow` cannot hold the request. Models with no declared window are allowed (unknown = allow, conservative default).
+- **Multi-account balancing** — when more than one SubAccount on the same Claude provider is enabled, the session router picks the one with the most weekly headroom (furthest behind its linear drain target) and sticks subsequent requests in the session to that account.
+
+Decisions are logged structurally: the winning hop carries `{ from, to, scenario, marginPct, tokenCount, trace }`, and a dead-chain warning fires when every candidate is rejected so the operator can see what was tried and why (`rate-limited` / `capability` / `malformed` / `kept`).
 
 ### Transformers
 
