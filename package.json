@@ -60,7 +60,7 @@
   },
   "overrides": {
     "@types/react": "18",
-    "ioredis": "5.10.1"
+    "ioredis": "5.11.1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
@@ -104,7 +104,7 @@
     "hono": "^4.12.25",
     "i18next": "^26.3.1",
     "i18next-browser-languagedetector": "^8.2.1",
-    "ioredis": "5.10.1",
+    "ioredis": "5.11.1",
     "json5": "^2.2.3",
     "jsonrepair": "^3.14.0",
     "lru-cache": "^11.5.1",
