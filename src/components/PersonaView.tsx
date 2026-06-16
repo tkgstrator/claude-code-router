@@ -7,9 +7,10 @@ import { Textarea } from '@/components/ui/textarea'
 import type { Config, Persona } from '@/types'
 import { useConfig } from './ConfigProvider'
 
-// Read-only persona detail page (/personas/view/:name). Sits between the
-// list and the editor: the list links here to inspect the full prompt,
-// and this page links on to /personas/edit/:name to make changes.
+// Read-only persona detail page (/personas/view/:id, keyed by the
+// persona's uuid). Sits between the list and the editor: the list links
+// here to inspect the full prompt, and this page links on to
+// /personas/edit/:id to make changes.
 export function PersonaView() {
   const { config } = useConfig()
   if (!config) {

@@ -1,5 +1,4 @@
 import { ChevronRight, Plus } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
@@ -27,10 +26,6 @@ export function Personas() {
   const navigate = useNavigate()
   const { config } = useConfig()
 
-  // Read-only view of the library seeded from config. Add/edit/delete all
-  // happen on the dedicated /personas/new and /personas/edit/:id pages.
-  const [rows] = useState<PersonaRow[]>(toRows(config && Array.isArray(config.Personas) ? config.Personas : []))
-
   if (!config) {
     return (
       <PageContainer>
@@ -41,6 +36,12 @@ export function Personas() {
       </PageContainer>
     )
   }
+
+  // Read-only view of the library, derived from config on every render so
+  // the list catches up when ConfigProvider hydrates (or any external
+  // config update arrives). Add/edit/delete all happen on the dedicated
+  // /personas/new and /personas/edit/:id pages.
+  const rows: PersonaRow[] = toRows(Array.isArray(config.Personas) ? config.Personas : [])
 
   return (
     <PageContainer>
