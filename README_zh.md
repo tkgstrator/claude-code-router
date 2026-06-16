@@ -12,6 +12,7 @@
 
 - **基于任务的路由** — 为六个内置场景分别指定不同模型：`default`、`background`、`think`（计划模式）、`longContext`、`webSearch`、`image`。
 - **配额感知的兜底链** — 每个场景拥有有序的兜底链，当订阅型提供商越过其周维度排空目标时主动切换。effort 与模型层级信号将轻量请求引向 Sonnet，重量请求引向 Opus。
+- **人格** — 在不修改 Claude Code 的前提下，为每个面向用户的请求追加一段命名的系统提示。在 Personas 页面管理库，在 Router 页面选择当前生效的人格。
 - **多提供商支持** — 连接 API Key 型提供商（Anthropic、OpenAI、DeepSeek、Gemini、Groq、OpenRouter 等）或订阅型提供商（Claude Code OAuth、OpenAI Codex）。
 - **订阅监控** — 追踪速率限制窗口，比较实际 API 费用与订阅费用。
 - **用量与成本仪表板** — 按提供商和模型细分的费用明细及每日费用图表。
@@ -33,7 +34,8 @@ Web 界面（默认在端口 **3456** 提供服务）让您全面掌控路由器
 |------|------|
 | **Models** | 查看已启用模型、价格、上下文窗口及连接测试 |
 | **Providers** | 添加、编辑或删除 API Key 型和订阅型提供商 |
-| **Router** | 为每个路由场景分配模型 |
+| **Router** | 为每个路由场景分配模型，并选择当前生效的人格 |
+| **Personas** | 管理命名系统提示的人格库（新增、编辑、删除）|
 | **Subscriptions** | 监控速率限制窗口，比较订阅费用与 API 支出 |
 | **Usage** | 按提供商和模型细分的 API 费用及时序图表 |
 | **History** | 浏览历史请求日志 |
@@ -178,6 +180,18 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 - **多账户均衡** — 当同一 Claude 提供商上启用了多个 SubAccount，会话路由器会挑选周维度余量最大（距离线性排空目标最远）的账户，并把同一会话内后续请求粘在该账户上。
 
 路由决策会以结构化日志记录：发生切换时会输出 `{ from, to, scenario, marginPct, tokenCount, trace }`，所有候选都被拒绝时会输出 "dead chain" 警告。trace 中每个候选都标注了 `rate-limited` / `capability` / `malformed` / `kept` 之一，运营人员可以从中看出尝试了哪些候选、又为何被拒。
+
+### 人格
+
+*人格*是一段命名的系统提示片段，在场景判定之后，会被追加到每一个面向用户的请求里。借助它可以在不修改 Claude Code 本体的前提下，让 Claude Code 始终保持某种口吻、角色或工作守则。
+
+- **人格库** — `Personas` 是磁盘 envelope 上的顶层数组。每个条目都带有一个稳定的 uuid `id`、显示用的 `name`（无需唯一）和正文 `prompt`。新装环境会附带一个小型的初始人格库；既有环境则保留磁盘上已经存在的内容。
+- **当前激活** — 每个 Router 只能有一个激活的人格。当前激活的人格 uuid id 写在 `Router.persona` 上，并通过磁盘上的 `ActivePersona` envelope 键进行往返。`null` / 缺失 / 空字符串表示「无人格」。项目级与会话级的 Router 覆盖文件也接受 `Router.persona`。
+- **注入方式** — 路由器解析完场景后，会把当前人格的 `prompt` 追加到带有 `cache_control` 的最后一个 system 块上（若没有则退回到最后一个字符串文本块）。这样人格就被收纳进缓存前缀的*内部*，既不会消耗额外的 cache 断点，又能在多次请求之间保持字节级稳定（保留 Anthropic 的 prompt cache）。当 `system` 为字符串 / 未定义时进行拼接；多块数组形式则原地修改。
+- **场景例外** — `background` 场景会被排除：它跑的是标题生成等轻量内部任务，人格化的语气会污染这类输出。其它场景（default / think / longContext / webSearch / image）都会继承当前的人格。
+- **与子代理交互** — 人格注入在 `<CCR-SUBAGENT-MODEL>` 标签处理*之后*执行，所以子代理的逐次系统内容不会被覆盖，而是与人格合成。
+
+人格库管理在 **Personas** 页面（`/personas`），当前激活人格的切换在 **Router** 页面。「无人格」是默认的 no-op。
 
 ### 转换器
 
