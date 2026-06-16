@@ -24,8 +24,9 @@ import {
   type ScenarioType
 } from '@/schemas'
 import { CLAUDE_PROJECTS_DIR, HOME_DIR } from '@/shared/constants'
+import dayjs from '../lib/dayjs'
 import { isProviderExhausted, markProviderExhausted } from '../services/failover-state'
-import { getKindHeadroom } from '../services/usage-service'
+import { getKindWindowHeadroom } from '../services/usage-service'
 import type { ConfigStore } from './registry/config'
 import type { TokenizerRegistry } from './registry/tokenizer'
 import type { TokenizeMessage, TokenizeRequest, TokenizeSystem, TokenizeTool } from './tokenizers/base'
@@ -60,9 +61,19 @@ type ConfigProvider = {
   models?: string[]
   api_base_url?: string
   auth_mode?: string
+  // Per-model context window (tokens), emitted by compose.ts. Used by the
+  // capability gate so failover never lands on a model that cannot hold
+  // the request. Absent entry = unknown window = allow (conservative).
+  modelContextWindows?: Record<string, number>
 }
 
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
+
+// Over-target margin (percentage points) applied to the weekly-window
+// drain guard. 0 means the guard trips exactly when projected usage
+// crosses the linear drain target; a positive value lets usage run that
+// many points hot before failing over. Tunable later (Phase 6 S5).
+const WEEKLY_DRAIN_MARGIN_PCT = 0
 
 // Map a provider name to the subscription usage "kind" whose limit we can
 // pre-empt, or null for api_key / non-subscription providers (they have
@@ -77,31 +88,91 @@ function subscriptionKindOf(providerName: string, providers: ConfigProvider[]): 
   return null
 }
 
+// Whether a subscription kind is over its weekly drain guard right now,
+// reading the in-memory usage cache only (never fetches). The 5h /
+// Codex-primary windows are SOFT (allowed to burst) and never trigger
+// failover; only the weekly windows are HARD.
+//
+//   - claude: over when EITHER the 7d-Opus OR the overall 7d window is
+//     over its linear drain target (7d-Opus protects the scarce Opus
+//     quota; overall 7d protects Sonnet-heavy traffic).
+//   - codex: over when the secondary (weekly-equivalent) window is over
+//     target. The primary (short) window may burst. When secondary data
+//     is absent the target is null and overTarget is false, so codex
+//     stays usable — that is the intended conservative default.
+//
+// resetAt is the earliest weekly reset among the over-target windows, so
+// the failover exhaustion mark expires when the guarded window resets.
+function weeklyGuard(kind: 'claude' | 'codex', now: number): { overLimit: boolean; resetAt: number | null } {
+  if (kind === 'claude') {
+    const opus = getKindWindowHeadroom('claude', 'seven_day_opus', now, WEEKLY_DRAIN_MARGIN_PCT)
+    const overall = getKindWindowHeadroom('claude', 'seven_day', now, WEEKLY_DRAIN_MARGIN_PCT)
+    const overLimit = opus.overTarget || overall.overTarget
+    if (!overLimit) return { overLimit: false, resetAt: null }
+    // Earliest reset among the windows that actually tripped the guard.
+    const resets = [opus.overTarget ? opus.resetAt : null, overall.overTarget ? overall.resetAt : null].filter(
+      (r): r is number => r !== null
+    )
+    return { overLimit: true, resetAt: resets.length > 0 ? Math.min(...resets) : null }
+  }
+  const secondary = getKindWindowHeadroom('codex', 'secondary', now, WEEKLY_DRAIN_MARGIN_PCT)
+  if (!secondary.overTarget) return { overLimit: false, resetAt: null }
+  return { overLimit: true, resetAt: secondary.resetAt }
+}
+
 // Whether a single chain candidate is usable right now. A subscription
-// provider that is already exhausted, or whose cached usage is at/over
-// the threshold, is not usable — and an over-threshold one is marked
-// exhausted here so the reactive path and later requests agree until its
-// window resets. Non-subscription providers are always usable (no usage
-// ceiling to read; their limits are handled reactively on 429).
-function candidateUsable(providerName: string, providers: ConfigProvider[]): boolean {
+// provider that is already exhausted, or whose cached weekly usage is
+// over its linear drain target, is not usable — and an over-target one is
+// marked exhausted here so the reactive path and later requests agree
+// until its weekly window resets. The 5h / primary windows are allowed to
+// burst and never trigger failover. Non-subscription providers are always
+// usable (no usage ceiling to read; their limits are handled reactively
+// on 429).
+//
+// Exported for unit tests so the weekly-window guard can be driven with a
+// seeded usage cache without standing up the full pipeline.
+export function candidateUsable(providerName: string, providers: ConfigProvider[]): boolean {
   if (isProviderExhausted(providerName)) return false
   const kind = subscriptionKindOf(providerName, providers)
   if (kind === null) return true
-  const headroom = getKindHeadroom(kind)
-  if (!headroom.overLimit) return true
-  markProviderExhausted(providerName, headroom.resetAt !== null ? headroom.resetAt : undefined)
+  const guard = weeklyGuard(kind, dayjs().valueOf())
+  if (!guard.overLimit) return true
+  markProviderExhausted(providerName, guard.resetAt !== null ? guard.resetAt : undefined)
   return false
+}
+
+// Capability gate: whether a "provider,model" candidate's model can hold
+// a request of `tokenCount` tokens. When the provider declares a context
+// window for that model AND the request exceeds it, the candidate is
+// rejected (failover must never land on a model that cannot fit the
+// request). When the model has no declared window the gate allows it —
+// unknown window = allow, which is the conservative default that keeps
+// pre-capability-gate behaviour intact.
+function candidateFitsContext(candidate: string, tokenCount: number, providers: ConfigProvider[]): boolean {
+  const [providerName, modelName] = candidate.split(',')
+  if (!providerName || !modelName) return true
+  const provider = providers.find((x) => x.name === providerName)
+  const windows = provider?.modelContextWindows
+  if (!windows) return true
+  const limit = windows[modelName]
+  if (typeof limit !== 'number') return true
+  return tokenCount <= limit
 }
 
 /**
  * Proactive failover: before sending, walk [primary, ...fallbacks] for
  * the scenario and return the first candidate whose provider has
- * headroom. When every candidate looks limited we keep the primary and
- * let the upstream / reactive 429 path take over.
+ * headroom AND whose model can hold the request. When every candidate
+ * looks limited (or cannot fit) we keep the primary and let the upstream
+ * / reactive 429 path take over.
+ *
+ * Exported for unit tests so the weekly-window guard and capability gate
+ * can be exercised directly with a seeded usage cache and ConfigStore.
  */
-function applyProactiveFailover(
+export function applyProactiveFailover(
   primaryModel: string,
   scenarioType: ScenarioType,
+  tokenCount: number,
   config: ConfigStore,
   log: Logger
 ): string {
@@ -113,6 +184,10 @@ function applyProactiveFailover(
   for (const candidate of [primaryModel, ...configured]) {
     const providerName = candidate.split(',')[0]
     if (!providerName || !candidateUsable(providerName, providers)) continue
+    // Capability gate: never fail over onto a model that cannot fit the
+    // request — its window would 400 upstream. The primary is gated too
+    // so a too-small primary is skipped in favour of a fitting fallback.
+    if (!candidateFitsContext(candidate, tokenCount, providers)) continue
     if (candidate !== primaryModel) {
       log.info(
         { from: primaryModel, to: candidate, scenario: scenarioType },
@@ -150,7 +225,7 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
 
     const { model, scenarioType } = selectModel(req, tokenCount, router, ctx.config)
-    req.body.model = applyProactiveFailover(model, scenarioType, ctx.config, req.log)
+    req.body.model = applyProactiveFailover(model, scenarioType, tokenCount, ctx.config, req.log)
     req.scenarioType = scenarioType
 
     // Append the active persona's prompt to user-facing routes only,
