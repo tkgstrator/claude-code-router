@@ -10,7 +10,8 @@ Phase 5（同一プランの複数アカウント運用）の上に乗る。ア�
 
 - 7d（週次）窓には**絶対に引っかからない**
 - 5h 窓は**バーストして使い切ってよい**
-- 遊休の Codex と希少な Opus 7d 枠を、なるべく取り残しなく配分する
+- **余剰の大きい 7d Sonnet 枠を主力ワークホースとして積極的に使い切る**
+- 遊休の Codex を先に消費し、希少な Opus 7d 枠を温存しつつ取り残しなく配分する
 
 ように動的ルーティングする。
 
@@ -62,10 +63,12 @@ Phase 5（同一プランの複数アカウント運用）の上に乗る。ア�
 | 窓 | 硬さ | 方針 |
 |----|------|------|
 | 5h | soft | 超過可。フェイルオーバのトリガにしない |
-| 7d（全体） | hard | ドレイン目標で守る |
-| 7d Opus | hard・希少 | 最重要。長コンテキストの争点 |
-| 7d Sonnet | 潤沢 | 短コンテキストの受け皿 |
+| 7d（全体） | hard | ドレイン目標で守る。Sonnet を寄せてもここは越えない |
+| 7d Opus | hard・希少 | 最重要。温存対象。長コンテキストでだけ使う |
+| 7d Sonnet | 潤沢・**最優先** | 主力ワークホース。Sonnet で足りる限りここへ寄せて積極消費 |
 | Codex primary/secondary | 遊休 | 長コンテキストで先に使い切る |
+
+注: Sonnet を積極消費しても overall `sevenDay`（全体週次）は消費する。7d guard は `sevenDayOpus` だけでなく overall `sevenDay` も対象にし、Sonnet の寄せはこの全体ドレイン目標の範囲内で行う。
 
 ### 硬不変条件（7d guard）
 
@@ -78,15 +81,17 @@ Phase 5（同一プランの複数アカウント運用）の上に乗る。ア�
 
 5h はこの guard の対象外。バーストして 100% に張り付いてよい。
 
-### カスケード（long context: Opus or GPT-5.4）
+### ルーティング梯子（コンテキスト長で決まる）
 
-1. Codex（遊休を先に drain）。Codex 窓が目標超過していなければここ。
-2. Codex が逼迫したら、7d Opus ヘッドルーム（目標比）が最大の Claude アカウントの Opus。ただし 7d guard を割らない範囲のみ。5h は熱くなってよい。
-3. 全 Claude アカウントが 7d Opus 目標に達したら throttle / queue。7d は越えない側を選ぶ。
+リクエストをコンテキスト長で分類し、上の段から順に当てる。能力ゲート（Sonnet が扱える長さか）が段を決め、各段の中で窓ヘッドルームが配分を決める。
 
-### 短コンテキスト（Sonnet 可）
+1. **Sonnet で足りる（既定の主力）**: Sonnet。7d Sonnet が余りまくっているので、ここに最大限寄せる。7d Opus を一切食わない。2 アカウントの 7d Sonnet ヘッドルームで分散。5h が熱くても気にしない（soft）。唯一の上限は overall `sevenDay` のドレイン目標。
+2. **Sonnet では足りない（long context: Opus or GPT-5.4）**:
+   1. まず Codex（遊休を先に drain）。Codex 窓が目標超過していなければここ。
+   2. Codex が逼迫したら、7d Opus ヘッドルーム（目標比）が最大の Claude アカウントの Opus。7d guard を割らない範囲のみ。5h は熱くなってよい。
+   3. 全 Claude アカウントが 7d Opus 目標に達したら throttle / queue。7d は越えない側を選ぶ。
 
-無条件で Sonnet。7d Opus を一切食わない。アカウントは 7d Sonnet ヘッドルームで分散。
+要するに「Sonnet で行けるなら Sonnet、長さで弾かれたときだけ Codex → Opus」。Opus はコンテキスト長で強制されたときの最後の手段に押し下げる。
 
 ### アカウント選択
 
@@ -105,7 +110,7 @@ sticky マッピングは維持する（プロンプトキャッシュ継続の�
 
 1PR = 1テーマ。上から順に、各スライスは前のスライスの上に乗る。
 
-- **S0 応急（config のみ・即効）**: `Router.fallbacks.longContext` を `[codex, claude-opus...]` の順にして Opus を後置。コード変更なしで 7d 逼迫を即座に緩める。
+- **S0 応急（config のみ・即効）**: 2 つ同時に効く。(1) `Router.default`（と Sonnet で足りるシナリオ）を Sonnet モデルに向け、主力を余剰の 7d Sonnet へ寄せる。(2) `Router.fallbacks.longContext` を `[codex, claude-opus...]` 順にして Opus を後置。コード変更なしで 7d Opus 逼迫を即座に緩める。
 - **S1 データ層**: `usage-service` に窓指定ヘッドルームを追加。`getKindHeadroom` を窓選択可能にするか、新たに `getAccountHeadroom(subAccountId, { window })` を足す。`sevenDay` / `sevenDayOpus` / `sevenDaySonnet` / Codex `secondary` を読む。線形ドレイン目標ヘルパを追加。
 - **S2 失効判定**: `candidateUsable` / `applyProactiveFailover` を 5h でなく 7d guard で判定。`markProviderExhausted` の `until` を 7d の `resetsAt` 基準にする。
 - **S3 ティア認識ルーティング**: long context クラスで「Codex 優先 → 7d Opus ヘッドルーム最大アカウントの Opus」のカスケード。短コンテキストは Sonnet 固定。`selectModel` / `applyProactiveFailover` を拡張。
@@ -115,6 +120,8 @@ sticky マッピングは維持する（プロンプトキャッシュ継続の�
 
 ## Open Decisions（要確認）
 
+- どのシナリオを Sonnet-first にするか。`default` は確定。`think`（Plan Mode）/ `webSearch` は出力品質と Opus 温存のトレードオフ（品質を取るなら Opus 据え置き）。
+- overall `sevenDay`（全体週次）も hard guard 対象にするか。Sonnet を積極消費しても全体 7d を割らないため、基本は対象にする方針。
 - ポリシー設定の置き場所: `RouterSlot.params`（scenario 毎）か、`Router` 直下の新フィールドか。
 - 5h を完全に無視するか、「直近の `resetsAt` まで」程度は緩く見るか。
 - short / long の境界は既存 `longContextThreshold`（60k）流用か、Sonnet の実コンテキスト上限に合わせるか。
@@ -124,7 +131,9 @@ sticky マッピングは維持する（プロンプトキャッシュ継続の�
 ## Test Plan
 
 - ドレイン目標境界: 目標線の上下で divert が切り替わる。
-- 2 Claude アカウントで 7d Opus が分散する。
+- Sonnet で足りるリクエストは既定で Sonnet に乗り、閾値を超えたときだけ Codex → Opus へ escalate する。
+- 7d Sonnet を寄せても overall `sevenDay` のドレイン目標を割らない。
+- 2 Claude アカウントで 7d Sonnet / 7d Opus がそれぞれ分散する。
 - Codex 優先 drain → Codex 逼迫で Opus へ移る。
 - 短コンテキストが Opus を食わない。
 - 既存の 5h-only 挙動を壊さない回帰確認。
