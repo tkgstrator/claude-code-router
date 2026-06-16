@@ -376,3 +376,103 @@ test('applyProactiveFailover: margin in config is ignored at 0 (back-compat with
   const out = applyProactiveFailover('anthropic,claude-opus', 'default', 1000, config, noopLog)
   expect(out).toBe('codex,gpt-5')
 })
+
+// ---- regression / chain decision (S6) ------------------------------
+
+test('applyProactiveFailover: keeps the primary when every candidate is rejected', () => {
+  // Primary AND only fallback both have a tripping weekly guard. The
+  // walker must keep the primary and emit the structured warn log so
+  // the operator can see the dead chain — verify the captured log
+  // payload carries the per-candidate reasons.
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
+  __seedCodexCacheForTest('c1', makeCodex({ primary: 10, secondary: 80 }), NOW)
+  const captured: { msg: string; obj: Record<string, unknown> }[] = []
+  const log = {
+    info: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
+    warn: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
+    error: () => {}
+  } as unknown as Parameters<typeof applyProactiveFailover>[4]
+
+  const config = routerWith(['codex,gpt-5'])
+  const out = applyProactiveFailover('anthropic,claude-opus', 'default', 1000, config, log)
+
+  // Primary stays — reactive 429 path will take over upstream.
+  expect(out).toBe('anthropic,claude-opus')
+  const warn = captured.find((c) => c.msg.includes('all candidates rejected'))
+  expect(warn).toBeDefined()
+  const trace = warn?.obj.trace as { candidate: string; reason: string }[]
+  expect(trace).toEqual([
+    { candidate: 'anthropic,claude-opus', reason: 'rate-limited' },
+    { candidate: 'codex,gpt-5', reason: 'rate-limited' }
+  ])
+})
+
+test('applyProactiveFailover: a hot 5h window does NOT trigger the dead-chain warn (5h is soft)', () => {
+  // Regression for the pre-S2 5h-only behaviour: a request landing
+  // when the 5h window is hot but the weekly windows are calm must
+  // still ride the primary AND must NOT log the dead-chain warning
+  // (which would be misleading — the chain isn't actually dead).
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 95, sevenDay: 20, sevenDayOpus: 20 }), NOW)
+  const captured: string[] = []
+  const log = {
+    info: (_: unknown, msg: string) => captured.push(msg),
+    warn: (_: unknown, msg: string) => captured.push(msg),
+    error: () => {}
+  } as unknown as Parameters<typeof applyProactiveFailover>[4]
+
+  const config = routerWith(['codex,gpt-5'])
+  const out = applyProactiveFailover('anthropic,claude-opus', 'default', 1000, config, log)
+  expect(out).toBe('anthropic,claude-opus')
+  expect(captured.some((m) => m.includes('all candidates rejected'))).toBe(false)
+  expect(captured.some((m) => m.includes('proactive failover'))).toBe(false)
+})
+
+test('applyProactiveFailover: trace records the chain walk on a successful fail-over', () => {
+  // 7d-Opus pegged on claude; the walker must skip claude as
+  // rate-limited and land on codex. The info log carries the trace.
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
+  const captured: { msg: string; obj: Record<string, unknown> }[] = []
+  const log = {
+    info: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
+    warn: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
+    error: () => {}
+  } as unknown as Parameters<typeof applyProactiveFailover>[4]
+
+  const config = routerWith(['codex,gpt-5'])
+  const out = applyProactiveFailover('anthropic,claude-opus', 'default', 1000, config, log)
+  expect(out).toBe('codex,gpt-5')
+  const info = captured.find((c) => c.msg.includes('primary near rate limit'))
+  const trace = info?.obj.trace as { candidate: string; reason: string }[]
+  expect(trace).toEqual([
+    { candidate: 'anthropic,claude-opus', reason: 'rate-limited' },
+    { candidate: 'codex,gpt-5', reason: 'kept' }
+  ])
+})
+
+test('applyProactiveFailover: capability-gate skips are recorded in the trace', () => {
+  // Primary has weekly headroom but the request is too large for its
+  // declared context window; the walker steps onto a larger model.
+  // The trace must label the primary as 'capability', not 'rate-limited'.
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 20 }), NOW)
+  const captured: { msg: string; obj: Record<string, unknown> }[] = []
+  const log = {
+    info: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
+    warn: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
+    error: () => {}
+  } as unknown as Parameters<typeof applyProactiveFailover>[4]
+
+  const config = new ConfigStore({
+    Router: { default: 'codex,small', fallbacks: { default: ['codex,big'] } },
+    providers: [
+      { ...codexProvider, models: ['small', 'big'], modelContextWindows: { small: 1000, big: 200_000 } }
+    ]
+  })
+  const out = applyProactiveFailover('codex,small', 'default', 5_000, config, log)
+  expect(out).toBe('codex,big')
+  const info = captured.find((c) => c.msg.includes('primary near rate limit'))
+  const trace = info?.obj.trace as { candidate: string; reason: string }[]
+  expect(trace).toEqual([
+    { candidate: 'codex,small', reason: 'capability' },
+    { candidate: 'codex,big', reason: 'kept' }
+  ])
+})

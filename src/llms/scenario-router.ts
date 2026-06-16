@@ -205,22 +205,47 @@ export function applyProactiveFailover(
       ? fullRouter.weeklyDrainMarginPct
       : WEEKLY_DRAIN_MARGIN_PCT_DEFAULT
   const providers = config.get<ConfigProvider[]>('providers', [])
+
+  // S6 observability: record each candidate the walker considered and
+  // why it was rejected so the debug log captures the full chain
+  // decision (not just the winning hop). Emitted only when the primary
+  // is dropped — keeping the primary is the common path and would spam
+  // the log otherwise.
+  const trace: { candidate: string; reason: 'kept' | 'malformed' | 'rate-limited' | 'capability' }[] = []
   for (const candidate of [primaryModel, ...configured]) {
     const providerName = candidate.split(',')[0]
-    if (!providerName || !candidateUsable(providerName, providers, marginPct)) continue
+    if (!providerName) {
+      trace.push({ candidate, reason: 'malformed' })
+      continue
+    }
+    if (!candidateUsable(providerName, providers, marginPct)) {
+      trace.push({ candidate, reason: 'rate-limited' })
+      continue
+    }
     // Capability gate: never fail over onto a model that cannot fit the
     // request — its window would 400 upstream. The primary is gated too
     // so a too-small primary is skipped in favour of a fitting fallback.
-    if (!candidateFitsContext(candidate, tokenCount, providers)) continue
+    if (!candidateFitsContext(candidate, tokenCount, providers)) {
+      trace.push({ candidate, reason: 'capability' })
+      continue
+    }
+    trace.push({ candidate, reason: 'kept' })
     if (candidate !== primaryModel) {
       log.info(
-        { from: primaryModel, to: candidate, scenario: scenarioType, marginPct },
+        { from: primaryModel, to: candidate, scenario: scenarioType, marginPct, tokenCount, trace },
         'proactive failover: primary near rate limit'
       )
     }
     return candidate
   }
 
+  // Every candidate (primary + fallbacks) was rejected. Keep the
+  // primary and let the upstream / reactive 429 path take over, but
+  // surface the dead chain so the operator can see what was tried.
+  log.warn(
+    { primary: primaryModel, scenario: scenarioType, marginPct, tokenCount, trace },
+    'proactive failover: all candidates rejected, keeping primary'
+  )
   return primaryModel
 }
 
