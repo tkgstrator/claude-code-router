@@ -193,6 +193,8 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 
 人格库管理在 **Personas** 页面（`/personas`），当前激活人格的切换在 **Router** 页面。「无人格」是默认的 no-op。
 
+关于如何撰写高还原度的人格（结构模板、反模式列举、`think` 请求下的思考过程控制），请参见 [docs/guides/persona-authoring.md](docs/guides/persona-authoring.md)。
+
 ### 转换器
 
 转换器将 Anthropic 格式请求适配为各提供商的接口格式。

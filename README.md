@@ -193,6 +193,8 @@ A *persona* is a named system-prompt fragment appended to every user-facing requ
 
 Manage the library on the **Personas** page (`/personas`); switch the active persona on the **Router** page. Setting it to "no persona" is the no-op default.
 
+For authoring high-fidelity personas (structural patterns, anti-pattern cataloguing, thought-process control for `think` requests), see [docs/guides/persona-authoring.md](docs/guides/persona-authoring.md).
+
 ### Transformers
 
 Transformers adapt Anthropic-format requests to each provider's wire format.
