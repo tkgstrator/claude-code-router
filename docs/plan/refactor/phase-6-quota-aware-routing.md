@@ -120,7 +120,7 @@ sticky マッピングは維持する（プロンプトキャッシュ継続の�
 
 ## Open Decisions（要確認）
 
-- どのシナリオを Sonnet-first にするか。`default` は確定。`think`（Plan Mode）/ `webSearch` は出力品質と Opus 温存のトレードオフ（品質を取るなら Opus 据え置き）。
+- どのシナリオを Sonnet-first にするか。`default` は確定。`think` は「リクエストに `thinking` ブロックが乗っているとき」全般（Plan Mode に限らず、ultrathink 等の明示的拡張思考も該当）に発火するので量が多く、拡張思考の質は Opus と Sonnet で差が出やすい。`webSearch` ともども出力品質と Opus 温存のトレードオフ（品質を取るなら Opus 据え置き）。
 - overall `sevenDay`（全体週次）も hard guard 対象にするか。Sonnet を積極消費しても全体 7d を割らないため、基本は対象にする方針。
 - ポリシー設定の置き場所: `RouterSlot.params`（scenario 毎）か、`Router` 直下の新フィールドか。
 - 5h を完全に無視するか、「直近の `resetsAt` まで」程度は緩く見るか。
