@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, expect, setSystemTime, test } from 'bun:test'
+import type { Logger } from 'pino'
 import { ConfigStore } from '../../src/llms/registry/config'
-import { applyProactiveFailover, candidateUsable } from '../../src/llms/scenario-router'
+import {
+  applyProactiveFailover,
+  candidateUsable,
+  isHeavyRequest,
+  type RouterRequest,
+  selectModel
+} from '../../src/llms/scenario-router'
 import { clearProviderExhaustion } from '../../src/services/failover-state'
 import {
   __clearUsageCachesForTest,
@@ -196,4 +203,132 @@ test('applyProactiveFailover: a model with no declared window is allowed (unknow
   const config = routerWith(['codex,gpt-5'])
   const out = applyProactiveFailover('anthropic,claude-opus', 'default', 5_000_000, config, noopLog)
   expect(out).toBe('codex,gpt-5')
+})
+
+// ---- effort / tier grading (S0.5) ----------------------------------
+
+test('isHeavyRequest: high/xhigh/max effort grades as heavy', () => {
+  expect(isHeavyRequest({ model: 'claude-sonnet', output_config: { effort: 'high' } })).toBe(true)
+  expect(isHeavyRequest({ model: 'claude-sonnet', output_config: { effort: 'xhigh' } })).toBe(true)
+  expect(isHeavyRequest({ model: 'claude-sonnet', output_config: { effort: 'max' } })).toBe(true)
+})
+
+test('isHeavyRequest: low/medium effort grades as light even when the model is opus', () => {
+  // Explicit low/medium overrides the tier fallback so callers can
+  // downgrade a Claude Code default opus request.
+  expect(isHeavyRequest({ model: 'claude-opus', output_config: { effort: 'low' } })).toBe(false)
+  expect(isHeavyRequest({ model: 'claude-opus', output_config: { effort: 'medium' } })).toBe(false)
+})
+
+test('isHeavyRequest: tier fallback kicks in when effort is absent', () => {
+  // No effort field → fall through to the model name. Opus is heavy;
+  // sonnet/haiku/unknown is light.
+  expect(isHeavyRequest({ model: 'claude-opus-4-5' })).toBe(true)
+  expect(isHeavyRequest({ model: 'claude-sonnet-4-5' })).toBe(false)
+  expect(isHeavyRequest({ model: 'claude-haiku-4-5' })).toBe(false)
+  expect(isHeavyRequest({ model: 'gpt-5' })).toBe(false)
+})
+
+test('isHeavyRequest: an unparseable effort string falls through to tier', () => {
+  expect(isHeavyRequest({ model: 'claude-opus', output_config: { effort: 'whatever' } })).toBe(true)
+  expect(isHeavyRequest({ model: 'claude-sonnet', output_config: { effort: 'whatever' } })).toBe(false)
+})
+
+const log = noopLog as unknown as Logger
+const makeReq = (body: Partial<RouterRequest['body']> & { model: string }): RouterRequest => ({
+  body: body as RouterRequest['body'],
+  log
+})
+
+test('selectModel: heavy effort escalates a short request into the longContext lane', () => {
+  const router = {
+    default: 'anthropic,claude-sonnet',
+    longContext: 'anthropic,claude-opus',
+    think: 'anthropic,claude-opus'
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-sonnet', output_config: { effort: 'high' } }),
+    1000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-opus', scenarioType: 'longContext' })
+})
+
+test('selectModel: opus-tier requested model escalates to longContext when effort is absent', () => {
+  const router = { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-opus-4-5' }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-opus', scenarioType: 'longContext' })
+})
+
+test('selectModel: low effort keeps an opus request on the default (Sonnet) lane', () => {
+  const router = { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-opus-4-5', output_config: { effort: 'low' } }),
+    1000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
+})
+
+test('selectModel: a sonnet request without heavy signals stays on default', () => {
+  const router = { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-sonnet-4-5' }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
+})
+
+test('selectModel: thinking field wins over the effort/tier escalation', () => {
+  // A request with thinking attached lands in the `think` lane even when
+  // it would otherwise heavy-escalate to longContext. Think is the more
+  // specific signal so it should take precedence.
+  const router = {
+    default: 'anthropic,claude-sonnet',
+    longContext: 'anthropic,claude-opus',
+    think: 'anthropic,claude-think'
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-opus-4-5', thinking: { type: 'enabled', budget_tokens: 1000 } }),
+    1000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-think', scenarioType: 'think' })
+})
+
+test('selectModel: size-based longContext still wins when the request exceeds the threshold', () => {
+  // pickLongContext runs before the effort escalation; a long but
+  // low-effort request still goes through the size-based lane.
+  const router = {
+    default: 'anthropic,claude-sonnet',
+    longContext: 'anthropic,claude-opus',
+    longContextThreshold: 60_000
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-sonnet', output_config: { effort: 'low' } }),
+    100_000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-opus', scenarioType: 'longContext' })
+})
+
+test('selectModel: heavy escalation no-ops when router.longContext is unset', () => {
+  // No longContext lane configured — heavy requests fall through to
+  // default rather than dropping the request.
+  const router = { default: 'anthropic,claude-sonnet' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-opus-4-5', output_config: { effort: 'high' } }),
+    1000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
 })

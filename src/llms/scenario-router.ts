@@ -40,6 +40,7 @@ export type RouterRequestBody = {
   tools?: TokenizeTool[]
   thinking?: unknown
   metadata?: { user_id?: string }
+  output_config?: Record<string, unknown>
   [extra: string]: unknown
 }
 
@@ -254,7 +255,54 @@ async function countRequestTokens(tokenizers: TokenizerRegistry, body: RouterReq
   return result.tokenCount
 }
 
-function selectModel(
+// Effort levels Claude Code sends in `output_config.effort`. The router
+// reads this as a "how heavy is this work" hint to bias toward the
+// Sonnet (default) lane for light traffic and escalate to the longContext
+// (Opus) lane for heavy traffic. Per the Phase 6 plan an explicit
+// low/medium suppresses the tier-based opus escalation so callers can
+// override Claude Code's default model when the work is genuinely light.
+export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+function readEffort(body: RouterRequestBody): EffortLevel | undefined {
+  const cfg = body.output_config
+  if (cfg === null || typeof cfg !== 'object') return undefined
+  const eff: unknown = Reflect.get(cfg, 'effort')
+  if (typeof eff !== 'string') return undefined
+  if (eff === 'low' || eff === 'medium' || eff === 'high' || eff === 'xhigh' || eff === 'max') return eff
+  return undefined
+}
+
+export type ModelTier = 'opus' | 'sonnet' | 'haiku'
+
+function classifyModelTier(model: string): ModelTier | undefined {
+  if (typeof model !== 'string') return undefined
+  const lower = model.toLowerCase()
+  if (lower.includes('opus')) return 'opus'
+  if (lower.includes('sonnet')) return 'sonnet'
+  if (lower.includes('haiku')) return 'haiku'
+  return undefined
+}
+
+// Whether the request looks heavy enough to land in the Opus / long
+// lane. Reads two signals in priority order:
+//
+//   1. `output_config.effort` — high/xhigh/max → heavy; low/medium →
+//      explicitly light (suppresses the tier fallback so callers can
+//      downgrade an opus request).
+//   2. requested model tier — opus → heavy. Used only when effort is
+//      absent so older Claude Code traffic still grades correctly.
+//
+// thinking presence and message size are NOT consulted here — they are
+// already routed by the `think` / `longContext`-by-threshold lanes in
+// selectModel and would double-count if we mixed them in.
+export function isHeavyRequest(body: RouterRequestBody): boolean {
+  const effort = readEffort(body)
+  if (effort === 'high' || effort === 'xhigh' || effort === 'max') return true
+  if (effort === 'low' || effort === 'medium') return false
+  return classifyModelTier(body.model) === 'opus'
+}
+
+export function selectModel(
   req: RouterRequest,
   tokenCount: number,
   router: RouterConfig | undefined,
@@ -293,6 +341,14 @@ function selectModel(
   if (req.body.thinking && router?.think) {
     req.log.info({ thinking: req.body.thinking }, 'Using think model')
     return { model: router.think, scenarioType: 'think' }
+  }
+
+  // Effort/tier escalation — high effort or an opus-tier requested model
+  // routes into the longContext (Opus) lane even when the request is
+  // short enough to skip the size-based pickLongContext above.
+  if (router?.longContext && isHeavyRequest(req.body)) {
+    req.log.info({ model: req.body.model }, 'Using long context model due to heavy effort/tier signal')
+    return { model: router.longContext, scenarioType: 'longContext' }
   }
 
   const fallback = router?.default
