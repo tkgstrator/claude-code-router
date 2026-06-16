@@ -420,12 +420,7 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
   }
 
   // Surface any catchall (custom) keys we silently drop.
-  const knownKeys = new Set<string>([
-    ...SCENARIO_KEYS,
-    'longContextThreshold',
-    'weeklyDrainMarginPct',
-    'fallbacks'
-  ])
+  const knownKeys = new Set<string>([...SCENARIO_KEYS, 'longContextThreshold', 'weeklyDrainMarginPct', 'fallbacks'])
   const dropped = Object.keys(incoming).filter((k) => !knownKeys.has(k))
   if (dropped.length > 0) {
     warnings.push(`Router fields not yet stored in DB and were ignored: ${dropped.join(', ')}. (See PR #2.)`)
