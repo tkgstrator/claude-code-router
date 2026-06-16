@@ -1,0 +1,38 @@
+{
+  "label": "claude-code/claude-opus-4-8: multi-turn with redacted (empty) thinking block",
+  "method": "POST",
+  "url": "http://127.0.0.1:16173/v1/messages",
+  "body": {
+    "model": "claude-code,claude-opus-4-8",
+    "max_tokens": 2048,
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 1024
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is 23 * 47? Think it through step by step."
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "EqoBCkgIARAAGgpjbGF1ZGUtYWkqIGFudGhyb3BpYy1oYXNoZWQtY29udGVudC1zaWduYXR1cmUyIMO2rE9IHhcMzEzOGJmZjIxNjk0NzM0ZGZhZTgyMGM4"
+          },
+          {
+            "type": "text",
+            "text": "23 × 47 = 1081"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "What is 100 * 100? Reply with just the number."
+      }
+    ],
+    "stream": true
+  }
+}

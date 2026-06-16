@@ -29,6 +29,12 @@ scripts/*.d.ts
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 
+# Python bytecode cache
+__pycache__/
+
+# mitmproxy capture output (sessions + JSON pairs)
+captures/
+
 # Local self-host runtime state: compose.yaml bind-mounts the config
 # envelope here, including the minted APIKEY, rotating backups and logs.
 # Never commit it (already excluded from the image via .dockerignore).
@@ -38,3 +44,8 @@ ccr-config/
 # directories hold OAuth tokens / IDE configs and must never be committed.
 ccr-auth/
 .codex/
+
+# Artifacts dropped at the repo root by browser MCP tools (Playwright /
+# chrome-devtools save into the cwd). Never commit these.
+/*.png
+.playwright-mcp/

@@ -103,7 +103,8 @@ export interface AnthropicRequest {
   max_tokens: number;
   messages: AnthropicMessage[];
   stream?: boolean;
-  system?: string;
+  // string or structured block array (e.g. with cache_control)
+  system?: string | unknown[];
   // Optional Anthropic features used by the scenario tests. Typed as
   // unknown here so the test surface doesn't have to mirror every
   // upstream schema — CCR forwards these to the upstream provider.
@@ -183,6 +184,21 @@ export function extractTextFromEvents(events: SSEEvent[]): string {
       return d?.delta?.text ?? d?.delta?.partial_json ?? "";
     })
     .join("");
+}
+
+export interface AnthropicUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+}
+
+/** Pull usage totals from the message_start event of an SSE stream. */
+export function extractUsageFromEvents(events: SSEEvent[]): AnthropicUsage | null {
+  const start = events.find((e) => e.event === "message_start");
+  if (!start) return null;
+  const usage = (start.data as { message?: { usage?: AnthropicUsage } }).message?.usage;
+  return usage ?? null;
 }
 
 /** Send a streaming request and return all SSE events. */

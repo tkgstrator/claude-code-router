@@ -38,6 +38,7 @@
       "version": "latest"
     },
     "ghcr.io/dhoeric/features/act:1": {},
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "moby": false,
       "dockerDashComposeVersion": "v2"

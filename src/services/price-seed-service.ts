@@ -141,10 +141,69 @@ const seedVendor = async (tx: Tx, vendor: OfficialVendor): Promise<PriceSeedOutc
   return { vendor, created, updated, deleted }
 }
 
+// Copy per-token prices from official API providers onto subscription
+// provider models that share the same model name. This lets the UI show
+// estimated costs for subscription requests using API list prices as a
+// proxy — the actual charge is plan-based, but it's a useful reference.
+const syncSubscriptionPrices = async (tx: Tx): Promise<void> => {
+  const [subscriptionProviders, apiModels] = await Promise.all([
+    tx.provider.findMany({
+      where: { authMode: AuthMode.subscription },
+      include: { models: true }
+    }),
+    tx.model.findMany({
+      where: { provider: { authMode: AuthMode.api_key }, inputPer1M: { not: null } },
+      select: {
+        name: true,
+        inputPer1M: true,
+        outputPer1M: true,
+        cachedInputPer1M: true,
+        provider: { select: { name: true } }
+      }
+    })
+  ])
+
+  // Build a name → priced API model lookup. When more than one API
+  // provider lists the same model name, prefer the upstream vendor
+  // (e.g. claude-* prices ride on anthropic, not on an OpenRouter
+  // mirror) so the subscription cost estimate matches the source of
+  // truth deterministically. Without this an unsorted findMany() would
+  // pick whichever row happened to come first.
+  const upstreamRank = (providerName: string): number => {
+    const lower = providerName.toLowerCase()
+    if (lower.includes('anthropic')) return 0
+    if (lower.includes('openai')) return 0
+    if (lower.includes('google') || lower.includes('gemini')) return 0
+    return 1
+  }
+  const sortedApiModels = [...apiModels].sort((a, b) => {
+    const r = upstreamRank(a.provider.name) - upstreamRank(b.provider.name)
+    return r !== 0 ? r : a.provider.name.localeCompare(b.provider.name)
+  })
+  const byName = new Map<string, { inputPer1M: number; outputPer1M: number | null; cachedInputPer1M: number | null }>()
+  for (const m of sortedApiModels) {
+    if (!byName.has(m.name) && m.inputPer1M != null) {
+      byName.set(m.name, { inputPer1M: m.inputPer1M, outputPer1M: m.outputPer1M, cachedInputPer1M: m.cachedInputPer1M })
+    }
+  }
+
+  for (const provider of subscriptionProviders) {
+    for (const model of provider.models) {
+      const price = byName.get(model.name)
+      if (!price) continue
+      await tx.model.update({
+        where: { providerId_name: { providerId: provider.id, name: model.name } },
+        data: price
+      })
+    }
+  }
+}
+
 export async function seedScrapedPricesIntoDb(prisma: PrismaClient = getPrismaClient()): Promise<PriceSeedOutcome[]> {
   const outcomes: PriceSeedOutcome[] = []
   for (const vendor of OFFICIAL_VENDORS) {
     outcomes.push(await prisma.$transaction((tx) => seedVendor(tx, vendor)))
   }
+  await prisma.$transaction((tx) => syncSubscriptionPrices(tx))
   return outcomes
 }

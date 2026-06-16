@@ -22,6 +22,7 @@ const toAccountInfo = (a: {
   userId: string | null
   plan: string | null
   rateLimitTier: string | null
+  monthlyPriceUsd: number | null
   expiresAt: Date | null
   scopes: unknown
 }): SubscriptionAccountInfo => ({
@@ -34,6 +35,7 @@ const toAccountInfo = (a: {
   userId: a.userId,
   plan: a.plan,
   rateLimitTier: a.rateLimitTier,
+  monthlyPriceUsd: a.monthlyPriceUsd,
   expiresAt: a.expiresAt ? a.expiresAt.valueOf() : null,
   scopes: Array.isArray(a.scopes) ? a.scopes.filter((s): s is string => typeof s === 'string') : []
 })

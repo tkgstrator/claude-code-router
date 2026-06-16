@@ -13,7 +13,13 @@ export default defineConfig({
     allowedHosts: true
   },
   resolve: {
-    alias: [{ find: '@', replacement: resolve(__dirname, './src') }]
+    alias: [{ find: '@', replacement: resolve(__dirname, './src') }],
+    // Force a single physical copy of React into the bundle. node_modules
+    // can end up with duplicate react/react-dom (e.g. a stale .pnpm store
+    // beside .bun, or a dep pinning its own react), and two copies mean two
+    // hook dispatchers → "Invalid hook call" at runtime (next-themes vs the
+    // app loading different Reacts). dedupe collapses them to the hoisted one.
+    dedupe: ['react', 'react-dom']
   },
   plugins: [
     react(),
@@ -21,12 +27,15 @@ export default defineConfig({
     viteSingleFile(),
     devServer({
       entry: './src/index.ts',
-      // Hono only owns /api/* and /v1/* — every other path (the SPA at
-      // /, Vite's /@... module shims, /src/..., favicons, static
-      // assets) goes through Vite. The negative lookahead is the
-      // simplest way to express "exclude from Hono unless the path is
-      // an API surface".
-      exclude: [/^(?!\/api\/|\/v1\/).*$/]
+      // Hono owns /api/*, /v1/*, and the claude OAuth loopback callback
+      // /callback. Every other path (the SPA at /, Vite's /@... module
+      // shims, /src/..., favicons, static assets) goes through Vite. The
+      // callback must be served by the backend so the auto-exchange +
+      // sync runs server-side instead of bouncing through the SPA.
+      // Codex's callback hits a separate standalone listener on
+      // localhost:1455 (see services/codex-callback-listener.ts), so it
+      // doesn't go through Vite at all.
+      exclude: [/^(?!\/api\/|\/v1\/|\/callback(?:\?|$)).*$/]
     })
   ]
 })

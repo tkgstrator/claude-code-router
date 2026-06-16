@@ -1,0 +1,10 @@
+{
+  "status": 200,
+  "statusText": "OK",
+  "headers": {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-cache",
+    "request-id": "req_011CbFb2Mu8dpm93dy1WdXix",
+    "anthropic-organization-id": "164b30bb-8177-4fa4-a7aa-c359056e6c41"
+  }
+}

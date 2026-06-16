@@ -5,12 +5,17 @@ import { DebugPage } from '@/components/DebugPage'
 import { HistoryPage } from '@/components/History'
 import { Login } from '@/components/Login'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
+import { OauthResultPage } from '@/components/OauthResultPage'
+import { PersonaEdit } from '@/components/PersonaEdit'
+import { Personas } from '@/components/Personas'
+import { PersonaView } from '@/components/PersonaView'
 import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
 import { Router as RouterPanel } from '@/components/Router'
 import { SettingsPage } from '@/components/SettingsPage'
+import { Subscriptions } from '@/components/Subscriptions'
 import { Transformers } from '@/components/Transformers'
 import { Usage } from '@/components/Usage'
 
@@ -38,10 +43,15 @@ export const router = createBrowserRouter([
     children: [
       { path: '/models', element: fullHeight(<ModelsDashboard />) },
       { path: '/providers', element: fullHeight(<Providers />) },
+      { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
       { path: '/router', element: fullHeight(<RouterPanel />) },
       { path: '/transformers', element: fullHeight(<Transformers />) },
       { path: '/usage', element: fullHeight(<Usage />) },
       { path: '/history', element: fullHeight(<HistoryPage />) },
+      { path: '/personas', element: fullHeight(<Personas />) },
+      { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
+      { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
+      { path: '/personas/edit/:id', element: fullHeight(<PersonaEdit />) },
       { path: '/settings', element: fullHeight(<SettingsPage />) }
     ]
   },
@@ -60,5 +70,12 @@ export const router = createBrowserRouter([
         <DebugPage />
       </ProtectedRoute>
     )
+  },
+  {
+    // Public — the IdP redirects browsers here after a server-side
+    // token exchange. Token persistence already happened by the time
+    // this route mounts; the page is read-only.
+    path: '/oauth-result',
+    element: <OauthResultPage />
   }
 ])

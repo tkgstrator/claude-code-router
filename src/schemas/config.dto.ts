@@ -1,10 +1,27 @@
 import { z } from '@hono/zod-openapi'
+import { EmptyStringToNullSchema } from './common.dto'
 import { LogLevelSchema } from './env.dto'
 import { JsonValueSchema, PresetTransformerConfigSchema } from './preset.dto'
 import { ProviderSchema } from './provider.dto'
 import { RouterConfigSchema, RouterSchema } from './router.dto'
 import { StatusLineConfigSchema } from './status-line.dto'
 import { TransformerSchema } from './transformer.dto'
+
+// A single persona in the library. `id` is the stable uuid key every
+// reference points at — the URL (/personas/view|edit/:id), the active
+// selection (Router.persona), and the server-side prompt lookup — so the
+// `name` is a free-form display label and need not be unique. `id` is
+// optional in the schema only for back-compat: configs written before
+// the uuid migration have personas without one; the boot migration
+// (migratePersonaKeys) and the UI both backfill a uuid on load.
+export const PersonaSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().nonempty(),
+    prompt: z.string()
+  })
+  .openapi('Persona')
+export type Persona = z.infer<typeof PersonaSchema>
 
 // Whitelist of what is allowed to stay on disk in
 // ~/.claude-code-router/config.json once Providers / Router have been
@@ -21,7 +38,16 @@ export const ConfigEnvelopeSchema = z
     CLAUDE_PATH: z.string().default(''),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
 
+    // Disk-only backing store for the active persona's id (surfaced on
+    // the wire as `Router.persona`, not as a top-level field). Absent /
+    // empty means "no persona". Round-trips through the disk envelope
+    // like the other optional scalars (see CUSTOM_ROUTER_PATH).
+    ActivePersona: z.string().optional(),
+
     // Object-shaped envelope members that stay on disk for PR #1.
+    // Personas is the named persona library; it stays on disk alongside
+    // `transformers` (an object-shaped member, not a boot scalar).
+    Personas: z.array(PersonaSchema).default([]),
     StatusLine: JsonValueSchema.optional(),
     transformers: z.array(PresetTransformerConfigSchema).optional(),
     plugins: z.array(JsonValueSchema).optional(),
@@ -35,15 +61,21 @@ export type ConfigEnvelope = z.infer<typeof ConfigEnvelopeSchema>
 // / loadFullConfig. Extends ConfigEnvelopeSchema with DB-resident fields
 // (Providers, Router) and overrides the optional path/url scalars so
 // "unset" travels as null (composeUiConfig emits null when absent / ''
-// on disk). Registered as .openapi('Config') for the generated OpenAPI
-// document.
-export const AppConfigSchema = ConfigEnvelopeSchema.extend({
-  Providers: z.array(ProviderSchema),
-  Router: RouterSchema,
-  PROXY_URL: z.string().nullable(),
-  CLAUDE_PATH: z.string().nullable(),
-  CUSTOM_ROUTER_PATH: z.string().nullable()
-}).openapi('Config')
+// on disk). The disk-only ActivePersona backing key is omitted — it
+// surfaces solely as Router.persona. Registered as .openapi('Config')
+// for the generated OpenAPI document.
+export const AppConfigSchema = ConfigEnvelopeSchema.omit({ ActivePersona: true })
+  .extend({
+    Providers: z.array(ProviderSchema),
+    Router: RouterSchema,
+    PROXY_URL: z.string().nullable(),
+    CLAUDE_PATH: z.string().nullable(),
+    CUSTOM_ROUTER_PATH: z.string().nullable(),
+    // The persona library stays top-level and is always a plain array
+    // (default []); the active persona name rides on Router.persona.
+    Personas: z.array(PersonaSchema).default([])
+  })
+  .openapi('Config')
 export type AppConfig = z.infer<typeof AppConfigSchema>
 
 // UI-side config shape consumed by components. Differs from
@@ -65,16 +97,30 @@ export const ConfigSchema = z.object({
   APIKEY: z.string().nonempty(),
   API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.url(),
-  CUSTOM_ROUTER_PATH: z.string().nonempty().optional()
+  CUSTOM_ROUTER_PATH: z.string().nonempty().optional(),
+  // Active persona lives on Router.persona (RouterConfigSchema), not as a
+  // top-level field. The persona library stays top-level.
+  Personas: z.array(PersonaSchema).default([])
 })
 export type Config = z.infer<typeof ConfigSchema>
 
-// applyUiConfig accepts a Partial-ish shape — Providers/Router optional,
-// envelope keys free-form. Mirror that without dropping into z.any.
+// applyUiConfig accepts a partial-update payload — Providers/Router
+// and the path scalars are all optional so any caller can send only
+// the slice they're touching. Path scalars use EmptyStringToNullSchema
+// to coerce the React-Hook-Form default of "" to null on the way in;
+// pruneUnsetEnvelopePaths then collapses null to "key absent on disk".
+// The .optional() suffix represents "this key was not included in
+// this update" (vs. null / "" which both mean "explicitly unset").
 export const ApplyConfigPayloadSchema = z
   .object({
     Providers: z.array(ProviderSchema).optional(),
-    Router: RouterSchema.partial().optional()
+    Router: RouterSchema.partial().optional(),
+    CLAUDE_PATH: EmptyStringToNullSchema.optional(),
+    PROXY_URL: EmptyStringToNullSchema.optional(),
+    CUSTOM_ROUTER_PATH: EmptyStringToNullSchema.optional(),
+    // The active persona arrives nested as Router.persona (RouterSchema,
+    // empty string clears); only the persona library is top-level here.
+    Personas: z.array(PersonaSchema).optional()
   })
   .catchall(JsonValueSchema)
   .openapi('ApplyConfigPayload')

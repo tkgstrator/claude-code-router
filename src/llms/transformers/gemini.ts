@@ -7,6 +7,7 @@
  * conversion is reused by vertex-gemini.
  */
 
+import { HTTPException } from 'hono/http-exception'
 import {
   RecordSchema,
   type RuntimeProvider,

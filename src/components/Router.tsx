@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
@@ -14,6 +15,15 @@ import type { Config } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
 import { SelectCombobox } from './SelectCombobox'
+
+// Slots that carry an ordered fallback chain, in the order they're
+// rendered in the fallback section below.
+const FALLBACK_SLOTS = ['default', 'background', 'think', 'webSearch', 'longContext', 'image'] as const
+
+// Sentinel used for the "no active persona" choice. Radix Select cannot
+// carry an empty-string item value, so we map this back to '' (the wire
+// contract for "off") on save.
+const PERSONA_NONE_VALUE = '__none__'
 
 export function Router() {
   const { config } = useConfig()
@@ -27,6 +37,17 @@ function RouterForm({ config }: { config: Config }) {
   const { showToast } = useOutletContext<ShellOutletContext>()
   const modelOptions = useEnabledModelOptions()
 
+  // Personas available to assign to this router, keyed by their uuid `id`
+  // (the value Router.persona stores) with the free-form name as the label.
+  // The active value defaults from Router.persona, but only when it still
+  // points at a persona in the library — a dangling id falls back to "None".
+  const personaOptions = config.Personas.map((persona) => ({
+    id: persona.id ?? '',
+    name: persona.name
+  }))
+  const savedPersona = typeof config.Router.persona === 'string' ? config.Router.persona : ''
+  const defaultPersona = savedPersona !== '' && personaOptions.some((p) => p.id === savedPersona) ? savedPersona : ''
+
   const form = useForm<RouterFormInput, unknown, RouterFormOutput>({
     resolver: zodResolver(RouterFormSchema),
     defaultValues: {
@@ -37,11 +58,16 @@ function RouterForm({ config }: { config: Config }) {
       longContextThreshold: config.Router.longContextThreshold,
       webSearch: config.Router.webSearch,
       image: config.Router.image,
+      fallbacks: config.Router.fallbacks,
+      persona: defaultPersona,
       forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
     }
   })
 
   const onSubmit = async (values: RouterFormOutput) => {
+    // EmptyStringToNullSchema folds '' to null on parse; the wire contract
+    // clears the persona with an empty string, so map null/absent back to ''.
+    const persona = values.persona === null || values.persona === undefined ? '' : values.persona
     const updated = {
       ...config,
       Router: {
@@ -51,7 +77,9 @@ function RouterForm({ config }: { config: Config }) {
         longContext: values.longContext,
         longContextThreshold: values.longContextThreshold,
         webSearch: values.webSearch,
-        image: values.image
+        image: values.image,
+        fallbacks: values.fallbacks,
+        persona
       },
       forceUseImageAgent: values.forceUseImageAgent === 'true'
     }
@@ -240,6 +268,77 @@ function RouterForm({ config }: { config: Config }) {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='persona'
+                render={({ field }) => {
+                  // Radix Select needs a non-empty value, so '' (none) maps
+                  // to the sentinel for display and back to '' on change.
+                  const selectValue = field.value === '' || field.value === null ? PERSONA_NONE_VALUE : field.value
+                  return (
+                    // Full-width own row: the helper text makes this cell
+                    // taller than the model-slot selects, so on the shared
+                    // `items-end` grid it would misalign with a half-width
+                    // neighbor. Spanning every column keeps it on its own row.
+                    <FormItem className='md:col-span-2 xl:col-span-3'>
+                      <FormLabel>{t('router.persona')}</FormLabel>
+                      <Select
+                        value={selectValue}
+                        onValueChange={(value) => field.onChange(value === PERSONA_NONE_VALUE ? '' : value)}
+                      >
+                        <FormControl>
+                          <SelectTrigger className='w-full'>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={PERSONA_NONE_VALUE}>{t('router.personaNone')}</SelectItem>
+                          {personaOptions.map((persona) => (
+                            <SelectItem key={persona.id} value={persona.id}>
+                              {persona.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>{t('router.personaHelper')}</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
+              />
+            </div>
+
+            <div className='space-y-3'>
+              <div>
+                <h3 className='text-sm font-medium'>{t('router.fallbacks')}</h3>
+                <p className='text-xs text-muted-foreground'>{t('router.fallbacksDescription')}</p>
+              </div>
+              <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start'>
+                {FALLBACK_SLOTS.map((slot) => (
+                  <FormField
+                    key={slot}
+                    control={form.control}
+                    name={`fallbacks.${slot}`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t(`router.${slot}`)}</FormLabel>
+                        <FormControl>
+                          <MultiCombobox
+                            options={modelOptions}
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder={t('router.selectModel')}
+                            searchPlaceholder={t('router.searchModel')}
+                            emptyPlaceholder={t('router.noModelFound')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
               </div>
             </div>
 

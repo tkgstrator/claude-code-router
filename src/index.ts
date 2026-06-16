@@ -1,11 +1,14 @@
 import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { HTTPException } from 'hono/http-exception'
+import { ZodError } from 'zod'
 import { apiKeyAuth } from './api/api-key-auth'
 import { configRoute } from './api/config/route'
 import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
 import { modelTestAllRoute } from './api/models/test-all/route'
+import { oauthRoute } from './api/oauth/route'
 import { providerModelRoute } from './api/providers/[name]/models/[model]/route'
 import { providerByNameRoute } from './api/providers/[name]/route'
 import { providersRoute } from './api/providers/route'
@@ -17,12 +20,13 @@ import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
 import { updateCheckRoute } from './api/update/check/route'
 import { updatePerformRoute } from './api/update/perform/route'
+import { usageCostHistoryRoute } from './api/usage/cost/history/route'
+import { usageCostRoute } from './api/usage/cost/route'
 import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
 import { logger, syncLevelFromEnv } from './logger'
 import { initConfig, initDir } from './services/config/envelope'
-import { syncSubAccountsToDb } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
 import { APP_VERSION } from './version'
 
@@ -48,10 +52,6 @@ const envelope = await initConfig()
 // instance is constructed at import time before initConfig() has
 // mirrored config.json's LOG_LEVEL onto process.env.
 syncLevelFromEnv()
-// Re-sync OAuth credentials from disk into the DB on every boot —
-// users can re-authenticate (claude login / codex login) between
-// restarts, so this isn't seed-time work.
-await syncSubAccountsToDb()
 logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
 // Fire-and-forget: never block server boot on Redis. The job setup
 // is resilient and registers the BullMQ schedule once Redis is reachable;
@@ -64,8 +64,31 @@ const app = new OpenAPIHono()
 // behind the envelope APIKEY (seed mints one on first run). The static
 // SPA at `/` stays open so the UI can load and prompt for the key; its
 // own /api calls then carry it.
+//
+// The OAuth callback lives at the root path `/callback` (not under
+// /api/*) because Anthropic's OAuth client only whitelists the
+// loopback `http://localhost:<port>/callback` pattern. It is therefore
+// naturally outside this gate; CSRF protection lives on the single-use
+// `state` issued at POST /api/oauth/initiate/* (still gated).
 app.use('/api/*', apiKeyAuth)
 app.use('/v1/*', apiKeyAuth)
+
+app.onError((err, c) => {
+  if (err instanceof ZodError) {
+    return c.json({ success: false as const, error: { type: 'validation_error' as const, issues: err.issues } }, 400)
+  }
+  if (err instanceof HTTPException) {
+    return err.getResponse()
+  }
+  logger.error({ err }, 'unhandled route error')
+  return c.json(
+    {
+      success: false as const,
+      error: { type: 'internal_error', message: err.message }
+    },
+    500
+  )
+})
 
 // Each sub-app declares its own absolute /api/... paths, so mount them
 // at root. OpenAPIHono.route() also merges their OpenAPI registries.
@@ -75,6 +98,8 @@ app.route('/', transformersRoute)
 app.route('/', subscriptionsRoute)
 app.route('/', usageRoute)
 app.route('/', usageHistoryRoute)
+app.route('/', usageCostRoute)
+app.route('/', usageCostHistoryRoute)
 app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
 app.route('/', refreshModelsRoute)
@@ -87,6 +112,7 @@ app.route('/', modelTestRoute)
 app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)
 app.route('/', requestLogsRoute)
+app.route('/', oauthRoute)
 
 // Native /v1/* LLM proxy — drives the llms pipeline without Fastify.
 app.route('/', v1Route)

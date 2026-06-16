@@ -1,0 +1,267 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-sonnet-4-6","id":"msg_01Lyjao9xkhF8Ha5qMSCSTPg","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":3,"cache_creation_input_tokens":24444,"cache_read_input_tokens":12398,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":24444},"output_tokens":0,"service_tier":"standard","inference_geo":"not_available"},"diagnostics":{"cache_miss_reason":{"type":"model_changed","cache_missed_input_tokens":32164}}}             }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}               }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EssDCmUIDRgCKkCKnbQirpN+jtXPYUqkCjrwT7hG4BD+fE/HlqwQX2PPskNzGI+Pu0vp0C9fhn7d6kxXGgMAHsVDVuVSEQ7Mlj09MhFjbGF1ZGUtc29ubmV0LTQtNjgAQgh0aGlua2luZxIM/mhj+pLzMBvJnYwJGgzU2O0uFCOlei8u0mkiMH3iZSrNEGB6u1XHwjXU+YrO3SI7SJBSgET6KtDxBGlfFvuE9XRK1DLbNTl4N07NfyqTAqWmQC66/K3QsjMnrIJ6ASKJhQAW1dT221NPaIEOp1v99+si3M+w3QYLk+39oYeE5jIQp1V/byml9gCXfIs1IDkcOQ94Kpm9zcJnm4YVUzG7dg3UWPtiROokpY+JjWxIOt8CowWMrpVmJPtyxmqzxYJthx4rlOURNNNs1EKuwOLV04Wddz6x3VX5jMXMCMDdqsoxVFb+DqJTtOPLHkx4A69rDZeeX7s0dquLQVkuU7fqHOg7pkfkh4KfBuL9jwLe+BEJY14HmKuTbWcNSixHVJDLzWWIn1WPNAEN8LgNFbqa7zVEIbFkWvUcaJWtxfJqWuY4OSmGP4fHTm9H8Ie3EUfNRzmcaWR4H++Voij6mRfhHRl8GAE="}     }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0 }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"#"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" mitmproxy 導入手順 (iOS 向け)\n\n---"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n## 1. インストール\n\n### macOS\n```bash\nbrew install mitmproxy\n```\n\n### Linux\n```bash\npip install mitmproxy\n```\n\n### Windows\n```bash"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\npip install mitmproxy\n# または公式インストーラ: https://mitmproxy.org/\n```\n\nバ"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ージョン確認:\n```bash\nmitmproxy --version\n```\n\n---\n\n## 2. 起動モードの選択\n\n| コ"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"マンド | UI | 用途 |\n|---|---|---|\n| `mitmproxy` | TUI (ターミナル)"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | インタラクティブに通信を見る |\n| `mitmweb` | "}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ブラウザ | GUI で楽に操作 |\n| `mitmdump` | なし | スクリプト"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/ログ出力専用 |\n\niOS 解析では **"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"`mitmweb`** が視認性が高くておすすめ"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":":\n```bash\nmitmweb --listen-host 0.0.0.0 --listen-port 8080\n```\n\n---\n\n## 3. iOS"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" デバイスの設定\n\n### ① PC と iPhone を"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"同じ Wi-Fi に接続\n\nPC の IP"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" アドレスを確認:\n```bash\n# macOS\nipconfig getifaddr en0\n\n# Linux\nip addr show"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```\n\n### ② iPhone 側でプロキシを設定\n\n`"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"設定 → Wi-Fi → 接続中のネットワーク → プロキシを"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"構成 → 手動`\n\n```\nサーバ:"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"  <PCのIPアドレス>  例: 192.168.1.10\nポ"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ート:  8080\n```\n\n### ③ CA証明書のインストール\n\niPhone の Safari で:"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```\nhttp://mitm.it\n```\nにアクセス → **iOS"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" 用の証明書をダウンロード**\n\n`設定 → 一"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"般 → VPNとデバイス管理` → "}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ダウンロードした証明書をインストール\n\nさらに信頼を有効化:\n```\n設"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"定 → 一般 → 情報 → 証明書信頼設定 → mitmproxy の証明書を"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"オン\n```\n\n---\n\n## 4. 動作確認\n\niPhone の Safari で `http://example"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":".com` にアクセスして mitmweb (`localhost:8081"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"`) にトラフィックが見えれば成功。\n\n---\n\n## 5. SSL Pinning があるア"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"プリへの対処\n\n多くのアプリは独自の証明書検証を"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"するため、CA 証明書を入れただけでは HTTPS が通りません。\n\n### "}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"方法A: Objection (Frida ベース、最"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"も手軽)\n```bash\npip install objection\nobjection -g com.example.app"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" explore\n# Objection のシェルで:"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nios sslpinning disable\n```\n\n### 方法B: SSL Kill Switch 3"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (JB Tweak)\nSileo で"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" `SSL Kill Switch 3` をインストール → 設定から対象アプリを有効化\n\n###"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" 方法C: Frida で手動フック (前回の続"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"き)\n\n`boringssl` の `SSL_write"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"`/`SSL_read` を直接フックして平文をキャプチャ:\n```javascript"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n// ssl-hook.js\n[\"SSL_read\", \"SSL_write\"].forEach(name"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" => {\n  const p = Module.findExportByName(\"libboringssl.dylib\", name);\n  if"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (!p) return;\n  Interceptor.attach(p, {\n    onEnter(a) { this"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":".buf = a[1]; this.n = a[2]."}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"toInt32(); },\n    onLeave(ret) {\n      const len = ret."}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"toInt32();\n      if (len > 0) {\n        const data = this.buf.readByteArray(len);\n        "}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"// テキストなら表示、バイナリなら hex"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n        try {\n          console.log(`[${name}] ${new TextDecoder().decode(data)}`);\n        } catch("}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"e) {\n          console.log(`[${name}] <binary len=${len}>`);\n        }\n      }\n    }\n  });\n});\n```\n\n---\n\n## 6"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":". mitmproxy スクリプトで暗号解析と連"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"携\n\n`mitmdump` + Python スクリプトで通信を自動処"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"理:\n\n```python\n# intercept.py  (mitmdump -s intercept.py で起"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"動)\nimport mitmproxy.http\nimport json\n\nclass CryptoLogger:"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    def response(self, flow: mitmproxy.http.HTTPFlow):\n        # 特定のエンドポイントだけ記"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"録\n        if \"/api/\" not in flow.request.pretty_url:\n            return\n\n        entry = {\n            \"url"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\":    flow.request.pretty_url,\n            \"method\": flow.request.method,\n            \"req\":    flow"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":".request.content.hex(),\n            \"res\":    flow.response.content.hex(),\n            \"status\": flow.response.status_code,\n        "}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"}\n        with open(\"traffic.jsonl\", \"a\") as f:\n            f.write(json.dumps(entry) + \"\\n\")\n\nadd"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ons = [CryptoLogger()]\n```\n\n```bash\nmitmdump -s intercept.py --listen-"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"port 8080\n```\n\nこれと前回の **CCCrypt フ"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ックの `records.json`** を突き合わせると:\n- `records.json` →"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **鍵・IV・平文**\n- `traffic.jsonl` → **暗号化済み"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"の通信**\n\n2つを時系列でマッチングして「"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"この通信のこのフィールドがこ"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"の鍵で暗号化された」を特定できます。\n\n---\n\n## 7. よくあ"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"るトラブル\n\n| 症状 | 原因 | 対処 |\n|---|---|---|\n| `"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"http://mitm.it` に繋がらない | プロキシ設定ミス or"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" mitmproxy 未起動 | IP/ポートを再確認 |\n|"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" HTTPS が `Connection refused` | 証明書の信頼設定を忘れた | `"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"設定 → 証明書信頼設定` を確認 |\n| アプリだ"}         }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"け通信できない | SSL Pinning | Objection か SSL Kill Switch 3 |\n| iOS 17"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" 以降でうまくいかない | ネットワーク設定の仕様変更 | HTTP"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/2 を無効に `--no-http2` |\n| 証明書エラー"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"が消えない | アプリが独自のトラスト"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ストア | Frida で `SSL_read`/`SSL_write` フック |\n\n---\n\n次に進"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"める方向:\n\n- **j)** mitmproxy +"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" CCCrypt フックを組み合わせて通信と暗号を時系列で"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"マッチングする実例\n- **k)** SSL Kill Switch 3 で解決"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"しないアプリの Frida フック詳細\n- **l)** mitmproxy の"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"スクリプトで特定フィールドの暗号をリアルタイム"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"復号する\n\nどれに進みますか?"}      }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1     }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":3,"cache_creation_input_tokens":24444,"cache_read_input_tokens":12398,"output_tokens":1942,"iterations":[{"input_tokens":3,"output_tokens":1942,"cache_read_input_tokens":12398,"cache_creation_input_tokens":24444,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":24444},"type":"message"}]},"context_management":{"applied_edits":[]}          }
+
+event: message_stop
+data: {"type":"message_stop"      }
+

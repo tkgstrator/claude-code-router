@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Eye, EyeOff, FileUp, LogIn, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -35,6 +35,8 @@ type SubscriptionAccountView = {
 const accountSummary = (a: SubscriptionAccountView): string =>
   [a.userName, a.userEmail, a.userId].filter(Boolean).join(' / ') || a.label
 
+const formatPlan = (plan: string): string => plan.replace(/^(claude|codex)_/i, '')
+
 type SubscriptionView = {
   providerName: string
   enabled: boolean
@@ -53,31 +55,156 @@ export function Providers() {
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
+  const [connectChoiceOpen, setConnectChoiceOpen] = useState(false)
+  const [manualCallbackOpen, setManualCallbackOpen] = useState(false)
+  const [manualCallbackUrl, setManualCallbackUrl] = useState('')
+  const [manualCallbackLoading, setManualCallbackLoading] = useState(false)
+  const [manualCallbackError, setManualCallbackError] = useState<string | null>(null)
+  const [importCredOpen, setImportCredOpen] = useState(false)
+  const [importCredProvider, setImportCredProvider] = useState<'claude' | 'codex'>('claude')
+  const [importCredFile, setImportCredFile] = useState<File | null>(null)
+  const [importCredLoading, setImportCredLoading] = useState(false)
+  const [importCredError, setImportCredError] = useState<string | null>(null)
+  const importCredFileRef = useRef<HTMLInputElement>(null)
 
-  const refreshTemplates = async () => {
-    setRefreshingTemplates(true)
+  const isRemoteAccess = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+
+  // Subscription OAuth loopback flow:
+  // 1. UI asks user to pick a provider (claude or codex) in a dialog.
+  // 2. Server mints a one-shot state + PKCE pair at
+  //    /oauth/initiate/<provider> and returns the upstream IdP's
+  //    authorize URL.
+  // 3. We open it in a new tab; the consent page redirects the browser
+  //    back to the provider's whitelisted loopback callback (Hono-served).
+  // 4. Server completes the token exchange, writes the credentials file,
+  //    and triggers SubAccount sync. User closes the success tab and
+  //    refreshes the subscription panel to see the new account.
+  //
+  // For remote deployments (non-localhost), the loopback callback cannot
+  // be reached from the user's browser. In that case we show a dialog
+  // asking the user to copy the redirect URL from the address bar so the
+  // server can complete the exchange via /api/oauth/manual-callback.
+  const handleConnectProvider = async (provider: 'claude' | 'codex') => {
+    setConnectChoiceOpen(false)
     try {
-      // Ask the server to top each configured provider up from its
-      // /v1/models so e.g. claude-opus-4-7 shows up without waiting for
-      // llm-prices to catch up
-      await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
-      // Reload config so the new models show up in the UI
-      const fresh = await api.getConfig()
-      setConfig(fresh)
+      const res = await api.post<{ success: boolean; authorizeUrl: string; state: string }>(
+        `/oauth/initiate/${provider}`,
+        {}
+      )
+      if (!res.success || !res.authorizeUrl) {
+        console.error(t('providers.connect_failed'), res)
+        return
+      }
+      window.open(res.authorizeUrl, '_blank', 'noopener,noreferrer')
+      if (provider === 'claude' && isRemoteAccess) {
+        setManualCallbackUrl('')
+        setManualCallbackError(null)
+        setManualCallbackOpen(true)
+      }
     } catch (err) {
-      console.error('Failed to refresh:', err)
-    } finally {
-      setRefreshingTemplates(false)
+      console.error(t('providers.connect_failed'), err)
     }
   }
+
+  const handleManualCallback = async () => {
+    if (!manualCallbackUrl.trim()) return
+    setManualCallbackLoading(true)
+    setManualCallbackError(null)
+    try {
+      const res = await api.post<{ success: boolean; error?: string }>('/oauth/manual-callback', {
+        url: manualCallbackUrl.trim()
+      })
+      if (res.success) {
+        setManualCallbackOpen(false)
+        await fetchSubscriptions()
+        showToast(t('providers.oauth_result_success_title'), 'success')
+      } else {
+        setManualCallbackError(res.error ?? 'Unknown error')
+      }
+    } catch (err) {
+      setManualCallbackError(err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setManualCallbackLoading(false)
+    }
+  }
+
+  const handleImportCredentials = async () => {
+    setImportCredError(null)
+    if (!importCredFile) {
+      setImportCredError(t('providers.import_cred_no_file'))
+      return
+    }
+    let parsed: unknown
+    try {
+      const text = await importCredFile.text()
+      parsed = JSON.parse(text)
+    } catch {
+      setImportCredError(t('providers.import_cred_invalid_json'))
+      return
+    }
+    setImportCredLoading(true)
+    try {
+      const res = await api.post<{ success: boolean; error?: string }>('/oauth/import-credentials', {
+        provider: importCredProvider,
+        credentials: parsed
+      })
+      if (res.success) {
+        setImportCredOpen(false)
+        setImportCredFile(null)
+        if (importCredFileRef.current) importCredFileRef.current.value = ''
+        await fetchSubscriptions()
+        showToast(t('providers.oauth_result_success_title'), 'success')
+      } else {
+        setImportCredError(res.error ?? 'Unknown error')
+      }
+    } catch (err) {
+      setImportCredError(err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setImportCredLoading(false)
+    }
+  }
+
   const [showApiKey, setShowApiKey] = useState<Record<number, boolean>>({})
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
   const [activeAuthMode, setActiveAuthMode] = useState<ProviderAuthMode>('api_key')
   const comboInputRef = useRef<HTMLInputElement>(null)
 
-  const [planByProvider, setPlanByProvider] = useState<Record<string, string | null>>({})
   const [subscriptionByProvider, setSubscriptionByProvider] = useState<Record<string, SubscriptionView>>({})
+
+  const fetchSubscriptions = async () => {
+    try {
+      const response = await api.get<{ subscriptions: SubscriptionView[] }>('/subscriptions')
+      const subMap: Record<string, SubscriptionView> = {}
+      for (const entry of response.subscriptions) {
+        subMap[entry.providerName] = entry
+      }
+      setSubscriptionByProvider(subMap)
+    } catch (error) {
+      console.error('Failed to fetch subscriptions:', error)
+    }
+  }
+
+  const refreshTemplates = async () => {
+    setRefreshingTemplates(true)
+    try {
+      await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
+      const [fresh, syncResult] = await Promise.all([
+        api.getConfig(),
+        api.post<{ subscriptions: SubscriptionView[] }>('/subscriptions/sync', {})
+      ])
+      setConfig(fresh)
+      const subMap: Record<string, SubscriptionView> = {}
+      for (const entry of syncResult.subscriptions) {
+        subMap[entry.providerName] = entry
+      }
+      setSubscriptionByProvider(subMap)
+    } catch (err) {
+      console.error('Failed to refresh:', err)
+    } finally {
+      setRefreshingTemplates(false)
+    }
+  }
 
   // Fetch available transformers when component mounts
   useEffect(() => {
@@ -94,23 +221,6 @@ export function Providers() {
   }, [])
 
   useEffect(() => {
-    const fetchSubscriptions = async () => {
-      try {
-        const response = await api.get<{
-          subscriptions: SubscriptionView[]
-        }>('/subscriptions')
-        const map: Record<string, string | null> = {}
-        const subMap: Record<string, SubscriptionView> = {}
-        for (const entry of response.subscriptions) {
-          map[entry.providerName] = entry.activeAccount?.plan ?? null
-          subMap[entry.providerName] = entry
-        }
-        setPlanByProvider(map)
-        setSubscriptionByProvider(subMap)
-      } catch (error) {
-        console.error('Failed to fetch subscriptions:', error)
-      }
-    }
     fetchSubscriptions()
   }, [config])
 
@@ -627,7 +737,7 @@ export function Providers() {
   const visibleProviders = providersByAuth[activeAuthMode]
   const isAvailable = (p: Provider) => {
     if (p.enabled === false) return false
-    if (p.auth_mode === 'subscription') return Boolean(planByProvider[p.name])
+    if (p.auth_mode === 'subscription') return subscriptionByProvider[p.name]?.accounts.some((a) => a.enabled) ?? false
     return (p.api_key?.trim().length ?? 0) > 0
   }
   const availableProviders = visibleProviders.filter(isAvailable)
@@ -656,6 +766,10 @@ export function Providers() {
           <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
           {t('providers.refresh_templates')}
         </Button>
+        <Button variant='outline' onClick={() => setConnectChoiceOpen(true)}>
+          <LogIn className='h-4 w-4' />
+          {t('providers.connect')}
+        </Button>
       </PageHeader>
       <PageContent>
         {visibleProviders.length === 0 ? (
@@ -669,7 +783,6 @@ export function Providers() {
                 </h3>
                 <ProviderList
                   providers={availableProviders}
-                  planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
                 />
               </div>
@@ -681,7 +794,6 @@ export function Providers() {
                 </h3>
                 <ProviderList
                   providers={unavailableProviders}
-                  planByProvider={planByProvider}
                   onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
                 />
               </div>
@@ -809,16 +921,22 @@ export function Providers() {
                                     }}
                                   />
                                   <div className='min-w-0 flex-1'>
-                                    <div className='font-medium text-sm truncate'>{account.label}</div>
-                                    <div className='text-xs text-muted-foreground truncate'>
-                                      {accountSummary(account)}
+                                    <div className='flex items-center gap-2'>
+                                      <span className='font-medium text-sm truncate'>
+                                        {account.userName ?? account.userEmail ?? account.userId ?? account.label}
+                                      </span>
+                                      {account.plan && (
+                                        <Badge variant='secondary' className='text-xs uppercase tracking-wide shrink-0'>
+                                          {formatPlan(account.plan)}
+                                        </Badge>
+                                      )}
                                     </div>
+                                    {(account.userEmail || account.userId) && (
+                                      <div className='text-xs text-muted-foreground truncate'>
+                                        {account.userEmail ?? account.userId}
+                                      </div>
+                                    )}
                                   </div>
-                                  {account.plan && (
-                                    <Badge variant='outline' className='text-xs'>
-                                      {account.plan}
-                                    </Badge>
-                                  )}
                                 </div>
                               )
                             })}
@@ -1179,6 +1297,125 @@ export function Providers() {
               </Button> */}
               <Button onClick={handleSaveProvider}>{t('app.save')}</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Connect: choose which subscription provider to OAuth into */}
+      <Dialog open={connectChoiceOpen} onOpenChange={setConnectChoiceOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.connect_choose_title')}</DialogTitle>
+            <DialogDescription>{t('providers.connect_choose_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='flex flex-col gap-2 py-2'>
+            <Button variant='outline' className='justify-start' onClick={() => handleConnectProvider('claude')}>
+              <LogIn className='h-4 w-4' />
+              {t('providers.connect_claude_option')}
+            </Button>
+            <Button variant='outline' className='justify-start' onClick={() => handleConnectProvider('codex')}>
+              <LogIn className='h-4 w-4' />
+              {t('providers.connect_codex_option')}
+            </Button>
+            <Button
+              variant='outline'
+              className='justify-start'
+              onClick={() => {
+                setConnectChoiceOpen(false)
+                setImportCredFile(null)
+                setImportCredError(null)
+                setImportCredProvider('claude')
+                setImportCredOpen(true)
+              }}
+            >
+              <FileUp className='h-4 w-4' />
+              {t('providers.connect_import_option')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual callback relay — for remote deployments where localhost is unreachable */}
+      <Dialog open={manualCallbackOpen} onOpenChange={setManualCallbackOpen}>
+        <DialogContent className='sm:max-w-lg'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.manual_callback_title')}</DialogTitle>
+            <DialogDescription>{t('providers.manual_callback_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='space-y-3 py-2'>
+            <Label htmlFor='callback-url'>{t('providers.manual_callback_label')}</Label>
+            <Input
+              id='callback-url'
+              placeholder='yA88Lgr...#pj8oVX_...'
+              value={manualCallbackUrl}
+              onChange={(e) => setManualCallbackUrl(e.target.value)}
+            />
+            {manualCallbackError && <p className='text-sm text-destructive'>{manualCallbackError}</p>}
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' onClick={() => setManualCallbackOpen(false)}>
+              {t('app.cancel')}
+            </Button>
+            <Button onClick={handleManualCallback} disabled={manualCallbackLoading || !manualCallbackUrl.trim()}>
+              {manualCallbackLoading ? t('app.loading') : t('providers.manual_callback_submit')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import credentials file — accepts ~/.claude/.credentials.json or ~/.codex/auth.json */}
+      <Dialog open={importCredOpen} onOpenChange={setImportCredOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.import_cred_title')}</DialogTitle>
+            <DialogDescription>{t('providers.import_cred_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-2'>
+            <div className='space-y-2'>
+              <Label>{t('providers.import_cred_provider_label')}</Label>
+              <div className='flex gap-2'>
+                <Button
+                  size='sm'
+                  variant={importCredProvider === 'claude' ? 'default' : 'outline'}
+                  onClick={() => setImportCredProvider('claude')}
+                >
+                  Claude
+                </Button>
+                <Button
+                  size='sm'
+                  variant={importCredProvider === 'codex' ? 'default' : 'outline'}
+                  onClick={() => setImportCredProvider('codex')}
+                >
+                  Codex
+                </Button>
+              </div>
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='cred-file'>
+                {importCredProvider === 'claude'
+                  ? t('providers.import_cred_file_label_claude')
+                  : t('providers.import_cred_file_label_codex')}
+              </Label>
+              <Input
+                id='cred-file'
+                type='file'
+                accept='.json,application/json'
+                ref={importCredFileRef}
+                onChange={(e) => {
+                  setImportCredFile(e.target.files?.[0] ?? null)
+                  setImportCredError(null)
+                }}
+              />
+            </div>
+            {importCredError && <p className='text-sm text-destructive'>{importCredError}</p>}
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' onClick={() => setImportCredOpen(false)}>
+              {t('app.cancel')}
+            </Button>
+            <Button onClick={handleImportCredentials} disabled={importCredLoading || !importCredFile}>
+              {importCredLoading ? t('app.loading') : t('providers.import_cred_submit')}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

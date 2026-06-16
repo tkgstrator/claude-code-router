@@ -30,6 +30,26 @@ interface ConfigProviderProps {
   children: ReactNode
 }
 
+// Coerce the per-scenario fallback chains off the raw wire shape into
+// the full { scenario: string[] } object the form expects. A missing /
+// malformed list normalizes to an empty array.
+function asStringArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+
+function normalizeFallbacks(raw: unknown): Config['Router']['fallbacks'] {
+  const obj = raw !== null && typeof raw === 'object' ? raw : {}
+  const get = (k: string): string[] => asStringArray(Reflect.get(obj, k))
+  return {
+    default: get('default'),
+    background: get('background'),
+    think: get('think'),
+    longContext: get('longContext'),
+    webSearch: get('webSearch'),
+    image: get('image')
+  }
+}
+
 // Coerce the raw /api/config wire shape (which now carries explicit
 // nulls for unset api_key / path scalars / router slots) into the typed
 // Config the app's controlled inputs expect (non-null strings, arrays).
@@ -80,7 +100,9 @@ function normalizeConfig(data: Config): Config {
             longContextThreshold:
               typeof data.Router.longContextThreshold === 'number' ? data.Router.longContextThreshold : 60000,
             webSearch: typeof data.Router.webSearch === 'string' ? data.Router.webSearch : null,
-            image: typeof data.Router.image === 'string' ? data.Router.image : null
+            image: typeof data.Router.image === 'string' ? data.Router.image : null,
+            fallbacks: normalizeFallbacks(data.Router.fallbacks),
+            persona: typeof data.Router.persona === 'string' ? data.Router.persona : undefined
           }
         : {
             default: null,
@@ -89,9 +111,22 @@ function normalizeConfig(data: Config): Config {
             longContext: null,
             longContextThreshold: 60000,
             webSearch: null,
-            image: null
+            image: null,
+            fallbacks: normalizeFallbacks(undefined),
+            persona: undefined
           },
-    CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : ''
+    CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : '',
+    // Guarantee every persona carries a stable uuid `id` (the key the URL
+    // and Router.persona reference). The server's boot migration backfills
+    // ids on disk; this is the defensive UI mirror for any persona that
+    // still arrives without one.
+    Personas: Array.isArray(data.Personas)
+      ? data.Personas.map((persona) => ({
+          id: typeof persona.id === 'string' && persona.id !== '' ? persona.id : crypto.randomUUID(),
+          name: persona.name,
+          prompt: persona.prompt
+        }))
+      : []
   }
 }
 
@@ -114,9 +149,12 @@ const emptyConfig = (): Config => ({
     longContext: '',
     longContextThreshold: 60000,
     webSearch: '',
-    image: ''
+    image: '',
+    fallbacks: normalizeFallbacks(undefined),
+    persona: undefined
   },
-  CUSTOM_ROUTER_PATH: ''
+  CUSTOM_ROUTER_PATH: '',
+  Personas: []
 })
 
 export function ConfigProvider({ children }: ConfigProviderProps) {

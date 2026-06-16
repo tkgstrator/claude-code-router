@@ -177,17 +177,22 @@ class ApiClient {
   }
 
   // Request logs
+  async getSessionSummary(sessionId: string): Promise<SessionSummary> {
+    return this.get<SessionSummary>(`/request-logs/sessions/${encodeURIComponent(sessionId)}/summary`)
+  }
+
   async getSessionLogs(sessionId: string): Promise<{ items: RequestLogItem[] }> {
     return this.get<{ items: RequestLogItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}`)
   }
 
-  async getRequestLogSessions(params?: { limit?: number; offset?: number }): Promise<{
+  async getRequestLogSessions(params?: { limit?: number; offset?: number; sinceHours?: number }): Promise<{
     sessions: SessionSummary[]
     total: number
   }> {
     const q = new URLSearchParams()
     if (params?.limit != null) q.set('limit', String(params.limit))
     if (params?.offset != null) q.set('offset', String(params.offset))
+    if (params?.sinceHours != null) q.set('sinceHours', String(params.sinceHours))
     const qs = q.toString()
     return this.get<{ sessions: SessionSummary[]; total: number }>(`/request-logs/sessions${qs ? `?${qs}` : ''}`)
   }

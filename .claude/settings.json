@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(bun run dev:*)",
+      "Bash(bun run preview:*)",
+      "Bash(bun dev:*)",
+      "Bash(vite:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler pages deploy:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf /:*)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "docker",
+    "github",
+    "tailwindcss",
+    "shadcn",
+    "zod",
+    "prisma",
+    "playwright",
+    "context7",
+    "chrome-devtools",
+    "sequential-thinking"
+  ],
+  "extraKnownMarketplaces": {
+    "qtmleap-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "qtmleap/claude-plugins",
+        "ref": "v0.3.0"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "devflow@qtmleap-plugins": true,
+    "frontend@qtmleap-plugins": true,
+    "backend@qtmleap-plugins": true,
+    "data@qtmleap-plugins": true,
+    "cloudflare@qtmleap-plugins": true
+  }
+}

@@ -6,6 +6,7 @@ import JSON5 from 'json5'
 import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas'
 import { ENVELOPE_ENV_KEYS } from '@/shared'
 import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
+import { SEED_PERSONAS } from '@/shared/data'
 import { logger } from '../../logger'
 
 // Function to interpolate environment variables in config values
@@ -72,7 +73,10 @@ const createDefaultConfig = async (): Promise<ConfigEnvelope> => {
     PORT: 3456,
     APIKEY: generateApiKey(),
     Providers: [],
-    Router: {}
+    Router: {},
+    // Ship a few ready-made personas in the default config so a fresh
+    // install has something to pick on the Router page out of the box.
+    Personas: SEED_PERSONAS
   }
   await writeConfigFile(raw)
   logger.info({ path: CONFIG_FILE }, 'Created default configuration file')
@@ -149,7 +153,57 @@ export const applyEnvelopeToEnv = (config: Record<string, unknown>) => {
   }
 }
 
+/**
+ * One-time, idempotent migration to the uuid-keyed persona model.
+ *
+ * Older configs stored personas as { name, prompt } and referenced the
+ * active one by name (ActivePersona). The library is now keyed by a
+ * stable uuid `id`: this backfills an `id` onto every persona that lacks
+ * one and rewrites a name-based ActivePersona to the matching persona's
+ * id. Operates on the raw on-disk JSON (not the schema-parsed envelope)
+ * so it only rewrites Personas/ActivePersona and leaves the rest of the
+ * file shape untouched. No-ops once every persona already has an id, so
+ * it is safe to run on every boot. Stays silent on a missing/unparsable
+ * file — readConfigFile owns those paths (create-default / wipe).
+ */
+const migratePersonaKeys = async (): Promise<void> => {
+  let raw: string
+  try {
+    raw = await fs.readFile(CONFIG_FILE, 'utf-8')
+  } catch {
+    return
+  }
+  let parsed: any
+  try {
+    parsed = JSON5.parse(raw)
+  } catch {
+    return
+  }
+  const personas = Array.isArray(parsed?.Personas) ? parsed.Personas : []
+  let changed = false
+  for (const persona of personas) {
+    if (persona !== null && typeof persona === 'object' && typeof persona.id !== 'string') {
+      persona.id = crypto.randomUUID()
+      changed = true
+    }
+  }
+  // Rewrite a name-based active selection to the matching persona's id.
+  const active = parsed?.ActivePersona
+  if (typeof active === 'string' && active !== '' && !personas.some((p: any) => p?.id === active)) {
+    const match = personas.find((p: any) => p?.name === active)
+    if (match !== undefined) {
+      parsed.ActivePersona = match.id
+      changed = true
+    }
+  }
+  if (changed) {
+    await writeConfigFile(parsed)
+    logger.info({ path: CONFIG_FILE }, 'Migrated personas to uuid keys')
+  }
+}
+
 export const initConfig = async (): Promise<ConfigEnvelope> => {
+  await migratePersonaKeys()
   const envelope = await readConfigFile()
   applyEnvelopeToEnv(envelope)
   return envelope

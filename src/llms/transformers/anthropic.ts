@@ -245,7 +245,7 @@ function buildUserContent(blocks: AnthropicContentBlock[]): UnifiedMessage | und
       if (part.text === undefined) {
         throw new HTTPException(500, { message: 'Anthropic text block missing text after filter' })
       }
-      return { type: 'text' as const, text: part.text }
+      return { type: 'text' as const, text: part.text, cache_control: part.cache_control }
     })
   }
 }
@@ -288,13 +288,10 @@ function buildAssistantToolCalls(blocks: AnthropicContentBlock[]): UnifiedMessag
 }
 
 function buildAssistantThinking(blocks: AnthropicContentBlock[]): UnifiedMessage['thinking'] {
-  const thinkingPart = blocks.find((c) => c.type === 'thinking' && c.signature)
+  const thinkingPart = blocks.find((c) => c.type === 'thinking' && c.signature && c.thinking)
   if (!thinkingPart) return undefined
-  if (thinkingPart.thinking === undefined) {
-    throw new HTTPException(500, { message: 'Anthropic thinking block missing thinking content' })
-  }
   return {
-    content: thinkingPart.thinking,
+    content: thinkingPart.thinking!,
     signature: thinkingPart.signature
   }
 }
@@ -402,14 +399,14 @@ export class AnthropicTransformer extends Transformer {
       tool_choice: buildToolChoice(req.tool_choice)
     }
 
-    if (req.thinking) {
+    if (req.thinking?.type === 'enabled') {
       const budget = req.thinking.budget_tokens
       if (budget === undefined) {
         throw new HTTPException(500, { message: 'Anthropic thinking block missing budget_tokens' })
       }
       unified.reasoning = {
         effort: getThinkLevel(budget),
-        enabled: req.thinking.type === 'enabled'
+        enabled: true
       }
     }
 
@@ -456,7 +453,8 @@ export class AnthropicTransformer extends Transformer {
           name: tool.name,
           description,
           parameters: tool.input_schema
-        }
+        },
+        cache_control: tool.cache_control
       }
     })
   }

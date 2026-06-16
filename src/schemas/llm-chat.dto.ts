@@ -92,10 +92,11 @@ export const UnifiedToolSchema = z.object({
       type: z.literal('object'),
       properties: z.record(z.string().nonempty(), z.unknown()),
       required: z.array(z.string().nonempty()).default([]),
-      additionalProperties: z.boolean().default(false),
+      additionalProperties: z.union([z.boolean(), z.record(z.string(), z.unknown())]).optional(),
       $schema: z.string().nonempty().optional()
     })
-  })
+  }),
+  cache_control: z.object({ type: z.string().nonempty() }).optional()
 })
 export type UnifiedTool = z.input<typeof UnifiedToolSchema>
 
@@ -200,7 +201,7 @@ export const AnthropicContentBlockSchema = z.object({
   content: z.unknown().optional(),
   cache_control: AnthropicCacheControlSchema.optional(),
   source: AnthropicImageSourceSchema.optional(),
-  thinking: z.string().nonempty().optional(),
+  thinking: z.string().min(0).optional(),
   signature: z.string().nonempty().optional()
 })
 export type AnthropicContentBlock = z.input<typeof AnthropicContentBlockSchema>
@@ -216,7 +217,8 @@ export const AnthropicToolDefSchema = z.object({
   // Anthropic API requires `description` on every tool definition —
   // the docs treat it as load-bearing for model tool selection.
   description: z.string().nonempty(),
-  input_schema: UnifiedToolSchema.shape.function.shape.parameters
+  input_schema: UnifiedToolSchema.shape.function.shape.parameters,
+  cache_control: AnthropicCacheControlSchema.optional()
 })
 export type AnthropicToolDef = z.input<typeof AnthropicToolDefSchema>
 
@@ -251,11 +253,51 @@ export const AnthropicIncomingRequestSchema = z.object({
   tool_choice: AnthropicToolChoiceSchema.optional(),
   thinking: z
     .object({
-      // When thinking is enabled, Anthropic mandates both fields —
-      // type is the discriminator and budget_tokens is the ceiling.
+      // type is the discriminator (`enabled` for explicit extended
+      // thinking; other values like `adaptive` exist server-side).
+      // budget_tokens is the ceiling and is mandatory specifically
+      // when type === 'enabled' — Anthropic rejects an enabled
+      // request without it. Other types may omit it, so the refine
+      // below scopes the requirement to the enabled case rather than
+      // making the field globally required.
       type: z.string().nonempty(),
-      budget_tokens: z.number().int().nonnegative()
+      budget_tokens: z.number().int().nonnegative().optional()
     })
-    .optional()
+    .refine((t) => t.type !== 'enabled' || typeof t.budget_tokens === 'number', {
+      message: 'thinking.budget_tokens is required when thinking.type is "enabled"',
+      path: ['budget_tokens']
+    })
+    .optional(),
+  // Claude Code extension fields observed in captured traffic.
+  // Typed loosely — internal shapes may evolve without notice.
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  context_management: z.record(z.string(), z.unknown()).optional(),
+  output_config: z.record(z.string(), z.unknown()).optional(),
+  diagnostics: z.record(z.string(), z.unknown()).optional()
 })
 export type AnthropicIncomingRequest = z.input<typeof AnthropicIncomingRequestSchema>
+
+// ─── Anthropic incoming request headers ────────────────────────────────
+// Headers that Claude Code (or any compliant client) must send to CCR's
+// /v1/messages endpoint. Validated against the captured fixture corpus in
+// fixture-schemas.test.ts so a breaking change to the expected header set
+// surfaces as a test failure rather than a runtime surprise.
+
+export const AnthropicIncomingRequestHeadersSchema = z
+  .object({
+    // Required by the Anthropic Messages API spec.
+    'anthropic-version': z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'anthropic-version must be YYYY-MM-DD'),
+    // Exactly one of these auth headers must be present.
+    'x-api-key': z.string().min(1).optional(),
+    authorization: z.string().min(1).optional(),
+    // Standard MIME type — optional but always sent by Claude Code.
+    'content-type': z.string().optional(),
+    // Comma-separated beta feature flags e.g. "interleaved-thinking-2025-05-14".
+    'anthropic-beta': z.string().optional()
+  })
+  .passthrough()
+  .refine((h) => h['x-api-key'] !== undefined || h['authorization'] !== undefined, {
+    message: 'Request must carry either x-api-key or authorization header'
+  })
+
+export type AnthropicIncomingRequestHeaders = z.input<typeof AnthropicIncomingRequestHeadersSchema>

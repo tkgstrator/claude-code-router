@@ -53,15 +53,16 @@ export interface SeedRow {
 // subscription providers, so it must be set here).
 //  - Claude: the docs advertise 1M for Sonnet too, but on the
 //    subscription path that 1M needs extra usage the plan doesn't
-//    grant — empirically only Opus 4.7 serves >200K; everything else
-//    is the standard 200K.
+//    grant — only the flagship 1M-tier ids below serve >200K;
+//    everything else is the standard 200K.
 //  - codex (and any other non-Claude subscription model): the same as
 //    the API — reuse the vendor-official scraped value for that model
 //    id (OpenAI sub/API share the window).
 // undefined → contextWindow stays null (api_key handled by the scrape).
+const SUBSCRIPTION_1M_CLAUDE = new Set(['claude-fable-5', 'claude-mythos-5', 'claude-opus-4-7', 'claude-opus-4-8'])
 export const subscriptionContextWindow = (seed: SeedRow, name: string): number | undefined => {
   if (seed.authMode !== AuthMode.subscription) return undefined
-  if (name.startsWith('claude-')) return name === 'claude-opus-4-7' ? 1_000_000 : 200_000
+  if (name.startsWith('claude-')) return SUBSCRIPTION_1M_CLAUDE.has(name) ? 1_000_000 : 200_000
   const openaiVendor = OFFICIAL_VENDOR_PRICES.openai
   if (!openaiVendor) return undefined
   const entry = openaiVendor[name]
@@ -123,6 +124,15 @@ export async function topUpSeedProvider(
   // Resync deprecation flag for already-seeded rows so new entries
   // added to DEPRECATED_MODELS on upgrade reach existing DBs.
   await syncDeprecationFlags(tx, current.id, seed.models)
+  // Reconcile the provider's request shape. apiStyle is derived from the
+  // vendor (apiStyleForVendor) with no runtime fallback, but a row seeded
+  // before a rule changed can hold a now-stale value — e.g. codex predating
+  // the openai_responses rule keeps openai_chat, so models inheriting the
+  // provider style POST chat bodies to the codex backend root and 403. Heal
+  // existing rows to the canonical value on boot.
+  if (current.apiStyle !== seed.apiStyle) {
+    await tx.provider.update({ where: { id: current.id }, data: { apiStyle: seed.apiStyle } })
+  }
   // Resync the subscription context window onto already-seeded rows so
   // DBs seeded before the column existed get it too. Group by value so
   // it's a handful of updateManys.

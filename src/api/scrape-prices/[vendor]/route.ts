@@ -16,11 +16,7 @@ const SCRAPER_SCRIPTS: Record<string, string> = {
 
 scrapePricesRoute.post('/api/scrape-prices/:vendor', async (c) => {
   const raw = c.req.param('vendor')
-  const parsed = ScrapePricesVendorSchema.safeParse(raw)
-  if (!parsed.success) {
-    return c.json({ success: false as const, error: `unknown vendor "${raw}"` }, 400)
-  }
-  const vendor = parsed.data
+  const vendor = ScrapePricesVendorSchema.parse(raw)
   const script = SCRAPER_SCRIPTS[vendor]
   // The dev server is launched from the repo root by package.json's
   // `bun dev` script; production CLI mode currently can't reach the

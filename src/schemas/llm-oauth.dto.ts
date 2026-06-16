@@ -1,39 +1,15 @@
 /**
- * OAuth credential file shapes + the upstream refresh response, as
- * consumed by the OAuth transformers (claude-code-oauth, codex-oauth)
- * at request time.
+ * OAuth schemas consumed by the OAuth transformers (claude-code-oauth,
+ * codex-oauth) at request time: the upstream refresh response, the
+ * Anthropic /api/oauth/profile envelope, and the runtime overlay block
+ * the pipeline grafts onto `provider.transformer.subscriptionAuth`.
  *
- * These all cross a trust boundary (disk file written by an external
- * CLI, HTTP response from the OAuth provider). The schemas are strict
- * (required fields are real types, not z.unknown) so safeParse failures
- * surface as HTTPException at the transformer layer.
- *
- * Note: the lax `ClaudeCredentialsSchema` / `CodexAuthFileSchema` in
- * usage.dto.ts serve a different consumer (background usage-info
- * service) which tolerates missing fields. The transformer schemas
- * here intentionally use the `Oauth*` prefix to avoid the barrel
- * collision while making the consumer obvious.
+ * These all cross a trust boundary (HTTP response, pipeline overlay).
+ * Schemas are strict so safeParse failures surface as HTTPException at
+ * the transformer layer.
  */
 
 import { z } from '@hono/zod-openapi'
-
-// ─── Claude Code credentials file (~/.claude/.credentials.json) ────────
-
-export const OauthClaudeBlockSchema = z.object({
-  accessToken: z.string().nonempty(),
-  refreshToken: z.string().nonempty(),
-  expiresAt: z.number().int().nonnegative(),
-  scopes: z.array(z.string().nonempty()).default([]),
-  subscriptionType: z.string().nonempty().optional(),
-  rateLimitTier: z.string().nonempty().optional()
-})
-export type OauthClaudeBlock = z.infer<typeof OauthClaudeBlockSchema>
-
-export const OauthClaudeCredentialsSchema = z.object({
-  claudeAiOauth: OauthClaudeBlockSchema,
-  organizationUuid: z.string().nonempty().optional()
-})
-export type OauthClaudeCredentials = z.infer<typeof OauthClaudeCredentialsSchema>
 
 // ─── Anthropic OAuth refresh response ──────────────────────────────────
 
@@ -44,19 +20,46 @@ export const OauthRefreshResponseSchema = z.object({
 })
 export type OauthRefreshResponse = z.infer<typeof OauthRefreshResponseSchema>
 
-// ─── Codex credentials file (~/.codex/auth.json) ───────────────────────
+// ─── Anthropic OAuth profile response ──────────────────────────────────
 //
-// The codex CLI writes a nested `{ tokens: { access_token, account_id } }`
-// shape. We reject files missing tokens.access_token at parse time so
-// the transformer sees a typed credential object or an HTTPException.
-
-export const OauthCodexAuthFileSchema = z.object({
-  tokens: z.object({
-    access_token: z.string().nonempty(),
-    account_id: z.string().nonempty().optional()
-  })
+// GET https://api.anthropic.com/api/oauth/profile (with the
+// `anthropic-beta: oauth-2025-04-20` header). Used to enrich the
+// SubAccount row with user-facing identity (uuid / email / display name)
+// since the on-disk `.credentials.json` never carries those fields.
+// Optional surfaces lean toward "anthropic could add or rename here";
+// the discriminator fields we actually depend on (`account.uuid`,
+// `account.email`) are required.
+export const ClaudeOAuthProfileAccountSchema = z.object({
+  uuid: z.string().nonempty(),
+  full_name: z.string().nonempty().optional(),
+  display_name: z.string().nonempty().optional(),
+  email: z.string().nonempty(),
+  has_claude_max: z.boolean().optional(),
+  has_claude_pro: z.boolean().optional()
 })
-export type OauthCodexAuthFile = z.infer<typeof OauthCodexAuthFileSchema>
+
+export const ClaudeOAuthProfileOrganizationSchema = z.object({
+  uuid: z.string().nonempty(),
+  name: z.string().nonempty().optional(),
+  organization_type: z.string().nonempty().optional(),
+  billing_type: z.string().nonempty().optional(),
+  rate_limit_tier: z.string().nonempty().optional(),
+  has_extra_usage_enabled: z.boolean().optional(),
+  subscription_status: z.string().nonempty().optional()
+})
+
+export const ClaudeOAuthProfileSchema = z.object({
+  account: ClaudeOAuthProfileAccountSchema,
+  organization: ClaudeOAuthProfileOrganizationSchema.optional(),
+  application: z
+    .object({
+      uuid: z.string().nonempty(),
+      name: z.string().nonempty().optional(),
+      slug: z.string().nonempty().optional()
+    })
+    .optional()
+})
+export type ClaudeOAuthProfile = z.infer<typeof ClaudeOAuthProfileSchema>
 
 // ─── Runtime credential / overlay shapes used by the OAuth base class ──
 
@@ -77,11 +80,20 @@ export type OauthCredentials = z.infer<typeof OauthCredentialsSchema>
  * field is `unknown` because the source rows can contain decryption
  * failures (nulls) the OAuth base narrows defensively before use.
  */
+// Strict shape — every field is parsed and narrowed here so the OAuth
+// base can just read off `.data` instead of re-checking each property.
+// `accessToken` is required at the type level even though the wire
+// always carries it; the base treats an empty parse failure as "no
+// active subscription account" and refuses to proceed.
+// `expiresAt` accepts ISO strings (overlay round-trip) and Dates
+// (direct Prisma row) via z.coerce.date.
 export const OauthSubscriptionAuthBlockSchema = z.object({
-  accessToken: z.unknown().optional(),
-  refreshToken: z.unknown().optional(),
-  idToken: z.unknown().optional(),
-  accountId: z.unknown().optional()
+  subAccountId: z.string().nonempty(),
+  accessToken: z.string().nonempty(),
+  refreshToken: z.string().nonempty().nullable().optional(),
+  idToken: z.string().nonempty().nullable().optional(),
+  accountId: z.string().nonempty().nullable().optional(),
+  expiresAt: z.coerce.date().nullable().optional()
 })
 export type OauthSubscriptionAuthBlock = z.infer<typeof OauthSubscriptionAuthBlockSchema>
 
@@ -94,6 +106,41 @@ export const OauthProviderTransformerSchema = z.object({
   subscriptionAuth: OauthSubscriptionAuthBlockSchema.optional()
 })
 export type OauthProviderTransformer = z.infer<typeof OauthProviderTransformerSchema>
+
+// ─── Credential file import schemas ────────────────────────────────────
+//
+// Accepted formats for POST /api/oauth/import-credentials.
+
+const ClaudeTokensSchema = z.object({
+  accessToken: z.string().nonempty(),
+  refreshToken: z.string().default(''),
+  expiresAt: z.number().nullable().optional(),
+  scopes: z.array(z.string()).optional()
+})
+
+// ~/.claude/.credentials.json wraps tokens under a `claudeAiOauth` key;
+// the flat variant is also accepted for convenience.
+export const ClaudeCredentialsFileSchema = z.union([
+  z.object({ claudeAiOauth: ClaudeTokensSchema }).transform((v) => v.claudeAiOauth),
+  ClaudeTokensSchema
+])
+export type ClaudeCredentialsFile = z.infer<typeof ClaudeCredentialsFileSchema>
+
+// ~/.codex/auth.json nests tokens under a `tokens` key using snake_case.
+export const CodexCredentialsFileSchema = z
+  .object({
+    tokens: z.object({
+      access_token: z.string().nonempty(),
+      refresh_token: z.string().default(''),
+      id_token: z.string().nonempty()
+    })
+  })
+  .transform((v) => ({
+    accessToken: v.tokens.access_token,
+    refreshToken: v.tokens.refresh_token,
+    idToken: v.tokens.id_token
+  }))
+export type CodexCredentialsFile = z.infer<typeof CodexCredentialsFileSchema>
 
 // ─── PackageJson (codex CLI version probe) ─────────────────────────────
 

@@ -23,11 +23,16 @@
 
 import type { Provider } from '@/schemas'
 
+// Mirror of getActiveSubAccountAuth's return shape. The pipeline overlay
+// passes this object verbatim onto `provider.transformer.subscriptionAuth`
+// where OAuthTransformer parses it back out with safeParse.
 export interface SubscriptionAuthOverlay {
+  subAccountId: string
   accessToken: string | null
   refreshToken: string | null
   idToken: string | null
   accountId: string | null
+  expiresAt: Date | null
 }
 
 const SUBSCRIPTION_TRANSFORMER_CHAIN: Record<string, string[]> = {

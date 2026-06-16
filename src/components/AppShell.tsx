@@ -1,5 +1,7 @@
 import {
   CircleArrowUp,
+  CreditCard,
+  Drama,
   FileJson,
   FileText,
   Gauge,
@@ -35,6 +37,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarInset,
@@ -48,6 +51,7 @@ import {
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
+import pkg from '../../package.json'
 import '@/styles/animations.css'
 
 export type ToastFn = (message: string, type: 'success' | 'error' | 'warning') => void
@@ -59,9 +63,11 @@ interface ShellOutletContext {
 const NAV_ITEMS = [
   { to: '/models', icon: LayoutDashboard, key: 'nav.models' },
   { to: '/providers', icon: Server, key: 'nav.providers' },
+  { to: '/subscriptions', icon: CreditCard, key: 'nav.subscriptions' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
   { to: '/usage', icon: Gauge, key: 'nav.usage' },
   { to: '/history', icon: History, key: 'nav.history' },
+  { to: '/personas', icon: Drama, key: 'nav.personas' },
   { to: '/settings', icon: Settings, key: 'nav.settings' }
 ] as const
 
@@ -71,8 +77,10 @@ function AppSidebar() {
 
   return (
     <Sidebar collapsible='icon'>
-      <SidebarHeader className='h-16 justify-center border-b px-4'>
-        <span className='text-sm font-semibold group-data-[collapsible=icon]:hidden'>{t('app.title')}</span>
+      <SidebarHeader className='h-16 justify-center border-b overflow-hidden px-4'>
+        <span className='text-sm font-semibold whitespace-nowrap transition-opacity duration-200 group-data-[collapsible=icon]:opacity-0'>
+          {t('app.title')}
+        </span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -90,6 +98,9 @@ function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className='px-4 py-3 group-data-[collapsible=icon]:hidden'>
+        <span className='text-xs text-muted-foreground'>v{pkg.version}</span>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

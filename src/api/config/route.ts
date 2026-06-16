@@ -2,7 +2,6 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { resetLlmsContext } from '../../llms'
 import { ApplyConfigPayloadSchema } from '../../schemas'
 import { applyUiConfig, composeUiConfig } from '../../services/config'
-
 export const configRoute = new OpenAPIHono()
 
 // Neither /api/config route is registered through createRoute: the
@@ -19,11 +18,8 @@ configRoute.get('/api/config', async (c) => {
 
 configRoute.post('/api/config', async (c) => {
   const raw = await c.req.json().catch(() => null)
-  const parsed = ApplyConfigPayloadSchema.safeParse(raw)
-  if (!parsed.success) {
-    return c.json({ success: false as const, error: parsed.error }, 400)
-  }
-  const result = await applyUiConfig(parsed.data)
+  const parsed = ApplyConfigPayloadSchema.parse(raw)
+  const result = await applyUiConfig(parsed)
   // The /v1 proxy caches the llms services (incl. Router/providers)
   // built from this config — drop it so edits take effect without a
   // restart.

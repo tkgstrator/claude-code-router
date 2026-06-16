@@ -19,57 +19,49 @@ const toDate = (iso: string | null): Date | null => {
 }
 
 // Flatten the live usage snapshot into one row per window.
+// When multiple accounts share the same metric (e.g. two Claude Max
+// subscriptions), average their utilization so the chart reflects
+// combined capacity usage rather than just the most-constrained account.
+// resetAt is taken from the account whose quota resets soonest.
 const flatten = (u: Awaited<ReturnType<typeof getUsage>>): SnapshotRow[] => {
-  const rows: SnapshotRow[] = []
-  const c = u.claude
-  if (c) {
-    if (c.fiveHour)
-      rows.push({
-        provider: 'claude',
-        metric: 'claude.five_hour',
-        percent: c.fiveHour.utilization,
-        resetAt: toDate(c.fiveHour.resetsAt)
-      })
-    if (c.sevenDay)
-      rows.push({
-        provider: 'claude',
-        metric: 'claude.seven_day',
-        percent: c.sevenDay.utilization,
-        resetAt: toDate(c.sevenDay.resetsAt)
-      })
+  const acc = new Map<string, { provider: string; sumPercent: number; count: number; resetAt: Date | null }>()
+
+  const add = (provider: string, metric: string, percent: number, resetAt: Date | null) => {
+    const prev = acc.get(metric)
+    if (!prev) {
+      acc.set(metric, { provider, sumPercent: percent, count: 1, resetAt })
+    } else {
+      const earliest =
+        prev.resetAt === null
+          ? resetAt
+          : resetAt === null
+            ? prev.resetAt
+            : resetAt < prev.resetAt
+              ? resetAt
+              : prev.resetAt
+      acc.set(metric, { provider, sumPercent: prev.sumPercent + percent, count: prev.count + 1, resetAt: earliest })
+    }
+  }
+
+  for (const c of u.claude) {
+    if (c.fiveHour) add('claude', 'claude.five_hour', c.fiveHour.utilization, toDate(c.fiveHour.resetsAt))
+    if (c.sevenDay) add('claude', 'claude.seven_day', c.sevenDay.utilization, toDate(c.sevenDay.resetsAt))
     if (c.sevenDaySonnet)
-      rows.push({
-        provider: 'claude',
-        metric: 'claude.seven_day_sonnet',
-        percent: c.sevenDaySonnet.utilization,
-        resetAt: toDate(c.sevenDaySonnet.resetsAt)
-      })
+      add('claude', 'claude.seven_day_sonnet', c.sevenDaySonnet.utilization, toDate(c.sevenDaySonnet.resetsAt))
     if (c.sevenDayOpus)
-      rows.push({
-        provider: 'claude',
-        metric: 'claude.seven_day_opus',
-        percent: c.sevenDayOpus.utilization,
-        resetAt: toDate(c.sevenDayOpus.resetsAt)
-      })
+      add('claude', 'claude.seven_day_opus', c.sevenDayOpus.utilization, toDate(c.sevenDayOpus.resetsAt))
   }
-  const x = u.codex
-  if (x) {
-    if (x.primary)
-      rows.push({
-        provider: 'codex',
-        metric: 'codex.primary',
-        percent: x.primary.usedPercent,
-        resetAt: toDate(x.primary.resetAt)
-      })
-    if (x.secondary)
-      rows.push({
-        provider: 'codex',
-        metric: 'codex.secondary',
-        percent: x.secondary.usedPercent,
-        resetAt: toDate(x.secondary.resetAt)
-      })
+  for (const x of u.codex) {
+    if (x.primary) add('codex', 'codex.primary', x.primary.usedPercent, toDate(x.primary.resetAt))
+    if (x.secondary) add('codex', 'codex.secondary', x.secondary.usedPercent, toDate(x.secondary.resetAt))
   }
-  return rows
+
+  return [...acc.entries()].map(([metric, { provider, sumPercent, count, resetAt }]) => ({
+    provider,
+    metric,
+    percent: sumPercent / count,
+    resetAt
+  }))
 }
 
 export async function recordUsageSnapshots(): Promise<void> {
@@ -107,7 +99,7 @@ export interface UsageHistory {
 export async function getUsageHistory(days: number): Promise<UsageHistory> {
   const since = dayjs().subtract(days, 'day').toDate()
   const rows = await getPrismaClient().usageSnapshot.findMany({
-    where: { capturedAt: { gte: since } },
+    where: { capturedAt: { gte: since }, metric: { not: { contains: ':' } } },
     orderBy: { capturedAt: 'asc' },
     select: { metric: true, percent: true, capturedAt: true, resetAt: true }
   })

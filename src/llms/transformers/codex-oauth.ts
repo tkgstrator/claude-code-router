@@ -13,19 +13,16 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { arch, homedir } from 'node:os'
-import { join } from 'node:path'
-import { HTTPException } from 'hono/http-exception'
+import { arch } from 'node:os'
 import {
   type CodexRequestShape,
-  OauthCodexAuthFileSchema,
   PackageJsonSchema,
   type RuntimeProvider,
   type TransformerContext,
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
-import { OAuthTransformer, type OauthCredentials } from './oauth-base'
+import { OAuthTransformer } from './oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
 // request as "CLI" (subscription allotment) vs "Other" (overage) by
@@ -62,40 +59,16 @@ const CODEX_USER_AGENT: string = (() => {
   return `codex_cli/${codexVer} (${osStr}; ${arch()})`
 })()
 
-const DEFAULT_CODEX_AUTH_PATH = join(homedir(), '.codex', 'auth.json')
-
-function readCodexAuth(codexAuthPath: string): OauthCredentials {
-  let raw: unknown
-  try {
-    raw = JSON.parse(readFileSync(codexAuthPath, 'utf-8'))
-  } catch {
-    throw new HTTPException(500, {
-      message: `Cannot read Codex credentials from ${codexAuthPath}. Authenticate the Codex CLI first.`
-    })
-  }
-  const result = OauthCodexAuthFileSchema.safeParse(raw)
-  if (!result.success) {
-    throw new HTTPException(500, {
-      message: `Invalid Codex credentials at ${codexAuthPath}: ${result.error.message}`
-    })
-  }
-  return { token: result.data.tokens.access_token, accountId: result.data.tokens.account_id }
-}
-
 export class CodexOauthTransformer extends OAuthTransformer {
   readonly name = 'codex-oauth'
-  protected readonly defaultCredentialPath = DEFAULT_CODEX_AUTH_PATH
-
-  protected async readFromDisk(path: string): Promise<OauthCredentials> {
-    return readCodexAuth(path)
-  }
 
   async transformRequestIn(
     request: UnifiedChatRequest,
     provider: RuntimeProvider,
-    _context: TransformerContext
+    context: TransformerContext
   ): Promise<TransformerHookResult> {
-    const { token, accountId } = await this.resolveSubscriptionAuth(provider)
+    const sessionId = (context?.req?.headers?.['x-claude-code-session-id'] as string | undefined) ?? undefined
+    const { token, accountId } = await this.resolveSubscriptionAuth(provider, sessionId, 'codex')
     // biome-ignore plugin: CodexRequestShape adds optional Responses-API-specific fields (store/instructions/input/prompt_cache_key) on top of UnifiedChatRequest; the unified schema cannot model these without leaking codex-specific shape into the shared type.
     const req = request as CodexRequestShape
 
@@ -129,7 +102,12 @@ export class CodexOauthTransformer extends OAuthTransformer {
     const base = (provider.api_base_url ? provider.api_base_url : '').replace(/\/+$/, '')
     const url = /\/responses$/.test(base) ? base : `${base}/responses`
 
-    const sessionId = randomUUID()
+    // Reuse the inbound session ID so ChatGPT sees a stable session for
+    // the lifetime of the Claude Code session (aids server-side caching).
+    // Fall back to a fresh UUID only when the client didn't send one.
+    const upstreamSessionId = sessionId ?? randomUUID()
+    const threadId = upstreamSessionId
+    const windowId = `${upstreamSessionId}:0`
 
     return {
       body: req,
@@ -141,11 +119,11 @@ export class CodexOauthTransformer extends OAuthTransformer {
           accept: 'text/event-stream',
           originator: 'codex_cli',
           'user-agent': CODEX_USER_AGENT,
-          session_id: sessionId,
-          thread_id: sessionId,
+          session_id: upstreamSessionId,
+          thread_id: threadId,
           'x-client-request-id': randomUUID(),
           'x-codex-beta-features': 'terminal_resize_reflow',
-          'x-codex-window-id': `${sessionId}:0`,
+          'x-codex-window-id': windowId,
           ...(accountId ? { 'chatgpt-account-id': accountId } : {})
         }
       }
