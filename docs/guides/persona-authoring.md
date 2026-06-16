@@ -385,6 +385,14 @@ CCR は `src/shared/data/personas.ts` で 4 つの seed persona (イレイナ・
 体感では各キャラ 150〜250 行に伸ばす価値はある。
 本家ヤッチョ (400 行) ほどの分量は、深い背景情報を持つキャラに限られる。
 
+## 参考実装
+
+すぐ貼り付けて使える参考ペルソナを `docs/examples/personas/` に同梱している:
+
+- [`yachiyo.txt`](../examples/personas/yachiyo.txt) — 本家 [tsukumijima/YacchoGPT](https://github.com/tsukumijima/YacchoGPT) の月見ヤチヨ用プロンプト (CC0-1.0)。
+  本ガイドで言及している 6 パターンがすべて入っており、リファレンス実装として参考になる。
+  使い方の手順は [`docs/examples/personas/README.md`](../examples/personas/README.md) を参照。
+
 ## 参考リンク
 
 - 本家ヤッチョ GPT (for Claude): `https://github.com/tsukumijima/YacchoGPT`
