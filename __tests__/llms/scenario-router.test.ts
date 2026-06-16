@@ -332,3 +332,47 @@ test('selectModel: heavy escalation no-ops when router.longContext is unset', ()
   )
   expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
 })
+
+// ---- weeklyDrainMarginPct (S5) -------------------------------------
+
+test('candidateUsable: a positive marginPct lets usage run hot before the guard trips', () => {
+  // 7d Opus at 60 — above the 50 linear target but below 50+20=70 with
+  // a 20-point margin, so the guard should NOT trip.
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 60 }), NOW)
+  expect(candidateUsable('anthropic', [claudeProvider], 20)).toBe(true)
+})
+
+test('candidateUsable: a positive marginPct still trips once usage clears target+margin', () => {
+  // 7d Opus at 80 > 50+20=70, so the guard should trip even with the
+  // 20-point margin.
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
+  expect(candidateUsable('anthropic', [claudeProvider], 20)).toBe(false)
+})
+
+test('applyProactiveFailover: reads Router.weeklyDrainMarginPct and applies it to the guard', () => {
+  // 7d Opus at 60: above the 50 target, would trip without margin, but
+  // a 20-point margin in the Router config keeps the primary usable.
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 60 }), NOW)
+  const config = new ConfigStore({
+    Router: {
+      default: 'anthropic,claude-opus',
+      fallbacks: { default: ['codex,gpt-5'] },
+      weeklyDrainMarginPct: 20
+    },
+    providers: [claudeProvider, codexProvider]
+  })
+  const out = applyProactiveFailover('anthropic,claude-opus', 'default', 1000, config, noopLog)
+  expect(out).toBe('anthropic,claude-opus')
+})
+
+test('applyProactiveFailover: margin in config is ignored at 0 (back-compat with pre-S5)', () => {
+  // Identical setup to the test above but no margin in config — guard
+  // trips at the linear target and we fail over.
+  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 60 }), NOW)
+  const config = new ConfigStore({
+    Router: { default: 'anthropic,claude-opus', fallbacks: { default: ['codex,gpt-5'] } },
+    providers: [claudeProvider, codexProvider]
+  })
+  const out = applyProactiveFailover('anthropic,claude-opus', 'default', 1000, config, noopLog)
+  expect(out).toBe('codex,gpt-5')
+})

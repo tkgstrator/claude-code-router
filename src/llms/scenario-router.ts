@@ -70,11 +70,11 @@ type ConfigProvider = {
 
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
 
-// Over-target margin (percentage points) applied to the weekly-window
-// drain guard. 0 means the guard trips exactly when projected usage
-// crosses the linear drain target; a positive value lets usage run that
-// many points hot before failing over. Tunable later (Phase 6 S5).
-const WEEKLY_DRAIN_MARGIN_PCT = 0
+// Fallback over-target margin (percentage points) when the Router config
+// does not specify weeklyDrainMarginPct (e.g. when candidateUsable is
+// called from a unit test that does not stand up a ConfigStore). The
+// runtime value is read from Router.weeklyDrainMarginPct (Phase 6 S5).
+export const WEEKLY_DRAIN_MARGIN_PCT_DEFAULT = 0
 
 // Map a provider name to the subscription usage "kind" whose limit we can
 // pre-empt, or null for api_key / non-subscription providers (they have
@@ -102,12 +102,19 @@ function subscriptionKindOf(providerName: string, providers: ConfigProvider[]): 
 //     is absent the target is null and overTarget is false, so codex
 //     stays usable — that is the intended conservative default.
 //
-// resetAt is the earliest weekly reset among the over-target windows, so
-// the failover exhaustion mark expires when the guarded window resets.
-function weeklyGuard(kind: 'claude' | 'codex', now: number): { overLimit: boolean; resetAt: number | null } {
+// `marginPct` is the configured drain-target margin (Router.weeklyDrain-
+// MarginPct). 0 means the guard trips exactly at the linear drain
+// target; a positive value lets usage run that many points hot. resetAt
+// is the earliest weekly reset among the over-target windows, so the
+// failover exhaustion mark expires when the guarded window resets.
+function weeklyGuard(
+  kind: 'claude' | 'codex',
+  now: number,
+  marginPct: number
+): { overLimit: boolean; resetAt: number | null } {
   if (kind === 'claude') {
-    const opus = getKindWindowHeadroom('claude', 'seven_day_opus', now, WEEKLY_DRAIN_MARGIN_PCT)
-    const overall = getKindWindowHeadroom('claude', 'seven_day', now, WEEKLY_DRAIN_MARGIN_PCT)
+    const opus = getKindWindowHeadroom('claude', 'seven_day_opus', now, marginPct)
+    const overall = getKindWindowHeadroom('claude', 'seven_day', now, marginPct)
     const overLimit = opus.overTarget || overall.overTarget
     if (!overLimit) return { overLimit: false, resetAt: null }
     // Earliest reset among the windows that actually tripped the guard.
@@ -116,7 +123,7 @@ function weeklyGuard(kind: 'claude' | 'codex', now: number): { overLimit: boolea
     )
     return { overLimit: true, resetAt: resets.length > 0 ? Math.min(...resets) : null }
   }
-  const secondary = getKindWindowHeadroom('codex', 'secondary', now, WEEKLY_DRAIN_MARGIN_PCT)
+  const secondary = getKindWindowHeadroom('codex', 'secondary', now, marginPct)
   if (!secondary.overTarget) return { overLimit: false, resetAt: null }
   return { overLimit: true, resetAt: secondary.resetAt }
 }
@@ -130,13 +137,22 @@ function weeklyGuard(kind: 'claude' | 'codex', now: number): { overLimit: boolea
 // usable (no usage ceiling to read; their limits are handled reactively
 // on 429).
 //
+// `marginPct` defaults to 0 so tests / call sites without a Router
+// config behave like the pre-S5 hardcoded constant. The runtime caller
+// (applyProactiveFailover) reads the value from Router.weekly-
+// DrainMarginPct (Phase 6 S5) so the policy is tunable without code.
+//
 // Exported for unit tests so the weekly-window guard can be driven with a
 // seeded usage cache without standing up the full pipeline.
-export function candidateUsable(providerName: string, providers: ConfigProvider[]): boolean {
+export function candidateUsable(
+  providerName: string,
+  providers: ConfigProvider[],
+  marginPct: number = WEEKLY_DRAIN_MARGIN_PCT_DEFAULT
+): boolean {
   if (isProviderExhausted(providerName)) return false
   const kind = subscriptionKindOf(providerName, providers)
   if (kind === null) return true
-  const guard = weeklyGuard(kind, dayjs().valueOf())
+  const guard = weeklyGuard(kind, dayjs().valueOf(), marginPct)
   if (!guard.overLimit) return true
   markProviderExhausted(providerName, guard.resetAt !== null ? guard.resetAt : undefined)
   return false
@@ -181,17 +197,24 @@ export function applyProactiveFailover(
   const configured = fullRouter?.fallbacks?.[scenarioType]
   if (!Array.isArray(configured) || configured.length === 0) return primaryModel
 
+  // Phase 6 S5: read the drain-target margin from Router config so the
+  // policy is tunable without redeploying. Falls back to the historical
+  // 0 when the field is absent (unconfigured = no extra headroom).
+  const marginPct =
+    typeof fullRouter?.weeklyDrainMarginPct === 'number'
+      ? fullRouter.weeklyDrainMarginPct
+      : WEEKLY_DRAIN_MARGIN_PCT_DEFAULT
   const providers = config.get<ConfigProvider[]>('providers', [])
   for (const candidate of [primaryModel, ...configured]) {
     const providerName = candidate.split(',')[0]
-    if (!providerName || !candidateUsable(providerName, providers)) continue
+    if (!providerName || !candidateUsable(providerName, providers, marginPct)) continue
     // Capability gate: never fail over onto a model that cannot fit the
     // request — its window would 400 upstream. The primary is gated too
     // so a too-small primary is skipped in favour of a fitting fallback.
     if (!candidateFitsContext(candidate, tokenCount, providers)) continue
     if (candidate !== primaryModel) {
       log.info(
-        { from: primaryModel, to: candidate, scenario: scenarioType },
+        { from: primaryModel, to: candidate, scenario: scenarioType, marginPct },
         'proactive failover: primary near rate limit'
       )
     }
