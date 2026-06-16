@@ -53,6 +53,15 @@ export const RouterSchema = z
     // there's no threshold (it is not emitted as null), so .optional()
     // matches the wire — .nullable() would reject the absent key.
     longContextThreshold: z.number().int().positive().default(60000),
+    // Phase 6 S5: extra margin (percentage points) allowed over the
+    // weekly drain target before the proactive guard trips. 0 means the
+    // guard trips exactly when projected usage crosses the linear target;
+    // a positive value lets traffic run that many points hot before
+    // failing over. Persisted in the `default` slot's params so it does
+    // not need its own table (mirrors how longContextThreshold rides on
+    // the longContext slot's params). composeUiConfig omits the key
+    // entirely when 0, matching the longContextThreshold pattern.
+    weeklyDrainMarginPct: z.number().int().min(0).max(100).default(0),
     // Name of the active persona for this router, or null/absent for
     // "no persona". composeUiConfig folds it in from the disk envelope;
     // applyUiConfig reads it back out. Nullable so an explicit "clear"
@@ -79,6 +88,9 @@ export const RouterConfigSchema = z.object({
   webSearch: z.string().nullable(),
   image: z.string().nullable(),
   fallbacks: RouterFallbacksSchema.default(emptyFallbacks),
+  // Phase 6 S5: extra margin (percentage points) over the weekly drain
+  // target before the proactive failover guard trips. See RouterSchema.
+  weeklyDrainMarginPct: z.number().int().min(0).max(100).optional(),
   // Active persona name for this router. Optional so existing
   // per-project/session router-override files (which never carried a
   // persona) still parse; empty/absent means "no persona".

@@ -153,14 +153,35 @@ const syncSubscriptionPrices = async (tx: Tx): Promise<void> => {
     }),
     tx.model.findMany({
       where: { provider: { authMode: AuthMode.api_key }, inputPer1M: { not: null } },
-      select: { name: true, inputPer1M: true, outputPer1M: true, cachedInputPer1M: true }
+      select: {
+        name: true,
+        inputPer1M: true,
+        outputPer1M: true,
+        cachedInputPer1M: true,
+        provider: { select: { name: true } }
+      }
     })
   ])
 
-  // Build a name → first priced API model lookup (anthropic prices take
-  // precedence if multiple vendors list the same model name).
+  // Build a name → priced API model lookup. When more than one API
+  // provider lists the same model name, prefer the upstream vendor
+  // (e.g. claude-* prices ride on anthropic, not on an OpenRouter
+  // mirror) so the subscription cost estimate matches the source of
+  // truth deterministically. Without this an unsorted findMany() would
+  // pick whichever row happened to come first.
+  const upstreamRank = (providerName: string): number => {
+    const lower = providerName.toLowerCase()
+    if (lower.includes('anthropic')) return 0
+    if (lower.includes('openai')) return 0
+    if (lower.includes('google') || lower.includes('gemini')) return 0
+    return 1
+  }
+  const sortedApiModels = [...apiModels].sort((a, b) => {
+    const r = upstreamRank(a.provider.name) - upstreamRank(b.provider.name)
+    return r !== 0 ? r : a.provider.name.localeCompare(b.provider.name)
+  })
   const byName = new Map<string, { inputPer1M: number; outputPer1M: number | null; cachedInputPer1M: number | null }>()
-  for (const m of apiModels) {
+  for (const m of sortedApiModels) {
     if (!byName.has(m.name) && m.inputPer1M != null) {
       byName.set(m.name, { inputPer1M: m.inputPer1M, outputPer1M: m.outputPer1M, cachedInputPer1M: m.cachedInputPer1M })
     }

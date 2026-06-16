@@ -253,10 +253,19 @@ export const AnthropicIncomingRequestSchema = z.object({
   tool_choice: AnthropicToolChoiceSchema.optional(),
   thinking: z
     .object({
-      // When thinking is enabled, Anthropic mandates both fields —
-      // type is the discriminator and budget_tokens is the ceiling.
+      // type is the discriminator (`enabled` for explicit extended
+      // thinking; other values like `adaptive` exist server-side).
+      // budget_tokens is the ceiling and is mandatory specifically
+      // when type === 'enabled' — Anthropic rejects an enabled
+      // request without it. Other types may omit it, so the refine
+      // below scopes the requirement to the enabled case rather than
+      // making the field globally required.
       type: z.string().nonempty(),
       budget_tokens: z.number().int().nonnegative().optional()
+    })
+    .refine((t) => t.type !== 'enabled' || typeof t.budget_tokens === 'number', {
+      message: 'thinking.budget_tokens is required when thinking.type is "enabled"',
+      path: ['budget_tokens']
     })
     .optional(),
   // Claude Code extension fields observed in captured traffic.

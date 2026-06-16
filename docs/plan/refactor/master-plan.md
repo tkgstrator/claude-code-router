@@ -39,6 +39,7 @@
 3. Phase 3: Frontend Structure
 4. Phase 4: Workspaces and Quality
 5. Phase 5: Multi-Account Same Plan
+6. Phase 6: Quota-Aware Routing
 
 ## Tracking
 

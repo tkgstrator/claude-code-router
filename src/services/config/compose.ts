@@ -28,7 +28,8 @@ export const emptyRouter = (): Router => ({
   webSearch: null,
   image: null,
   fallbacks: emptyFallbacks(),
-  longContextThreshold: 60_000
+  longContextThreshold: 60_000,
+  weeklyDrainMarginPct: 0
 })
 
 export const formatSlot = (
@@ -52,6 +53,20 @@ export const fallbacksFromParams = (params: unknown): string[] | null => {
   if (!Array.isArray(raw)) return null
   const list = raw.filter((v): v is string => typeof v === 'string' && v.length > 0)
   return list.length > 0 ? list : null
+}
+
+// Read `weeklyDrainMarginPct` off the default slot's params JSON column.
+// The margin is a Router-level policy knob (not slot-specific) but rides
+// on the default slot's params for the same reason longContextThreshold
+// rides on the longContext slot's params: it dodges a dedicated table /
+// migration. 0 reads as null so composeUiConfig can omit the key when
+// the policy is at its default (matching the threshold pattern).
+export const weeklyDrainMarginPctFromParams = (params: unknown): number | null => {
+  if (!isJsonObject(params)) return null
+  const m = params.weeklyDrainMarginPct
+  if (typeof m !== 'number') return null
+  if (!Number.isInteger(m) || m < 0 || m > 100) return null
+  return m > 0 ? m : null
 }
 
 export type ProviderWithModels = DbProvider & {
@@ -155,6 +170,10 @@ export async function composeUiConfig(): Promise<AppConfig> {
     if (key === 'longContext') {
       const threshold = thresholdFromParams(slot.params)
       if (threshold !== null) router.longContextThreshold = threshold
+    }
+    if (key === 'default') {
+      const margin = weeklyDrainMarginPctFromParams(slot.params)
+      if (margin !== null) router.weeklyDrainMarginPct = margin
     }
     const fallbacks = fallbacksFromParams(slot.params)
     if (fallbacks) router.fallbacks[key] = fallbacks

@@ -376,6 +376,18 @@ export async function resolveFallbackTargets(
 
 export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: string[]): Promise<void> {
   const longContextThreshold = typeof incoming.longContextThreshold === 'number' ? incoming.longContextThreshold : null
+  // weeklyDrainMarginPct rides on the default slot's params. 0 means
+  // "policy at its default" and is treated as "drop the key" so we don't
+  // store noise. Negative / out-of-range / non-integer values are
+  // ignored — applyUiConfig already round-trips the RouterSchema which
+  // clamps to int 0..100, but this is the defence-in-depth path.
+  const incomingMargin =
+    typeof incoming.weeklyDrainMarginPct === 'number' &&
+    Number.isInteger(incoming.weeklyDrainMarginPct) &&
+    incoming.weeklyDrainMarginPct > 0 &&
+    incoming.weeklyDrainMarginPct <= 100
+      ? incoming.weeklyDrainMarginPct
+      : null
 
   for (const scenario of SCENARIO_KEYS) {
     const { providerName, modelName } = parseSlot(incoming[scenario])
@@ -395,10 +407,14 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
     const fallbacks = await resolveFallbackTargets(tx, scenario, incoming.fallbacks?.[scenario], warnings)
 
     // params holds the scenario-scoped knobs: longContext keeps its
-    // threshold; any slot may carry a fallbacks chain. An empty object
-    // collapses to DbNull so a slot with no knobs stores NULL.
+    // threshold; default keeps the Router-wide weeklyDrainMarginPct
+    // policy knob (it rides on default because the policy applies
+    // globally and the default slot is always present); any slot may
+    // carry a fallbacks chain. An empty object collapses to DbNull so a
+    // slot with no knobs stores NULL.
     const paramsObj: Prisma.InputJsonObject = {
       ...(scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : {}),
+      ...(scenario === 'default' && incomingMargin !== null ? { weeklyDrainMarginPct: incomingMargin } : {}),
       ...(fallbacks.length > 0 ? { fallbacks } : {})
     }
     const params: Prisma.InputJsonValue | typeof Prisma.DbNull =
@@ -412,7 +428,7 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
   }
 
   // Surface any catchall (custom) keys we silently drop.
-  const knownKeys = new Set<string>([...SCENARIO_KEYS, 'longContextThreshold', 'fallbacks'])
+  const knownKeys = new Set<string>([...SCENARIO_KEYS, 'longContextThreshold', 'weeklyDrainMarginPct', 'fallbacks'])
   const dropped = Object.keys(incoming).filter((k) => !knownKeys.has(k))
   if (dropped.length > 0) {
     warnings.push(`Router fields not yet stored in DB and were ignored: ${dropped.join(', ')}. (See PR #2.)`)
