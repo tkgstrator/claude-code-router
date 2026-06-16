@@ -106,14 +106,38 @@ sticky マッピングは維持する（プロンプトキャッシュ継続の�
 
 目標線を**下回っていて、かつ reset が近い**アカウント・窓を tie-break で優先消費する。これで「取り残し最小化」と「なるべく使い切る」を両立する。
 
+## ルーティング入力シグナルと要求モデルの扱い
+
+### 要求モデルは満たしていない（現状の確認）
+
+`selectModel`（`scenario-router.ts`）は `body.model` を**シナリオで上書きする**。Claude Code の要求モデルは「haiku → `background` のトリガ」「`router.default` 未設定時の最終フォールバック」としてしか使われず、要求ティア（opus/sonnet）は尊重されない。明示指定（`provider,model` のカンマ形式、`<CCR-SUBAGENT-MODEL>` タグ）だけは素通しする。
+
+さらに重要なのは**能力保証がない**こと。`Model.contextWindow` は DB にあり `compose.ts:90-91` が `modelContextWindows` まで組んでいるのに、router の `ConfigProvider` ビューはモデル**名**しか持たない（`compose.ts:99`）。よって「振り先モデルが要求コンテキストに収まるか」は検査されず、固定 `longContextThreshold` が代用しているだけ。窓を超える振り先に飛ばすと upstream の 400 で初めて気づく（事後）。Sonnet に寄せる方針では、ここを proactive に塞ぐ必要がある。
+
+### 入力シグナルの優先順位
+
+「このリクエストはどれだけ重いか」を次の順で判定する（上が優先、無ければ下へフォールバック）:
+
+1. `output_config.effort`（`low/medium/high/xhigh/max`）— 段階的で最も直接的。`route.ts` で既にパース済み。
+2. `thinking.budget_tokens` — 拡張思考の段階（現状は有無のみ使用）。
+3. messages トークン数 — サイズ（現状 `longContext` で使用）。
+4. 要求モデルのティア（opus/sonnet/haiku）— Claude Code の意図。
+
+グレーディング例: effort `low/medium` または要求 sonnet/haiku → Sonnet レーン。effort `high/xhigh/max` または要求 opus → Opus/long レーン。effort は新しめの Claude Code が送る形なので、無い世代は thinking/サイズへフォールバックする。
+
+### 能力ゲート
+
+振り先モデルが要求を満たせることを保証する。最低限 `Model.contextWindow >= 推定トークン数` を検査し、満たさない振り先は候補から外す（Sonnet で溢れるなら long レーンへ）。`compose.ts` の `modelContextWindows` を router ビューに載せれば原資は足りる。
+
 ## Implementation Slices
 
 1PR = 1テーマ。上から順に、各スライスは前のスライスの上に乗る。
 
 - **S0 応急（config のみ・即効）**: 2 つ同時に効く。(1) `Router.default`（と Sonnet で足りるシナリオ）を Sonnet モデルに向け、主力を余剰の 7d Sonnet へ寄せる。(2) `Router.fallbacks.longContext` を `[codex, claude-opus...]` 順にして Opus を後置。コード変更なしで 7d Opus 逼迫を即座に緩める。
+- **S0.5 入力シグナル・グレーディング（usage 非依存・早期着手可）**: `selectModel` に `output_config.effort` / 要求モデルティアの判定を追加し、軽いリクエストを Sonnet レーン、重いリクエストを Opus/long レーンへ振る。effort も `body.model` も既に router が受け取るボディ内にあるので migration 不要の局所変更。usage-window 機構（S1-S2）に依存せず先行で出せ、低/中 effort トラフィックを Sonnet へ流すだけで Opus 7d が即座に楽になる。能力ゲート（contextWindow 検査）は S3 で追加。
 - **S1 データ層**: `usage-service` に窓指定ヘッドルームを追加。`getKindHeadroom` を窓選択可能にするか、新たに `getAccountHeadroom(subAccountId, { window })` を足す。`sevenDay` / `sevenDayOpus` / `sevenDaySonnet` / Codex `secondary` を読む。線形ドレイン目標ヘルパを追加。
 - **S2 失効判定**: `candidateUsable` / `applyProactiveFailover` を 5h でなく 7d guard で判定。`markProviderExhausted` の `until` を 7d の `resetsAt` 基準にする。
-- **S3 ティア認識ルーティング**: long context クラスで「Codex 優先 → 7d Opus ヘッドルーム最大アカウントの Opus」のカスケード。短コンテキストは Sonnet 固定。`selectModel` / `applyProactiveFailover` を拡張。
+- **S3 ティア認識ルーティング**: long context クラスで「Codex 優先 → 7d Opus ヘッドルーム最大アカウントの Opus」のカスケード。短コンテキストは Sonnet 固定。`selectModel` / `applyProactiveFailover` を拡張。あわせて能力ゲート（`Model.contextWindow` を router ビューに載せ、振り先が要求コンテキストに収まることを保証。溢れるなら long レーンへ）を追加。
 - **S4 アカウント選択**: `resolveAccountForSession` を窓別ヘッドルームで選ぶ。
 - **S5 設定面**: ポリシーのノブ（ドレイン目標 on/off、margin%、窓別 soft/hard、tier preference）を `RouterSlot.params` か `Router` スキーマに追加。UI 露出は後続。
 - **S6 可観測性・テスト**: 各窓のヘッドルームとルーティング判断をログ。ユニットテストを追加。
