@@ -17,6 +17,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import {
   decryptString,
   getActiveSubAccountAuth,
+  reconcileActiveSubAccounts,
   recordClaudeOAuthAccount,
   recordCodexOAuthAccount,
   updateSubAccountAccessToken
@@ -383,6 +384,98 @@ describe.skipIf(!HAS_DB)('subscription-account-sync-service (DB)', () => {
       const after = await getActiveSubAccountAuth('codex-oauth')
       expect(after!.accessToken).toBe('new-at')
       expect(after!.refreshToken).toBe('keep-rt')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // reconcileActiveSubAccounts — boot-time self-heal for providers whose
+  // active-account binding was orphaned by older toggle code that nulled
+  // it without promoting a successor.
+  // -------------------------------------------------------------------------
+
+  describe('reconcileActiveSubAccounts', () => {
+    const seedAccount = async (providerId: string, sourcePath: string, enabled: boolean) => {
+      const db = prisma()
+      return db.subAccount.create({
+        data: {
+          providerId,
+          sourcePath,
+          label: `claude-code:${sourcePath}`,
+          enabled,
+          userName: 'Tester',
+          userEmail: `${sourcePath}@example.com`,
+          plan: 'claude_max'
+        }
+      })
+    }
+
+    test('promotes oldest enabled account when active binding is null', async () => {
+      const provider = await createSubProvider('claude')
+      const db = prisma()
+      // Mirror the bug case: a disabled "old" account, an enabled "new"
+      // one, and no active binding.
+      await seedAccount(provider.id, 'oauth:claude:disabled', false)
+      const enabled = await seedAccount(provider.id, 'oauth:claude:enabled', true)
+
+      await reconcileActiveSubAccounts()
+
+      const after = await db.provider.findUnique({
+        where: { id: provider.id },
+        select: { activeSubscriptionAccountId: true }
+      })
+      expect(after?.activeSubscriptionAccountId).toBe(enabled.id)
+    })
+
+    test('promotes when active points at a now-disabled account', async () => {
+      const provider = await createSubProvider('claude')
+      const db = prisma()
+      const stale = await seedAccount(provider.id, 'oauth:claude:stale', false)
+      const fresh = await seedAccount(provider.id, 'oauth:claude:fresh', true)
+      await db.provider.update({
+        where: { id: provider.id },
+        data: { activeSubscriptionAccountId: stale.id }
+      })
+
+      await reconcileActiveSubAccounts()
+
+      const after = await db.provider.findUnique({
+        where: { id: provider.id },
+        select: { activeSubscriptionAccountId: true }
+      })
+      expect(after?.activeSubscriptionAccountId).toBe(fresh.id)
+    })
+
+    test('leaves binding null when no enabled account is available', async () => {
+      const provider = await createSubProvider('claude')
+      const db = prisma()
+      await seedAccount(provider.id, 'oauth:claude:only', false)
+
+      await reconcileActiveSubAccounts()
+
+      const after = await db.provider.findUnique({
+        where: { id: provider.id },
+        select: { activeSubscriptionAccountId: true }
+      })
+      expect(after?.activeSubscriptionAccountId).toBeNull()
+    })
+
+    test('leaves a healthy active binding untouched', async () => {
+      const provider = await createSubProvider('claude')
+      const db = prisma()
+      const live = await seedAccount(provider.id, 'oauth:claude:live', true)
+      await seedAccount(provider.id, 'oauth:claude:other', true)
+      await db.provider.update({
+        where: { id: provider.id },
+        data: { activeSubscriptionAccountId: live.id }
+      })
+
+      await reconcileActiveSubAccounts()
+
+      const after = await db.provider.findUnique({
+        where: { id: provider.id },
+        select: { activeSubscriptionAccountId: true }
+      })
+      expect(after?.activeSubscriptionAccountId).toBe(live.id)
     })
   })
 })
