@@ -6,16 +6,25 @@ on:
       - develop
   workflow_dispatch:
 
+# Only the latest develop push publishes the moving :develop tag.
+# Older overlapping runs are cancelled so they cannot race and
+# overwrite :develop with an older commit on completion.
+concurrency:
+  group: deployment-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DOCKER_IMAGE: tkgling/claude-code-router
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # actions:write is needed for type=gha BuildKit cache-to;
+    # contents:read for checkout. Docker Hub login uses username/password
+    # secrets, so packages:write and id-token:write are not required.
     permissions:
       contents: read
-      packages: write
-      id-token: write
+      actions: write
 
     steps:
       - name: Checkout repository
