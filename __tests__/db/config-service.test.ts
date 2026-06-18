@@ -251,6 +251,111 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.persona).toBeNull()
   })
 
+  test('disabling the active subscription account promotes another enabled one', async () => {
+    // Stand up a subscription provider directly via Prisma — applyUiConfig
+    // does not own the SubAccount create path (that's the OAuth flow), it
+    // only owns the toggle path we are exercising here.
+    const prisma = getPrismaClient()
+    const { AuthMode } = await import('../../src/generated/prisma/client')
+    const provider = await prisma.provider.create({
+      data: {
+        name: 'claude-code',
+        apiBaseUrl: 'https://api.anthropic.com',
+        authMode: AuthMode.subscription
+      }
+    })
+    const active = await prisma.subAccount.create({
+      data: {
+        providerId: provider.id,
+        sourcePath: 'oauth:claude:a',
+        label: 'claude-code:web-oauth',
+        enabled: true,
+        plan: 'claude_max'
+      }
+    })
+    const spare = await prisma.subAccount.create({
+      data: {
+        providerId: provider.id,
+        sourcePath: 'oauth:claude:b',
+        label: 'claude-code:web-oauth',
+        enabled: true,
+        plan: 'claude_max'
+      }
+    })
+    await prisma.provider.update({
+      where: { id: provider.id },
+      data: { activeSubscriptionAccountId: active.id }
+    })
+
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'claude-code',
+          api_base_url: 'https://api.anthropic.com',
+          api_key: '',
+          auth_mode: 'subscription',
+          models: [],
+          subscription_accounts: [
+            { id: active.id, enabled: false },
+            { id: spare.id, enabled: true }
+          ]
+        }
+      ],
+      Router: {}
+    })
+
+    const after = await prisma.provider.findUnique({
+      where: { id: provider.id },
+      select: { activeSubscriptionAccountId: true }
+    })
+    expect(after?.activeSubscriptionAccountId).toBe(spare.id)
+  })
+
+  test('disabling the last enabled subscription account nulls the binding', async () => {
+    const prisma = getPrismaClient()
+    const { AuthMode } = await import('../../src/generated/prisma/client')
+    const provider = await prisma.provider.create({
+      data: {
+        name: 'claude-code',
+        apiBaseUrl: 'https://api.anthropic.com',
+        authMode: AuthMode.subscription
+      }
+    })
+    const only = await prisma.subAccount.create({
+      data: {
+        providerId: provider.id,
+        sourcePath: 'oauth:claude:only',
+        label: 'claude-code:web-oauth',
+        enabled: true,
+        plan: 'claude_max'
+      }
+    })
+    await prisma.provider.update({
+      where: { id: provider.id },
+      data: { activeSubscriptionAccountId: only.id }
+    })
+
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'claude-code',
+          api_base_url: 'https://api.anthropic.com',
+          api_key: '',
+          auth_mode: 'subscription',
+          models: [],
+          subscription_accounts: [{ id: only.id, enabled: false }]
+        }
+      ],
+      Router: {}
+    })
+
+    const after = await prisma.provider.findUnique({
+      where: { id: provider.id },
+      select: { activeSubscriptionAccountId: true }
+    })
+    expect(after?.activeSubscriptionAccountId).toBeNull()
+  })
+
   test('unknown router scenarios are dropped with a warning', async () => {
     await applyUiConfig({
       Providers: [

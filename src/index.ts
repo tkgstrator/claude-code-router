@@ -27,6 +27,7 @@ import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
 import { logger, syncLevelFromEnv } from './logger'
 import { initConfig, initDir } from './services/config/envelope'
+import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
 import { APP_VERSION } from './version'
 
@@ -53,6 +54,10 @@ const envelope = await initConfig()
 // mirrored config.json's LOG_LEVEL onto process.env.
 syncLevelFromEnv()
 logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
+// Self-heal subscription providers whose active account binding was
+// orphaned by older toggle code that nulled instead of promoting.
+// Idempotent: a no-op once every provider already has a valid active.
+await reconcileActiveSubAccounts()
 // Fire-and-forget: never block server boot on Redis. The job setup
 // is resilient and registers the BullMQ schedule once Redis is reachable;
 // it has its own per-process guard so HMR re-evaluation is a no-op.
