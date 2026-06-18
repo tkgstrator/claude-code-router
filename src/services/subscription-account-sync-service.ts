@@ -226,15 +226,22 @@ export async function reconcileActiveSubAccounts(prisma: PrismaClient = getPrism
   for (const p of providers) {
     if (p.activeSubscriptionAccount?.enabled) continue
     const next = p.subscriptionAccounts[0]
-    if (!next) continue
+    const nextId = next ? next.id : null
+    // Already in the right shape: binding is null and there is no
+    // candidate to promote — nothing to write.
+    if (nextId === null && p.activeSubscriptionAccountId === null) continue
     await prisma.provider.update({
       where: { id: p.id },
-      data: { activeSubscriptionAccountId: next.id }
+      data: { activeSubscriptionAccountId: nextId }
     })
-    logger.info(
-      { provider: p.name, subAccountId: next.id },
-      '[subaccount] reconcile: promoted enabled subaccount into orphaned active slot'
-    )
+    if (nextId === null) {
+      logger.info({ provider: p.name }, '[subaccount] reconcile: cleared stale active binding (no enabled candidate)')
+    } else {
+      logger.info(
+        { provider: p.name, subAccountId: nextId },
+        '[subaccount] reconcile: promoted enabled subaccount into orphaned active slot'
+      )
+    }
   }
 }
 

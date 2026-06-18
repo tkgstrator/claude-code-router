@@ -459,6 +459,24 @@ describe.skipIf(!HAS_DB)('subscription-account-sync-service (DB)', () => {
       expect(after?.activeSubscriptionAccountId).toBeNull()
     })
 
+    test('clears stale active binding when no enabled candidate remains', async () => {
+      const provider = await createSubProvider('claude')
+      const db = prisma()
+      const stale = await seedAccount(provider.id, 'oauth:claude:stale', false)
+      await db.provider.update({
+        where: { id: provider.id },
+        data: { activeSubscriptionAccountId: stale.id }
+      })
+
+      await reconcileActiveSubAccounts()
+
+      const after = await db.provider.findUnique({
+        where: { id: provider.id },
+        select: { activeSubscriptionAccountId: true }
+      })
+      expect(after?.activeSubscriptionAccountId).toBeNull()
+    })
+
     test('leaves a healthy active binding untouched', async () => {
       const provider = await createSubProvider('claude')
       const db = prisma()
