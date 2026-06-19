@@ -30,7 +30,7 @@
       "source": {
         "source": "github",
         "repo": "qtmleap/claude-plugins",
-        "ref": "v0.3.4"
+        "ref": "v0.3.5"
       }
     }
   },
