@@ -2,11 +2,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
+import { MultiSelectCombobox } from '@/components/MultiSelectCombobox'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
@@ -325,7 +325,7 @@ function RouterForm({ config }: { config: Config }) {
                       <FormItem>
                         <FormLabel>{t(`router.${slot}`)}</FormLabel>
                         <FormControl>
-                          <MultiCombobox
+                          <MultiSelectCombobox
                             options={modelOptions}
                             value={field.value}
                             onChange={field.onChange}
