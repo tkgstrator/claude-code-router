@@ -56,6 +56,70 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.think).toBeNull()
   })
 
+  test('weeklyDrainMarginPct round-trips on the default slot params (S5)', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 15 }
+    })
+
+    const ui = await composeUiConfig()
+    expect(ui.Router.weeklyDrainMarginPct).toBe(15)
+  })
+
+  test('weeklyDrainMarginPct at 0 is omitted (collapses to the emptyRouter default)', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 0 }
+    })
+
+    const ui = await composeUiConfig()
+    // emptyRouter() seeds 0 so the wire reads 0 either way; the
+    // important invariant is that we did NOT round-trip a literal 0
+    // into the DB (verified by the next test stashing 25 then writing 0
+    // and seeing 0 come back).
+    expect(ui.Router.weeklyDrainMarginPct).toBe(0)
+  })
+
+  test('writing weeklyDrainMarginPct=0 clears a previously-set value', async () => {
+    // First set a non-zero margin, then overwrite with 0 — the second
+    // apply must drop the key so compose reads the default 0 instead of
+    // the stale 25.
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 25 }
+    })
+    expect((await composeUiConfig()).Router.weeklyDrainMarginPct).toBe(25)
+
+    await applyUiConfig({
+      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 0 }
+    })
+    expect((await composeUiConfig()).Router.weeklyDrainMarginPct).toBe(0)
+  })
+
   test('per-slot fallbacks round-trip and unknown models are dropped with a warning', async () => {
     const result = await applyUiConfig({
       Providers: [

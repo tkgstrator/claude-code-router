@@ -11,6 +11,8 @@
 ## ✨ Features
 
 - **Task-based routing** — assign different models to six built-in scenarios: `default`, `background`, `think` (Plan Mode), `longContext`, `webSearch`, and `image`.
+- **Quota-aware fallbacks** — per-scenario ordered fallback chains with proactive fail-over when a subscription provider crosses its weekly drain target. Effort and model-tier signals bias light traffic to Sonnet and heavy traffic to Opus.
+- **Personas** — append a named system prompt to every user-facing request without touching Claude Code. Manage a library on the Personas page; pick the active one on the Router page.
 - **Multi-provider support** — connect API-key providers (Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, …) or subscription-based providers (Claude Code OAuth, OpenAI Codex).
 - **Subscription monitoring** — track rate-limit windows and compare actual API spend against subscription cost.
 - **Usage & cost dashboard** — per-provider and per-model cost breakdown with daily cost charts.
@@ -32,7 +34,8 @@ The web UI (served on port **3456** by default) gives you full control over ever
 |------|---------|
 | **Models** | View enabled models, pricing, context window, and test connectivity |
 | **Providers** | Add, edit, or remove API-key and subscription providers |
-| **Router** | Assign models to each routing scenario |
+| **Router** | Assign models to each routing scenario; pick the active persona |
+| **Personas** | Manage a library of named system prompts; create, edit, or delete personas |
 | **Subscriptions** | Monitor rate-limit windows and subscription cost vs. API spend |
 | **Usage** | API cost breakdown by provider and model with time-series charts |
 | **History** | Browse past request logs |
@@ -165,6 +168,32 @@ Configure which model to use for each scenario on the **Router** page:
 | `longContext` | Requests above the context threshold (default 60 000 tokens) |
 | `webSearch` | Web search tasks (the model must support search natively) |
 | `image` | Image-related tasks (uses CCR's built-in image agent) |
+
+### Effort, tier, and fallbacks
+
+Beyond the scenario triggers above, the router grades each request and walks an ordered fallback list:
+
+- **Grading signals** — `output_config.effort` (low/medium → `default`, high/xhigh/max → `longContext`) and the requested model tier from `body.model` (opus → heavy, sonnet/haiku → light). Tier is read only when effort is absent so older Claude Code traffic still grades correctly; an explicit low/medium effort suppresses the tier fallback so callers can downgrade an opus default.
+- **Per-scenario fallback chains** — every slot accepts an ordered list of `provider,model` fallbacks; the router walks `[primary, ...fallbacks]` and picks the first candidate that has weekly-window headroom and a context window large enough for the request.
+- **Weekly drain guard** — subscription providers are skipped when their *weekly* usage is over its linear drain target (`seven_day_opus` or overall `seven_day` for claude, `secondary` for codex). The 5h / codex-primary windows are *soft* and may burst without triggering fail-over. `Router.weeklyDrainMarginPct` (0..100, default 0) lets traffic run that many points hot before the guard trips — useful when you'd rather burst the weekly window than fail over.
+- **Capability gate** — fail-over never lands on a model whose declared `contextWindow` cannot hold the request. Models with no declared window are allowed (unknown = allow, conservative default).
+- **Multi-account balancing** — when more than one SubAccount on the same Claude provider is enabled, the session router picks the one with the most weekly headroom (furthest behind its linear drain target) and sticks subsequent requests in the session to that account.
+
+Decisions are logged structurally: the winning hop carries `{ from, to, scenario, marginPct, tokenCount, trace }`, and a dead-chain warning fires when every candidate is rejected so the operator can see what was tried and why (`rate-limited` / `capability` / `malformed` / `kept`).
+
+### Personas
+
+A *persona* is a named system-prompt fragment appended to every user-facing request after scenario routing. Use them to give Claude Code a consistent voice / role / set of working rules without editing Claude Code itself.
+
+- **Library** — `Personas` is a top-level array on the disk envelope. Each entry has a stable uuid `id`, a free-form `name` (display label, need not be unique), and the `prompt` text. New installs ship with a small starter library; existing installs keep what they have on disk.
+- **Active selection** — exactly one persona is active per Router. The active persona's uuid id rides on `Router.persona` (round-tripped through the disk-only `ActivePersona` envelope key). `null` / absent / empty string means "no persona". Per-project and per-session router-override files also accept `Router.persona`.
+- **Injection** — when the router resolves a scenario, the active persona's `prompt` is appended to the LAST system block carrying `cache_control` (falling back to the last string text block). This keeps the persona *inside* the cached prefix, so it consumes no extra cache breakpoint and stays byte-stable across requests (preserving Anthropic's prompt cache). String and undefined `system` values are concatenated; multi-block array systems are mutated in place.
+- **Scenario exclusion** — the `background` scenario is excluded: it runs lightweight internal tasks (e.g. title generation) where a persona voice would corrupt the output. Every other scenario (default / think / longContext / webSearch / image) inherits the active persona.
+- **Subagent interaction** — persona injection runs *after* `<CCR-SUBAGENT-MODEL>` tag handling, so a subagent's per-call system content composes with — rather than clobbers — the persona.
+
+Manage the library on the **Personas** page (`/personas`); switch the active persona on the **Router** page. Setting it to "no persona" is the no-op default.
+
+For authoring high-fidelity personas (structural patterns, anti-pattern cataloguing, thought-process control for `think` requests), see [docs/guides/persona-authoring.md](docs/guides/persona-authoring.md).
 
 ### Transformers
 
