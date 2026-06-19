@@ -45,13 +45,15 @@ export function MultiSelectCombobox({
   }
 
   const summary =
-    value.length > 0 ? value.map((v) => options.find((o) => o.value === v)?.label ?? v).join(', ') : placeholder
+    value.length > 0 ? value.map((v) => options.find((o) => o.value === v)?.label || v).join(', ') : placeholder
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant='outline' role='combobox' aria-expanded={open} className='w-full justify-between font-normal'>
-          <span className={cn('truncate text-left', value.length === 0 && 'text-muted-foreground')}>{summary}</span>
+          <span className={cn('min-w-0 flex-1 truncate text-left', value.length === 0 && 'text-muted-foreground')}>
+            {summary}
+          </span>
           <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
         </Button>
       </PopoverTrigger>
@@ -62,7 +64,15 @@ export function MultiSelectCombobox({
             <CommandEmpty>{emptyPlaceholder}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
-                <CommandItem key={option.value} value={option.value} onSelect={() => handleSelect(option.value)}>
+                // cmdk filters by `value`, so use the visible label there
+                // and keep the raw form value as a keyword. onSelect uses
+                // a closure to pass the real value, ignoring cmdk's arg.
+                <CommandItem
+                  key={option.value}
+                  value={option.label}
+                  keywords={[option.value]}
+                  onSelect={() => handleSelect(option.value)}
+                >
                   <Check className={cn('mr-2 h-4 w-4', value.includes(option.value) ? 'opacity-100' : 'opacity-0')} />
                   {option.label}
                 </CommandItem>
