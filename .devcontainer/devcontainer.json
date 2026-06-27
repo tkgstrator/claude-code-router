@@ -55,23 +55,18 @@
       "extensions": [
         "Anthropic.claude-code",
         "EditorConfig.EditorConfig",
-        "GitHub.copilot",
-        "GitHub.copilot-chat",
         "Lokalise.i18n-ally",
         "PKief.material-icon-theme",
         "Prisma.prisma",
         "antfu.file-nesting",
         "bierner.github-markdown-preview",
-        "bierner.markdown-mermaid",
         "bierner.markdown-preview-github-styles",
         "biomejs.biome",
-        "eamodio.gitlens",
         "ms-playwright.playwright",
         "ms-vscode.vscode-typescript-next",
         "pHofer94.vscode-taskviewexplorer",
         "redhat.vscode-yaml",
-        "tamasfe.even-better-toml",
-        "vsls-contrib.gitdoc"
+        "tamasfe.even-better-toml"
       ],
       "settings": {}
     }
