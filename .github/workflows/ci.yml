@@ -28,8 +28,12 @@ jobs:
       - name: Validate current commit (push)
         if: github.event_name == 'push'
         run: bunx commitlint --last --verbose
+      # Skip on develop→master release PRs: those promote a long-lived
+      # batch of already-validated commits, so re-linting the whole
+      # backlog from --from HEAD~commits-count just trips on historical
+      # commits that predate the current commitlint rules.
       - name: Validate PR commits
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.base_ref != 'master'
         run: |
           bunx commitlint \
             --from ${{ github.event.pull_request.head.sha }}~${{ github.event.pull_request.commits }} \
