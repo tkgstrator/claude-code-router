@@ -9,8 +9,9 @@
  *                       Opus, codex: primary) and record the mapping for
  *                       this session
  *
- * "Required burn rate" = pctRemaining / timeRemaining on the balancing
- * window: how fast this account would need to spend to consume its full
+ * "Required burn rate" = pctRemaining / timeRemainingMs on the balancing
+ * window (both terms on the same percent-per-millisecond scale): how
+ * fast this account would need to spend to consume its full
  * quota by the next reset. Picking the maximum means we route to the
  * account at greatest risk of leaving quota unspent at reset — i.e. we
  * drain near-reset accounts that still have headroom first, and skip
@@ -89,10 +90,11 @@ export async function resolveAccountForSession(
   // Pick the account with the HIGHEST required burn rate on the scarce
   // weekly window — i.e. the one most at risk of leaving quota unspent
   // by its next reset. Never-polled / stale-reset accounts read as
-  // MAX_PRIORITY and stay preferred. Deterministic stable reduce.
-  const picked = accounts.reduce((best, a) =>
-    balancingScore(a.subAccountId, kind, now) > balancingScore(best.subAccountId, kind, now) ? a : best
-  )
+  // MAX_PRIORITY and stay preferred. Score each account once up front so
+  // the reduce comparison stays O(1) per step and can't see a different
+  // cache snapshot for the same account across iterations.
+  const scored = accounts.map((a) => ({ account: a, score: balancingScore(a.subAccountId, kind, now) }))
+  const picked = scored.reduce((best, candidate) => (candidate.score > best.score ? candidate : best)).account
   sessionMap.set(sessionId, picked.subAccountId)
   return picked
 }
