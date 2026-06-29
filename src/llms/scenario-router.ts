@@ -368,6 +368,20 @@ export function selectModel(
     return resolveExplicitProviderModel(req.body.model, config)
   }
 
+  // Bare model-name override — when the request's `model` string is a
+  // model name that some configured provider already hosts, honor that
+  // choice as-is. This sits ABOVE the heuristic rewrites (haiku →
+  // background, opus → longContext, thinking → think) so a client that
+  // explicitly asks for `claude-haiku-4-5` lands on the matching
+  // provider rather than whatever the background slot points at.
+  // Falls through silently when no provider hosts the name, so the
+  // existing scenario routing remains the catch-all.
+  const direct = resolveByModelName(req.body.model, config)
+  if (direct) {
+    req.log.info({ model: direct.model }, 'Using request-specified model — exact provider match')
+    return direct
+  }
+
   // Long context — token count exceeds threshold AND Router.longContext set.
   if (router) {
     const longContext = pickLongContext(req, tokenCount, router)
@@ -420,6 +434,24 @@ function resolveExplicitProviderModel(
   const model = provider?.models?.find((m) => m.toLowerCase() === modelInput.toLowerCase())
   if (provider && model) return { model: `${provider.name},${model}`, scenarioType: 'default' }
   return { model: rawModel, scenarioType: 'default' }
+}
+
+// Look for the first provider whose registered `models` list contains
+// the bare model name. Returns the canonical `provider,model` pair so
+// the rest of the pipeline can resolve it. Case-insensitive to match
+// resolveExplicitProviderModel. Returns null when no provider hosts the
+// name — caller falls through to scenario routing.
+function resolveByModelName(
+  rawModel: string,
+  config: ConfigStore
+): { model: string; scenarioType: ScenarioType } | null {
+  const providers = config.get<ConfigProvider[]>('providers', [])
+  for (const p of providers) {
+    if (!p.models) continue
+    const match = p.models.find((m) => m.toLowerCase() === rawModel.toLowerCase())
+    if (match) return { model: `${p.name},${match}`, scenarioType: 'default' }
+  }
+  return null
 }
 
 function pickLongContext(
