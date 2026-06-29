@@ -19,6 +19,7 @@
 
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
 import type { ClaudeUsage } from '../../src/schemas/usage.dto'
+import { clearAccountExhaustion, markAccountExhausted } from '../../src/services/failover-state'
 import type { SubAccountTokenInfo } from '../../src/services/subscription-account-sync-service'
 import { __clearUsageCachesForTest, __seedClaudeCacheForTest } from '../../src/services/usage-service'
 
@@ -32,7 +33,9 @@ mock.module('../../src/services/subscription-account-sync-service', () => ({
 }))
 
 // Imported after the mock is registered so the router binds to the stub.
-const { resolveAccountForSession } = await import('../../src/services/session-account-router')
+const { resolveAccountForSession, getActiveAccountForSession, releaseAccountForSession } = await import(
+  '../../src/services/session-account-router'
+)
 
 // A 7-day window in ms and a fixed `now` sitting exactly halfway through a
 // window whose reset is a further half-window away => linear target 50%.
@@ -65,10 +68,20 @@ const claudeUsage = (opusPct: number, fiveHourPct: number): ClaudeUsage => ({
 beforeEach(() => {
   __clearUsageCachesForTest()
   claudeAccounts = []
+  // Account-level exhaustion is module-global; reset for the accounts
+  // any test in this file touches so cases stay independent.
+  clearAccountExhaustion('a1')
+  clearAccountExhaustion('a2')
+  clearAccountExhaustion('a3')
+  clearAccountExhaustion('solo')
 })
 
 afterEach(() => {
   __clearUsageCachesForTest()
+  clearAccountExhaustion('a1')
+  clearAccountExhaustion('a2')
+  clearAccountExhaustion('a3')
+  clearAccountExhaustion('solo')
 })
 
 test('returns null when no accounts exist', async () => {
@@ -143,9 +156,12 @@ test('a never-polled account reads as MAX_PRIORITY and is preferred', async () =
 
 test('an account with no resetAt on the balancing window reads as MAX_PRIORITY', async () => {
   // a1 has a real reset and a finite score; a2 has a null resetsAt on
-  // the 7d-Opus window so its score is MAX_PRIORITY => a2 wins.
+  // the 7d-Opus window so its score is MAX_PRIORITY => a2 wins. Keep
+  // both burst (5h) windows below the saturation threshold so the new
+  // proactive demote doesn't fire and the test isolates the resetAt
+  // branch under exercise.
   const noReset: ClaudeUsage = {
-    ...claudeUsage(99, 99),
+    ...claudeUsage(99, 10),
     sevenDayOpus: { utilization: 99, resetsAt: null }
   }
   claudeAccounts = [account('a1'), account('a2')]
@@ -180,4 +196,105 @@ test('a sticky account that is gone triggers a repick', async () => {
   claudeAccounts = [account('a2')]
   const second = await resolveAccountForSession('s-gone', 'claude', NOW)
   expect(second?.subAccountId).toBe('a2')
+})
+
+// ─── 5h burst-window proactive demote ──────────────────────────────────
+
+test('an account with a saturated 5h window is demoted below a fresh peer', async () => {
+  // a1 looks "better" on the 7d-Opus burn-rate metric (more pctRemaining
+  // there), but its 5h window is saturated (>= PROACTIVE_THRESHOLD_PCT
+  // = 95). The proactive demote drops a1 to -Infinity so a2 — which has
+  // 5h headroom even though its 7d-Opus is hotter — is picked instead.
+  // This is the regression the user hit: routing to a 5h-exhausted
+  // account while a peer still had capacity.
+  claudeAccounts = [account('a1'), account('a2')]
+  __seedClaudeCacheForTest('a1', claudeUsage(20, 99), NOW)
+  __seedClaudeCacheForTest('a2', claudeUsage(45, 10), NOW)
+  const picked = await resolveAccountForSession('s-burst', 'claude', NOW)
+  expect(picked?.subAccountId).toBe('a2')
+})
+
+test('when EVERY account is 5h-saturated, the router still returns one (fall-through)', async () => {
+  // No peer has headroom — both 5h windows are pinned. The router must
+  // not return null (that would 401 the client); -Infinity ties are
+  // broken in iteration order so a1 (the first scored) wins. The
+  // reactive 429 path takes over from there.
+  claudeAccounts = [account('a1'), account('a2')]
+  __seedClaudeCacheForTest('a1', claudeUsage(20, 99), NOW)
+  __seedClaudeCacheForTest('a2', claudeUsage(45, 99), NOW)
+  const picked = await resolveAccountForSession('s-all-burst', 'claude', NOW)
+  expect(picked).not.toBeNull()
+})
+
+// ─── Reactive account exhaustion filtering ─────────────────────────────
+
+test('an exhausted account is filtered out and the router picks a peer', async () => {
+  // a1 has the strictly better burn-rate score and would normally win,
+  // but a 429 marked it exhausted. The router filters a1 out of the
+  // candidate set and picks a2 instead.
+  claudeAccounts = [account('a1'), account('a2')]
+  __seedClaudeCacheForTest('a1', claudeUsage(20, 10), NOW)
+  __seedClaudeCacheForTest('a2', claudeUsage(45, 10), NOW)
+  markAccountExhausted('a1', NOW + 5 * 60_000)
+  const picked = await resolveAccountForSession('s-acct-exh', 'claude', NOW)
+  expect(picked?.subAccountId).toBe('a2')
+})
+
+test('when every account is exhausted, the router falls back to the full list', async () => {
+  // Both accounts are 429-marked. Returning null here would 401 the
+  // client, which is strictly worse than letting the request go out and
+  // 429 again (the marks auto-expire on read once cooldown elapses).
+  // The exhaustion check still happens reactively on the next 429.
+  claudeAccounts = [account('a1'), account('a2')]
+  __seedClaudeCacheForTest('a1', claudeUsage(20, 10), NOW)
+  __seedClaudeCacheForTest('a2', claudeUsage(45, 10), NOW)
+  markAccountExhausted('a1', NOW + 5 * 60_000)
+  markAccountExhausted('a2', NOW + 5 * 60_000)
+  const picked = await resolveAccountForSession('s-all-exh', 'claude', NOW)
+  expect(picked).not.toBeNull()
+})
+
+test('exhausting the sticky account causes a repick on the next call', async () => {
+  // First call binds the session to a1. Then a1 hits 429 and the
+  // reactive path marks it exhausted; the second call must drop the
+  // sticky and pick a2.
+  claudeAccounts = [account('a1'), account('a2')]
+  __seedClaudeCacheForTest('a1', claudeUsage(20, 10), NOW)
+  __seedClaudeCacheForTest('a2', claudeUsage(45, 10), NOW)
+  const first = await resolveAccountForSession('s-sticky-exh', 'claude', NOW)
+  expect(first?.subAccountId).toBe('a1')
+
+  markAccountExhausted('a1', NOW + 5 * 60_000)
+  const second = await resolveAccountForSession('s-sticky-exh', 'claude', NOW)
+  expect(second?.subAccountId).toBe('a2')
+})
+
+// ─── Helper exports used by the reactive 429 path ──────────────────────
+
+test('getActiveAccountForSession returns the picked subAccountId', async () => {
+  claudeAccounts = [account('a1'), account('a2')]
+  __seedClaudeCacheForTest('a1', claudeUsage(20, 10), NOW)
+  __seedClaudeCacheForTest('a2', claudeUsage(45, 10), NOW)
+  await resolveAccountForSession('s-active', 'claude', NOW)
+  expect(getActiveAccountForSession('s-active')).toBe('a1')
+})
+
+test('getActiveAccountForSession returns null when the session has no sticky', () => {
+  expect(getActiveAccountForSession('s-never-seen')).toBeNull()
+})
+
+test('releaseAccountForSession drops the sticky only when the subAccountId matches', async () => {
+  claudeAccounts = [account('a1'), account('a2')]
+  __seedClaudeCacheForTest('a1', claudeUsage(20, 10), NOW)
+  __seedClaudeCacheForTest('a2', claudeUsage(45, 10), NOW)
+  await resolveAccountForSession('s-release', 'claude', NOW)
+  expect(getActiveAccountForSession('s-release')).toBe('a1')
+
+  // Mismatched id is a no-op — protects against a stale release racing a
+  // concurrent re-pick that already moved the sticky elsewhere.
+  releaseAccountForSession('s-release', 'a2')
+  expect(getActiveAccountForSession('s-release')).toBe('a1')
+
+  releaseAccountForSession('s-release', 'a1')
+  expect(getActiveAccountForSession('s-release')).toBeNull()
 })
