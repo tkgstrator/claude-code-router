@@ -1,16 +1,21 @@
 import { afterEach, expect, setSystemTime, test } from 'bun:test'
 import {
+  clearAccountExhaustion,
   clearProviderExhaustion,
+  isAccountExhausted,
   isProviderExhausted,
+  markAccountExhausted,
   markProviderExhausted
 } from '../../src/services/failover-state'
 
 // failover-state holds a process-global map; reset the clock and drop the
-// providers each test touches so cases stay independent.
+// providers / accounts each test touches so cases stay independent.
 afterEach(() => {
   setSystemTime()
   clearProviderExhaustion('codex')
   clearProviderExhaustion('anthropic')
+  clearAccountExhaustion('acct-a')
+  clearAccountExhaustion('acct-b')
 })
 
 test('a provider stays exhausted until its reset time, then auto-clears', () => {
@@ -67,4 +72,61 @@ test('clearProviderExhaustion drops the mark immediately', () => {
 
   clearProviderExhaustion('codex')
   expect(isProviderExhausted('codex')).toBe(false)
+})
+
+// ─── Account-level marks ──────────────────────────────────────────────
+
+test('an account exhaustion mark expires on its own without affecting peer accounts', () => {
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markAccountExhausted('acct-a', t0 + 60_000)
+  expect(isAccountExhausted('acct-a')).toBe(true)
+  // Peer account is independent and stays usable.
+  expect(isAccountExhausted('acct-b')).toBe(false)
+
+  setSystemTime(new Date(t0 + 61_000))
+  expect(isAccountExhausted('acct-a')).toBe(false)
+})
+
+test('account marks are independent of provider marks (and vice versa)', () => {
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markAccountExhausted('acct-a', t0 + 60_000)
+  // Marking ONE account must not knock out the whole provider.
+  expect(isProviderExhausted('anthropic')).toBe(false)
+  expect(isAccountExhausted('acct-a')).toBe(true)
+
+  // ...and marking the provider does not implicitly mark every account
+  // (we track them separately so the router can rotate accounts and
+  // still respect provider-level exhaustion when needed).
+  markProviderExhausted('anthropic', t0 + 60_000)
+  expect(isProviderExhausted('anthropic')).toBe(true)
+  expect(isAccountExhausted('acct-b')).toBe(false)
+})
+
+test('account default cooldown applies when no precise reset time is given', () => {
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markAccountExhausted('acct-a')
+  expect(isAccountExhausted('acct-a')).toBe(true)
+
+  // Default cooldown is 5 minutes (same as the provider default).
+  setSystemTime(new Date(t0 + 4 * 60_000))
+  expect(isAccountExhausted('acct-a')).toBe(true)
+  setSystemTime(new Date(t0 + 6 * 60_000))
+  expect(isAccountExhausted('acct-a')).toBe(false)
+})
+
+test('clearAccountExhaustion drops the mark immediately', () => {
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markAccountExhausted('acct-a', t0 + 60_000)
+  expect(isAccountExhausted('acct-a')).toBe(true)
+
+  clearAccountExhaustion('acct-a')
+  expect(isAccountExhausted('acct-a')).toBe(false)
 })

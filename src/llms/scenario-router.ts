@@ -76,11 +76,18 @@ const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
 // runtime value is read from Router.weeklyDrainMarginPct (Phase 6 S5).
 export const WEEKLY_DRAIN_MARGIN_PCT_DEFAULT = 0
 
+// Provider shape the kind sniffer needs. Re-exported with the helper so
+// callers in the route layer can build the same minimal ConfigProvider
+// view from the live ConfigStore without depending on the full schema.
+export type SubscriptionKindProvider = ConfigProvider
+
 // Map a provider name to the subscription usage "kind" whose limit we can
 // pre-empt, or null for api_key / non-subscription providers (they have
 // no usage ceiling to read; their limits are handled reactively on 429).
 // Mirrors the apiBaseUrl matching in subscription-account-sync-service.
-function subscriptionKindOf(providerName: string, providers: ConfigProvider[]): 'claude' | 'codex' | null {
+// Exported so the reactive 429 path in the v1 route can use the same
+// classification when rotating accounts within a subscription provider.
+export function subscriptionKindOf(providerName: string, providers: ConfigProvider[]): 'claude' | 'codex' | null {
   const p = providers.find((x) => x.name === providerName)
   if (p?.auth_mode !== 'subscription') return null
   const url = typeof p.api_base_url === 'string' ? p.api_base_url : ''
@@ -361,6 +368,20 @@ export function selectModel(
     return resolveExplicitProviderModel(req.body.model, config)
   }
 
+  // Bare model-name override — when the request's `model` string is a
+  // model name that some configured provider already hosts, honor that
+  // choice as-is. This sits ABOVE the heuristic rewrites (haiku →
+  // background, opus → longContext, thinking → think) so a client that
+  // explicitly asks for `claude-haiku-4-5` lands on the matching
+  // provider rather than whatever the background slot points at.
+  // Falls through silently when no provider hosts the name, so the
+  // existing scenario routing remains the catch-all.
+  const direct = resolveByModelName(req.body.model, config)
+  if (direct) {
+    req.log.info({ model: direct.model }, 'Using request-specified model — exact provider match')
+    return direct
+  }
+
   // Long context — token count exceeds threshold AND Router.longContext set.
   if (router) {
     const longContext = pickLongContext(req, tokenCount, router)
@@ -413,6 +434,24 @@ function resolveExplicitProviderModel(
   const model = provider?.models?.find((m) => m.toLowerCase() === modelInput.toLowerCase())
   if (provider && model) return { model: `${provider.name},${model}`, scenarioType: 'default' }
   return { model: rawModel, scenarioType: 'default' }
+}
+
+// Look for the first provider whose registered `models` list contains
+// the bare model name. Returns the canonical `provider,model` pair so
+// the rest of the pipeline can resolve it. Case-insensitive to match
+// resolveExplicitProviderModel. Returns null when no provider hosts the
+// name — caller falls through to scenario routing.
+function resolveByModelName(
+  rawModel: string,
+  config: ConfigStore
+): { model: string; scenarioType: ScenarioType } | null {
+  const providers = config.get<ConfigProvider[]>('providers', [])
+  for (const p of providers) {
+    if (!p.models) continue
+    const match = p.models.find((m) => m.toLowerCase() === rawModel.toLowerCase())
+    if (match) return { model: `${p.name},${match}`, scenarioType: 'default' }
+  }
+  return null
 }
 
 function pickLongContext(

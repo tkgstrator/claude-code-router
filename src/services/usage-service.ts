@@ -163,6 +163,33 @@ export async function getUsage(): Promise<UsageResponse> {
   return usage
 }
 
+// Per-account variant of the snapshot — used by the poller to write
+// per-account rows into SubAccountUsage (history-aggregated UsageSnapshot
+// loses the subAccountId, so we pair the cached value with its id
+// directly here). Skips accounts whose cache is missing because the
+// upstream fetch failed AND no prior value exists.
+export async function fetchUsageSnapshotWithAccountIds(): Promise<{
+  claude: Array<{ subAccountId: string; usage: ClaudeUsage }>
+  codex: Array<{ subAccountId: string; usage: CodexUsage }>
+}> {
+  // Force a refresh by going through the public fetch path — this
+  // ensures the cache is populated before we read it below.
+  await fetchUsageSnapshot()
+  const claudeAccts = await getSubAccountTokensForKind('claude').catch(() => [])
+  const codexAccts = await getSubAccountTokensForKind('codex').catch(() => [])
+  const claude: Array<{ subAccountId: string; usage: ClaudeUsage }> = []
+  const codex: Array<{ subAccountId: string; usage: CodexUsage }> = []
+  for (const a of claudeAccts) {
+    const cached = claudeCache.get(a.subAccountId)
+    if (cached) claude.push({ subAccountId: a.subAccountId, usage: cached.value })
+  }
+  for (const a of codexAccts) {
+    const cached = codexCache.get(a.subAccountId)
+    if (cached) codex.push({ subAccountId: a.subAccountId, usage: cached.value })
+  }
+  return { claude, codex }
+}
+
 // Returns the most relevant current usage percent for a given subAccountId
 // without triggering a live fetch — reads the existing in-memory cache only.
 // Returns 0 when no cached data exists (treat unknown = available).
