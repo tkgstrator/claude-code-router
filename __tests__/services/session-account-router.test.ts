@@ -15,8 +15,25 @@
 
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
 import { clearAccountExhaustion, markAccountExhausted } from '../../src/services/failover-state'
-import { CLAUDE_METRICS, type AccountUsageMap, type Metric } from '../../src/services/subaccount-usage-store'
 import type { SubAccountTokenInfo } from '../../src/services/subscription-account-sync-service'
+
+// Metric strings duplicated here to avoid `await import('subaccount-usage-store')`
+// inside the mock factory below — re-importing the same module being
+// mocked causes the factory to recurse and the test runner to spin.
+type Metric =
+  | 'claude.five_hour'
+  | 'claude.seven_day'
+  | 'claude.seven_day_sonnet'
+  | 'claude.seven_day_opus'
+  | 'codex.primary'
+  | 'codex.secondary'
+const CLAUDE_METRICS = {
+  five_hour: 'claude.five_hour' as Metric,
+  seven_day: 'claude.seven_day' as Metric,
+  seven_day_sonnet: 'claude.seven_day_sonnet' as Metric,
+  seven_day_opus: 'claude.seven_day_opus' as Metric
+}
+type AccountUsageMap = Map<Metric, { percent: number; resetAt: Date | null }>
 
 // Mutable lists / maps the mocks return. Tests reset and reseed these
 // before each invocation of the router.
@@ -28,19 +45,14 @@ mock.module('../../src/services/subscription-account-sync-service', () => ({
     kind === 'claude' ? claudeAccounts : []
 }))
 
-mock.module('../../src/services/subaccount-usage-store', async () => {
-  // Re-export everything from the real module so the type values
-  // (CLAUDE_METRICS, etc.) the router still imports remain available;
-  // only swap `getPerAccountUsage` for the test-controlled stub.
-  const real = await import('../../src/services/subaccount-usage-store')
-  return {
-    ...real,
-    getPerAccountUsage: async (subAccountIds: string[]): Promise<Map<string, AccountUsageMap>> => {
-      const out = new Map<string, AccountUsageMap>(subAccountIds.map((id) => [id, perAccountUsage.get(id) ?? new Map()]))
-      return out
-    }
+mock.module('../../src/services/subaccount-usage-store', () => ({
+  CLAUDE_METRICS,
+  CODEX_METRICS: { primary: 'codex.primary', secondary: 'codex.secondary' },
+  getPerAccountUsage: async (subAccountIds: string[]): Promise<Map<string, AccountUsageMap>> => {
+    const out = new Map<string, AccountUsageMap>(subAccountIds.map((id) => [id, perAccountUsage.get(id) ?? new Map()]))
+    return out
   }
-})
+}))
 
 // Imported after the mocks are registered so the router binds to the stubs.
 const { resolveAccountForSession, getActiveAccountForSession, releaseAccountForSession } = await import(
