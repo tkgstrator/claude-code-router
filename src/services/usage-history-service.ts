@@ -1,6 +1,7 @@
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
-import { getUsage } from './usage-service'
+import { recordPerAccountUsage } from './subaccount-usage-store'
+import { fetchUsageSnapshotWithAccountIds, type getUsage } from './usage-service'
 
 // Keep a bit more than the week the UI charts so the edges look full.
 const RETAIN_DAYS = 8
@@ -65,15 +66,25 @@ const flatten = (u: Awaited<ReturnType<typeof getUsage>>): SnapshotRow[] => {
 }
 
 export async function recordUsageSnapshots(): Promise<void> {
-  const rows = flatten(await getUsage())
-  if (rows.length === 0) return
-  // Snap to the 5-min mark (BullMQ fires the job on the same grid via
-  // cron */5) so every capture lands on a clean :00/:05/:10 boundary
-  // and one capture's rows share an identical pivot timestamp.
-  const capturedAt = dayjs().floor('minute', 5).toDate()
-  await getPrismaClient().usageSnapshot.createMany({
-    data: rows.map((r) => ({ ...r, capturedAt }))
-  })
+  // Pull once with subAccountId pairing so we can feed both the
+  // aggregated history table and the per-account state table without
+  // a second network round-trip to the upstream usage APIs.
+  const paired = await fetchUsageSnapshotWithAccountIds()
+  const usage = { claude: paired.claude.map((p) => p.usage), codex: paired.codex.map((p) => p.usage) }
+  const rows = flatten(usage)
+  if (rows.length > 0) {
+    // Snap to the 5-min mark (BullMQ fires the job on the same grid via
+    // cron */5) so every capture lands on a clean :00/:05/:10 boundary
+    // and one capture's rows share an identical pivot timestamp.
+    const capturedAt = dayjs().floor('minute', 5).toDate()
+    await getPrismaClient().usageSnapshot.createMany({
+      data: rows.map((r) => ({ ...r, capturedAt }))
+    })
+  }
+  // Per-account current state — the router reads this on every routing
+  // decision to skip accounts whose 7d / 5h window is at 100% with
+  // resetAt still in the future.
+  await recordPerAccountUsage(paired.claude, paired.codex)
 }
 
 export async function pruneOldSnapshots(): Promise<void> {

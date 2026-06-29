@@ -2,87 +2,88 @@
  * Routes subscription requests to a specific SubAccount based on the
  * inbound session ID.
  *
- * Strategy:
- *   - Known session  → reuse the same account (prompt-cache efficiency)
- *   - Unknown session → pick the account with the HIGHEST required burn
- *                       rate on the scarce weekly window (claude: 7d
- *                       Opus, codex: primary) and record the mapping for
- *                       this session
+ * Decision pipeline (in order):
+ *   1. Drop accounts the in-process exhaustion map has marked as
+ *      reactively-failed (a recent 429 against that subAccountId).
+ *   2. Drop accounts whose DB-recorded rate-limit state shows ANY
+ *      always-binding window at or above 100% with `resetAt` still in
+ *      the future. For claude that is the overall 7d window, the 7d
+ *      Opus window, and the 5h window; for codex it is the primary
+ *      window. Any of those at 100% guarantees an upstream 429, so we
+ *      pre-empt to a peer account.
+ *   3. From the surviving candidates, reuse the sticky-session mapping
+ *      if it still points at one of them (prompt-cache continuity).
+ *   4. Otherwise pick the account with the HIGHEST required burn rate
+ *      on the scarce weekly window (claude: 7d Opus, codex: primary):
+ *      pctRemaining / timeRemainingMs. Larger means more unspent quota
+ *      relative to time until reset → most at risk of leaving quota on
+ *      the table, so drain it first.
  *
- * "Required burn rate" = pctRemaining / timeRemainingMs on the balancing
- * window (both terms on the same percent-per-millisecond scale): how
- * fast this account would need to spend to consume its full
- * quota by the next reset. Picking the maximum means we route to the
- * account at greatest risk of leaving quota unspent at reset — i.e. we
- * drain near-reset accounts that still have headroom first, and skip
- * already-burnt-out ones (pctRemaining ≤ 0 → -∞ score). This unifies the
- * old "furthest behind linear drain" intuition with the user-asked
- * "prefer the side whose reset is closer" — reset proximity is the
- * timeRemaining term in the denominator, headroom is the numerator.
+ * If every account is filtered out by steps 1-2, the picker falls back
+ * to the full list and returns the least-bad candidate so the request
+ * still flows — returning null here would 401 the client, which is
+ * strictly worse than letting the request go out and 429.
  *
- * Balancing on the weekly window (not the 5h window) is the Phase 6 S4
- * choice. The 5h window is soft and may burst, while the 7d windows are
- * the hard constraint we actually want to fully consume by reset.
- *
- * The map is in-process only; it resets on server restart, which is fine
- * — sessions restart too, so cache continuity is already broken there.
+ * The SubAccountUsage table the picker reads is upserted every 5 min by
+ * the BullMQ usage-capture job (`recordPerAccountUsage`), so the DB is
+ * the durable source of truth across server restarts and multiple
+ * instances. The in-process sticky-session map is best-effort only and
+ * is allowed to reset on restart.
  */
 
 import dayjs from '../lib/dayjs'
 import { isAccountExhausted } from './failover-state'
+import {
+  type AccountUsageMap,
+  CLAUDE_METRICS,
+  CODEX_METRICS,
+  getPerAccountUsage,
+  type Metric
+} from './subaccount-usage-store'
 import { getSubAccountTokensForKind, type SubAccountTokenInfo } from './subscription-account-sync-service'
-import { type ClaudeWindowKey, type CodexWindowKey, getAccountWindow, PROACTIVE_THRESHOLD_PCT } from './usage-service'
 
 // sessionId → subAccountId
 const sessionMap = new Map<string, string>()
 
-// The scarce weekly window each kind balances on. Claude spreads on the
-// 7d Opus window (most precious, kept furthest from its drain target);
-// codex typically runs a single account so primary keeps this simple.
-const CLAUDE_BALANCE_WINDOW: ClaudeWindowKey = 'seven_day_opus'
-const CODEX_BALANCE_WINDOW: CodexWindowKey = 'primary'
+// Always-binding hard-limit windows per kind. Any of these at 100% with
+// resetAt still in the future guarantees an upstream 429, so the picker
+// must skip the account. Mirrors the constraints upstream actually
+// enforces: claude charges the overall 7d, the 7d Opus tier, and the
+// 5h rolling window simultaneously; codex enforces the primary window.
+const HARD_LIMIT_METRICS: Record<'claude' | 'codex', Metric[]> = {
+  claude: [CLAUDE_METRICS.five_hour, CLAUDE_METRICS.seven_day, CLAUDE_METRICS.seven_day_opus],
+  codex: [CODEX_METRICS.primary]
+}
 
-// The SHORT (burst) window we additionally consult per account so the
-// picker avoids an account that is about to 429. The weekly balancing
-// window above is the optimisation target ("don't leave quota unspent");
-// the burst window is the immediate-correctness gate ("don't pick an
-// account that just hit its 5-hour ceiling"). Without this the picker
-// happily routes to a 5h-exhausted account and the upstream returns 429
-// even though peer accounts still had capacity.
-const CLAUDE_BURST_WINDOW: ClaudeWindowKey = 'five_hour'
-const CODEX_BURST_WINDOW: CodexWindowKey = 'primary'
+// The scarce weekly window each kind balances on once hard limits are
+// out of the way. Claude spreads on the 7d Opus window (most precious);
+// codex uses primary because that is the only window with a stable
+// resetAt the wire reliably returns.
+const BALANCE_METRIC: Record<'claude' | 'codex', Metric> = {
+  claude: CLAUDE_METRICS.seven_day_opus,
+  codex: CODEX_METRICS.primary
+}
 
-// A never-polled account (no cached data), one whose balancing window
-// has no resetAt, or one whose reset has already passed (cache is stale
-// across a reset) all read as MAXIMUM priority so they stay preferred.
-// This mirrors the legacy "unknown = available" fallback under the new
-// burn-rate metric.
+// A never-polled account (no DB row yet), one whose balancing window
+// has no resetAt, or one whose reset has already passed (DB row is
+// stale across a reset) all read as MAXIMUM priority so they stay
+// preferred. Mirrors the legacy "unknown = available" fallback.
 const MAX_PRIORITY = Number.POSITIVE_INFINITY
 
-// Read one window for one account from the cache, dispatching on kind
-// to the correct typed overload. Centralises the claude/codex branch so
-// callers stay focused on what they want to compute rather than how to
-// route the right window key into the right cache.
-const windowFor = (
-  subAccountId: string,
-  kind: 'claude' | 'codex',
-  claudeKey: ClaudeWindowKey,
-  codexKey: CodexWindowKey
-) =>
-  kind === 'claude'
-    ? getAccountWindow(subAccountId, 'claude', claudeKey)
-    : getAccountWindow(subAccountId, 'codex', codexKey)
-
-// Whether the kind's burst (short) window cache shows this account is
-// saturated. Used as a proactive demote: an account currently at/over
-// PROACTIVE_THRESHOLD_PCT on its 5h / primary window is about to 429,
-// so prefer a peer account if one exists. Returns false on missing /
-// never-polled cache so a stale cache never blocks routing — the
-// reactive 429 path will catch what the cache missed.
-const burstWindowSaturated = (subAccountId: string, kind: 'claude' | 'codex'): boolean => {
-  const window = windowFor(subAccountId, kind, CLAUDE_BURST_WINDOW, CODEX_BURST_WINDOW)
-  if (window === null) return false
-  return window.pct >= PROACTIVE_THRESHOLD_PCT
+// Whether the account has at least one always-binding window pinned at
+// 100% with resetAt still in the future. The "future resetAt" guard is
+// what makes a stale DB row self-heal: once the reset passes, the cache
+// no longer blocks the account even before the next poller cycle
+// rewrites it.
+const accountHasHardLimitHit = (usage: AccountUsageMap, kind: 'claude' | 'codex', now: number): boolean => {
+  for (const metric of HARD_LIMIT_METRICS[kind]) {
+    const w = usage.get(metric)
+    if (!w) continue
+    if (w.percent < 100) continue
+    if (w.resetAt !== null && w.resetAt.valueOf() <= now) continue
+    return true
+  }
+  return false
 }
 
 // Cache-only required burn rate on the kind's scarce weekly window:
@@ -90,20 +91,13 @@ const burstWindowSaturated = (subAccountId: string, kind: 'claude' | 'codex'): b
 // unspent quota relative to the time it has left, so it's at greater
 // risk of leaving quota on the table at reset — prefer it. Branches are
 // explicit rather than nullish-coalesced so each "unknown" path is named.
-//
-// Burst-window saturation short-circuits to -Infinity so the scorer
-// treats a 5h-saturated account the same way it treats a fully-drained
-// weekly account: only picked if every other candidate is also -Infinity
-// (and even then, the caller still returns something so the request
-// flows and the reactive 429 path can take over).
-const balancingScore = (subAccountId: string, kind: 'claude' | 'codex', now: number): number => {
-  if (burstWindowSaturated(subAccountId, kind)) return Number.NEGATIVE_INFINITY
-  const window = windowFor(subAccountId, kind, CLAUDE_BALANCE_WINDOW, CODEX_BALANCE_WINDOW)
-  if (window === null) return MAX_PRIORITY
-  if (window.resetAt === null) return MAX_PRIORITY
-  const timeRemainingMs = window.resetAt - now
+const balancingScore = (usage: AccountUsageMap, kind: 'claude' | 'codex', now: number): number => {
+  const w = usage.get(BALANCE_METRIC[kind])
+  if (!w) return MAX_PRIORITY
+  if (w.resetAt === null) return MAX_PRIORITY
+  const timeRemainingMs = w.resetAt.valueOf() - now
   if (timeRemainingMs <= 0) return MAX_PRIORITY
-  const pctRemaining = 100 - window.pct
+  const pctRemaining = 100 - w.percent
   if (pctRemaining <= 0) return Number.NEGATIVE_INFINITY
   return pctRemaining / timeRemainingMs
 }
@@ -119,14 +113,28 @@ export async function resolveAccountForSession(
   const all = await getSubAccountTokensForKind(kind)
   if (all.length === 0) return null
 
-  // Reactive 429s set an exhaustion mark on the specific subAccountId.
-  // Filter those out so a freshly-limited account isn't re-picked while
-  // its window is still cooling. If every account is currently marked,
-  // fall back to the full list — returning null would 401 the client,
-  // which is strictly worse than letting the request go out and 429
-  // again (the mark auto-expires on read once the cooldown elapses).
-  const usable = all.filter((a) => !isAccountExhausted(a.subAccountId))
-  const accounts = usable.length > 0 ? usable : all
+  // Batch-read the per-account DB state up front so each account's
+  // hard-limit check + balancing score consults a coherent snapshot
+  // rather than re-querying the DB per account.
+  const usageByAcct = await getPerAccountUsage(all.map((a) => a.subAccountId))
+
+  // Drop accounts the reactive 429 path has marked exhausted. The mark
+  // auto-evicts past its `until` deadline, so a once-failed account
+  // returns to the candidate set automatically when its window resets.
+  const notExhausted = all.filter((a) => !isAccountExhausted(a.subAccountId))
+
+  // Drop accounts the DB says have a hard limit hit and a future
+  // resetAt — those would 429 if we picked them.
+  const usable = notExhausted.filter((a) => {
+    const u = usageByAcct.get(a.subAccountId)
+    return u !== undefined ? !accountHasHardLimitHit(u, kind, now) : true
+  })
+
+  // If both filters dropped every candidate, fall back to the full list
+  // so the request still flows (the reactive 429 path will catch the
+  // miss). Returning null here would 401 the client, which is strictly
+  // worse than letting the request go out.
+  const accounts = usable.length > 0 ? usable : notExhausted.length > 0 ? notExhausted : all
 
   if (accounts.length === 1) return accounts[0]
 
@@ -135,19 +143,20 @@ export async function resolveAccountForSession(
     const found = accounts.find((a) => a.subAccountId === cached)
     if (found) return found
     // Previously-chosen account is no longer in the candidate set (either
-    // disabled, or filtered out because it is currently exhausted).
-    // Repick — and drop the sticky so a future request doesn't latch
-    // back onto the dead choice on a stale read.
+    // disabled, reactively-exhausted, or DB-marked hard-limit). Repick —
+    // and drop the sticky so a future request doesn't latch back onto the
+    // dead choice on a stale read.
     sessionMap.delete(sessionId)
   }
 
   // Pick the account with the HIGHEST required burn rate on the scarce
-  // weekly window — i.e. the one most at risk of leaving quota unspent
-  // by its next reset. Never-polled / stale-reset accounts read as
-  // MAX_PRIORITY and stay preferred. Score each account once up front so
-  // the reduce comparison stays O(1) per step and can't see a different
-  // cache snapshot for the same account across iterations.
-  const scored = accounts.map((a) => ({ account: a, score: balancingScore(a.subAccountId, kind, now) }))
+  // weekly window. Score once up front so the reduce comparison stays
+  // O(1) per step and can't see a different snapshot per iteration.
+  const scored = accounts.map((a) => {
+    const usage = usageByAcct.get(a.subAccountId)
+    const score = usage !== undefined ? balancingScore(usage, kind, now) : MAX_PRIORITY
+    return { account: a, score }
+  })
   const picked = scored.reduce((best, candidate) => (candidate.score > best.score ? candidate : best)).account
   sessionMap.set(sessionId, picked.subAccountId)
   return picked

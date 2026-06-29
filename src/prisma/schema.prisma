@@ -121,9 +121,35 @@ model SubAccount {
   updatedAt    DateTime @updatedAt
 
   activeForProviders Provider[] @relation("ProviderActiveSubscriptionAccount")
+  usage              SubAccountUsage[]
 
   @@unique([providerId, sourcePath])
   @@index([providerId])
+}
+
+// Latest-state per-account rate-limit window snapshot. One row per
+// (subAccountId, metric) pair, upserted by the usage poller every 5 min.
+// Distinct from UsageSnapshot (time-series, aggregated across accounts)
+// — this is the per-account current state the router consults to avoid
+// 429s: an account is treated as exhausted on a window when
+// `percent >= 100` and `resetAt` is still in the future.
+model SubAccountUsage {
+  id           String     @id @default(cuid())
+  subAccountId String
+  subAccount   SubAccount @relation(fields: [subAccountId], references: [id], onDelete: Cascade)
+  // Window key — claude.five_hour, claude.seven_day,
+  // claude.seven_day_sonnet, claude.seven_day_opus, codex.primary,
+  // codex.secondary. Same metric format as UsageSnapshot.
+  metric       String
+  // 0-100 utilization at the most recent poll.
+  percent      Float
+  // Wall-clock time the window resets. Null means the upstream omitted
+  // it (treat as unknown — never blocks routing).
+  resetAt      DateTime?
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([subAccountId, metric])
+  @@index([subAccountId])
 }
 
 model Model {
