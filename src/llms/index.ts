@@ -9,7 +9,13 @@
 export { getLlmsContext, type LlmsContext, resetLlmsContext } from './context'
 export { type PipelineDeps, type PipelineInput, runPipeline, type UsageRecord } from './pipeline'
 export type { ResolvedProvider } from './registry/provider'
-export { type RouterContext, type RouterRequest, routeScenario, type ScenarioType } from './scenario-router'
+export {
+  type RouterContext,
+  type RouterRequest,
+  routeScenario,
+  type ScenarioType,
+  subscriptionKindOf
+} from './scenario-router'
 // Re-export the transformer base + concrete types for callers that need
 // to compare names / endpoints.
 export { Transformer } from './transformers/base'

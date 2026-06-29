@@ -76,11 +76,18 @@ const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
 // runtime value is read from Router.weeklyDrainMarginPct (Phase 6 S5).
 export const WEEKLY_DRAIN_MARGIN_PCT_DEFAULT = 0
 
+// Provider shape the kind sniffer needs. Re-exported with the helper so
+// callers in the route layer can build the same minimal ConfigProvider
+// view from the live ConfigStore without depending on the full schema.
+export type SubscriptionKindProvider = ConfigProvider
+
 // Map a provider name to the subscription usage "kind" whose limit we can
 // pre-empt, or null for api_key / non-subscription providers (they have
 // no usage ceiling to read; their limits are handled reactively on 429).
 // Mirrors the apiBaseUrl matching in subscription-account-sync-service.
-function subscriptionKindOf(providerName: string, providers: ConfigProvider[]): 'claude' | 'codex' | null {
+// Exported so the reactive 429 path in the v1 route can use the same
+// classification when rotating accounts within a subscription provider.
+export function subscriptionKindOf(providerName: string, providers: ConfigProvider[]): 'claude' | 'codex' | null {
   const p = providers.find((x) => x.name === providerName)
   if (p?.auth_mode !== 'subscription') return null
   const url = typeof p.api_base_url === 'string' ? p.api_base_url : ''
