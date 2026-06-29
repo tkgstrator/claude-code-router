@@ -247,8 +247,11 @@ test('selectModel: heavy effort escalates a short request into the longContext l
     think: 'anthropic,claude-opus'
   }
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  // Use a model name NOT registered under any provider so the new
+  // bare-name-match short-circuit doesn't catch it — the heuristic
+  // escalation is what's under test here.
   const out = selectModel(
-    makeReq({ model: 'claude-sonnet', output_config: { effort: 'high' } }),
+    makeReq({ model: 'claude-sonnet-future', output_config: { effort: 'high' } }),
     1000,
     router,
     config
@@ -303,7 +306,9 @@ test('selectModel: thinking field wins over the effort/tier escalation', () => {
 
 test('selectModel: size-based longContext still wins when the request exceeds the threshold', () => {
   // pickLongContext runs before the effort escalation; a long but
-  // low-effort request still goes through the size-based lane.
+  // low-effort request still goes through the size-based lane. Uses a
+  // model name NOT registered under any provider so the bare-name
+  // short-circuit doesn't catch it first.
   const router = {
     default: 'anthropic,claude-sonnet',
     longContext: 'anthropic,claude-opus',
@@ -311,12 +316,70 @@ test('selectModel: size-based longContext still wins when the request exceeds th
   }
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
   const out = selectModel(
-    makeReq({ model: 'claude-sonnet', output_config: { effort: 'low' } }),
+    makeReq({ model: 'claude-sonnet-future', output_config: { effort: 'low' } }),
     100_000,
     router,
     config
   )
   expect(out).toEqual({ model: 'anthropic,claude-opus', scenarioType: 'longContext' })
+})
+
+// ---- Bare model-name match overrides heuristic rewrites ----------
+
+test('selectModel: a bare model name that a provider hosts is honored as-is', () => {
+  // claudeProvider hosts 'claude-sonnet'. The client asked for that
+  // exact name, so the router should route to anthropic,claude-sonnet
+  // instead of rewriting via Router.default.
+  const router = { default: 'anthropic,claude-opus', longContext: 'anthropic,claude-opus' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-sonnet' }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
+})
+
+test('selectModel: bare model match wins over the haiku→background heuristic', () => {
+  // Without bare match, "claude-haiku-*" would go to Router.background.
+  // Here the provider hosts the exact name the client asked for, so the
+  // client's choice wins.
+  const haikuProvider = { ...claudeProvider, models: ['claude-haiku-4-5'] }
+  const router = {
+    default: 'anthropic,claude-sonnet',
+    background: 'anthropic,claude-sonnet'
+  }
+  const config = new ConfigStore({ Router: router, providers: [haikuProvider] })
+  const out = selectModel(makeReq({ model: 'claude-haiku-4-5' }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-haiku-4-5', scenarioType: 'default' })
+})
+
+test('selectModel: bare model match wins over the effort/tier escalation', () => {
+  // Client asks for sonnet AND sets effort=high. The old behaviour
+  // escalated to longContext (opus) on the effort signal alone; now
+  // the user's explicit model choice takes precedence.
+  const router = { default: 'anthropic,claude-opus', longContext: 'anthropic,claude-opus' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-sonnet', output_config: { effort: 'high' } }),
+    1000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
+})
+
+test('selectModel: bare model match is case-insensitive', () => {
+  const router = { default: 'anthropic,claude-opus' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'Claude-Sonnet' }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
+})
+
+test('selectModel: bare model that no provider hosts falls through to scenario routing', () => {
+  // 'claude-sonnet-future' isn't in any provider's models[] — the
+  // request falls into the existing scenario routing and lands on
+  // Router.default.
+  const router = { default: 'anthropic,claude-sonnet' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-sonnet-future' }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
 })
 
 test('selectModel: heavy escalation no-ops when router.longContext is unset', () => {

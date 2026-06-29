@@ -20,6 +20,13 @@ import type { Context } from 'hono'
 import { type LlmsContext, subscriptionKindOf } from '../../llms'
 import { isAccountExhausted, markAccountExhausted, markProviderExhausted } from '../../services/failover-state'
 import { getActiveAccountForSession, releaseAccountForSession } from '../../services/session-account-router'
+import {
+  type AccountUsageMap,
+  CLAUDE_METRICS,
+  CODEX_METRICS,
+  getPerAccountUsage,
+  type Metric
+} from '../../services/subaccount-usage-store'
 import { getSubAccountTokensForKind } from '../../services/subscription-account-sync-service'
 import { type ResolvedInvocation, type RoutePlan, resolveInvocationForModel } from './invocation'
 import { forwardUpstreamError, isRateLimited } from './upstream-error'
@@ -120,6 +127,36 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
   return { kind: 'next', forwarded: lastForwarded }
 }
 
+// Always-binding windows per kind (mirrors session-account-router's
+// HARD_LIMIT_METRICS — when a 429 fires, one of these windows is what
+// the upstream is enforcing). Used to extract the earliest reset time
+// from the DB row so the exhaustion mark naturally clears when the
+// upstream window actually rolls.
+const HARD_LIMIT_METRICS: Record<'claude' | 'codex', Metric[]> = {
+  claude: [CLAUDE_METRICS.five_hour, CLAUDE_METRICS.seven_day, CLAUDE_METRICS.seven_day_opus],
+  codex: [CODEX_METRICS.primary]
+}
+
+// Pick the earliest future resetAt from the windows known to be near or
+// at limit. The 429 we just observed means at least one of them is
+// pinned — that window's resetAt is when the account becomes usable
+// again. Returns undefined when no eligible window has a future resetAt
+// (DB row missing / stale across reset / upstream omitted), in which
+// case the caller falls back to the default 5-min cooldown.
+const earliestResetUntil = (usage: AccountUsageMap, kind: 'claude' | 'codex', now: number): number | undefined => {
+  let earliest: number | undefined
+  for (const metric of HARD_LIMIT_METRICS[kind]) {
+    const w = usage.get(metric)
+    if (!w || w.resetAt === null) continue
+    const t = w.resetAt.valueOf()
+    if (t <= now) continue
+    // Only the windows likely responsible for the 429 — at or near limit.
+    if (w.percent < 90) continue
+    if (earliest === undefined || t < earliest) earliest = t
+  }
+  return earliest
+}
+
 // One rotation step: when the failed invocation landed on a subscription
 // provider and we know which sub-account it used, mark that account
 // exhausted, drop the session sticky, and check whether the kind still
@@ -138,7 +175,14 @@ async function tryRotateAccount(
   if (failedAcct === null || triedAccounts.has(failedAcct)) return false
 
   triedAccounts.add(failedAcct)
-  markAccountExhausted(failedAcct)
+  // Pull the failed account's DB usage row so the exhaustion mark uses
+  // the actual upstream resetAt (e.g. 47 minutes) rather than the
+  // 5-minute default. This guarantees we don't re-probe the account
+  // until its window genuinely rolls.
+  const usageByAcct = await getPerAccountUsage([failedAcct])
+  const usage = usageByAcct.get(failedAcct)
+  const until = usage !== undefined ? earliestResetUntil(usage, kind, Date.now()) : undefined
+  markAccountExhausted(failedAcct, until)
   releaseAccountForSession(sessionId, failedAcct)
 
   // Scope to `kind` (not the exact provider) because that mirrors what
@@ -153,7 +197,8 @@ async function tryRotateAccount(
       model: inv.request.model,
       scenario: plan.scenarioType,
       subAccountId: failedAcct,
-      rotation: triedAccounts.size
+      rotation: triedAccounts.size,
+      exhaustedUntil: until ?? null
     },
     'rate limited on subscription account; rotating to peer account on same provider'
   )
