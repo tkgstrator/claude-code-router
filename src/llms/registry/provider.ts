@@ -40,8 +40,22 @@ export class ProviderRegistry {
     for (const config of providers) {
       // ProviderConfigShape requires name/api_base_url/api_key as nonempty
       // strings already; this is a defence-in-depth check for callers that
-      // hand us pre-parse-equivalent data.
-      if (!config.name || !config.api_base_url || !config.api_key) continue
+      // hand us pre-parse-equivalent data. Surface the skip so a missing
+      // api_key doesn't silently translate to "provider not found" later
+      // in the chain walker — scenario-router also filters these out, but
+      // the warn is the loudest signal that the row needs an api_key.
+      if (!config.name || !config.api_base_url || !config.api_key) {
+        const missing = [
+          !config.name && 'name',
+          !config.api_base_url && 'api_base_url',
+          !config.api_key && 'api_key'
+        ].filter((s): s is string => typeof s === 'string')
+        this.logger?.warn(
+          { provider: config.name, missing },
+          `provider '${config.name}' skipped — missing required fields: ${missing.join(', ')}`
+        )
+        continue
+      }
       try {
         this.providers.set(config.name, this.resolve(config))
         this.logger?.info(`${config.name} provider registered`)
