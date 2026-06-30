@@ -81,7 +81,15 @@
     "apiCostHistory": "Daily Cost",
     "apiCostHistoryEmpty": "No pricing data available for the selected period.",
     "subscriptionSavings": "Subscription Savings",
-    "sync": "Sync"
+    "sync": "Sync",
+    "current": "Current rate limits"
+  },
+  "subscriptions": {
+    "empty": "No subscriptions registered. Add one from Providers.",
+    "usageHint": "Actual usage and rate-limit history are consolidated on the Usage page.",
+    "noAccounts": "No accounts found. Sign in via the CLI first.",
+    "activeLabel": "Active",
+    "disabled": "Disabled"
   },
   "models": {
     "provider": "Provider",

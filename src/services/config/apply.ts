@@ -346,11 +346,19 @@ export async function syncDeprecationFlags(tx: Tx, providerId: string, names: st
 // entries that resolve to a known provider/model (preserving order),
 // drop the rest with a warning. Mirrors the primary-slot validation so
 // the stored chain only ever points at models that actually exist.
+//
+// `primaryProviderName` is the provider name on the scenario's primary
+// slot; fallback entries on the SAME provider are dropped, because
+// same-provider fallbacks cannot help with per-account quota 429s — the
+// 5h/weekly windows apply across all models of an account. The user
+// should reach for a different provider (another subscription org, or
+// an api_key provider in another scenario slot) instead.
 export async function resolveFallbackTargets(
   tx: Tx,
   scenario: string,
   raw: readonly string[] | undefined,
-  warnings: string[]
+  warnings: string[],
+  primaryProviderName: string | null
 ): Promise<string[]> {
   if (raw === undefined || raw.length === 0) return []
   const out: string[] = []
@@ -358,6 +366,12 @@ export async function resolveFallbackTargets(
     const { providerName, modelName } = parseSlot(entry)
     if (!providerName || !modelName) {
       warnings.push(`Router fallback for "${scenario}" is malformed ("${entry}"); dropped.`)
+      continue
+    }
+    if (primaryProviderName !== null && providerName === primaryProviderName) {
+      warnings.push(
+        `Router fallback "${providerName},${modelName}" for "${scenario}" is on the same provider as the primary; dropped (use a different provider).`
+      )
       continue
     }
     const model = await tx.model.findFirst({
@@ -404,7 +418,7 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
       }
     }
 
-    const fallbacks = await resolveFallbackTargets(tx, scenario, incoming.fallbacks?.[scenario], warnings)
+    const fallbacks = await resolveFallbackTargets(tx, scenario, incoming.fallbacks?.[scenario], warnings, providerName)
 
     // params holds the scenario-scoped knobs: longContext keeps its
     // threshold; default keeps the Router-wide weeklyDrainMarginPct
