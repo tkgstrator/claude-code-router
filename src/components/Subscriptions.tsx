@@ -4,42 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
-import dayjs from '@/lib/dayjs'
 
 const REFRESH_MS = 5 * 60_000
-
-const CLAUDE_SUBSCRIBE_URL = 'https://claude.ai'
-const CODEX_SUBSCRIBE_URL = 'https://chatgpt.com'
-
-interface ClaudeWindow {
-  utilization: number
-  resetsAt: string | null
-}
-interface CodexWindow {
-  usedPercent: number
-  resetAt: string | null
-  windowSeconds: number | null
-}
-interface ClaudeAccountUsage {
-  accountLabel: string
-  fiveHour: ClaudeWindow | null
-  sevenDay: ClaudeWindow | null
-  sevenDaySonnet: ClaudeWindow | null
-  sevenDayOpus: ClaudeWindow | null
-  extraUsageEnabled: boolean
-  capturedAt: string
-}
-interface CodexAccountUsage {
-  accountLabel: string
-  planType: string | null
-  primary: CodexWindow | null
-  secondary: CodexWindow | null
-  capturedAt: string
-}
-interface UsageResponse {
-  claude: ClaudeAccountUsage[]
-  codex: CodexAccountUsage[]
-}
 
 interface SubscriptionAccount {
   id: string
@@ -70,18 +36,6 @@ interface UsageCostResponse {
   days: number
 }
 
-const fmtReset = (iso: string | null): string => {
-  if (!iso) return '—'
-  const d = dayjs(iso)
-  return d.isValid() ? d.format('YYYY/MM/DD HH:mm') : iso
-}
-
-const fmtTokens = (n: number): string => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`
-  return String(n)
-}
-
 const fmtCost = (usd: number | null, noPricingLabel: string): string => {
   if (usd === null) return noPricingLabel
   if (usd === 0) return '$0.00'
@@ -89,99 +43,89 @@ const fmtCost = (usd: number | null, noPricingLabel: string): string => {
   return `$${usd.toFixed(2)}`
 }
 
-function UsageBar({ label, percent, reset }: { label: string; percent: number; reset: string }) {
-  const clamped = Math.max(0, Math.min(100, percent))
-  return (
-    <div className='space-y-1'>
-      <div className='flex items-center justify-between text-sm'>
-        <span className='font-medium'>{label}</span>
-        <span className='text-muted-foreground'>{percent.toFixed(1)}%</span>
-      </div>
-      <div className='h-2 w-full overflow-hidden rounded-full bg-muted'>
-        <div className='h-full rounded-full bg-blue-500' style={{ width: `${clamped}%` }} />
-      </div>
-      <div className='text-xs text-muted-foreground'>{reset}</div>
-    </div>
-  )
-}
+type Translator = (k: string, opts?: Record<string, unknown>) => string
 
-function NotRegistered({ message, hint, href, cta }: { message: string; hint: string; href: string; cta: string }) {
+function AccountRow({ account, t }: { account: SubscriptionAccount; t: Translator }) {
+  const subtitle = [account.userName, account.userEmail].filter(Boolean).join(' · ')
   return (
-    <div className='space-y-1 text-sm text-muted-foreground'>
-      <p>{message}</p>
-      <p className='text-xs'>{hint}</p>
-      <a
-        href={href}
-        target='_blank'
-        rel='noreferrer'
-        className='inline-block text-xs font-medium text-primary hover:underline'
-      >
-        {cta}
-      </a>
-    </div>
-  )
-}
-
-function ClaudeAccountSection({ account, t }: { account: ClaudeAccountUsage; t: (k: string) => string }) {
-  return (
-    <div className='space-y-3 rounded-md border p-4'>
-      <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
-      {account.fiveHour && (
-        <UsageBar
-          label={t('usage.fiveHour')}
-          percent={account.fiveHour.utilization}
-          reset={`${t('usage.resets')}: ${fmtReset(account.fiveHour.resetsAt)}`}
-        />
-      )}
-      {account.sevenDay && (
-        <UsageBar
-          label={t('usage.sevenDay')}
-          percent={account.sevenDay.utilization}
-          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDay.resetsAt)}`}
-        />
-      )}
-      {account.sevenDaySonnet && (
-        <UsageBar
-          label={t('usage.sevenDaySonnet')}
-          percent={account.sevenDaySonnet.utilization}
-          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDaySonnet.resetsAt)}`}
-        />
-      )}
-      {account.sevenDayOpus && (
-        <UsageBar
-          label={t('usage.sevenDayOpus')}
-          percent={account.sevenDayOpus.utilization}
-          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDayOpus.resetsAt)}`}
-        />
-      )}
-      <div className='text-xs text-muted-foreground'>
-        {t('usage.capturedAt')}: {fmtReset(account.capturedAt)}
+    <div className='flex items-center justify-between gap-3 border-t px-4 py-3 first:border-t-0'>
+      <div className='min-w-0 flex-1'>
+        <div className='flex items-center gap-2'>
+          <span className='truncate text-sm font-medium'>{account.label}</span>
+          {!account.enabled && (
+            <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground'>
+              {t('subscriptions.disabled')}
+            </span>
+          )}
+        </div>
+        {subtitle && <div className='truncate text-xs text-muted-foreground'>{subtitle}</div>}
+      </div>
+      <div className='flex flex-col items-end gap-0.5 text-right'>
+        {account.plan && <span className='text-xs text-muted-foreground'>{account.plan}</span>}
+        {account.monthlyPriceUsd != null && (
+          <span className='text-sm font-medium'>${account.monthlyPriceUsd.toFixed(0)}/mo</span>
+        )}
       </div>
     </div>
   )
 }
 
-function CodexAccountSection({ account, t }: { account: CodexAccountUsage; t: (k: string) => string }) {
+function ProviderCard({
+  provider,
+  apiCostUsd,
+  t
+}: {
+  provider: SubscriptionProvider
+  apiCostUsd: number | null
+  t: Translator
+}) {
+  const monthlyUsd = provider.accounts.find((a) => a.monthlyPriceUsd != null)?.monthlyPriceUsd ?? null
+  const savingsUsd = apiCostUsd != null && monthlyUsd != null ? apiCostUsd - monthlyUsd : null
   return (
-    <div className='space-y-3 rounded-md border p-4'>
-      <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
-      {account.primary && (
-        <UsageBar
-          label={t('usage.primary')}
-          percent={account.primary.usedPercent}
-          reset={`${t('usage.resets')}: ${fmtReset(account.primary.resetAt)}`}
-        />
-      )}
-      {account.secondary && (
-        <UsageBar
-          label={t('usage.secondary')}
-          percent={account.secondary.usedPercent}
-          reset={`${t('usage.resets')}: ${fmtReset(account.secondary.resetAt)}`}
-        />
-      )}
-      <div className='text-xs text-muted-foreground'>
-        {t('usage.capturedAt')}: {fmtReset(account.capturedAt)}
+    <div className='rounded-md border'>
+      <div className='flex items-center justify-between border-b px-4 py-2'>
+        <div className='flex items-center gap-2'>
+          <span className='text-sm font-medium'>{provider.providerName}</span>
+          {provider.activeAccount && (
+            <span className='rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] text-blue-600'>
+              {t('subscriptions.activeLabel')}: {provider.activeAccount.label}
+            </span>
+          )}
+        </div>
+        {monthlyUsd != null && <span className='text-xs text-muted-foreground'>${monthlyUsd.toFixed(0)}/mo</span>}
       </div>
+      {provider.accounts.length === 0 ? (
+        <div className='px-4 py-3 text-xs text-muted-foreground'>{t('subscriptions.noAccounts')}</div>
+      ) : (
+        <div>
+          {provider.accounts.map((acc) => (
+            <AccountRow key={acc.id} account={acc} t={t} />
+          ))}
+        </div>
+      )}
+      {monthlyUsd != null && (
+        <div className='flex items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground'>
+          <span>
+            {t('usage.apiCostPeriod30d')} API:{' '}
+            <span className='font-medium text-foreground'>{fmtCost(apiCostUsd, t('usage.apiCostNoPricing'))}</span>
+          </span>
+          {savingsUsd != null ? (
+            <span
+              className={
+                savingsUsd > 0 ? 'font-medium text-green-600' : savingsUsd < 0 ? 'font-medium text-red-500' : ''
+              }
+            >
+              {savingsUsd > 0
+                ? t('usage.apiCostSaved', { amount: fmtCost(savingsUsd, '') })
+                : savingsUsd < 0
+                  ? t('usage.apiCostOver', { amount: fmtCost(-savingsUsd, '') })
+                  : t('usage.apiCostBreakEven')}
+            </span>
+          ) : (
+            <span className='italic'>{t('usage.apiCostSyncNeeded')}</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -189,21 +133,15 @@ function CodexAccountSection({ account, t }: { account: CodexAccountUsage; t: (k
 export function Subscriptions() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [data, setData] = useState<UsageResponse | null>(null)
-  const [error, setError] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [subData, setSubData] = useState<SubscriptionsResponse | null>(null)
   const [costData, setCostData] = useState<UsageCostResponse | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
   const fetchAll = () => {
     api
-      .get<UsageResponse>('/usage')
-      .then(setData)
-      .catch(() => setError(true))
-    api
       .get<SubscriptionsResponse>('/subscriptions')
       .then(setSubData)
-      .catch(() => {})
+      .catch(() => setSubData({ subscriptions: [] }))
     api
       .get<UsageCostResponse>('/usage/cost?days=30')
       .then(setCostData)
@@ -228,10 +166,8 @@ export function Subscriptions() {
     }
   }
 
-  // Build savings rows from /subscriptions (always available, not log-dependent).
-  // Merge with /usage/cost for the API equivalent cost figure.
   const costByProvider = new Map((costData?.providers ?? []).map((p) => [p.provider, p.totalCostUsd]))
-  const savingsRows = (subData?.subscriptions ?? []).filter((p) => p.accounts.some((a) => a.monthlyPriceUsd != null))
+  const providers = subData?.subscriptions ?? []
 
   return (
     <PageContainer>
@@ -240,99 +176,30 @@ export function Subscriptions() {
           <Button variant='outline' size='sm' onClick={() => navigate('/providers')}>
             {t('providers.title')}
           </Button>
+          <Button variant='outline' size='sm' onClick={() => navigate('/usage')}>
+            {t('nav.usage')}
+          </Button>
           <Button variant='outline' size='sm' onClick={handleSync} disabled={syncing}>
             {syncing ? '…' : t('usage.sync')}
           </Button>
         </div>
       </PageHeader>
       <PageContent className='space-y-6'>
-        {error && <div className='text-sm text-red-500'>{t('usage.loadError')}</div>}
+        <p className='text-xs text-muted-foreground'>{t('subscriptions.usageHint')}</p>
 
-        <section className='space-y-3'>
-          <h3 className='text-base font-semibold'>{t('usage.claude')}</h3>
-          {data?.claude.length === 0 ? (
-            <NotRegistered
-              message={t('usage.claudeNotRegistered')}
-              hint={t('usage.claudeNotRegisteredHint')}
-              href={CLAUDE_SUBSCRIBE_URL}
-              cta={t('usage.openSubscriptionPage')}
-            />
-          ) : (
-            <div className='space-y-3'>
-              {data?.claude.map((account) => (
-                <ClaudeAccountSection key={account.accountLabel} account={account} t={t} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className='space-y-3'>
-          <h3 className='text-base font-semibold'>{t('usage.codex')}</h3>
-          {data?.codex.length === 0 ? (
-            <NotRegistered
-              message={t('usage.codexNotRegistered')}
-              hint={t('usage.codexNotRegisteredHint')}
-              href={CODEX_SUBSCRIBE_URL}
-              cta={t('usage.openSubscriptionPage')}
-            />
-          ) : (
-            <div className='space-y-3'>
-              {data?.codex.map((account) => (
-                <CodexAccountSection key={account.accountLabel} account={account} t={t} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {savingsRows.length > 0 && (
-          <section className='space-y-3'>
-            <div className='space-y-3'>
-              {savingsRows.map((p) => {
-                const monthlyUsd = p.accounts.find((a) => a.monthlyPriceUsd != null)?.monthlyPriceUsd ?? null
-                const apiCostUsd = costByProvider.get(p.providerName) ?? null
-                const savingsUsd = apiCostUsd != null && monthlyUsd != null ? apiCostUsd - monthlyUsd : null
-                return (
-                  <div key={p.providerName} className='rounded-md border'>
-                    <div className='flex items-center justify-between border-b px-4 py-2'>
-                      <span className='text-sm font-medium'>{p.providerName}</span>
-                      {monthlyUsd != null && (
-                        <span className='text-xs text-muted-foreground'>${monthlyUsd.toFixed(0)}/mo</span>
-                      )}
-                    </div>
-                    <div className='flex items-center justify-between px-4 py-2 text-xs text-muted-foreground'>
-                      <span>
-                        {t('usage.apiCostPeriod30d')} API:{' '}
-                        <span className='font-medium text-foreground'>
-                          {fmtCost(apiCostUsd, t('usage.apiCostNoPricing'))}
-                        </span>
-                      </span>
-                      {monthlyUsd != null ? (
-                        <span
-                          className={
-                            savingsUsd != null && savingsUsd > 0
-                              ? 'font-medium text-green-600'
-                              : savingsUsd != null && savingsUsd < 0
-                                ? 'font-medium text-red-500'
-                                : ''
-                          }
-                        >
-                          {savingsUsd != null
-                            ? savingsUsd > 0
-                              ? t('usage.apiCostSaved', { amount: fmtCost(savingsUsd, '') })
-                              : savingsUsd < 0
-                                ? t('usage.apiCostOver', { amount: fmtCost(-savingsUsd, '') })
-                                : t('usage.apiCostBreakEven')
-                            : '—'}
-                        </span>
-                      ) : (
-                        <span className='italic'>{t('usage.apiCostSyncNeeded')}</span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
+        {providers.length === 0 ? (
+          <p className='text-sm text-muted-foreground'>{t('subscriptions.empty')}</p>
+        ) : (
+          <div className='space-y-3'>
+            {providers.map((p) => (
+              <ProviderCard
+                key={p.providerName}
+                provider={p}
+                apiCostUsd={costByProvider.get(p.providerName) ?? null}
+                t={t}
+              />
+            ))}
+          </div>
         )}
       </PageContent>
     </PageContainer>

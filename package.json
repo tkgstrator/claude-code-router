@@ -23,7 +23,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate && git config core.hooksPath .githooks || true",
+    "postinstall": "prisma generate",
     "knip": "knip"
   },
   "keywords": [
