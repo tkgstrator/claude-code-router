@@ -13,7 +13,7 @@
  */
 
 import type { Context } from 'hono'
-import { type PipelineRequest, RecordSchema, type Router } from '@/schemas'
+import { type PipelineRequest, type Provider, RecordSchema, type Router } from '@/schemas'
 import {
   type LlmsContext,
   type ResolvedProvider,
@@ -252,15 +252,45 @@ const providerNameOf = (modelString: string): string => modelString.split(',')[0
 // providers currently known to be rate-limited, but never returns empty
 // — if every candidate is exhausted we still try them (the window may
 // have reset since we last marked it).
+//
+// Two gates filter the configured fallbacks:
+//
+//   1. auth_mode gate: when the primary is a subscription provider,
+//      fallbacks are constrained to other subscription providers — a
+//      429 on the user's "free seat" must not silently roll onto an
+//      api_key provider that costs per-token.
+//   2. same-provider gate: fallbacks on the SAME provider as the primary
+//      are dropped — the 5h/weekly quota windows are per-account, so a
+//      different model on the same provider would 429 against the same
+//      exhausted accounts. Real redundancy lives on a DIFFERENT provider.
+//
+// applyUiConfig already drops same-provider fallbacks at save time; this
+// is the defence-in-depth for configs persisted before the validation
+// landed.
 export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] {
   const router = ctx.config.get<Router>('Router')
   const configured = router?.fallbacks?.[plan.scenarioType]
   const fallbacks = Array.isArray(configured) ? configured : []
 
+  const providers = ctx.config.get<Provider[]>('providers', [])
+  const authModeByName = new Map(providers.map((p) => [p.name, p.auth_mode]))
+  const primaryName = providerNameOf(plan.primaryModel)
+  const primaryAuth = authModeByName.get(primaryName)
+
   const seen = new Set<string>()
   const ordered = [plan.primaryModel, ...fallbacks].filter((m) => {
     if (seen.has(m)) return false
     seen.add(m)
+    if (m === plan.primaryModel) return true
+    const name = providerNameOf(m)
+    // Same-provider fallbacks share the failing provider's exhaust state
+    // — they cannot recover from a quota 429. Drop unconditionally.
+    if (name === primaryName) return false
+    // Same-mode fallbacks only when primary auth_mode is known.
+    // Unknown-auth providers (e.g. typo'd fallback entries) pass through
+    // and surface their own "provider not found" warn downstream.
+    const auth = authModeByName.get(name)
+    if (primaryAuth !== undefined && auth !== undefined && auth !== primaryAuth) return false
     return true
   })
 

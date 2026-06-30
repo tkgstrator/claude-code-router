@@ -26,6 +26,36 @@ interface HistoryResponse {
   samples: UsageSample[]
 }
 
+interface ClaudeWindow {
+  utilization: number
+  resetsAt: string | null
+}
+interface CodexWindow {
+  usedPercent: number
+  resetAt: string | null
+  windowSeconds: number | null
+}
+interface ClaudeAccountUsage {
+  accountLabel: string
+  fiveHour: ClaudeWindow | null
+  sevenDay: ClaudeWindow | null
+  sevenDaySonnet: ClaudeWindow | null
+  sevenDayOpus: ClaudeWindow | null
+  extraUsageEnabled: boolean
+  capturedAt: string
+}
+interface CodexAccountUsage {
+  accountLabel: string
+  planType: string | null
+  primary: CodexWindow | null
+  secondary: CodexWindow | null
+  capturedAt: string
+}
+interface CurrentUsageResponse {
+  claude: ClaudeAccountUsage[]
+  codex: CodexAccountUsage[]
+}
+
 interface SeriesPoint {
   t: string
   v: number
@@ -126,6 +156,112 @@ const fmtCost = (usd: number | null, noPricingLabel: string): string => {
   return `$${usd.toFixed(2)}`
 }
 
+const fmtReset = (iso: string | null): string => {
+  if (!iso) return '—'
+  const d = dayjs(iso)
+  return d.isValid() ? d.format('YYYY/MM/DD HH:mm') : iso
+}
+
+function UsageBar({ label, percent, reset }: { label: string; percent: number; reset: string }) {
+  const clamped = Math.max(0, Math.min(100, percent))
+  return (
+    <div className='space-y-1'>
+      <div className='flex items-center justify-between text-sm'>
+        <span className='font-medium'>{label}</span>
+        <span className='text-muted-foreground'>{percent.toFixed(1)}%</span>
+      </div>
+      <div className='h-2 w-full overflow-hidden rounded-full bg-muted'>
+        <div className='h-full rounded-full bg-blue-500' style={{ width: `${clamped}%` }} />
+      </div>
+      <div className='text-xs text-muted-foreground'>{reset}</div>
+    </div>
+  )
+}
+
+function ClaudeAccountSection({ account, t }: { account: ClaudeAccountUsage; t: (k: string) => string }) {
+  return (
+    <div className='space-y-3 rounded-md border p-4'>
+      <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
+      {account.fiveHour && (
+        <UsageBar
+          label={t('usage.fiveHour')}
+          percent={account.fiveHour.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.fiveHour.resetsAt)}`}
+        />
+      )}
+      {account.sevenDay && (
+        <UsageBar
+          label={t('usage.sevenDay')}
+          percent={account.sevenDay.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDay.resetsAt)}`}
+        />
+      )}
+      {account.sevenDaySonnet && (
+        <UsageBar
+          label={t('usage.sevenDaySonnet')}
+          percent={account.sevenDaySonnet.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDaySonnet.resetsAt)}`}
+        />
+      )}
+      {account.sevenDayOpus && (
+        <UsageBar
+          label={t('usage.sevenDayOpus')}
+          percent={account.sevenDayOpus.utilization}
+          reset={`${t('usage.resets')}: ${fmtReset(account.sevenDayOpus.resetsAt)}`}
+        />
+      )}
+      <div className='text-xs text-muted-foreground'>
+        {t('usage.capturedAt')}: {fmtReset(account.capturedAt)}
+      </div>
+    </div>
+  )
+}
+
+function CodexAccountSection({ account, t }: { account: CodexAccountUsage; t: (k: string) => string }) {
+  return (
+    <div className='space-y-3 rounded-md border p-4'>
+      <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
+      {account.primary && (
+        <UsageBar
+          label={t('usage.primary')}
+          percent={account.primary.usedPercent}
+          reset={`${t('usage.resets')}: ${fmtReset(account.primary.resetAt)}`}
+        />
+      )}
+      {account.secondary && (
+        <UsageBar
+          label={t('usage.secondary')}
+          percent={account.secondary.usedPercent}
+          reset={`${t('usage.resets')}: ${fmtReset(account.secondary.resetAt)}`}
+        />
+      )}
+      <div className='text-xs text-muted-foreground'>
+        {t('usage.capturedAt')}: {fmtReset(account.capturedAt)}
+      </div>
+    </div>
+  )
+}
+
+function NotRegistered({ message, hint, href, cta }: { message: string; hint: string; href: string; cta: string }) {
+  return (
+    <div className='space-y-1 text-sm text-muted-foreground'>
+      <p>{message}</p>
+      <p className='text-xs'>{hint}</p>
+      <a
+        href={href}
+        target='_blank'
+        rel='noreferrer'
+        className='inline-block text-xs font-medium text-primary hover:underline'
+      >
+        {cta}
+      </a>
+    </div>
+  )
+}
+
+const CLAUDE_SUBSCRIBE_URL = 'https://claude.ai'
+const CODEX_SUBSCRIBE_URL = 'https://chatgpt.com'
+
 export function Usage() {
   const { t } = useTranslation()
   const [history, setHistory] = useState<HistoryResponse>({ samples: [] })
@@ -133,6 +269,8 @@ export function Usage() {
   const [costHistory, setCostHistory] = useState<CostHistoryResponse | null>(null)
   const [costLoading, setCostLoading] = useState(false)
   const [costDays, setCostDays] = useState(30)
+  const [current, setCurrent] = useState<CurrentUsageResponse | null>(null)
+  const [currentError, setCurrentError] = useState(false)
 
   useEffect(() => {
     const refresh = () => {
@@ -140,6 +278,13 @@ export function Usage() {
         .get<HistoryResponse>('/usage/history?days=7')
         .then(setHistory)
         .catch(() => setHistory({ samples: [] }))
+      api
+        .get<CurrentUsageResponse>('/usage')
+        .then((d) => {
+          setCurrent(d)
+          setCurrentError(false)
+        })
+        .catch(() => setCurrentError(true))
     }
     refresh()
     const id = setInterval(refresh, REFRESH_MS)
@@ -195,6 +340,52 @@ export function Usage() {
     <PageContainer>
       <PageHeader title={t('usage.title')} />
       <PageContent className='space-y-6'>
+        {currentError && <div className='text-sm text-red-500'>{t('usage.loadError')}</div>}
+
+        <section className='space-y-3'>
+          <h3 className='text-base font-semibold'>{t('usage.current')}</h3>
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+            <div className='space-y-3'>
+              <h4 className='text-sm font-semibold text-muted-foreground'>{t('usage.claude')}</h4>
+              {current === null ? (
+                <p className='text-sm text-muted-foreground'>…</p>
+              ) : current.claude.length === 0 ? (
+                <NotRegistered
+                  message={t('usage.claudeNotRegistered')}
+                  hint={t('usage.claudeNotRegisteredHint')}
+                  href={CLAUDE_SUBSCRIBE_URL}
+                  cta={t('usage.openSubscriptionPage')}
+                />
+              ) : (
+                <div className='space-y-3'>
+                  {current.claude.map((account) => (
+                    <ClaudeAccountSection key={account.accountLabel} account={account} t={t} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className='space-y-3'>
+              <h4 className='text-sm font-semibold text-muted-foreground'>{t('usage.codex')}</h4>
+              {current === null ? (
+                <p className='text-sm text-muted-foreground'>…</p>
+              ) : current.codex.length === 0 ? (
+                <NotRegistered
+                  message={t('usage.codexNotRegistered')}
+                  hint={t('usage.codexNotRegisteredHint')}
+                  href={CODEX_SUBSCRIBE_URL}
+                  cta={t('usage.openSubscriptionPage')}
+                />
+              ) : (
+                <div className='space-y-3'>
+                  {current.codex.map((account) => (
+                    <CodexAccountSection key={account.accountLabel} account={account} t={t} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         <section className='space-y-3'>
           <div className='flex items-center justify-between'>
             <h3 className='text-base font-semibold'>{t('usage.apiCost')}</h3>

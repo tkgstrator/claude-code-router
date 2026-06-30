@@ -343,6 +343,19 @@ function logRequest(log: Logger, provider: ResolvedProvider, body: unknown, url:
   )
 }
 
+// Parse upstream error bodies so pino logs them as nested objects
+// instead of an escape-laden string. Anything that isn't valid JSON
+// (HTML error pages, plain text) is returned verbatim so the raw bytes
+// still reach the log.
+function tryParseJson(text: string): unknown {
+  if (text.length === 0) return text
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}
+
 function logResponse(log: Logger, provider: ResolvedProvider, body: unknown, status: number, durationMs: number): void {
   const view = viewPipelineBody(body)
   log.debug(
@@ -382,7 +395,7 @@ async function handleProviderError(
       model,
       status: response.status,
       durationMs,
-      body: errorText
+      body: tryParseJson(errorText)
     },
     `[provider_response_error] ${message}`
   )

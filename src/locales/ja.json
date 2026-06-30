@@ -81,7 +81,15 @@
     "apiCostHistory": "日別コスト",
     "apiCostHistoryEmpty": "選択した期間に価格データがありません。",
     "subscriptionSavings": "サブスク節約額",
-    "sync": "同期"
+    "sync": "同期",
+    "current": "現在のレートリミット"
+  },
+  "subscriptions": {
+    "empty": "サブスクは未登録です。Providers から登録してください。",
+    "usageHint": "実際の使用状況・レートリミット推移は Usage ページに集約しています。",
+    "noAccounts": "アカウントが見つかりません。CLI でログインしてください。",
+    "activeLabel": "アクティブ",
+    "disabled": "無効"
   },
   "models": {
     "provider": "プロバイダー",
