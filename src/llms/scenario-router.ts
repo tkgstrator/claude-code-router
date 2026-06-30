@@ -61,11 +61,28 @@ type ConfigProvider = {
   name: string
   models?: string[]
   api_base_url?: string
+  // Mirrors ProviderRegistry.registerFromConfig — when this is absent or
+  // empty, the registry silently skips the provider, so the router must
+  // skip it too or the chain walker hits "provider not found; skipping".
+  api_key?: string | null
   auth_mode?: string
   // Per-model context window (tokens), emitted by compose.ts. Used by the
   // capability gate so failover never lands on a model that cannot hold
   // the request. Absent entry = unknown window = allow (conservative).
   modelContextWindows?: Record<string, number>
+}
+
+// A provider is usable only when the ProviderRegistry would accept it
+// at runtime. Subscription providers ride through applySubscriptionAuth
+// which stamps `api_key: 'oauth'` before ProviderRegistry sees them,
+// so the missing-api_key check would falsely reject them here (the test
+// fixtures and the router both predate the overlay). Treat subscription
+// providers as registrable unconditionally; for api_key providers we
+// keep the original sanity check.
+function isProviderRegistrable(p: ConfigProvider): boolean {
+  if (!p.name || !p.api_base_url) return false
+  if (p.auth_mode === 'subscription') return true
+  return Boolean(p.api_key)
 }
 
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
@@ -430,7 +447,11 @@ function resolveExplicitProviderModel(
 ): { model: string; scenarioType: ScenarioType } {
   const [providerInput, modelInput] = rawModel.split(',')
   const providers = config.get<ConfigProvider[]>('providers', [])
-  const provider = providers.find((p) => p.name.toLowerCase() === providerInput.toLowerCase())
+  // Only consider providers the registry would actually register —
+  // otherwise we hand the chain walker a name that resolves to undefined.
+  const provider = providers.find(
+    (p) => p.name.toLowerCase() === providerInput.toLowerCase() && isProviderRegistrable(p)
+  )
   const model = provider?.models?.find((m) => m.toLowerCase() === modelInput.toLowerCase())
   if (provider && model) return { model: `${provider.name},${model}`, scenarioType: 'default' }
   return { model: rawModel, scenarioType: 'default' }
@@ -446,8 +467,22 @@ function resolveByModelName(
   config: ConfigStore
 ): { model: string; scenarioType: ScenarioType } | null {
   const providers = config.get<ConfigProvider[]>('providers', [])
-  for (const p of providers) {
+  // Prefer subscription providers over api_key when both host the same
+  // model. Subscription is the user's primary "free" capacity (they
+  // already paid the seat); api_key burns per-token spend. Without this
+  // bias, a bare `claude-opus-4-8` request can land on a half-configured
+  // anthropic api_key provider while a healthy claude-code subscription
+  // hosts the same model.
+  const subscriptionFirst = [
+    ...providers.filter((p) => p.auth_mode === 'subscription'),
+    ...providers.filter((p) => p.auth_mode !== 'subscription')
+  ]
+  for (const p of subscriptionFirst) {
     if (!p.models) continue
+    // Skip providers the ProviderRegistry would reject (missing api_key
+    // etc.) — picking them here just bait the chain walker into a dead
+    // "provider not found; skipping" hop.
+    if (!isProviderRegistrable(p)) continue
     const match = p.models.find((m) => m.toLowerCase() === rawModel.toLowerCase())
     if (match) return { model: `${p.name},${match}`, scenarioType: 'default' }
   }

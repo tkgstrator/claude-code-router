@@ -129,13 +129,23 @@ describe.skipIf(!HAS_DB)('configService', () => {
           api_key: 'sk-x',
           auth_mode: 'api_key',
           models: ['gpt-5', 'gpt-5-nano']
+        },
+        {
+          name: 'anthropic',
+          api_base_url: 'https://api.anthropic.com',
+          api_key: 'sk-y',
+          auth_mode: 'api_key',
+          models: ['claude-sonnet-4-6']
         }
       ],
       Router: {
         default: 'openai,gpt-5',
         // A missing nested key defaults to [] (RouterFallbacksSchema),
-        // so a partial fallbacks object is enough to set one slot.
-        fallbacks: { default: ['openai,gpt-5-nano', 'openai,does-not-exist'] }
+        // so a partial fallbacks object is enough to set one slot. The
+        // valid fallback is on a DIFFERENT provider — the same-provider
+        // gate (see resolveFallbackTargets) drops same-provider fallbacks
+        // because per-account quota windows are shared across models.
+        fallbacks: { default: ['anthropic,claude-sonnet-4-6', 'anthropic,does-not-exist'] }
       }
     })
 
@@ -145,7 +155,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
 
     const ui = await composeUiConfig()
     expect(ui.Router.default).toBe('openai,gpt-5')
-    expect(ui.Router.fallbacks.default).toEqual(['openai,gpt-5-nano'])
+    expect(ui.Router.fallbacks.default).toEqual(['anthropic,claude-sonnet-4-6'])
     expect(ui.Router.fallbacks.background).toEqual([])
   })
 

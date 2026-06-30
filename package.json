@@ -1,6 +1,6 @@
 {
   "name": "@musistudio/claude-code-router",
-  "version": "2.13.0",
+  "version": "2.14.0",
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
     "dev": "vite --host --port 16175",
@@ -23,7 +23,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate && git config core.hooksPath .githooks || true",
+    "postinstall": "prisma generate",
     "knip": "knip"
   },
   "keywords": [
@@ -60,10 +60,10 @@
   },
   "overrides": {
     "@types/react": "18",
-    "ioredis": "5.10.1"
+    "ioredis": "5.11.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.106.0",
+    "@anthropic-ai/sdk": "^0.107.0",
     "@base-ui/react": "^1.6.0",
     "@fastify/cors": "^11.2.0",
     "@fontsource-variable/figtree": "^5.2.10",
@@ -104,7 +104,7 @@
     "hono": "^4.12.27",
     "i18next": "^26.3.3",
     "i18next-browser-languagedetector": "^8.2.1",
-    "ioredis": "5.10.1",
+    "ioredis": "5.11.1",
     "json5": "^2.2.3",
     "jsonrepair": "^3.14.1",
     "lru-cache": "^11.5.1",

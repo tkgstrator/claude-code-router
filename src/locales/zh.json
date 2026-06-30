@@ -81,7 +81,15 @@
     "apiCostHistory": "每日费用",
     "apiCostHistoryEmpty": "所选时段内无定价数据。",
     "subscriptionSavings": "订阅节省",
-    "sync": "同步"
+    "sync": "同步",
+    "current": "当前速率限制"
+  },
+  "subscriptions": {
+    "empty": "未注册任何订阅。请从 Providers 添加。",
+    "usageHint": "实际使用情况与速率限制变化已统一在 Usage 页面查看。",
+    "noAccounts": "未找到账户。请先在 CLI 登录。",
+    "activeLabel": "活跃",
+    "disabled": "已禁用"
   },
   "models": {
     "provider": "供应商",
