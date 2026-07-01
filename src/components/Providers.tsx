@@ -1,4 +1,4 @@
-import { Eye, EyeOff, FileUp, LogIn, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Eye, EyeOff, FileUp, LogIn, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
+import { ProviderIcon } from '@/lib/providerIcons'
 import type { CatalogEntry } from '@/schemas/catalog.dto'
 import { findSubscriptionPreset, isDeprecatedModel } from '@/shared/data'
 import type { Provider, ProviderAuthMode } from '@/types'
@@ -58,6 +59,7 @@ export function Providers() {
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
   const [catalog, setCatalog] = useState<CatalogEntry[]>([])
+  const [manageOpen, setManageOpen] = useState(false)
   const [connectChoiceOpen, setConnectChoiceOpen] = useState(false)
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false)
   const [manualCallbackUrl, setManualCallbackUrl] = useState('')
@@ -259,31 +261,47 @@ export function Providers() {
   // Validate config.Providers to ensure it's an array
   const validProviders = Array.isArray(config.Providers) ? config.Providers : []
 
-  // Enable a vendor straight from the catalog. Subscription vendors
-  // reuse the existing OAuth loopback flow (server creates the Provider
-  // row on callback). api_key vendors open the edit dialog with a fresh
-  // Provider payload prefilled from the catalog entry — save handler
-  // appends when editingProviderIndex === config.Providers.length.
-  const handleEnableFromCatalog = (entry: CatalogEntry) => {
-    if (entry.authMode === 'subscription') {
-      if (entry.name === 'claude-code') handleConnectProvider('claude')
-      else if (entry.name === 'codex') handleConnectProvider('codex')
+  // Toggle a catalog entry on/off. Toggling ON: api_key vendors open
+  // the edit dialog with a fresh Provider payload prefilled from the
+  // catalog entry so the user can enter their key; subscription vendors
+  // trigger the existing OAuth loopback flow. Toggling OFF removes the
+  // Provider row from the config (subscription-account cleanup happens
+  // server-side via the apply diff).
+  const handleToggleCatalog = async (entry: CatalogEntry, checked: boolean) => {
+    if (checked) {
+      if (entry.authMode === 'subscription') {
+        setManageOpen(false)
+        if (entry.name === 'claude-code') handleConnectProvider('claude')
+        else if (entry.name === 'codex') handleConnectProvider('codex')
+        return
+      }
+      setManageOpen(false)
+      const availableIds = entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
+      const initialModels = entry.defaultEnabledModels.length > 0 ? entry.defaultEnabledModels : availableIds
+      const newProvider: ProviderType = {
+        name: entry.name,
+        api_base_url: entry.apiBaseUrl,
+        api_key: '',
+        auth_mode: 'api_key',
+        enabled: true,
+        models: initialModels
+      }
+      setEditingProviderIndex(validProviders.length)
+      setEditingProviderData(newProvider)
+      setApiKeyError(null)
+      setNameError(null)
       return
     }
-    const availableIds = entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
-    const initialModels = entry.defaultEnabledModels.length > 0 ? entry.defaultEnabledModels : availableIds
-    const newProvider: ProviderType = {
-      name: entry.name,
-      api_base_url: entry.apiBaseUrl,
-      api_key: '',
-      auth_mode: 'api_key',
-      enabled: true,
-      models: initialModels
+    const newProviders = validProviders.filter((p) => p.name !== entry.name)
+    const newConfig = { ...config, Providers: newProviders }
+    setConfig(newConfig)
+    try {
+      await api.updateConfig(newConfig)
+      await fetchCatalog()
+      if (entry.authMode === 'subscription') await fetchSubscriptions()
+    } catch (err) {
+      console.error('Failed to remove provider:', err)
     }
-    setEditingProviderIndex(validProviders.length)
-    setEditingProviderData(newProvider)
-    setApiKeyError(null)
-    setNameError(null)
   }
 
   const handleEditProvider = (index: number) => {
@@ -813,77 +831,44 @@ export function Providers() {
           <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
           {t('providers.refresh_templates')}
         </Button>
+        <Button variant='outline' onClick={() => setManageOpen(true)}>
+          <Pencil className='h-4 w-4' />
+          {t('providers.manage')}
+        </Button>
         <Button variant='outline' onClick={() => setConnectChoiceOpen(true)}>
           <LogIn className='h-4 w-4' />
           {t('providers.connect')}
         </Button>
       </PageHeader>
       <PageContent>
-        <div className='space-y-6'>
-          {availableProviders.length > 0 && (
-            <div className='space-y-2'>
-              <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                {t('providers.available')} ({availableProviders.length})
-              </h3>
-              <ProviderList
-                providers={availableProviders}
-                onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
-              />
-            </div>
-          )}
-          {unavailableProviders.length > 0 && (
-            <div className='space-y-2'>
-              <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                {t('providers.unavailable')} ({unavailableProviders.length})
-              </h3>
-              <ProviderList
-                providers={unavailableProviders}
-                onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
-              />
-            </div>
-          )}
-          {(() => {
-            const configuredNames = new Set(validProviders.map((p) => p.name))
-            const tabCatalog = catalog.filter((e) => e.authMode === activeAuthMode && !configuredNames.has(e.name))
-            if (tabCatalog.length === 0) {
-              if (visibleProviders.length === 0) {
-                return <ProviderList providers={visibleProviders} onEdit={handleEditProvider} />
-              }
-              return null
-            }
-            return (
+        {visibleProviders.length === 0 ? (
+          <ProviderList providers={visibleProviders} onEdit={handleEditProvider} />
+        ) : (
+          <div className='space-y-6'>
+            {availableProviders.length > 0 && (
               <div className='space-y-2'>
                 <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                  {t('providers.catalog')} ({tabCatalog.length})
+                  {t('providers.available')} ({availableProviders.length})
                 </h3>
-                <div className='space-y-2'>
-                  {tabCatalog.map((entry) => (
-                    <div key={entry.name} className='flex items-center justify-between rounded-lg border p-3'>
-                      <div className='min-w-0'>
-                        <div className='font-medium'>{entry.displayName}</div>
-                        <div className='text-xs text-muted-foreground'>
-                          {t('providers.catalog_models_count', { count: entry.models.length })}
-                          {entry.lastRefreshedAt !== null && (
-                            <>
-                              {' · '}
-                              {t('providers.catalog_refreshed', {
-                                at: dayjs(entry.lastRefreshedAt).format('MMM D, HH:mm')
-                              })}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <Button size='sm' variant='outline' onClick={() => handleEnableFromCatalog(entry)}>
-                        <Plus className='h-4 w-4' />
-                        {t('providers.enable')}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                <ProviderList
+                  providers={availableProviders}
+                  onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
+                />
               </div>
-            )
-          })()}
-        </div>
+            )}
+            {unavailableProviders.length > 0 && (
+              <div className='space-y-2'>
+                <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
+                  {t('providers.unavailable')} ({unavailableProviders.length})
+                </h3>
+                <ProviderList
+                  providers={unavailableProviders}
+                  onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </PageContent>
 
       {/* Edit Dialog */}
@@ -1381,6 +1366,52 @@ export function Providers() {
               </Button> */}
               <Button onClick={handleSaveProvider}>{t('app.save')}</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage: toggle catalog entries on/off. Toggling ON opens either the
+          Edit dialog (api_key) or the OAuth flow (subscription). Toggling OFF
+          removes the Provider row from config. */}
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className='max-h-[80vh] flex flex-col sm:max-w-lg'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.manage_title')}</DialogTitle>
+            <DialogDescription>{t('providers.manage_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='flex-1 overflow-y-auto'>
+            <div className='divide-y rounded-md border'>
+              {catalog.map((entry) => {
+                const enabled = validProviders.some((p) => p.name === entry.name)
+                return (
+                  <div key={entry.name} className='flex items-center gap-3 px-3 py-2'>
+                    <ProviderIcon name={entry.name} size={24} className='flex-shrink-0' />
+                    <div className='min-w-0 flex-1'>
+                      <div className='font-medium text-sm truncate'>{entry.displayName}</div>
+                      <div className='text-xs text-muted-foreground truncate'>
+                        {entry.authMode === 'subscription' ? t('providers.auth_subscription') : t('providers.auth_api')}
+                        {' · '}
+                        {t('providers.catalog_models_count', { count: entry.models.length })}
+                        {entry.lastRefreshedAt !== null && (
+                          <>
+                            {' · '}
+                            {t('providers.catalog_refreshed', {
+                              at: dayjs(entry.lastRefreshedAt).format('MMM D, HH:mm')
+                            })}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <Switch checked={enabled} onCheckedChange={(next) => handleToggleCatalog(entry, next)} />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className='flex justify-end'>
+            <Button variant='outline' onClick={() => setManageOpen(false)}>
+              {t('app.cancel')}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
