@@ -37,6 +37,9 @@ export const CatalogEntrySchema = z
   })
   .openapi('CatalogEntry')
 
+export type CatalogModel = z.infer<typeof CatalogModelSchema>
+export type CatalogEntry = z.infer<typeof CatalogEntrySchema>
+
 export const CatalogResponseSchema = z
   .object({
     entries: z.array(CatalogEntrySchema)

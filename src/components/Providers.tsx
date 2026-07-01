@@ -15,6 +15,8 @@ import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
+import type { CatalogEntry } from '@/schemas/catalog.dto'
 import { findSubscriptionPreset, isDeprecatedModel } from '@/shared/data'
 import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
@@ -55,6 +57,7 @@ export function Providers() {
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([])
   const [connectChoiceOpen, setConnectChoiceOpen] = useState(false)
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false)
   const [manualCallbackUrl, setManualCallbackUrl] = useState('')
@@ -185,14 +188,30 @@ export function Providers() {
     }
   }
 
+  const fetchCatalog = async () => {
+    try {
+      const res = await api.get<{ entries: CatalogEntry[] }>('/catalog')
+      setCatalog(res.entries)
+    } catch (err) {
+      console.error('Failed to fetch catalog:', err)
+    }
+  }
+
   const refreshTemplates = async () => {
     setRefreshingTemplates(true)
     try {
-      await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
+      // Catalog refresh scrapes the vendor pricing pages and updates the
+      // process-local overlay. /refresh-models then reflects the fresh
+      // prices onto configured Provider rows.
+      const [catalogRes] = await Promise.all([
+        api.post<{ entries: CatalogEntry[]; scrapedVendors: string[]; warnings: string[] }>('/catalog/refresh', {}),
+        api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
+      ])
       const [fresh, syncResult] = await Promise.all([
         api.getConfig(),
         api.post<{ subscriptions: SubscriptionView[] }>('/subscriptions/sync', {})
       ])
+      setCatalog(catalogRes.entries)
       setConfig(fresh)
       const subMap: Record<string, SubscriptionView> = {}
       for (const entry of syncResult.subscriptions) {
@@ -218,6 +237,7 @@ export function Providers() {
     }
 
     fetchTransformers()
+    fetchCatalog()
   }, [])
 
   useEffect(() => {
@@ -238,6 +258,33 @@ export function Providers() {
 
   // Validate config.Providers to ensure it's an array
   const validProviders = Array.isArray(config.Providers) ? config.Providers : []
+
+  // Enable a vendor straight from the catalog. Subscription vendors
+  // reuse the existing OAuth loopback flow (server creates the Provider
+  // row on callback). api_key vendors open the edit dialog with a fresh
+  // Provider payload prefilled from the catalog entry — save handler
+  // appends when editingProviderIndex === config.Providers.length.
+  const handleEnableFromCatalog = (entry: CatalogEntry) => {
+    if (entry.authMode === 'subscription') {
+      if (entry.name === 'claude-code') handleConnectProvider('claude')
+      else if (entry.name === 'codex') handleConnectProvider('codex')
+      return
+    }
+    const availableIds = entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
+    const initialModels = entry.defaultEnabledModels.length > 0 ? entry.defaultEnabledModels : availableIds
+    const newProvider: ProviderType = {
+      name: entry.name,
+      api_base_url: entry.apiBaseUrl,
+      api_key: '',
+      auth_mode: 'api_key',
+      enabled: true,
+      models: initialModels
+    }
+    setEditingProviderIndex(validProviders.length)
+    setEditingProviderData(newProvider)
+    setApiKeyError(null)
+    setNameError(null)
+  }
 
   const handleEditProvider = (index: number) => {
     // Find the actual index in the original providers array
@@ -772,34 +819,71 @@ export function Providers() {
         </Button>
       </PageHeader>
       <PageContent>
-        {visibleProviders.length === 0 ? (
-          <ProviderList providers={visibleProviders} onEdit={handleEditProvider} />
-        ) : (
-          <div className='space-y-6'>
-            {availableProviders.length > 0 && (
+        <div className='space-y-6'>
+          {availableProviders.length > 0 && (
+            <div className='space-y-2'>
+              <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
+                {t('providers.available')} ({availableProviders.length})
+              </h3>
+              <ProviderList
+                providers={availableProviders}
+                onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
+              />
+            </div>
+          )}
+          {unavailableProviders.length > 0 && (
+            <div className='space-y-2'>
+              <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
+                {t('providers.unavailable')} ({unavailableProviders.length})
+              </h3>
+              <ProviderList
+                providers={unavailableProviders}
+                onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
+              />
+            </div>
+          )}
+          {(() => {
+            const configuredNames = new Set(validProviders.map((p) => p.name))
+            const tabCatalog = catalog.filter((e) => e.authMode === activeAuthMode && !configuredNames.has(e.name))
+            if (tabCatalog.length === 0) {
+              if (visibleProviders.length === 0) {
+                return <ProviderList providers={visibleProviders} onEdit={handleEditProvider} />
+              }
+              return null
+            }
+            return (
               <div className='space-y-2'>
                 <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                  {t('providers.available')} ({availableProviders.length})
+                  {t('providers.catalog')} ({tabCatalog.length})
                 </h3>
-                <ProviderList
-                  providers={availableProviders}
-                  onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(availableProviders[idx]))}
-                />
+                <div className='space-y-2'>
+                  {tabCatalog.map((entry) => (
+                    <div key={entry.name} className='flex items-center justify-between rounded-lg border p-3'>
+                      <div className='min-w-0'>
+                        <div className='font-medium'>{entry.displayName}</div>
+                        <div className='text-xs text-muted-foreground'>
+                          {t('providers.catalog_models_count', { count: entry.models.length })}
+                          {entry.lastRefreshedAt !== null && (
+                            <>
+                              {' · '}
+                              {t('providers.catalog_refreshed', {
+                                at: dayjs(entry.lastRefreshedAt).format('MMM D, HH:mm')
+                              })}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Button size='sm' variant='outline' onClick={() => handleEnableFromCatalog(entry)}>
+                        <Plus className='h-4 w-4' />
+                        {t('providers.enable')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-            {unavailableProviders.length > 0 && (
-              <div className='space-y-2'>
-                <h3 className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                  {t('providers.unavailable')} ({unavailableProviders.length})
-                </h3>
-                <ProviderList
-                  providers={unavailableProviders}
-                  onEdit={(idx) => handleEditProvider(visibleProviders.indexOf(unavailableProviders[idx]))}
-                />
-              </div>
-            )}
-          </div>
-        )}
+            )
+          })()}
+        </div>
       </PageContent>
 
       {/* Edit Dialog */}
