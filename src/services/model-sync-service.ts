@@ -4,96 +4,30 @@
  * Two upstream sources per provider are combined:
  *   1. `/v1/models` on the vendor's REST API (needs api key). Adds
  *      any new IDs the shipped seed hadn't caught yet.
- *   2. Scraping the vendor's public pricing page (Anthropic today,
- *      more later). Adds new IDs AND updates per-token prices,
- *      cachedInput, contextWindow, and the legacy flag on rows the
- *      scrape covers — so the UI's cost figures stay in sync with the
- *      vendor's list price without a redeploy.
+ *   2. Scraping the vendor's public pricing page (anthropic / openai /
+ *      deepseek / codex today). Adds new IDs AND updates per-token
+ *      prices, cachedInput, contextWindow, and the legacy flag on rows
+ *      the scrape covers — so the UI's cost figures stay in sync with
+ *      the vendor's list price without a redeploy.
  *
- * Subscription providers (claude-code, codex) share the vendor catalog
- * of their api_key sibling — the Refresh button surfaces new models on
- * them too, but as `enabled: false` unless they're on the preset's
- * curated defaults list (a normal Pro/Max plan may not entitle the user
- * to the newest model yet).
+ * All vendor-specific plumbing lives under providers/<vendor>/; this
+ * service just orchestrates. Subscription providers (claude-code,
+ * codex) resolve to the same VendorProvider instance as their api_key
+ * sibling in the registry, so they share the scrape output without a
+ * second HTTP hit.
  */
 
 import type { z } from '@hono/zod-openapi'
-import { VENDOR_DEFAULTS } from '@/shared'
 import { isDeprecatedModel, SUBSCRIPTION_PRESETS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, type Prisma } from '../generated/prisma/client'
 import { logger } from '../logger'
-import { type RefreshOutcomeSchema, VendorModelsResponseSchema } from '../schemas/model.dto'
+import type { ScrapedPriceEntry } from '../providers/base'
+import { getVendorProvider, isScrapedVendor } from '../providers/registry'
+import type { RefreshOutcomeSchema } from '../schemas/model.dto'
 import { modelApiStyleOverride } from './config'
-import { type ScrapedPriceEntry, scrapeAnthropicPricing } from './vendor-pricing-scraper'
 
 export type RefreshOutcome = z.infer<typeof RefreshOutcomeSchema>
-
-const buildAuth = (
-  modelsAuth: NonNullable<(typeof VENDOR_DEFAULTS)[string]['modelsAuth']>,
-  apiKey: string,
-  url: string
-): { url: string; headers: Record<string, string> } => {
-  const base: Record<string, string> = { Accept: 'application/json' }
-  if (modelsAuth === 'bearer') {
-    return { url, headers: { ...base, Authorization: `Bearer ${apiKey}` } }
-  }
-  if (modelsAuth === 'x-api-key') {
-    return { url, headers: { ...base, 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' } }
-  }
-  return { url: `${url}?key=${encodeURIComponent(apiKey)}`, headers: base }
-}
-
-type VendorModelsResponse = z.infer<typeof VendorModelsResponseSchema>
-
-const extractModelIds = (data: VendorModelsResponse): string[] | null => {
-  // OpenAI-compatible: { data: [{ id }] }.
-  if (Array.isArray(data.data)) {
-    return data.data.flatMap((m) => (typeof m.id === 'string' && m.id.length > 0 ? [m.id] : []))
-  }
-  // Google Gemini: { models: [{ name: "models/gemini-..." }] }.
-  if (Array.isArray(data.models)) {
-    return data.models.flatMap((m) => {
-      if (typeof m.name !== 'string' || m.name.length === 0) return []
-      return [m.name.replace(/^models\//, '')]
-    })
-  }
-  return null
-}
-
-async function fetchVendorModels(vendor: string, apiKey: string): Promise<string[] | { error: string }> {
-  const defaults = VENDOR_DEFAULTS[vendor]
-  if (!defaults?.modelsEndpoint || !defaults.modelsAuth) {
-    return { error: 'no models endpoint configured for this vendor' }
-  }
-  const { url, headers } = buildAuth(defaults.modelsAuth, apiKey, defaults.modelsEndpoint)
-  const res = await fetch(url, { headers })
-  if (!res.ok) return { error: `${vendor} returned HTTP ${res.status}` }
-  const parsed = VendorModelsResponseSchema.safeParse(await res.json())
-  if (!parsed.success) return { error: `${vendor} returned an unrecognised response shape` }
-  const ids = extractModelIds(parsed.data)
-  if (ids === null) return { error: `${vendor} returned an unrecognised response shape` }
-  return ids
-}
-
-// Map a Provider.name back to its "vendor" — the key we use for the
-// scrape cache and VENDOR_DEFAULTS lookup. A subscription provider
-// (e.g. claude-code) borrows its api_key sibling's vendor identity
-// because they hit the same upstream catalog.
-const SUBSCRIPTION_VENDOR: Record<string, string> = (() => {
-  const acc: Record<string, string> = {}
-  for (const preset of SUBSCRIPTION_PRESETS) {
-    if (preset.vendor.toLowerCase() === 'anthropic') acc[preset.id] = 'anthropic'
-    else if (preset.vendor.toLowerCase() === 'openai') acc[preset.id] = 'openai'
-  }
-  return acc
-})()
-
-const resolveVendor = (providerName: string): string | null => {
-  if (providerName in VENDOR_DEFAULTS) return providerName
-  const subscriptionVendor = SUBSCRIPTION_VENDOR[providerName]
-  return subscriptionVendor === undefined ? null : subscriptionVendor
-}
 
 // Per-vendor list of models that should ship as enabled on a fresh
 // subscription provider. Refresh only auto-enables when a newly
@@ -121,16 +55,19 @@ const emptyCatalog: VendorCatalog = { scraped: [], scrapedById: new Map() }
 
 // Fetch every vendor scrape once up front so multiple providers that
 // share a vendor (e.g. anthropic + claude-code) don't hit the docs site
-// twice per refresh.
-async function loadVendorCatalogs(vendors: ReadonlySet<string>): Promise<Map<string, VendorCatalog>> {
+// twice per refresh. Only vendors with a native scraper are queried;
+// generic-fallback vendors return [] anyway.
+async function loadVendorCatalogs(providerNames: ReadonlySet<string>): Promise<Map<string, VendorCatalog>> {
+  const scrapedTargets = [...providerNames].filter((n) => isScrapedVendor(n))
   const out = new Map<string, VendorCatalog>()
-  if (vendors.has('anthropic')) {
-    const scraped = await scrapeAnthropicPricing()
-    out.set('anthropic', {
-      scraped,
-      scrapedById: new Map(scraped.map((s) => [s.apiId, s]))
+  await Promise.all(
+    scrapedTargets.map(async (name) => {
+      const provider = getVendorProvider(name)
+      if (provider === undefined) return
+      const scraped = await provider.scrape()
+      out.set(name, { scraped, scrapedById: new Map(scraped.map((s) => [s.apiId, s])) })
     })
-  }
+  )
   return out
 }
 
@@ -192,7 +129,9 @@ async function fetchLiveCatalog(p: ProviderRow): Promise<LiveFetchResult> {
   if (p.apiKey === null || p.apiKey.trim() === '') {
     return { ids: [], error: 'no api key on file' }
   }
-  const got = await fetchVendorModels(p.name, p.apiKey)
+  const provider = getVendorProvider(p.name)
+  if (provider === undefined) return { ids: [], error: 'unknown vendor' }
+  const got = await provider.fetchLiveModels(p.apiKey)
   if (Array.isArray(got)) return { ids: got, error: undefined }
   return { ids: [], error: got.error }
 }
@@ -267,25 +206,35 @@ async function refreshOneProvider(p: ProviderRow, catalog: VendorCatalog): Promi
   return { provider: p.name, added: toAdd, error: succeeded ? undefined : live.error }
 }
 
+// Which scrape bucket to consult for a given Provider. Subscription
+// providers borrow their api_key sibling's vendor (claude-code →
+// anthropic, codex → openai) so they share the same scrape output.
+const scrapeVendorFor = (providerName: string): string | null => {
+  if (isScrapedVendor(providerName)) return providerName
+  const preset = SUBSCRIPTION_PRESETS.find((p) => p.id === providerName)
+  if (preset === undefined) return null
+  const v = preset.vendor.toLowerCase()
+  if (v === 'anthropic') return 'anthropic'
+  if (v === 'openai') return 'openai'
+  return null
+}
+
 export async function refreshModelsForAllProviders(): Promise<RefreshOutcome[]> {
   const prisma = getPrismaClient()
   const providers = await prisma.provider.findMany({ include: { models: true } })
 
   const providerNames = providers.map((p) => p.name)
-  const vendorsInPlay = new Set<string>()
-  const unresolvedNames: string[] = []
+  const scrapeVendors = new Set<string>()
   for (const p of providers) {
-    const v = resolveVendor(p.name)
-    if (v === null) unresolvedNames.push(p.name)
-    else vendorsInPlay.add(v)
+    const v = scrapeVendorFor(p.name)
+    if (v !== null) scrapeVendors.add(v)
   }
-  const catalogs = await loadVendorCatalogs(vendorsInPlay)
+  const catalogs = await loadVendorCatalogs(scrapeVendors)
   logger.info(
     {
       providerCount: providers.length,
       providerNames,
-      unresolvedNames,
-      vendors: [...vendorsInPlay],
+      scrapeVendors: [...scrapeVendors],
       scrapedCounts: Object.fromEntries([...catalogs].map(([k, v]) => [k, v.scraped.length]))
     },
     'refresh-models: vendor catalogs loaded'
@@ -293,13 +242,9 @@ export async function refreshModelsForAllProviders(): Promise<RefreshOutcome[]> 
 
   const results: RefreshOutcome[] = []
   for (const p of providers) {
-    const vendor = resolveVendor(p.name)
-    const fetched = vendor === null ? undefined : catalogs.get(vendor)
+    const scrapeVendor = scrapeVendorFor(p.name)
+    const fetched = scrapeVendor === null ? undefined : catalogs.get(scrapeVendor)
     const catalog: VendorCatalog = fetched === undefined ? emptyCatalog : fetched
-    if (vendor === null && catalog.scraped.length === 0) {
-      results.push({ provider: p.name, added: [], error: 'unknown vendor' })
-      continue
-    }
     results.push(await refreshOneProvider(p, catalog))
   }
   return results

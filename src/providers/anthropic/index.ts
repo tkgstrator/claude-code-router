@@ -1,31 +1,28 @@
 /**
- * Runtime scraper for vendor pricing pages. Powers the UI's Refresh
- * button so users pick up brand-new models (e.g. Claude Sonnet 5) and
- * price/context changes without waiting for a redeploy.
+ * Anthropic vendor provider. Scrapes platform.claude.com's pricing +
+ * models-overview pages so the Refresh button picks up new models
+ * (Sonnet 5, Fable 5, ...) and price changes without a redeploy.
  *
- * Anthropic only for now. The build-time script under
- * scripts/scrape-anthropic-prices.ts uses Playwright to render the
- * Mintlify docs — at runtime we can't (won't) launch chromium per
- * request, so we `fetch()` the raw HTML and parse the pricing table
- * with a targeted regex. The tables are server-rendered, so this works.
- *
- * If the page layout changes, the parser returns `[]` for that source
- * rather than throwing — the refresh flow then falls back to the
- * `/v1/models` behaviour that already ships.
+ * The build-time script under scripts/scrape-anthropic-prices.ts uses
+ * Playwright to render the same Mintlify docs; here we rely on the
+ * server-rendered HTML the docs site ships, parsed with regex — no
+ * chromium at request time.
  */
-import { logger } from '../logger'
+
+import { logger } from '../../logger'
+import {
+  fetchScrapePage,
+  findTables,
+  parseContext,
+  parsePrice,
+  type ScrapedPriceEntry,
+  splitCells,
+  splitRows,
+  VendorProvider
+} from '../base'
 
 const PRICING_URL = 'https://platform.claude.com/docs/en/about-claude/pricing'
 const OVERVIEW_URL = 'https://platform.claude.com/docs/en/about-claude/models/overview'
-
-export interface ScrapedPriceEntry {
-  apiId: string
-  inputPer1M: number
-  outputPer1M: number
-  cachedInputPer1M: number | null
-  contextWindow: number | null
-  legacy: boolean
-}
 
 // Legacy Claude 3.x dated ids keyed by trimmed display name. Kept in
 // sync with scripts/scrape-anthropic-prices.ts LEGACY_IDS.
@@ -38,47 +35,6 @@ const LEGACY_IDS: Record<string, string> = {
 }
 
 const orEmpty = (v: string | undefined): string => (v === undefined ? '' : v)
-
-// Strip HTML tags and normalise whitespace. Cells embed <br/>, <a>,
-// nested <span>s; we only need the visible text.
-const cellText = (raw: string): string =>
-  raw
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&#x27;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-
-const matchAllGroups = (html: string, pattern: RegExp): string[] => [...html.matchAll(pattern)].map((m) => m[1])
-
-const splitRows = (tableHtml: string): string[] => matchAllGroups(tableHtml, /<tr[^>]*>([\s\S]*?)<\/tr>/gi)
-
-const splitCells = (rowHtml: string): string[] =>
-  matchAllGroups(rowHtml, /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi).map(cellText)
-
-const findTables = (html: string): string[] => matchAllGroups(html, /<table[^>]*>([\s\S]*?)<\/table>/gi)
-
-// "200K" → 200000, "1M tokens" → 1000000. Takes the first number so
-// "200K (1M with beta)" resolves to the standard window.
-const parseContext = (raw: string): number | null => {
-  const m = raw.replace(/,/g, '').match(/([0-9]+(?:\.[0-9]+)?)\s*([KM])?/i)
-  if (m === null) return null
-  const n = Number(m[1])
-  const unit = orEmpty(m[2]).toUpperCase()
-  if (unit === 'M') return Math.round(n * 1e6)
-  if (unit === 'K') return Math.round(n * 1e3)
-  return Math.round(n)
-}
-
-// "$5 / MTok" → 5, "$0.50 / MTok" → 0.5, "—" → null.
-const parsePrice = (raw: string): number | null => {
-  const trimmed = raw.trim()
-  if (trimmed === '' || trimmed === '-' || trimmed === '—') return null
-  const m = trimmed.match(/\$?\s*([0-9]+(?:\.[0-9]+)?)/)
-  return m !== null ? Number(m[1]) : null
-}
 
 // "Claude Opus 4 (deprecated)" → "Claude Opus 4"
 const stripStatus = (display: string): string => display.replace(/\s*\([^)]*\)\s*$/, '').trim()
@@ -97,16 +53,19 @@ const claude4PlusSlug = (display: string): string | null => {
 // Extract just the "Claude <Tier> <Major>[.Minor]" prefix, dropping any
 // trailing " through August 31, 2026" / " starting September 1, 2026"
 // / " (limited availability)" style modifiers the pricing page hangs
-// off multi-row models. Returns null if the display doesn't start with
-// a Claude model name at all.
+// off multi-row models.
 const modelPrefix = (display: string): string | null => {
   const m = display.match(/^(Claude\s+(?:Opus|Sonnet|Haiku|Fable|Mythos)\s+\d+(?:\.\d+)?)\b/i)
   return m === null ? null : m[1]
 }
 
-// Resolve the API id for a pricing-table row. Priority: exact overview
-// mapping, cleaned overview mapping, model-prefix overview mapping,
-// slug rule, hard-coded legacy list.
+interface OverviewMaps {
+  displayToApiId: Record<string, string>
+  displayToContext: Record<string, number>
+}
+
+const emptyOverview: OverviewMaps = { displayToApiId: {}, displayToContext: {} }
+
 const resolveApiId = (display: string, cleaned: string, overview: OverviewMaps): string | undefined => {
   const exact = overview.displayToApiId[display]
   if (exact !== undefined) return exact
@@ -125,29 +84,6 @@ const resolveApiId = (display: string, cleaned: string, overview: OverviewMaps):
   if (slug !== null) return slug
   return LEGACY_IDS[cleaned]
 }
-
-async function fetchHtml(url: string): Promise<string | null> {
-  const res = await fetch(url, {
-    headers: {
-      // Mintlify's pricing page renders the tables inline in the SSR
-      // HTML; a bare Node fetch UA gets the same payload as a browser.
-      'User-Agent': 'Mozilla/5.0 (compatible; ccr-refresh-models/1.0)',
-      Accept: 'text/html'
-    }
-  })
-  if (!res.ok) {
-    logger.warn({ url, status: res.status }, 'vendor pricing fetch: non-2xx')
-    return null
-  }
-  return await res.text()
-}
-
-interface OverviewMaps {
-  displayToApiId: Record<string, string>
-  displayToContext: Record<string, number>
-}
-
-const emptyOverview: OverviewMaps = { displayToApiId: {}, displayToContext: {} }
 
 const recordApiId = (display: string, cell: string | undefined, maps: OverviewMaps): void => {
   if (cell !== undefined && cell !== '') maps.displayToApiId[display] = cell
@@ -172,10 +108,6 @@ const readOverviewTable = (rows: string[][], maps: OverviewMaps): void => {
   }
 }
 
-// Extract (display → api id) and (display → context window) from every
-// table on the overview page whose header row mentions any Claude model.
-// The current page ships one primary comparison table plus a legacy
-// accordion table; both use the same column-per-model layout.
 const parseOverview = (html: string): OverviewMaps => {
   const maps: OverviewMaps = { displayToApiId: {}, displayToContext: {} }
   for (const table of findTables(html)) {
@@ -196,9 +128,7 @@ const findPricingTable = (html: string): { headers: string[]; rows: string[][] }
     const hasInput = header.some((c) => /base input/i.test(c))
     const hasOutput = header.some((c) => /output tokens/i.test(c))
     const hasModel = header.some((c) => /^model$/i.test(c))
-    if (hasInput && hasOutput && hasModel) {
-      return { headers: header, rows: rows.slice(1) }
-    }
+    if (hasInput && hasOutput && hasModel) return { headers: header, rows: rows.slice(1) }
   }
   return null
 }
@@ -252,36 +182,40 @@ const readPriceRow = (row: string[], cols: ColumnIndices, overview: OverviewMaps
   }
 }
 
-/**
- * Scrape platform.claude.com's pricing + overview pages. Returns an
- * empty array on any parse/network failure — the caller falls back to
- * whatever else it has.
- */
-export async function scrapeAnthropicPricing(): Promise<ScrapedPriceEntry[]> {
-  const [pricingHtml, overviewHtml] = await Promise.all([fetchHtml(PRICING_URL), fetchHtml(OVERVIEW_URL)])
-  if (pricingHtml === null) return []
-  const table = findPricingTable(pricingHtml)
-  if (table === null) {
-    logger.warn('vendor pricing scrape: model-pricing table header signature not found')
-    return []
+export class AnthropicProvider extends VendorProvider {
+  readonly vendor = 'anthropic'
+  protected readonly modelsEndpoint = 'https://api.anthropic.com/v1/models'
+  protected readonly modelsAuth = 'x-api-key' as const
+
+  async scrape(): Promise<ScrapedPriceEntry[]> {
+    const [pricingHtml, overviewHtml] = await Promise.all([fetchScrapePage(PRICING_URL), fetchScrapePage(OVERVIEW_URL)])
+    if (pricingHtml === null) return []
+    const table = findPricingTable(pricingHtml)
+    if (table === null) {
+      logger.warn('anthropic scrape: model-pricing table header signature not found')
+      return []
+    }
+    const cols = findColumns(table.headers)
+    if (cols === null) {
+      logger.warn({ headers: table.headers }, 'anthropic scrape: required columns missing')
+      return []
+    }
+    const overview = overviewHtml === null ? emptyOverview : parseOverview(overviewHtml)
+    // De-dup: first row per apiId wins so introductory pricing (e.g.
+    // Sonnet 5 through Aug 31, 2026) takes precedence over the
+    // "starting September 1" row that follows it.
+    const seen = new Set<string>()
+    const out: ScrapedPriceEntry[] = []
+    for (const row of table.rows) {
+      const entry = readPriceRow(row, cols, overview)
+      if (entry === null) continue
+      if (seen.has(entry.apiId)) continue
+      seen.add(entry.apiId)
+      out.push(entry)
+    }
+    return out
   }
-  const cols = findColumns(table.headers)
-  if (cols === null) {
-    logger.warn({ headers: table.headers }, 'vendor pricing scrape: required columns missing')
-    return []
-  }
-  const overview = overviewHtml === null ? emptyOverview : parseOverview(overviewHtml)
-  // De-dup: the first row per apiId wins so introductory pricing (e.g.
-  // Sonnet 5 through Aug 31, 2026) takes precedence over the "starting
-  // September 1" row that follows it.
-  const seen = new Set<string>()
-  const out: ScrapedPriceEntry[] = []
-  for (const row of table.rows) {
-    const entry = readPriceRow(row, cols, overview)
-    if (entry === null) continue
-    if (seen.has(entry.apiId)) continue
-    seen.add(entry.apiId)
-    out.push(entry)
-  }
-  return out
 }
+
+// Re-export for callers that still import the old service name.
+export const scrapeAnthropicPricing = (): Promise<ScrapedPriceEntry[]> => new AnthropicProvider().scrape()

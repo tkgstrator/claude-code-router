@@ -24,8 +24,9 @@ import type { OfficialPricingEntry } from '@/shared/data'
 import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS, VENDOR_DEFAULTS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
+import type { ScrapedPriceEntry } from '../providers/base'
+import { getVendorProvider, isScrapedVendor } from '../providers/registry'
 import type { CatalogEntrySchema, CatalogModelSchema } from '../schemas/catalog.dto'
-import { type ScrapedPriceEntry, scrapeAnthropicPricing } from './vendor-pricing-scraper'
 
 export type CatalogEntry = z.infer<typeof CatalogEntrySchema>
 export type CatalogModel = z.infer<typeof CatalogModelSchema>
@@ -195,17 +196,25 @@ export interface CatalogRefreshResult {
 export async function refreshCatalog(): Promise<CatalogRefreshResult> {
   const scrapedVendors: string[] = []
   const warnings: string[] = []
-  const scraped = await scrapeAnthropicPricing()
-  if (scraped.length === 0) {
-    warnings.push('anthropic: scrape returned no entries; static seed retained')
-  } else {
-    overlayByVendor.set('anthropic', {
-      vendor: 'anthropic',
-      scrapedAt: dayjs().toISOString(),
-      entries: new Map(scraped.map((s) => [s.apiId, s]))
+  const vendorKeys = [...Object.keys(OFFICIAL_VENDOR_PRICES), 'codex'].filter(isScrapedVendor)
+  const now = dayjs().toISOString()
+  await Promise.all(
+    vendorKeys.map(async (vendor) => {
+      const provider = getVendorProvider(vendor)
+      if (provider === undefined) return
+      const scraped = await provider.scrape()
+      if (scraped.length === 0) {
+        warnings.push(`${vendor}: scrape returned no entries; static seed retained`)
+        return
+      }
+      overlayByVendor.set(vendor, {
+        vendor,
+        scrapedAt: now,
+        entries: new Map(scraped.map((s) => [s.apiId, s]))
+      })
+      scrapedVendors.push(vendor)
     })
-    scrapedVendors.push('anthropic')
-  }
+  )
   const entries = await getCatalog()
   return { entries, scrapedVendors, warnings }
 }
