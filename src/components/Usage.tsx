@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
@@ -271,27 +272,23 @@ export function Usage() {
   const [costDays, setCostDays] = useState(30)
   const [current, setCurrent] = useState<CurrentUsageResponse | null>(null)
   const [currentError, setCurrentError] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => {
-    const refresh = () => {
-      api
-        .get<HistoryResponse>('/usage/history?days=7')
-        .then(setHistory)
-        .catch(() => setHistory({ samples: [] }))
-      api
-        .get<CurrentUsageResponse>('/usage')
-        .then((d) => {
-          setCurrent(d)
-          setCurrentError(false)
-        })
-        .catch(() => setCurrentError(true))
-    }
-    refresh()
-    const id = setInterval(refresh, REFRESH_MS)
-    return () => clearInterval(id)
+  const refreshLive = useCallback(() => {
+    api
+      .get<HistoryResponse>('/usage/history?days=7')
+      .then(setHistory)
+      .catch(() => setHistory({ samples: [] }))
+    api
+      .get<CurrentUsageResponse>('/usage')
+      .then((d) => {
+        setCurrent(d)
+        setCurrentError(false)
+      })
+      .catch(() => setCurrentError(true))
   }, [])
 
-  useEffect(() => {
+  const refreshCost = useCallback(() => {
     setCostLoading(true)
     Promise.all([
       api.get<UsageCostResponse>(`/usage/cost?days=${costDays}`).catch(() => ({ providers: [], days: costDays })),
@@ -304,6 +301,32 @@ export function Usage() {
       setCostLoading(false)
     })
   }, [costDays])
+
+  // Sync = pull fresh subscription profile data upstream, then re-fetch
+  // every usage panel so the API-cost breakdown reflects the newly
+  // discovered plan (which drives the subscription savings row).
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      await api.post('/subscriptions/sync', {})
+    } catch (err) {
+      console.error('Failed to sync subscriptions:', err)
+    } finally {
+      refreshLive()
+      refreshCost()
+      setSyncing(false)
+    }
+  }
+
+  useEffect(() => {
+    refreshLive()
+    const id = setInterval(refreshLive, REFRESH_MS)
+    return () => clearInterval(id)
+  }, [refreshLive])
+
+  useEffect(() => {
+    refreshCost()
+  }, [refreshCost])
 
   const PROVIDER_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
 
@@ -338,7 +361,12 @@ export function Usage() {
 
   return (
     <PageContainer>
-      <PageHeader title={t('usage.title')} />
+      <PageHeader title={t('usage.title')}>
+        <Button variant='outline' onClick={handleSync} disabled={syncing}>
+          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+          {t('usage.sync')}
+        </Button>
+      </PageHeader>
       <PageContent className='space-y-6'>
         {currentError && <div className='text-sm text-red-500'>{t('usage.loadError')}</div>}
 
