@@ -80,6 +80,59 @@ const budgetExhausted = (s: number, b: string): boolean =>
 // that's a pass (same intent as budgetExhausted).
 const reachable = (s: number, b: string): boolean => s === 429 || budgetExhausted(s, b)
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+
+const readNonEmptyString = (source: Record<string, unknown>, key: string): string | null => {
+  const value = source[key]
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+// Anthropic nests the message one level deeper:
+// { "error": { "message": "..." } }. Return the inner message if that
+// shape matches; otherwise null so the caller can try the flat forms.
+const extractNestedErrorMessage = (parsed: Record<string, unknown>): string | null => {
+  const err = parsed.error
+  if (!isRecord(err)) return null
+  return readNonEmptyString(err, 'message')
+}
+
+const parseJson = (body: string): unknown => {
+  try {
+    return JSON.parse(body)
+  } catch {
+    return undefined
+  }
+}
+
+// Vendor error responses come in three known shapes:
+//   - Anthropic:  { "type":"error", "error": { "type":"...", "message":"..." } }
+//   - OpenAI:     { "error": { "message":"...", ... } } (also plain string form)
+//   - Codex web:  { "detail":"..." }
+// Fall through to the raw body when nothing matches so we never lose
+// context; the raw text is also what shows up if the body wasn't JSON
+// at all (Cloudflare error page, upstream gateway HTML, etc.).
+const extractVendorMessage = (body: string): string => {
+  const parsed = parseJson(body)
+  if (!isRecord(parsed)) return body
+  const nested = extractNestedErrorMessage(parsed)
+  if (nested !== null) return nested
+  const err = readNonEmptyString(parsed, 'error')
+  if (err !== null) return err
+  const detail = readNonEmptyString(parsed, 'detail')
+  if (detail !== null) return detail
+  const message = readNonEmptyString(parsed, 'message')
+  if (message !== null) return message
+  return body
+}
+
+// Format an HTTP failure for a ProbeResult. Extracts the vendor's error
+// message when the body is JSON, otherwise passes the raw body through.
+// Truncated to 200 chars so a giant HTML error page doesn't flood the
+// Model row's testError column.
+const formatHttpError = (status: number, body: string): string =>
+  `HTTP ${status}: ${extractVendorMessage(body).slice(0, 200)}`
+
 const probeAnthropic = async (
   baseUrl: string,
   apiKey: string,
@@ -103,7 +156,7 @@ const probeAnthropic = async (
   if (res.ok) return { ok: true }
   const ab = (await res.text()).slice(0, 300)
   if (reachable(res.status, ab)) return { ok: true }
-  return { ok: false, error: `HTTP ${res.status}: ${ab.slice(0, 200)}` }
+  return { ok: false, error: formatHttpError(res.status, ab) }
 }
 
 const probeGemini = async (
@@ -124,7 +177,7 @@ const probeGemini = async (
     })
   })
   if (res.ok) return { ok: true }
-  return { ok: false, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` }
+  return { ok: false, error: formatHttpError(res.status, (await res.text()).slice(0, 300)) }
 }
 
 // OpenAI Responses API call. The provider's base URL may be the
@@ -171,7 +224,7 @@ const probeResponses = async (
   }
   const rbody = (await res.text()).slice(0, 300)
   if (reachable(res.status, rbody)) return { ok: true }
-  return { ok: false, error: `HTTP ${res.status}: ${rbody.slice(0, 200)}` }
+  return { ok: false, error: formatHttpError(res.status, rbody) }
 }
 
 // ApiStyle.openai_chat — chat completions; baseUrl is the chat
@@ -205,9 +258,9 @@ const probeOpenAIChat = async (baseUrl: string, apiKey: string, model: string): 
     if (retry.ok) return { ok: true }
     const retryBody = (await retry.text()).slice(0, 300)
     if (reachable(retry.status, retryBody)) return { ok: true }
-    return { ok: false, error: `HTTP ${retry.status}: ${retryBody.slice(0, 200)}` }
+    return { ok: false, error: formatHttpError(retry.status, retryBody) }
   }
-  return { ok: false, error: `HTTP ${res.status}: ${body.slice(0, 200)}` }
+  return { ok: false, error: formatHttpError(res.status, body) }
 }
 
 const probeInference = async (
@@ -337,7 +390,7 @@ const probeClaudeCodeSubscription = async (
     if (res.ok) return { ok: true }
     const ab = (await res.text()).slice(0, 300)
     if (reachable(res.status, ab)) return { ok: true }
-    return { ok: false, error: `HTTP ${res.status}: ${ab.slice(0, 200)}` }
+    return { ok: false, error: formatHttpError(res.status, ab) }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'fetch failed' }
   }
