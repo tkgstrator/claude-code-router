@@ -25,7 +25,7 @@ import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS, VENDOR
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
 import type { ScrapedPriceEntry } from '../providers/base'
-import { getVendorProvider, isScrapedVendor } from '../providers/registry'
+import { getVendorProvider, scrapedVendors } from '../providers/registry'
 import type { CatalogEntrySchema, CatalogModelSchema } from '../schemas/catalog.dto'
 
 export type CatalogEntry = z.infer<typeof CatalogEntrySchema>
@@ -194,12 +194,11 @@ export interface CatalogRefreshResult {
 // catalog-only. Refreshing Model rows on configured providers is the
 // job of /api/refresh-models.
 export async function refreshCatalog(): Promise<CatalogRefreshResult> {
-  const scrapedVendors: string[] = []
+  const scrapedList: string[] = []
   const warnings: string[] = []
-  const vendorKeys = [...Object.keys(OFFICIAL_VENDOR_PRICES), 'codex'].filter(isScrapedVendor)
   const now = dayjs().toISOString()
   await Promise.all(
-    vendorKeys.map(async (vendor) => {
+    scrapedVendors().map(async (vendor) => {
       const provider = getVendorProvider(vendor)
       if (provider === undefined) return
       const scraped = await provider.scrape()
@@ -212,9 +211,9 @@ export async function refreshCatalog(): Promise<CatalogRefreshResult> {
         scrapedAt: now,
         entries: new Map(scraped.map((s) => [s.apiId, s]))
       })
-      scrapedVendors.push(vendor)
+      scrapedList.push(vendor)
     })
   )
   const entries = await getCatalog()
-  return { entries, scrapedVendors, warnings }
+  return { entries, scrapedVendors: scrapedList, warnings }
 }

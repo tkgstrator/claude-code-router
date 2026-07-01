@@ -13,32 +13,40 @@
 import { VENDOR_DEFAULTS } from '@/shared'
 import { AnthropicProvider } from './anthropic'
 import type { VendorProvider } from './base'
-import { CodexProvider } from './codex'
 import { DeepSeekProvider } from './deepseek'
 import { GenericProvider } from './generic'
 import { OpenAIProvider } from './openai'
 
 const anthropic = new AnthropicProvider()
+const openai = new OpenAIProvider()
+const deepseek = new DeepSeekProvider()
+
 const explicitRegistry = new Map<string, VendorProvider>()
 explicitRegistry.set('anthropic', anthropic)
-explicitRegistry.set('openai', new OpenAIProvider())
-explicitRegistry.set('deepseek', new DeepSeekProvider())
-explicitRegistry.set('codex', new CodexProvider())
+explicitRegistry.set('openai', openai)
+explicitRegistry.set('deepseek', deepseek)
 
-// The `claude-code` subscription provider borrows anthropic's catalog
-// (same models, subscription-billed instead of per-token). It reuses
-// the AnthropicProvider instance directly — same scrape output, same
-// modelsEndpoint (though the subscription path won't hit it because
-// there's no apiKey to send).
+// Subscription providers borrow their api_key sibling's catalog +
+// price list directly:
+//   - claude-code (Claude Pro / Max via CLI OAuth) → anthropic
+//   - codex      (ChatGPT Plus / Pro via Codex CLI OAuth) → openai
+// The subscription preset's `availableModels` filter still trims the
+// list at catalog render time so users only see models their plan
+// actually serves.
 explicitRegistry.set('claude-code', anthropic)
+explicitRegistry.set('codex', openai)
 
 // Cache generic fallbacks so we don't rebuild them on every lookup.
 const genericCache = new Map<string, VendorProvider>()
 
-// Vendor names that have a native scraper. Callers use this to decide
-// whether to bother invoking scrape() at all — everyone else uses the
-// generic fallback whose scrape() returns [].
-const SCRAPED_VENDORS = new Set(['anthropic', 'openai', 'deepseek', 'codex'])
+// Vendor names that have a native runtime scraper (i.e. a class that
+// overrides scrape()). Callers use this to decide whether to bother
+// invoking scrape() at all — everyone else uses the generic fallback
+// whose scrape() returns [].
+const SCRAPED_VENDORS: readonly string[] = ['anthropic', 'openai', 'deepseek']
+const SCRAPED_VENDORS_SET = new Set(SCRAPED_VENDORS)
+
+export const scrapedVendors = (): readonly string[] => SCRAPED_VENDORS
 
 export const getVendorProvider = (name: string): VendorProvider | undefined => {
   const explicit = explicitRegistry.get(name)
@@ -53,4 +61,4 @@ export const getVendorProvider = (name: string): VendorProvider | undefined => {
   return generic
 }
 
-export const isScrapedVendor = (name: string): boolean => SCRAPED_VENDORS.has(name)
+export const isScrapedVendor = (name: string): boolean => SCRAPED_VENDORS_SET.has(name)
