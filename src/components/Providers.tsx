@@ -274,7 +274,10 @@ export function Providers() {
             api_base_url: entry.apiBaseUrl,
             api_key: null,
             auth_mode: entry.authMode,
-            enabled: true,
+            // Fresh row lands disabled so the vendor doesn't get called
+            // before the user has entered a key / signed in via OAuth.
+            // Flip on from the row's Edit dialog after configuring.
+            enabled: false,
             models:
               entry.defaultEnabledModels.length > 0
                 ? entry.defaultEnabledModels
@@ -331,9 +334,16 @@ export function Providers() {
       return
     }
 
-    // Validate API key (only when this provider uses an api key auth)
+    // Validate API key (api_key providers only, and only when the
+    // provider is enabled — a disabled provider has no upstream calls
+    // so it's fine to save it with an empty key placeholder).
     const authMode = editingProviderData.auth_mode ?? 'api_key'
-    if (authMode === 'api_key' && (!editingProviderData.api_key || editingProviderData.api_key.trim() === '')) {
+    const isEnabled = editingProviderData.enabled !== false
+    if (
+      authMode === 'api_key' &&
+      isEnabled &&
+      (!editingProviderData.api_key || editingProviderData.api_key.trim() === '')
+    ) {
       setApiKeyError(t('providers.api_key_required'))
       return
     }
