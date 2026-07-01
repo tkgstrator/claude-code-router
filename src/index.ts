@@ -3,6 +3,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
 import { ZodError } from 'zod'
 import { apiKeyAuth } from './api/api-key-auth'
+import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
 import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
@@ -107,6 +108,7 @@ app.route('/', usageCostRoute)
 app.route('/', usageCostHistoryRoute)
 app.route('/', updateCheckRoute)
 app.route('/', updatePerformRoute)
+app.route('/', catalogRoute)
 app.route('/', refreshModelsRoute)
 app.route('/', providersRoute)
 app.route('/', providerByNameRoute)

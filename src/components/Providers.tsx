@@ -1,4 +1,4 @@
-import { Eye, EyeOff, FileUp, LogIn, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Eye, EyeOff, FileUp, LogIn, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -15,6 +15,8 @@ import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
+import { ProviderIcon } from '@/lib/providerIcons'
+import type { CatalogEntry } from '@/schemas/catalog.dto'
 import { findSubscriptionPreset, isDeprecatedModel } from '@/shared/data'
 import type { Provider, ProviderAuthMode } from '@/types'
 import { useConfig } from './ConfigProvider'
@@ -55,6 +57,8 @@ export function Providers() {
   const [availableTransformers, setAvailableTransformers] = useState<{ name: string; endpoint: string | null }[]>([])
   const [editingProviderData, setEditingProviderData] = useState<ProviderType | null>(null)
   const [refreshingTemplates, setRefreshingTemplates] = useState(false)
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([])
+  const [manageOpen, setManageOpen] = useState(false)
   const [connectChoiceOpen, setConnectChoiceOpen] = useState(false)
   const [manualCallbackOpen, setManualCallbackOpen] = useState(false)
   const [manualCallbackUrl, setManualCallbackUrl] = useState('')
@@ -185,14 +189,30 @@ export function Providers() {
     }
   }
 
+  const fetchCatalog = async () => {
+    try {
+      const res = await api.get<{ entries: CatalogEntry[] }>('/catalog')
+      setCatalog(res.entries)
+    } catch (err) {
+      console.error('Failed to fetch catalog:', err)
+    }
+  }
+
   const refreshTemplates = async () => {
     setRefreshingTemplates(true)
     try {
-      await api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
+      // Catalog refresh scrapes the vendor pricing pages and updates the
+      // process-local overlay. /refresh-models then reflects the fresh
+      // prices onto configured Provider rows.
+      const [catalogRes] = await Promise.all([
+        api.post<{ entries: CatalogEntry[]; scrapedVendors: string[]; warnings: string[] }>('/catalog/refresh', {}),
+        api.post<{ outcomes: { provider: string; added: string[]; error?: string }[] }>('/refresh-models', {})
+      ])
       const [fresh, syncResult] = await Promise.all([
         api.getConfig(),
         api.post<{ subscriptions: SubscriptionView[] }>('/subscriptions/sync', {})
       ])
+      setCatalog(catalogRes.entries)
       setConfig(fresh)
       const subMap: Record<string, SubscriptionView> = {}
       for (const entry of syncResult.subscriptions) {
@@ -218,6 +238,7 @@ export function Providers() {
     }
 
     fetchTransformers()
+    fetchCatalog()
   }, [])
 
   useEffect(() => {
@@ -238,6 +259,41 @@ export function Providers() {
 
   // Validate config.Providers to ensure it's an array
   const validProviders = Array.isArray(config.Providers) ? config.Providers : []
+
+  // Toggle a catalog entry on/off — this only controls whether the
+  // vendor row appears on the Providers page. Filling in the api key
+  // or running the OAuth flow happens by clicking the row after it's
+  // been enabled here; the Manage dialog stays open so the user can
+  // flip several vendors in a row.
+  const handleToggleCatalog = async (entry: CatalogEntry, checked: boolean) => {
+    const newProviders = checked
+      ? [
+          ...validProviders,
+          {
+            name: entry.name,
+            api_base_url: entry.apiBaseUrl,
+            api_key: null,
+            auth_mode: entry.authMode,
+            // Fresh row lands disabled so the vendor doesn't get called
+            // before the user has entered a key / signed in via OAuth.
+            // Flip on from the row's Edit dialog after configuring.
+            enabled: false,
+            models:
+              entry.defaultEnabledModels.length > 0
+                ? entry.defaultEnabledModels
+                : entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
+          } satisfies ProviderType
+        ]
+      : validProviders.filter((p) => p.name !== entry.name)
+    const newConfig = { ...config, Providers: newProviders }
+    setConfig(newConfig)
+    try {
+      await api.updateConfig(newConfig)
+      if (entry.authMode === 'subscription') await fetchSubscriptions()
+    } catch (err) {
+      console.error('Failed to update providers:', err)
+    }
+  }
 
   const handleEditProvider = (index: number) => {
     // Find the actual index in the original providers array
@@ -278,9 +334,16 @@ export function Providers() {
       return
     }
 
-    // Validate API key (only when this provider uses an api key auth)
+    // Validate API key (api_key providers only, and only when the
+    // provider is enabled — a disabled provider has no upstream calls
+    // so it's fine to save it with an empty key placeholder).
     const authMode = editingProviderData.auth_mode ?? 'api_key'
-    if (authMode === 'api_key' && (!editingProviderData.api_key || editingProviderData.api_key.trim() === '')) {
+    const isEnabled = editingProviderData.enabled !== false
+    if (
+      authMode === 'api_key' &&
+      isEnabled &&
+      (!editingProviderData.api_key || editingProviderData.api_key.trim() === '')
+    ) {
       setApiKeyError(t('providers.api_key_required'))
       return
     }
@@ -765,6 +828,10 @@ export function Providers() {
         <Button variant='outline' onClick={refreshTemplates} disabled={refreshingTemplates}>
           <RefreshCw className={`h-4 w-4 ${refreshingTemplates ? 'animate-spin' : ''}`} />
           {t('providers.refresh_templates')}
+        </Button>
+        <Button variant='outline' onClick={() => setManageOpen(true)}>
+          <Pencil className='h-4 w-4' />
+          {t('providers.manage')}
         </Button>
         <Button variant='outline' onClick={() => setConnectChoiceOpen(true)}>
           <LogIn className='h-4 w-4' />
@@ -1297,6 +1364,44 @@ export function Providers() {
               </Button> */}
               <Button onClick={handleSaveProvider}>{t('app.save')}</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage: toggle catalog entries on/off. Toggling ON opens either the
+          Edit dialog (api_key) or the OAuth flow (subscription). Toggling OFF
+          removes the Provider row from config. */}
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className='max-h-[80vh] flex flex-col sm:max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>{t('providers.manage_title')}</DialogTitle>
+            <DialogDescription>{t('providers.manage_description')}</DialogDescription>
+          </DialogHeader>
+          <div className='flex-1 overflow-y-auto'>
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+              {catalog
+                .filter((entry) => entry.authMode === activeAuthMode)
+                .map((entry) => {
+                  const enabled = validProviders.some((p) => p.name === entry.name)
+                  return (
+                    <div key={entry.name} className='flex items-center gap-3 rounded-md border px-3 py-2'>
+                      <ProviderIcon name={entry.name} size={24} className='flex-shrink-0' />
+                      <div className='min-w-0 flex-1'>
+                        <div className='font-medium text-sm truncate'>{entry.displayName}</div>
+                        <div className='text-xs text-muted-foreground truncate'>
+                          {t('providers.catalog_models_count', { count: entry.models.length })}
+                        </div>
+                      </div>
+                      <Switch checked={enabled} onCheckedChange={(next) => handleToggleCatalog(entry, next)} />
+                    </div>
+                  )
+                })}
+            </div>
+          </div>
+          <div className='flex justify-end'>
+            <Button variant='outline' onClick={() => setManageOpen(false)}>
+              {t('app.cancel')}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
