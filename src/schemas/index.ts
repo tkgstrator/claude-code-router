@@ -1,5 +1,6 @@
 // Barrel: re-export every dto so existing `from '@/schemas'` imports keep
 // working. Direct imports from `@/schemas/<domain>.dto` also work for new code.
+export * from './catalog.dto'
 export * from './common.dto'
 export * from './config.dto'
 export * from './env.dto'
