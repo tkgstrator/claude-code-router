@@ -15,7 +15,6 @@ import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
-import dayjs from '@/lib/dayjs'
 import { ProviderIcon } from '@/lib/providerIcons'
 import type { CatalogEntry } from '@/schemas/catalog.dto'
 import { findSubscriptionPreset, isDeprecatedModel } from '@/shared/data'
@@ -261,46 +260,35 @@ export function Providers() {
   // Validate config.Providers to ensure it's an array
   const validProviders = Array.isArray(config.Providers) ? config.Providers : []
 
-  // Toggle a catalog entry on/off. Toggling ON: api_key vendors open
-  // the edit dialog with a fresh Provider payload prefilled from the
-  // catalog entry so the user can enter their key; subscription vendors
-  // trigger the existing OAuth loopback flow. Toggling OFF removes the
-  // Provider row from the config (subscription-account cleanup happens
-  // server-side via the apply diff).
+  // Toggle a catalog entry on/off — this only controls whether the
+  // vendor row appears on the Providers page. Filling in the api key
+  // or running the OAuth flow happens by clicking the row after it's
+  // been enabled here; the Manage dialog stays open so the user can
+  // flip several vendors in a row.
   const handleToggleCatalog = async (entry: CatalogEntry, checked: boolean) => {
-    if (checked) {
-      if (entry.authMode === 'subscription') {
-        setManageOpen(false)
-        if (entry.name === 'claude-code') handleConnectProvider('claude')
-        else if (entry.name === 'codex') handleConnectProvider('codex')
-        return
-      }
-      setManageOpen(false)
-      const availableIds = entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
-      const initialModels = entry.defaultEnabledModels.length > 0 ? entry.defaultEnabledModels : availableIds
-      const newProvider: ProviderType = {
-        name: entry.name,
-        api_base_url: entry.apiBaseUrl,
-        api_key: '',
-        auth_mode: 'api_key',
-        enabled: true,
-        models: initialModels
-      }
-      setEditingProviderIndex(validProviders.length)
-      setEditingProviderData(newProvider)
-      setApiKeyError(null)
-      setNameError(null)
-      return
-    }
-    const newProviders = validProviders.filter((p) => p.name !== entry.name)
+    const newProviders = checked
+      ? [
+          ...validProviders,
+          {
+            name: entry.name,
+            api_base_url: entry.apiBaseUrl,
+            api_key: null,
+            auth_mode: entry.authMode,
+            enabled: true,
+            models:
+              entry.defaultEnabledModels.length > 0
+                ? entry.defaultEnabledModels
+                : entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
+          } satisfies ProviderType
+        ]
+      : validProviders.filter((p) => p.name !== entry.name)
     const newConfig = { ...config, Providers: newProviders }
     setConfig(newConfig)
     try {
       await api.updateConfig(newConfig)
-      await fetchCatalog()
       if (entry.authMode === 'subscription') await fetchSubscriptions()
     } catch (err) {
-      console.error('Failed to remove provider:', err)
+      console.error('Failed to update providers:', err)
     }
   }
 
@@ -1381,31 +1369,23 @@ export function Providers() {
           </DialogHeader>
           <div className='flex-1 overflow-y-auto'>
             <div className='divide-y rounded-md border'>
-              {catalog.map((entry) => {
-                const enabled = validProviders.some((p) => p.name === entry.name)
-                return (
-                  <div key={entry.name} className='flex items-center gap-3 px-3 py-2'>
-                    <ProviderIcon name={entry.name} size={24} className='flex-shrink-0' />
-                    <div className='min-w-0 flex-1'>
-                      <div className='font-medium text-sm truncate'>{entry.displayName}</div>
-                      <div className='text-xs text-muted-foreground truncate'>
-                        {entry.authMode === 'subscription' ? t('providers.auth_subscription') : t('providers.auth_api')}
-                        {' · '}
-                        {t('providers.catalog_models_count', { count: entry.models.length })}
-                        {entry.lastRefreshedAt !== null && (
-                          <>
-                            {' · '}
-                            {t('providers.catalog_refreshed', {
-                              at: dayjs(entry.lastRefreshedAt).format('MMM D, HH:mm')
-                            })}
-                          </>
-                        )}
+              {catalog
+                .filter((entry) => entry.authMode === activeAuthMode)
+                .map((entry) => {
+                  const enabled = validProviders.some((p) => p.name === entry.name)
+                  return (
+                    <div key={entry.name} className='flex items-center gap-3 px-3 py-2'>
+                      <ProviderIcon name={entry.name} size={24} className='flex-shrink-0' />
+                      <div className='min-w-0 flex-1'>
+                        <div className='font-medium text-sm truncate'>{entry.displayName}</div>
+                        <div className='text-xs text-muted-foreground truncate'>
+                          {t('providers.catalog_models_count', { count: entry.models.length })}
+                        </div>
                       </div>
+                      <Switch checked={enabled} onCheckedChange={(next) => handleToggleCatalog(entry, next)} />
                     </div>
-                    <Switch checked={enabled} onCheckedChange={(next) => handleToggleCatalog(entry, next)} />
-                  </div>
-                )
-              })}
+                  )
+                })}
             </div>
           </div>
           <div className='flex justify-end'>

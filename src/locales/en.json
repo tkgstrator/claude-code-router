@@ -179,7 +179,6 @@
     "available": "Available",
     "unavailable": "Unavailable",
     "catalog_models_count": "{{count}} models",
-    "catalog_refreshed": "refreshed {{at}}",
     "enable": "Enable",
     "manage": "Manage",
     "manage_title": "Manage providers",

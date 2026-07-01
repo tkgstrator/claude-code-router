@@ -179,7 +179,6 @@
     "available": "利用可能",
     "unavailable": "未設定",
     "catalog_models_count": "モデル {{count}} 件",
-    "catalog_refreshed": "{{at}} 更新",
     "enable": "有効化",
     "manage": "編集",
     "manage_title": "プロバイダーの編集",
