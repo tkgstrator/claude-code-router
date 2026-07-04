@@ -412,7 +412,12 @@
       "estimated_cost": "预估费用",
       "requests": "请求数",
       "requests_list": "单次请求",
-      "model_breakdown": "按模型费用"
+      "model_breakdown": "按模型费用",
+      "conversation": "对话记录",
+      "conversation_empty": "该会话暂无归档消息。",
+      "tool_call": "工具调用",
+      "tool_result": "工具结果",
+      "input_truncated": "输入已截断"
     }
   },
   "presets": {

@@ -9,7 +9,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { getPrismaClient } from '../../db/client'
-import { getLlmsContext, runPipeline, type UsageRecord } from '../../llms'
+import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } from '../../llms'
 import { requestLogEmitter } from '../request-logs/events'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
 import { buildFailoverChain, buildRoutePlan, type ResolvedInvocation } from './invocation'
@@ -28,6 +28,27 @@ async function recordUsage(entry: UsageRecord): Promise<void> {
   })
   await prisma.requestLog.create({ data: { ...entry } })
   requestLogEmitter.emit('new_log', { sessionId: entry.sessionId })
+}
+
+// Chat-view archive. Best-effort — the pipeline fires this fire-and-forget
+// so a DB write failure never disturbs the upstream call. Upserts the
+// Session first because the user turn can land before recordUsage has
+// created it.
+async function recordMessages(entries: MessageRecord[]): Promise<void> {
+  if (entries.length === 0) return
+  const prisma = getPrismaClient()
+  const sessionIds = new Set(entries.map((e) => e.sessionId))
+  for (const id of sessionIds) {
+    await prisma.session.upsert({
+      where: { id },
+      create: { id },
+      update: { updatedAt: new Date() }
+    })
+  }
+  await prisma.message.createMany({
+    // biome-ignore plugin: MessageRecord.content is unknown by wire schema (Anthropic block arrays and user content shapes vary); Prisma InputJsonValue wants a concrete JSON value. The pipeline only passes wire-safe values here.
+    data: entries.map((e) => ({ sessionId: e.sessionId, role: e.role, content: e.content as never }))
+  })
 }
 
 // ─── Response formatting ────────────────────────────────────────────────
@@ -87,7 +108,7 @@ v1Route.post('/v1/*', async (c) => {
         transformer: inv.transformer,
         context: { req: inv.request }
       },
-      { log: ctx.log, httpsProxy: ctx.config.getHttpsProxy(), recordUsage }
+      { log: ctx.log, httpsProxy: ctx.config.getHttpsProxy(), recordUsage, recordMessages }
     )
     return formatResponse(c, upstream, inv.body.stream === true)
   }

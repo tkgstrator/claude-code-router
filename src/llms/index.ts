@@ -7,7 +7,13 @@
  */
 
 export { getLlmsContext, type LlmsContext, resetLlmsContext } from './context'
-export { type PipelineDeps, type PipelineInput, runPipeline, type UsageRecord } from './pipeline'
+export {
+  type MessageRecord,
+  type PipelineDeps,
+  type PipelineInput,
+  runPipeline,
+  type UsageRecord
+} from './pipeline'
 export type { ResolvedProvider } from './registry/provider'
 export {
   type RouterContext,

@@ -83,3 +83,16 @@ export const UsageRecordSchema = z.object({
   status: z.number().int()
 })
 export type UsageRecord = z.infer<typeof UsageRecordSchema>
+
+// One row per chat turn to append to the Message table. The pipeline
+// emits these alongside UsageRecord: one 'user' entry for the last user
+// block on request send, and one 'assistant' entry with the assembled
+// text / tool_use blocks once the response stream completes. content is
+// the Anthropic wire block array, tool_use `input` is truncated to keep
+// storage bounded.
+export const MessageRecordSchema = z.object({
+  sessionId: z.string().nonempty(),
+  role: z.enum(['user', 'assistant']),
+  content: z.unknown()
+})
+export type MessageRecord = z.infer<typeof MessageRecordSchema>
