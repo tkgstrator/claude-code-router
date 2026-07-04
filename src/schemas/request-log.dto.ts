@@ -72,3 +72,17 @@ export const RequestLogsListResponseSchema = z.object({
 export const RequestLogsDeleteAllResponseSchema = z.object({ deleted: z.number().int().nonnegative() })
 
 export const RequestLogsDeleteOneResponseSchema = z.object({ id: z.string().nonempty() })
+
+// One archived chat message. `content` intentionally stays `unknown` — it
+// is an Anthropic-shaped block array on assistant rows, and a string or
+// block array on user rows (Claude Code's tool_result turns).
+export const SessionMessageItemSchema = z.object({
+  id: z.string(),
+  role: z.string(),
+  content: z.unknown(),
+  createdAt: z.string()
+})
+
+export const SessionMessagesResponseSchema = z.object({
+  items: z.array(SessionMessageItemSchema)
+})

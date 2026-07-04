@@ -231,6 +231,23 @@ model Session {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   logs      RequestLog[]
+  messages  Message[]
+}
+
+// One row per chat turn. Populated by the pipeline: on request send it
+// appends the last user block; on response completion it appends the
+// assembled assistant blocks (text / tool_use). Skips system prompt and
+// tools — those repeat across turns and would dominate storage without
+// helping the chat view.
+model Message {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, createdAt])
 }
 
 // Per-LLM-request stats: one row per upstream call that reaches the provider.

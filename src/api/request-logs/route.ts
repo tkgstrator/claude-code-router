@@ -11,6 +11,7 @@ import {
   RequestLogsSessionsQuerySchema,
   SessionIdParamSchema,
   SessionLogsResponseSchema,
+  SessionMessagesResponseSchema,
   SessionSummarySchema,
   SessionsResponseSchema
 } from '../../schemas'
@@ -231,6 +232,41 @@ requestLogsRoute.openapi(getSessionLogsRoute, async (c) => {
     sessionId: log.sessionId,
     createdAt: log.createdAt.toISOString(),
     ...computeCosts(log, priceMap)
+  }))
+  return c.json({ items }, 200)
+})
+
+// ── GET /api/request-logs/sessions/:sessionId/messages ───────────────────────
+// Archived chat messages for a session, oldest-first so the client can render
+// them top-to-bottom like a chat log. Populated by the pipeline hook that
+// captures the last user block on request send and the assembled assistant
+// blocks after the response stream completes.
+
+const getSessionMessagesRoute = createRoute({
+  method: 'get',
+  path: '/api/request-logs/sessions/:sessionId/messages',
+  request: { params: SessionIdParamSchema },
+  responses: {
+    200: {
+      description: 'Archived chat messages for the session, oldest first.',
+      content: { 'application/json': { schema: SessionMessagesResponseSchema } }
+    }
+  }
+})
+
+requestLogsRoute.openapi(getSessionMessagesRoute, async (c) => {
+  const { sessionId } = c.req.valid('param')
+  const prisma = getPrismaClient()
+  const rows = await prisma.message.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, role: true, content: true, createdAt: true }
+  })
+  const items = rows.map((r) => ({
+    id: r.id,
+    role: r.role,
+    content: r.content,
+    createdAt: r.createdAt.toISOString()
   }))
   return c.json({ items }, 200)
 })
