@@ -40,7 +40,7 @@
     "transformers": "Transformer",
     "subscriptions": "サブスクリプション",
     "usage": "使用状況",
-    "history": "履歴",
+    "history": "セッション",
     "personas": "ペルソナ",
     "settings": "設定"
   },
@@ -390,11 +390,12 @@
     "back": "戻る"
   },
   "history": {
-    "title": "履歴",
-    "no_history": "リクエスト履歴がありません",
+    "title": "セッション",
+    "no_history": "セッションはまだありません",
     "loading": "読み込み中...",
-    "clear_confirm": "すべてのリクエスト履歴を削除しますか?",
+    "clear_confirm": "すべてのセッションを削除しますか?",
     "select_session": "セッションを選択して詳細を確認",
+    "preview_empty": "（ユーザー入力なし）",
     "detail": {
       "provider": "プロバイダー",
       "model": "モデル",
@@ -412,7 +413,12 @@
       "estimated_cost": "推定コスト",
       "requests": "リクエスト数",
       "requests_list": "個別リクエスト",
-      "model_breakdown": "モデル別料金"
+      "model_breakdown": "モデル別料金",
+      "conversation": "会話ログ",
+      "conversation_empty": "このセッションに保存された会話はまだありません。",
+      "tool_call": "ツール呼び出し",
+      "tool_result": "ツール結果",
+      "input_truncated": "入力を省略"
     }
   },
   "presets": {

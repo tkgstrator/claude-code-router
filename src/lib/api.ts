@@ -34,6 +34,18 @@ export interface SessionSummary {
   totalCostUsd: number | null
   firstAt: string
   lastAt: string
+  preview: string | null
+}
+
+// One archived chat turn. Content is Anthropic-shaped block arrays for
+// assistant rows, and either a string or a tool_result block array for
+// user rows (Claude Code's tool-result turns). Kept as `unknown` on the
+// wire — the renderer branches on shape at read time.
+export interface SessionMessageItem {
+  id: string
+  role: string
+  content: unknown
+  createdAt: string
 }
 
 // Browser-side API client. Fetches under `${baseUrl}<endpoint>` with the
@@ -183,6 +195,10 @@ class ApiClient {
 
   async getSessionLogs(sessionId: string): Promise<{ items: RequestLogItem[] }> {
     return this.get<{ items: RequestLogItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}`)
+  }
+
+  async getSessionMessages(sessionId: string): Promise<{ items: SessionMessageItem[] }> {
+    return this.get<{ items: SessionMessageItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}/messages`)
   }
 
   async getRequestLogSessions(params?: { limit?: number; offset?: number; sinceHours?: number }): Promise<{

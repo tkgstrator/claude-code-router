@@ -14,7 +14,11 @@ export const SessionSummarySchema = z.object({
   totalDurationMs: z.number().int().nonnegative(),
   totalCostUsd: z.number().nullable(),
   firstAt: z.string().nonempty(),
-  lastAt: z.string().nonempty()
+  lastAt: z.string().nonempty(),
+  // First user text turn, truncated, so the list can show a chat-style
+  // preview. Null when no user text has been archived yet (e.g. the first
+  // turn is a tool_result-only reply).
+  preview: z.string().nonempty().nullable()
 })
 
 export const RequestLogItemSchema = z.object({
@@ -72,3 +76,17 @@ export const RequestLogsListResponseSchema = z.object({
 export const RequestLogsDeleteAllResponseSchema = z.object({ deleted: z.number().int().nonnegative() })
 
 export const RequestLogsDeleteOneResponseSchema = z.object({ id: z.string().nonempty() })
+
+// One archived chat message. `content` intentionally stays `unknown` — it
+// is an Anthropic-shaped block array on assistant rows, and a string or
+// block array on user rows (Claude Code's tool_result turns).
+export const SessionMessageItemSchema = z.object({
+  id: z.string(),
+  role: z.string(),
+  content: z.unknown(),
+  createdAt: z.string()
+})
+
+export const SessionMessagesResponseSchema = z.object({
+  items: z.array(SessionMessageItemSchema)
+})

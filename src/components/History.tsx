@@ -1,8 +1,8 @@
-import { ChevronRight, Clock, History, Layers, RefreshCw, Trash2, Zap } from 'lucide-react'
+import { ChevronRight, Clock, Layers, MessagesSquare, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { api, type RequestLogItem, type SessionSummary } from '@/lib/api'
+import { api, type RequestLogItem, type SessionMessageItem, type SessionSummary } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 
 function fmtTokens(n: number): string {
@@ -123,7 +123,7 @@ export function HistoryPage() {
       <aside className='w-72 flex-shrink-0 border-r flex flex-col'>
         <div className='flex items-center justify-between px-4 py-3 border-b'>
           <div className='flex items-center gap-2'>
-            <History className='h-4 w-4' />
+            <MessagesSquare className='h-4 w-4' />
             <span className='font-semibold text-sm'>{t('history.title')}</span>
             {total > 0 && <span className='text-xs text-muted-foreground'>({total})</span>}
           </div>
@@ -150,13 +150,14 @@ export function HistoryPage() {
             </div>
           ) : sessions.length === 0 ? (
             <div className='flex flex-col items-center justify-center h-48 text-muted-foreground gap-2'>
-              <History className='h-10 w-10 text-muted-foreground/30' />
+              <MessagesSquare className='h-10 w-10 text-muted-foreground/30' />
               <p className='text-sm'>{t('history.no_history')}</p>
             </div>
           ) : (
             <ul>
               {sessions.map((session) => {
                 const isActive = selected?.sessionId === session.sessionId
+                const hasPreview = session.preview !== null && session.preview.length > 0
                 return (
                   <li
                     key={session.sessionId}
@@ -166,18 +167,23 @@ export function HistoryPage() {
                     onClick={() => setSelected(session)}
                   >
                     <div className='flex items-start justify-between gap-1'>
-                      <div className='min-w-0 flex-1'>
-                        <p className={`text-sm font-medium ${isActive ? 'text-accent-foreground' : 'text-foreground'}`}>
-                          {dayjs(session.lastAt).format('MM/DD HH:mm')}
-                        </p>
+                      <div className='min-w-0 flex-1 space-y-1'>
                         <p
-                          className={`text-[11px] mt-0.5 ${isActive ? 'text-muted-foreground' : 'text-muted-foreground'}`}
+                          className={`text-sm leading-snug line-clamp-2 ${
+                            hasPreview ? 'text-foreground' : 'italic text-muted-foreground'
+                          }`}
                         >
-                          <Layers className='h-3 w-3 inline mr-1' />
-                          {session.requestCount} req
-                          {'　'}
-                          {fmtTokens(session.totalInputTokens + session.totalOutputTokens)} tok
-                          {session.totalCostUsd != null && `　${fmtCost(session.totalCostUsd)}`}
+                          {hasPreview ? session.preview : t('history.preview_empty')}
+                        </p>
+                        <p className='flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums'>
+                          <span>{dayjs(session.lastAt).format('MM/DD HH:mm')}</span>
+                          <span className='opacity-40'>·</span>
+                          <span className='flex items-center gap-0.5'>
+                            <Layers className='h-3 w-3' />
+                            {session.requestCount}
+                          </span>
+                          <span>{fmtTokens(session.totalInputTokens + session.totalOutputTokens)} tok</span>
+                          {session.totalCostUsd != null && <span>{fmtCost(session.totalCostUsd)}</span>}
                         </p>
                       </div>
                       <ChevronRight
@@ -210,6 +216,7 @@ export function HistoryPage() {
 function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; refreshTrigger?: number }) {
   const { t } = useTranslation()
   const [logs, setLogs] = useState<RequestLogItem[]>([])
+  const [messages, setMessages] = useState<SessionMessageItem[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
 
@@ -226,12 +233,14 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       setLoadingLogs(true)
       setExpanded(null)
     }
-    api
-      .getSessionLogs(session.sessionId)
-      .then((res) => {
+    // Logs and messages come from separate tables; fetch in parallel so the
+    // chat view doesn't wait on the metrics query and vice versa.
+    Promise.all([api.getSessionLogs(session.sessionId), api.getSessionMessages(session.sessionId)])
+      .then(([logsRes, msgsRes]) => {
         if (cancelled) return
         loadedSessionRef.current = session.sessionId
-        setLogs(res.items)
+        setLogs(logsRes.items)
+        setMessages(msgsRes.items)
       })
       .catch(() => {})
       .finally(() => {
@@ -329,6 +338,9 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
           <span className='text-sm text-muted-foreground'>{t('history.detail.cache_hit_rate')}</span>
         </div>
       </div>
+
+      {/* Conversation */}
+      <ConversationSection messages={messages} />
 
       {/* Per-model breakdown */}
       {modelBreakdown.length > 0 && (
@@ -432,4 +444,154 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       </div>
     </div>
   )
+}
+
+// ── Conversation view ────────────────────────────────────────────────────────
+// Chat-style rendering of the archived user + assistant turns for a session.
+// Content shapes:
+//   - string                              → rendered verbatim as one text line
+//   - Anthropic block array               → per-block bubble (text / tool_use / tool_result)
+//   - anything else                       → JSON-serialised fallback so debugging isn't blind
+
+function ConversationSection({ messages }: { messages: SessionMessageItem[] }) {
+  const { t } = useTranslation()
+  return (
+    <div>
+      <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.conversation')}</h3>
+      {messages.length === 0 ? (
+        <p className='text-sm text-muted-foreground'>{t('history.detail.conversation_empty')}</p>
+      ) : (
+        <div className='space-y-2'>
+          {messages.map((m) => (
+            <MessageBubble key={m.id} message={m} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MessageBubble({ message }: { message: SessionMessageItem }) {
+  const isUser = message.role === 'user'
+  const alignment = isUser ? 'items-end' : 'items-start'
+  const bubble = isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
+  const blocks = normaliseContent(message.content)
+  return (
+    <div className={`flex flex-col ${alignment} gap-1`}>
+      <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm space-y-1.5 ${bubble}`}>
+        {blocks.map((b) => (
+          <MessageBlock key={blockKey(message.id, b)} block={b} />
+        ))}
+      </div>
+      <span className='text-[10px] text-muted-foreground tabular-nums'>
+        {dayjs(message.createdAt).format('HH:mm:ss')}
+      </span>
+    </div>
+  )
+}
+
+type NormalisedBlock =
+  | { kind: 'text'; text: string }
+  | { kind: 'tool_use'; name: string; input: string; truncated: boolean }
+  | { kind: 'tool_result'; text: string }
+  | { kind: 'raw'; text: string }
+
+// Coerce the on-wire content into a flat list of blocks the renderer knows
+// how to draw. Never throws — an unrecognised shape falls back to a raw
+// JSON block so nothing is silently swallowed.
+function normaliseContent(content: unknown): NormalisedBlock[] {
+  if (typeof content === 'string') return [{ kind: 'text', text: content }]
+  if (!Array.isArray(content)) return [{ kind: 'raw', text: safeJson(content) }]
+  return content.map(normaliseBlock)
+}
+
+// Stable per-block React key. Blocks never shuffle within a message once
+// the row is persisted, but the noArrayIndexKey rule wants a content-derived
+// key; kind + a short content prefix collides only if two identical text /
+// tool_use blocks appear in the same message, which is fine for React's
+// reconciliation.
+function blockKey(messageId: string, block: NormalisedBlock): string {
+  if (block.kind === 'text') return `${messageId}:t:${block.text.slice(0, 32)}`
+  if (block.kind === 'tool_use') return `${messageId}:u:${block.name}:${block.input.slice(0, 32)}`
+  if (block.kind === 'tool_result') return `${messageId}:r:${block.text.slice(0, 32)}`
+  return `${messageId}:x:${block.text.slice(0, 32)}`
+}
+
+function normaliseBlock(raw: unknown): NormalisedBlock {
+  if (raw === null || typeof raw !== 'object') return { kind: 'raw', text: String(raw) }
+  const type = Reflect.get(raw, 'type')
+  if (type === 'text') return { kind: 'text', text: readString(raw, 'text', '') }
+  if (type === 'tool_use') return normaliseToolUse(raw)
+  if (type === 'tool_result') return { kind: 'tool_result', text: flattenToolResult(Reflect.get(raw, 'content')) }
+  return { kind: 'raw', text: safeJson(raw) }
+}
+
+function normaliseToolUse(raw: object): NormalisedBlock {
+  const input = Reflect.get(raw, 'input')
+  return {
+    kind: 'tool_use',
+    name: readString(raw, 'name', 'tool'),
+    input: typeof input === 'string' ? input : safeJson(input),
+    truncated: Reflect.get(raw, 'input_truncated') === true
+  }
+}
+
+function readString(source: object, key: string, fallback: string): string {
+  const value = Reflect.get(source, key)
+  return typeof value === 'string' ? value : fallback
+}
+
+// tool_result.content is either a string or a block array of text blocks;
+// flatten both into a single string for the chat view.
+function flattenToolResult(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return safeJson(content)
+  return content.map(flattenToolResultBlock).join('\n')
+}
+
+function flattenToolResultBlock(block: unknown): string {
+  if (block === null || typeof block !== 'object') return String(block)
+  if (Reflect.get(block, 'type') === 'text') return readString(block, 'text', '')
+  return safeJson(block)
+}
+
+function safeJson(value: unknown): string {
+  try {
+    const s = JSON.stringify(value, null, 2)
+    return typeof s === 'string' ? s : String(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function MessageBlock({ block }: { block: NormalisedBlock }) {
+  const { t } = useTranslation()
+  if (block.kind === 'text') {
+    return <div className='whitespace-pre-wrap break-words'>{block.text}</div>
+  }
+  if (block.kind === 'tool_use') {
+    return (
+      <div className='rounded border border-current/20 bg-black/5 dark:bg-white/5 px-2 py-1.5 text-xs space-y-1'>
+        <div className='flex items-center gap-1.5 font-medium'>
+          <Wrench className='h-3 w-3' />
+          <span>
+            {t('history.detail.tool_call')}: <span className='font-mono'>{block.name}</span>
+          </span>
+          {block.truncated && (
+            <span className='text-[10px] text-muted-foreground'>({t('history.detail.input_truncated')})</span>
+          )}
+        </div>
+        <pre className='font-mono text-[10px] whitespace-pre-wrap break-all opacity-80'>{block.input}</pre>
+      </div>
+    )
+  }
+  if (block.kind === 'tool_result') {
+    return (
+      <div className='rounded border border-current/20 bg-black/5 dark:bg-white/5 px-2 py-1.5 text-xs space-y-1'>
+        <div className='font-medium'>{t('history.detail.tool_result')}</div>
+        <pre className='font-mono text-[10px] whitespace-pre-wrap break-all opacity-80'>{block.text}</pre>
+      </div>
+    )
+  }
+  return <pre className='font-mono text-[10px] whitespace-pre-wrap break-all opacity-70'>{block.text}</pre>
 }
