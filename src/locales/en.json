@@ -40,7 +40,7 @@
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
     "usage": "Usage",
-    "history": "History",
+    "history": "Sessions",
     "personas": "Personas",
     "settings": "Settings"
   },
@@ -390,11 +390,12 @@
     "back": "Back"
   },
   "history": {
-    "title": "History",
-    "no_history": "No request history yet",
+    "title": "Sessions",
+    "no_history": "No sessions yet",
     "loading": "Loading...",
-    "clear_confirm": "Clear all request history?",
+    "clear_confirm": "Delete all sessions?",
     "select_session": "Select a session to view details",
+    "preview_empty": "(no user text yet)",
     "detail": {
       "provider": "Provider",
       "model": "Model",

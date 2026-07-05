@@ -34,6 +34,7 @@ export interface SessionSummary {
   totalCostUsd: number | null
   firstAt: string
   lastAt: string
+  preview: string | null
 }
 
 // One archived chat turn. Content is Anthropic-shaped block arrays for
