@@ -418,7 +418,9 @@
       "conversation_empty": "No archived messages for this session yet.",
       "tool_call": "Tool call",
       "tool_result": "Tool result",
-      "input_truncated": "input truncated"
+      "input_truncated": "input truncated",
+      "show_details": "Show details",
+      "hide_details": "Hide details"
     }
   },
   "presets": {

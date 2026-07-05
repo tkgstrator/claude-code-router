@@ -418,7 +418,9 @@
       "conversation_empty": "このセッションに保存された会話はまだありません。",
       "tool_call": "ツール呼び出し",
       "tool_result": "ツール結果",
-      "input_truncated": "入力を省略"
+      "input_truncated": "入力を省略",
+      "show_details": "詳細を表示",
+      "hide_details": "詳細を隠す"
     }
   },
   "presets": {

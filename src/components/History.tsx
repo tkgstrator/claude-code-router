@@ -1,5 +1,5 @@
-import { ChevronRight, Clock, Layers, MessagesSquare, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronRight, Clock, Layers, MessagesSquare, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { api, type RequestLogItem, type SessionMessageItem, type SessionSummary } from '@/lib/api'
@@ -571,27 +571,69 @@ function MessageBlock({ block }: { block: NormalisedBlock }) {
   }
   if (block.kind === 'tool_use') {
     return (
-      <div className='rounded border border-current/20 bg-black/5 dark:bg-white/5 px-2 py-1.5 text-xs space-y-1'>
-        <div className='flex items-center gap-1.5 font-medium'>
-          <Wrench className='h-3 w-3' />
-          <span>
-            {t('history.detail.tool_call')}: <span className='font-mono'>{block.name}</span>
-          </span>
-          {block.truncated && (
-            <span className='text-[10px] text-muted-foreground'>({t('history.detail.input_truncated')})</span>
-          )}
-        </div>
+      <CollapsibleBlock
+        header={
+          <>
+            <Wrench className='h-3 w-3 shrink-0' />
+            <span className='truncate'>
+              {t('history.detail.tool_call')}: <span className='font-mono'>{block.name}</span>
+            </span>
+            {block.truncated && (
+              <span className='text-[10px] text-muted-foreground shrink-0'>
+                ({t('history.detail.input_truncated')})
+              </span>
+            )}
+            <span className='ml-auto text-[10px] text-muted-foreground tabular-nums shrink-0'>
+              {fmtChars(block.input.length)}
+            </span>
+          </>
+        }
+      >
         <pre className='font-mono text-[10px] whitespace-pre-wrap break-all opacity-80'>{block.input}</pre>
-      </div>
+      </CollapsibleBlock>
     )
   }
   if (block.kind === 'tool_result') {
     return (
-      <div className='rounded border border-current/20 bg-black/5 dark:bg-white/5 px-2 py-1.5 text-xs space-y-1'>
-        <div className='font-medium'>{t('history.detail.tool_result')}</div>
+      <CollapsibleBlock
+        header={
+          <>
+            <span className='truncate'>{t('history.detail.tool_result')}</span>
+            <span className='ml-auto text-[10px] text-muted-foreground tabular-nums shrink-0'>
+              {fmtChars(block.text.length)}
+            </span>
+          </>
+        }
+      >
         <pre className='font-mono text-[10px] whitespace-pre-wrap break-all opacity-80'>{block.text}</pre>
-      </div>
+      </CollapsibleBlock>
     )
   }
   return <pre className='font-mono text-[10px] whitespace-pre-wrap break-all opacity-70'>{block.text}</pre>
+}
+
+function CollapsibleBlock({ header, children }: { header: ReactNode; children: ReactNode }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <div className='rounded border border-current/20 bg-black/5 dark:bg-white/5 text-xs'>
+      <button
+        type='button'
+        aria-expanded={open}
+        aria-label={open ? t('history.detail.hide_details') : t('history.detail.show_details')}
+        className='w-full flex items-center gap-1.5 px-2 py-1.5 font-medium text-left hover:bg-black/5 dark:hover:bg-white/5 rounded'
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? <ChevronDown className='h-3 w-3 shrink-0' /> : <ChevronRight className='h-3 w-3 shrink-0' />}
+        {header}
+      </button>
+      {open && <div className='border-t border-current/10 px-2 py-1.5 space-y-1'>{children}</div>}
+    </div>
+  )
+}
+
+function fmtChars(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M chars`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k chars`
+  return `${n} chars`
 }
