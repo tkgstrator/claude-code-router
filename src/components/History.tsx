@@ -1,4 +1,4 @@
-import { ChevronRight, Clock, History, Layers, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
+import { ChevronRight, Clock, Layers, MessagesSquare, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -123,7 +123,7 @@ export function HistoryPage() {
       <aside className='w-72 flex-shrink-0 border-r flex flex-col'>
         <div className='flex items-center justify-between px-4 py-3 border-b'>
           <div className='flex items-center gap-2'>
-            <History className='h-4 w-4' />
+            <MessagesSquare className='h-4 w-4' />
             <span className='font-semibold text-sm'>{t('history.title')}</span>
             {total > 0 && <span className='text-xs text-muted-foreground'>({total})</span>}
           </div>
@@ -150,13 +150,14 @@ export function HistoryPage() {
             </div>
           ) : sessions.length === 0 ? (
             <div className='flex flex-col items-center justify-center h-48 text-muted-foreground gap-2'>
-              <History className='h-10 w-10 text-muted-foreground/30' />
+              <MessagesSquare className='h-10 w-10 text-muted-foreground/30' />
               <p className='text-sm'>{t('history.no_history')}</p>
             </div>
           ) : (
             <ul>
               {sessions.map((session) => {
                 const isActive = selected?.sessionId === session.sessionId
+                const hasPreview = session.preview !== null && session.preview.length > 0
                 return (
                   <li
                     key={session.sessionId}
@@ -166,18 +167,23 @@ export function HistoryPage() {
                     onClick={() => setSelected(session)}
                   >
                     <div className='flex items-start justify-between gap-1'>
-                      <div className='min-w-0 flex-1'>
-                        <p className={`text-sm font-medium ${isActive ? 'text-accent-foreground' : 'text-foreground'}`}>
-                          {dayjs(session.lastAt).format('MM/DD HH:mm')}
-                        </p>
+                      <div className='min-w-0 flex-1 space-y-1'>
                         <p
-                          className={`text-[11px] mt-0.5 ${isActive ? 'text-muted-foreground' : 'text-muted-foreground'}`}
+                          className={`text-sm leading-snug line-clamp-2 ${
+                            hasPreview ? 'text-foreground' : 'italic text-muted-foreground'
+                          }`}
                         >
-                          <Layers className='h-3 w-3 inline mr-1' />
-                          {session.requestCount} req
-                          {'　'}
-                          {fmtTokens(session.totalInputTokens + session.totalOutputTokens)} tok
-                          {session.totalCostUsd != null && `　${fmtCost(session.totalCostUsd)}`}
+                          {hasPreview ? session.preview : t('history.preview_empty')}
+                        </p>
+                        <p className='flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums'>
+                          <span>{dayjs(session.lastAt).format('MM/DD HH:mm')}</span>
+                          <span className='opacity-40'>·</span>
+                          <span className='flex items-center gap-0.5'>
+                            <Layers className='h-3 w-3' />
+                            {session.requestCount}
+                          </span>
+                          <span>{fmtTokens(session.totalInputTokens + session.totalOutputTokens)} tok</span>
+                          {session.totalCostUsd != null && <span>{fmtCost(session.totalCostUsd)}</span>}
                         </p>
                       </div>
                       <ChevronRight

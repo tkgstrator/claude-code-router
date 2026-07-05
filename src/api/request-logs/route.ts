@@ -20,6 +20,54 @@ import { type RequestLogEvent, requestLogEmitter } from './events'
 
 export const requestLogsRoute = new OpenAPIHono()
 
+// Max chars kept in the session-list preview. Long enough for a full one-line
+// prompt, short enough that we can ship it inside every SessionSummary row
+// without bloating the /sessions payload.
+const PREVIEW_MAX_CHARS = 160
+
+// Pull a chat-style preview out of an archived user Message row. Content is
+// either a string (Codex-style plain text) or an Anthropic block array; we
+// concatenate the text blocks and drop tool_result-only turns (they're just
+// the client echoing tool output back and don't reflect user intent).
+function extractPreview(content: unknown): string | null {
+  const text = flattenUserText(content).trim()
+  if (text.length === 0) return null
+  return text.length > PREVIEW_MAX_CHARS ? `${text.slice(0, PREVIEW_MAX_CHARS).trimEnd()}…` : text
+}
+
+function flattenUserText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  const parts: string[] = []
+  for (const block of content) {
+    if (block === null || typeof block !== 'object') continue
+    if (Reflect.get(block, 'type') !== 'text') continue
+    const text = Reflect.get(block, 'text')
+    if (typeof text === 'string') parts.push(text)
+  }
+  return parts.join('\n')
+}
+
+// Fetch preview text for a batch of sessions in a single query. Grouped by
+// sessionId → the earliest user Message row is returned per session.
+async function loadPreviews(sessionIds: string[]): Promise<Map<string, string | null>> {
+  const previews = new Map<string, string | null>()
+  if (sessionIds.length === 0) return previews
+  const prisma = getPrismaClient()
+  const rows = await prisma.message.findMany({
+    where: { sessionId: { in: sessionIds }, role: 'user' },
+    orderBy: { createdAt: 'asc' },
+    select: { sessionId: true, content: true }
+  })
+  for (const row of rows) {
+    if (previews.has(row.sessionId)) continue
+    const preview = extractPreview(row.content)
+    if (preview !== null) previews.set(row.sessionId, preview)
+  }
+  for (const id of sessionIds) if (!previews.has(id)) previews.set(id, null)
+  return previews
+}
+
 // ── GET /api/request-logs/sessions ───────────────────────────────────────────
 
 const getSessionsRoute = createRoute({
@@ -76,7 +124,10 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
 
   // Collect all provider+model pairs for a single price-map lookup
   const allPairs = [...new Set(sessionRows.flatMap((s) => s.logs.map((l) => `${l.provider}||${l.model}`)))]
-  const priceMap = await buildPriceMap(prisma, allPairs)
+  const [priceMap, previewMap] = await Promise.all([
+    buildPriceMap(prisma, allPairs),
+    loadPreviews(sessionRows.map((s) => s.id))
+  ])
 
   const sessions = sessionRows.map((s) => {
     const logs = s.logs
@@ -112,7 +163,8 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
       totalDurationMs,
       totalCostUsd,
       firstAt,
-      lastAt
+      lastAt,
+      preview: previewMap.get(s.id) ?? null
     }
   })
 
@@ -164,7 +216,7 @@ requestLogsRoute.openapi(getSessionSummaryRoute, async (c) => {
 
   const logs = session.logs
   const pairs = [...new Set(logs.map((l) => `${l.provider}||${l.model}`))]
-  const priceMap = await buildPriceMap(prisma, pairs)
+  const [priceMap, previewMap] = await Promise.all([buildPriceMap(prisma, pairs), loadPreviews([sessionId])])
 
   const providers = [...new Set(logs.map((l) => l.provider))]
   const models = [...new Set(logs.map((l) => l.model))]
@@ -198,7 +250,8 @@ requestLogsRoute.openapi(getSessionSummaryRoute, async (c) => {
       totalDurationMs,
       totalCostUsd,
       firstAt,
-      lastAt
+      lastAt,
+      preview: previewMap.get(sessionId) ?? null
     },
     200
   )

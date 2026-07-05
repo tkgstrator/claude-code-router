@@ -14,7 +14,11 @@ export const SessionSummarySchema = z.object({
   totalDurationMs: z.number().int().nonnegative(),
   totalCostUsd: z.number().nullable(),
   firstAt: z.string().nonempty(),
-  lastAt: z.string().nonempty()
+  lastAt: z.string().nonempty(),
+  // First user text turn, truncated, so the list can show a chat-style
+  // preview. Null when no user text has been archived yet (e.g. the first
+  // turn is a tool_result-only reply).
+  preview: z.string().nonempty().nullable()
 })
 
 export const RequestLogItemSchema = z.object({
