@@ -3,6 +3,16 @@
     "yes": "はい",
     "no": "いいえ"
   },
+  "errors": {
+    "generic_title": "問題が発生しました",
+    "generic_body": "画面の描画中に想定外のエラーが起きました。再読み込みするか、ホームに戻ってください。",
+    "not_found_title": "ページが見つかりません",
+    "not_found_body": "指定された URL のページは存在しませんでした。",
+    "retry": "再読み込み",
+    "go_home": "ホームに戻る",
+    "show_details": "技術的な詳細を表示",
+    "hide_details": "技術的な詳細を隠す"
+  },
   "app": {
     "title": "Claude Code Router",
     "save": "保存",
