@@ -22,7 +22,11 @@ COPY index.html vite.config.ts prisma.config.ts ./
 COPY scripts ./scripts
 COPY src ./src
 
-RUN bun install --frozen-lockfile
+# --frozen-lockfile omitted: arm64 CDN sometimes serves prisma (and its
+# transitive @prisma/dev/valibot chain) with a different tarball hash and
+# `bun install --frozen-lockfile` fails with "Fail extracting tarball for
+# prisma" under QEMU. bun.lock still pins versions.
+RUN bun install
 RUN bunx prisma generate
 RUN bun run build
 
