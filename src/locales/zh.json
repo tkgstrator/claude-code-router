@@ -3,6 +3,16 @@
     "yes": "是",
     "no": "否"
   },
+  "errors": {
+    "generic_title": "出错了",
+    "generic_body": "页面渲染时发生意外错误。您可以重新加载或返回首页。",
+    "not_found_title": "页面未找到",
+    "not_found_body": "找不到您访问的页面。",
+    "retry": "重试",
+    "go_home": "返回首页",
+    "show_details": "显示技术细节",
+    "hide_details": "隐藏技术细节"
+  },
   "app": {
     "title": "Claude Code Router",
     "save": "保存",
@@ -40,7 +50,7 @@
     "transformers": "转换器",
     "subscriptions": "订阅",
     "usage": "用量",
-    "history": "会话",
+    "sessions": "会话",
     "personas": "人设",
     "settings": "设置"
   },
@@ -389,7 +399,7 @@
     "grouping_not_supported": "服务器不支持日志分组",
     "back": "返回"
   },
-  "history": {
+  "sessions": {
     "title": "会话",
     "no_history": "暂无会话",
     "loading": "加载中...",
@@ -420,7 +430,8 @@
       "tool_result": "工具结果",
       "input_truncated": "输入已截断",
       "show_details": "显示详情",
-      "hide_details": "隐藏详情"
+      "hide_details": "隐藏详情",
+      "system_block": "系统块"
     }
   },
   "presets": {

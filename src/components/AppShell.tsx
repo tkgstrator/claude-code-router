@@ -65,7 +65,7 @@ const NAV_ITEMS = [
   { to: '/providers', icon: Server, key: 'nav.providers' },
   { to: '/subscriptions', icon: CreditCard, key: 'nav.subscriptions' },
   { to: '/usage', icon: Gauge, key: 'nav.usage' },
-  { to: '/history', icon: MessagesSquare, key: 'nav.history' },
+  { to: '/sessions', icon: MessagesSquare, key: 'nav.sessions' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
   { to: '/personas', icon: Drama, key: 'nav.personas' },
   { to: '/settings', icon: Settings, key: 'nav.settings' }
