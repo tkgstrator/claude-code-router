@@ -3,6 +3,16 @@
     "yes": "是",
     "no": "否"
   },
+  "errors": {
+    "generic_title": "出错了",
+    "generic_body": "页面渲染时发生意外错误。您可以重新加载或返回首页。",
+    "not_found_title": "页面未找到",
+    "not_found_body": "找不到您访问的页面。",
+    "retry": "重试",
+    "go_home": "返回首页",
+    "show_details": "显示技术细节",
+    "hide_details": "隐藏技术细节"
+  },
   "app": {
     "title": "Claude Code Router",
     "save": "保存",

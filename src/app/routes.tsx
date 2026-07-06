@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { DebugPage } from '@/components/DebugPage'
+import { ErrorPage } from '@/components/ErrorPage'
 import { Login } from '@/components/Login'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
 import { OauthResultPage } from '@/components/OauthResultPage'
@@ -23,59 +24,73 @@ const fullHeight = (node: ReactNode) => <div className='h-full'>{node}</div>
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <Navigate to='/models' replace />
-  },
-  {
-    path: '/login',
-    element: (
-      <PublicRoute>
-        <Login />
-      </PublicRoute>
-    )
-  },
-  {
-    element: (
-      <ProtectedRoute>
-        <AppShell />
-      </ProtectedRoute>
-    ),
+    // Root wrapper: gives every descendant a shared error boundary
+    // (unknown paths + thrown render errors both surface as ErrorPage
+    // instead of react-router's default "Unexpected Application Error"
+    // dev screen).
+    element: <Outlet />,
+    errorElement: <ErrorPage />,
     children: [
-      { path: '/models', element: fullHeight(<ModelsDashboard />) },
-      { path: '/providers', element: fullHeight(<Providers />) },
-      { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
-      { path: '/router', element: fullHeight(<RouterPanel />) },
-      { path: '/transformers', element: fullHeight(<Transformers />) },
-      { path: '/usage', element: fullHeight(<Usage />) },
-      { path: '/sessions', element: fullHeight(<SessionsPage />) },
-      { path: '/personas', element: fullHeight(<Personas />) },
-      { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
-      { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
-      { path: '/personas/edit/:id', element: fullHeight(<PersonaEdit />) },
-      { path: '/settings', element: fullHeight(<SettingsPage />) }
+      {
+        path: '/',
+        element: <Navigate to='/models' replace />
+      },
+      {
+        path: '/login',
+        element: (
+          <PublicRoute>
+            <Login />
+          </PublicRoute>
+        )
+      },
+      {
+        element: (
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        ),
+        children: [
+          { path: '/models', element: fullHeight(<ModelsDashboard />) },
+          { path: '/providers', element: fullHeight(<Providers />) },
+          { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
+          { path: '/router', element: fullHeight(<RouterPanel />) },
+          { path: '/transformers', element: fullHeight(<Transformers />) },
+          { path: '/usage', element: fullHeight(<Usage />) },
+          { path: '/sessions', element: fullHeight(<SessionsPage />) },
+          { path: '/personas', element: fullHeight(<Personas />) },
+          { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
+          { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
+          { path: '/personas/edit/:id', element: fullHeight(<PersonaEdit />) },
+          { path: '/settings', element: fullHeight(<SettingsPage />) }
+        ]
+      },
+      {
+        path: '/presets',
+        element: (
+          <ProtectedRoute>
+            <Presets />
+          </ProtectedRoute>
+        )
+      },
+      {
+        path: '/debug',
+        element: (
+          <ProtectedRoute>
+            <DebugPage />
+          </ProtectedRoute>
+        )
+      },
+      {
+        // Public — the IdP redirects browsers here after a server-side
+        // token exchange. Token persistence already happened by the time
+        // this route mounts; the page is read-only.
+        path: '/oauth-result',
+        element: <OauthResultPage />
+      },
+      {
+        path: '*',
+        element: <ErrorPage />
+      }
     ]
-  },
-  {
-    path: '/presets',
-    element: (
-      <ProtectedRoute>
-        <Presets />
-      </ProtectedRoute>
-    )
-  },
-  {
-    path: '/debug',
-    element: (
-      <ProtectedRoute>
-        <DebugPage />
-      </ProtectedRoute>
-    )
-  },
-  {
-    // Public — the IdP redirects browsers here after a server-side
-    // token exchange. Token persistence already happened by the time
-    // this route mounts; the page is read-only.
-    path: '/oauth-result',
-    element: <OauthResultPage />
   }
 ])

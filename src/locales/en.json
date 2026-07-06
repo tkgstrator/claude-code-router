@@ -3,6 +3,16 @@
     "yes": "Yes",
     "no": "No"
   },
+  "errors": {
+    "generic_title": "Something went wrong",
+    "generic_body": "The page hit an unexpected error. You can retry or return home.",
+    "not_found_title": "Page not found",
+    "not_found_body": "We couldn't find the page you're looking for.",
+    "retry": "Retry",
+    "go_home": "Go home",
+    "show_details": "Show technical details",
+    "hide_details": "Hide technical details"
+  },
   "app": {
     "title": "Claude Code Router",
     "save": "Save",
