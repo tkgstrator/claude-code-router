@@ -40,7 +40,7 @@
     "transformers": "Transformer",
     "subscriptions": "サブスクリプション",
     "usage": "使用状況",
-    "history": "セッション",
+    "sessions": "セッション",
     "personas": "ペルソナ",
     "settings": "設定"
   },
@@ -389,7 +389,7 @@
     "grouping_not_supported": "サーバーがグループ化に対応していません",
     "back": "戻る"
   },
-  "history": {
+  "sessions": {
     "title": "セッション",
     "no_history": "セッションはまだありません",
     "loading": "読み込み中...",
@@ -420,7 +420,8 @@
       "tool_result": "ツール結果",
       "input_truncated": "入力を省略",
       "show_details": "詳細を表示",
-      "hide_details": "詳細を隠す"
+      "hide_details": "詳細を隠す",
+      "system_block": "システムブロック"
     }
   },
   "presets": {
