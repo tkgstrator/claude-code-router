@@ -40,7 +40,7 @@
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
     "usage": "Usage",
-    "history": "Sessions",
+    "sessions": "Sessions",
     "personas": "Personas",
     "settings": "Settings"
   },
@@ -389,7 +389,7 @@
     "grouping_not_supported": "Log grouping not supported by server",
     "back": "Back"
   },
-  "history": {
+  "sessions": {
     "title": "Sessions",
     "no_history": "No sessions yet",
     "loading": "Loading...",
@@ -420,7 +420,8 @@
       "tool_result": "Tool result",
       "input_truncated": "input truncated",
       "show_details": "Show details",
-      "hide_details": "Hide details"
+      "hide_details": "Hide details",
+      "system_block": "System block"
     }
   },
   "presets": {

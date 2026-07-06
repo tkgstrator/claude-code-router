@@ -44,7 +44,7 @@ function CacheBar({ pct }: { pct: number }) {
   )
 }
 
-export function HistoryPage() {
+export function SessionsPage() {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [total, setTotal] = useState(0)
@@ -110,7 +110,7 @@ export function HistoryPage() {
   }, [])
 
   const handleClearAll = async () => {
-    if (!window.confirm(t('history.clear_confirm'))) return
+    if (!window.confirm(t('sessions.clear_confirm'))) return
     await api.deleteAllRequestLogs()
     setSessions([])
     setTotal(0)
@@ -124,7 +124,7 @@ export function HistoryPage() {
         <div className='flex items-center justify-between px-4 py-3 border-b'>
           <div className='flex items-center gap-2'>
             <MessagesSquare className='h-4 w-4' />
-            <span className='font-semibold text-sm'>{t('history.title')}</span>
+            <span className='font-semibold text-sm'>{t('sessions.title')}</span>
             {total > 0 && <span className='text-xs text-muted-foreground'>({total})</span>}
           </div>
           <div className='flex items-center gap-1'>
@@ -146,12 +146,12 @@ export function HistoryPage() {
         <div className='flex-1 overflow-y-auto'>
           {loading ? (
             <div className='flex items-center justify-center h-32 text-muted-foreground text-sm'>
-              {t('history.loading')}
+              {t('sessions.loading')}
             </div>
           ) : sessions.length === 0 ? (
             <div className='flex flex-col items-center justify-center h-48 text-muted-foreground gap-2'>
               <MessagesSquare className='h-10 w-10 text-muted-foreground/30' />
-              <p className='text-sm'>{t('history.no_history')}</p>
+              <p className='text-sm'>{t('sessions.no_history')}</p>
             </div>
           ) : (
             <ul>
@@ -173,7 +173,7 @@ export function HistoryPage() {
                             hasPreview ? 'text-foreground' : 'italic text-muted-foreground'
                           }`}
                         >
-                          {hasPreview ? session.preview : t('history.preview_empty')}
+                          {hasPreview ? session.preview : t('sessions.preview_empty')}
                         </p>
                         <p className='flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums'>
                           <span>{dayjs(session.lastAt).format('MM/DD HH:mm')}</span>
@@ -203,7 +203,7 @@ export function HistoryPage() {
         {!selected ? (
           <div className='flex flex-col items-center justify-center h-full text-muted-foreground gap-3'>
             <Zap className='h-12 w-12 text-muted-foreground/30' />
-            <p className='text-sm'>{t('history.select_session')}</p>
+            <p className='text-sm'>{t('sessions.select_session')}</p>
           </div>
         ) : (
           <SessionDetail session={selected} refreshTrigger={detailRefresh} />
@@ -277,18 +277,18 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
   const summaryRows = [
     {
-      label: t('history.detail.time'),
+      label: t('sessions.detail.time'),
       value: `${dayjs(session.firstAt).format('YYYY/MM/DD HH:mm')} – ${dayjs(session.lastAt).format('HH:mm')}`
     },
-    { label: t('history.detail.duration'), value: fmtMs(session.totalDurationMs) },
-    { label: t('history.detail.requests'), value: String(session.requestCount) }
+    { label: t('sessions.detail.duration'), value: fmtMs(session.totalDurationMs) },
+    { label: t('sessions.detail.requests'), value: String(session.requestCount) }
   ]
 
   const tokenRows = [
-    { label: t('history.detail.input_tokens'), value: fmtTokens(session.totalInputTokens) },
-    { label: t('history.detail.output_tokens'), value: fmtTokens(session.totalOutputTokens) },
-    { label: t('history.detail.cache_read'), value: fmtTokens(session.totalCacheReadTokens) },
-    { label: t('history.detail.cache_write'), value: fmtTokens(session.totalCacheWriteTokens) }
+    { label: t('sessions.detail.input_tokens'), value: fmtTokens(session.totalInputTokens) },
+    { label: t('sessions.detail.output_tokens'), value: fmtTokens(session.totalOutputTokens) },
+    { label: t('sessions.detail.cache_read'), value: fmtTokens(session.totalCacheReadTokens) },
+    { label: t('sessions.detail.cache_write'), value: fmtTokens(session.totalCacheWriteTokens) }
   ]
 
   return (
@@ -303,7 +303,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
           {session.totalCostUsd != null && (
             <p className='text-2xl font-bold text-foreground'>{fmtCost(session.totalCostUsd)}</p>
           )}
-          <p className='text-xs text-muted-foreground'>{t('history.detail.estimated_cost')}</p>
+          <p className='text-xs text-muted-foreground'>{t('sessions.detail.estimated_cost')}</p>
         </div>
       </div>
 
@@ -319,7 +319,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
       {/* Token stats */}
       <div>
-        <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.tokens')}</h3>
+        <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.tokens')}</h3>
         <div className='bg-muted rounded-lg divide-y'>
           {tokenRows.map((row) => (
             <div key={row.label} className='flex items-center justify-between px-4 py-2.5 text-sm'>
@@ -332,10 +332,10 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
       {/* Cache hit rate */}
       <div>
-        <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.cache')}</h3>
+        <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.cache')}</h3>
         <div className='bg-muted rounded-lg px-4 py-3 flex items-center gap-4'>
           <CacheBar pct={session.avgCacheHitPct} />
-          <span className='text-sm text-muted-foreground'>{t('history.detail.cache_hit_rate')}</span>
+          <span className='text-sm text-muted-foreground'>{t('sessions.detail.cache_hit_rate')}</span>
         </div>
       </div>
 
@@ -345,7 +345,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       {/* Per-model breakdown */}
       {modelBreakdown.length > 0 && (
         <div>
-          <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.model_breakdown')}</h3>
+          <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.model_breakdown')}</h3>
           <div className='bg-muted rounded-lg divide-y'>
             {modelBreakdown.map((entry) => (
               <div key={entry.model} className='flex items-center gap-2 px-4 py-2 text-[11px]'>
@@ -373,9 +373,9 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
       {/* Individual requests */}
       <div>
-        <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.requests_list')}</h3>
+        <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.requests_list')}</h3>
         {loadingLogs ? (
-          <p className='text-sm text-muted-foreground'>{t('history.loading')}</p>
+          <p className='text-sm text-muted-foreground'>{t('sessions.loading')}</p>
         ) : (
           <div className='space-y-1'>
             {logs.map((log) => (
@@ -410,28 +410,28 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
                 {expanded === log.id && (
                   <div className='border-t bg-muted px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-1.5 text-xs'>
                     <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('history.detail.input_tokens')}</span>
+                      <span className='text-muted-foreground'>{t('sessions.detail.input_tokens')}</span>
                       <span className='font-mono'>{fmtTokens(log.inputTokens)}</span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('history.detail.output_tokens')}</span>
+                      <span className='text-muted-foreground'>{t('sessions.detail.output_tokens')}</span>
                       <span className='font-mono'>{fmtTokens(log.outputTokens)}</span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('history.detail.cache_read')}</span>
+                      <span className='text-muted-foreground'>{t('sessions.detail.cache_read')}</span>
                       <span className='font-mono'>{fmtTokens(log.cacheReadTokens)}</span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('history.detail.cache_write')}</span>
+                      <span className='text-muted-foreground'>{t('sessions.detail.cache_write')}</span>
                       <span className='font-mono'>{fmtTokens(log.cacheWriteTokens)}</span>
                     </div>
                     <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('history.detail.duration')}</span>
+                      <span className='text-muted-foreground'>{t('sessions.detail.duration')}</span>
                       <span className='font-mono'>{fmtMs(log.durationMs)}</span>
                     </div>
                     {log.totalCostUsd != null && (
                       <div className='flex justify-between'>
-                        <span className='text-muted-foreground'>{t('history.detail.estimated_cost')}</span>
+                        <span className='text-muted-foreground'>{t('sessions.detail.estimated_cost')}</span>
                         <span className='font-mono'>{fmtCost(log.totalCostUsd)}</span>
                       </div>
                     )}
@@ -457,9 +457,9 @@ function ConversationSection({ messages }: { messages: SessionMessageItem[] }) {
   const { t } = useTranslation()
   return (
     <div>
-      <h3 className='text-base font-semibold text-foreground mb-2'>{t('history.detail.conversation')}</h3>
+      <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.conversation')}</h3>
       {messages.length === 0 ? (
-        <p className='text-sm text-muted-foreground'>{t('history.detail.conversation_empty')}</p>
+        <p className='text-sm text-muted-foreground'>{t('sessions.detail.conversation_empty')}</p>
       ) : (
         <div className='space-y-2'>
           {messages.map((m) => (
@@ -492,6 +492,7 @@ function MessageBubble({ message }: { message: SessionMessageItem }) {
 
 type NormalisedBlock =
   | { kind: 'text'; text: string }
+  | { kind: 'system_text'; text: string; preview: string }
   | { kind: 'tool_use'; name: string; input: string; truncated: boolean }
   | { kind: 'tool_result'; text: string }
   | { kind: 'raw'; text: string }
@@ -512,6 +513,7 @@ function normaliseContent(content: unknown): NormalisedBlock[] {
 // reconciliation.
 function blockKey(messageId: string, block: NormalisedBlock): string {
   if (block.kind === 'text') return `${messageId}:t:${block.text.slice(0, 32)}`
+  if (block.kind === 'system_text') return `${messageId}:s:${block.text.slice(0, 32)}`
   if (block.kind === 'tool_use') return `${messageId}:u:${block.name}:${block.input.slice(0, 32)}`
   if (block.kind === 'tool_result') return `${messageId}:r:${block.text.slice(0, 32)}`
   return `${messageId}:x:${block.text.slice(0, 32)}`
@@ -520,10 +522,41 @@ function blockKey(messageId: string, block: NormalisedBlock): string {
 function normaliseBlock(raw: unknown): NormalisedBlock {
   if (raw === null || typeof raw !== 'object') return { kind: 'raw', text: String(raw) }
   const type = Reflect.get(raw, 'type')
-  if (type === 'text') return { kind: 'text', text: readString(raw, 'text', '') }
+  if (type === 'text') return classifyTextBlock(readString(raw, 'text', ''))
   if (type === 'tool_use') return normaliseToolUse(raw)
   if (type === 'tool_result') return { kind: 'tool_result', text: flattenToolResult(Reflect.get(raw, 'content')) }
   return { kind: 'raw', text: safeJson(raw) }
+}
+
+// Text blocks in CCR sessions are a mix of natural chat and framework-injected
+// noise: <system-reminder> / <transcript> / <command-*> wrappers, proxied tool
+// traffic serialised as {"Agent": …} / {"Bash": …} / {"user": …}, and bracketed
+// mode instructions like [SUGGESTION MODE …]. The classifier collapses all
+// three shapes behind a preview so real conversation stays foreground.
+function classifyTextBlock(text: string): NormalisedBlock {
+  const trimmed = text.trimStart()
+  const head = trimmed.charAt(0)
+  const isXmlish = head === '<' && /^<[a-zA-Z/!?][^>]{0,120}>/.test(trimmed)
+  const isJsonish = (head === '{' || head === '[') && looksLikeJson(trimmed)
+  const isBracketMode = head === '[' && /^\[[A-Z][A-Z_ -]{2,60}[\]:]/.test(trimmed)
+  if (isXmlish || isJsonish || isBracketMode) {
+    return { kind: 'system_text', text, preview: makePreview(trimmed) }
+  }
+  return { kind: 'text', text }
+}
+
+function looksLikeJson(s: string): boolean {
+  try {
+    JSON.parse(s)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function makePreview(s: string): string {
+  const oneLine = s.replace(/\s+/g, ' ').trim()
+  return oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine
 }
 
 function normaliseToolUse(raw: object): NormalisedBlock {
@@ -569,6 +602,23 @@ function MessageBlock({ block }: { block: NormalisedBlock }) {
   if (block.kind === 'text') {
     return <div className='whitespace-pre-wrap break-words'>{block.text}</div>
   }
+  if (block.kind === 'system_text') {
+    return (
+      <CollapsibleBlock
+        header={
+          <>
+            <span className='shrink-0'>{t('sessions.detail.system_block')}</span>
+            <span className='truncate opacity-70 font-mono'>{block.preview}</span>
+            <span className='ml-auto text-[10px] text-muted-foreground tabular-nums shrink-0'>
+              {fmtChars(block.text.length)}
+            </span>
+          </>
+        }
+      >
+        <pre className='font-mono text-[10px] whitespace-pre-wrap break-all opacity-80'>{block.text}</pre>
+      </CollapsibleBlock>
+    )
+  }
   if (block.kind === 'tool_use') {
     return (
       <CollapsibleBlock
@@ -576,11 +626,11 @@ function MessageBlock({ block }: { block: NormalisedBlock }) {
           <>
             <Wrench className='h-3 w-3 shrink-0' />
             <span className='truncate'>
-              {t('history.detail.tool_call')}: <span className='font-mono'>{block.name}</span>
+              {t('sessions.detail.tool_call')}: <span className='font-mono'>{block.name}</span>
             </span>
             {block.truncated && (
               <span className='text-[10px] text-muted-foreground shrink-0'>
-                ({t('history.detail.input_truncated')})
+                ({t('sessions.detail.input_truncated')})
               </span>
             )}
             <span className='ml-auto text-[10px] text-muted-foreground tabular-nums shrink-0'>
@@ -598,7 +648,7 @@ function MessageBlock({ block }: { block: NormalisedBlock }) {
       <CollapsibleBlock
         header={
           <>
-            <span className='truncate'>{t('history.detail.tool_result')}</span>
+            <span className='truncate'>{t('sessions.detail.tool_result')}</span>
             <span className='ml-auto text-[10px] text-muted-foreground tabular-nums shrink-0'>
               {fmtChars(block.text.length)}
             </span>
@@ -620,7 +670,7 @@ function CollapsibleBlock({ header, children }: { header: ReactNode; children: R
       <button
         type='button'
         aria-expanded={open}
-        aria-label={open ? t('history.detail.hide_details') : t('history.detail.show_details')}
+        aria-label={open ? t('sessions.detail.hide_details') : t('sessions.detail.show_details')}
         className='w-full flex items-center gap-1.5 px-2 py-1.5 font-medium text-left hover:bg-black/5 dark:hover:bg-white/5 rounded'
         onClick={() => setOpen((v) => !v)}
       >

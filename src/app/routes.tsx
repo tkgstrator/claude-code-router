@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { DebugPage } from '@/components/DebugPage'
-import { HistoryPage } from '@/components/History'
 import { Login } from '@/components/Login'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
 import { OauthResultPage } from '@/components/OauthResultPage'
@@ -14,6 +13,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
 import { Router as RouterPanel } from '@/components/Router'
+import { SessionsPage } from '@/components/Sessions'
 import { SettingsPage } from '@/components/SettingsPage'
 import { Subscriptions } from '@/components/Subscriptions'
 import { Transformers } from '@/components/Transformers'
@@ -47,7 +47,7 @@ export const router = createBrowserRouter([
       { path: '/router', element: fullHeight(<RouterPanel />) },
       { path: '/transformers', element: fullHeight(<Transformers />) },
       { path: '/usage', element: fullHeight(<Usage />) },
-      { path: '/history', element: fullHeight(<HistoryPage />) },
+      { path: '/sessions', element: fullHeight(<SessionsPage />) },
       { path: '/personas', element: fullHeight(<Personas />) },
       { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
       { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
