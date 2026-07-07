@@ -431,7 +431,9 @@
       "input_truncated": "入力を省略",
       "show_details": "詳細を表示",
       "hide_details": "詳細を隠す",
-      "system_block": "システムブロック"
+      "system_block": "システムブロック",
+      "show_developer": "開発者ビューを表示",
+      "hide_developer": "開発者ビューを隠す"
     }
   },
   "presets": {
