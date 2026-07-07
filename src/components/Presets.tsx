@@ -1,116 +1,18 @@
-import {
-  AlertCircle,
-  ArrowLeft,
-  Check,
-  CheckCircle2,
-  Download,
-  Info,
-  Link,
-  Loader2,
-  Package,
-  Search,
-  Store,
-  Trash2,
-  Upload
-} from 'lucide-react'
+import { ArrowLeft, Download, Loader2, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Toast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
-import { DynamicConfigForm } from './preset/DynamicConfigForm'
-
-// Schema types
-interface InputOption {
-  label: string
-  value: string | number | boolean
-  description?: string
-  disabled?: boolean
-}
-
-interface DynamicOptions {
-  type: 'static' | 'providers' | 'models' | 'custom'
-  options?: InputOption[]
-  providerField?: string
-}
-
-interface Condition {
-  field: string
-  operator?: 'eq' | 'ne' | 'in' | 'nin' | 'gt' | 'lt' | 'gte' | 'lte' | 'exists'
-  value?: any
-}
-
-interface RequiredInput {
-  id: string
-  type?: 'password' | 'input' | 'select' | 'multiselect' | 'confirm' | 'editor' | 'number'
-  label?: string
-  prompt?: string
-  placeholder?: string
-  options?: InputOption[] | DynamicOptions
-  when?: Condition | Condition[]
-  defaultValue?: any
-  required?: boolean
-  validator?: RegExp | string
-  min?: number
-  max?: number
-  rows?: number
-  dependsOn?: string[]
-}
-
-interface PresetMetadata {
-  id: string
-  name: string
-  version: string
-  description?: string
-  author?: string
-  homepage?: string
-  repository?: string
-  license?: string
-  keywords?: string[]
-  ccrVersion?: string
-  source?: string
-  sourceType?: 'local' | 'gist' | 'registry'
-  checksum?: string
-  installed: boolean
-}
-
-interface PresetConfigSection {
-  Providers?: Array<{
-    name: string
-    api_base_url?: string
-    models?: string[]
-    [key: string]: any
-  }>
-  [key: string]: any
-}
-
-interface PresetDetail extends PresetMetadata {
-  config?: PresetConfigSection
-  schema?: RequiredInput[]
-  template?: any
-  configMappings?: any[]
-  userValues?: Record<string, any>
-}
-
-interface MarketPreset {
-  id: string
-  name: string
-  author?: string
-  description?: string
-  repo: string
-}
+import { buildInitialValues } from '@/lib/presets/initial-values'
+import type { MarketPreset, PresetDetail, PresetMetadata } from '@/lib/presets/types'
+import { DeletePresetDialog } from './presets/DeletePresetDialog'
+import { InstallPresetDialog } from './presets/InstallPresetDialog'
+import { MarketPresetsDialog } from './presets/MarketPresetsDialog'
+import { PresetDetailDialog } from './presets/PresetDetailDialog'
+import { PresetListItem } from './presets/PresetListItem'
 
 export function Presets() {
   const { t } = useTranslation()
@@ -173,19 +75,7 @@ export function Presets() {
         if (detail.schema && detail.schema.length > 0) {
           // Configuration required, open configuration dialog
           setSelectedPreset(presetDetail)
-
-          // Initialize form values: prefer saved userValues, otherwise use defaultValue
-          const initialValues: Record<string, any> = {}
-          for (const input of detail.schema) {
-            // Prefer saved values
-            if (detail.userValues && detail.userValues[input.id] !== undefined) {
-              initialValues[input.id] = detail.userValues[input.id]
-            } else {
-              // Otherwise use default value
-              initialValues[input.id] = input.defaultValue ?? ''
-            }
-          }
-          setSecrets(initialValues)
+          setSecrets(buildInitialValues(detail.schema, detail.userValues))
 
           // Close market dialog, open details dialog
           setMarketDialogOpen(false)
@@ -226,14 +116,6 @@ export function Presets() {
     }
   }, [marketDialogOpen])
 
-  // Filter market presets
-  const filteredMarketPresets = marketPresets.filter(
-    (preset) =>
-      preset.name.toLowerCase().includes(marketSearch.toLowerCase()) ||
-      preset.description?.toLowerCase().includes(marketSearch.toLowerCase()) ||
-      preset.author?.toLowerCase().includes(marketSearch.toLowerCase())
-  )
-
   // Load presets list
   const loadPresets = async () => {
     try {
@@ -261,17 +143,7 @@ export function Presets() {
 
       // Initialize form values: prefer saved userValues, otherwise fall back to defaultValue
       if (detail.schema && detail.schema.length > 0) {
-        const initialValues: Record<string, any> = {}
-        for (const input of detail.schema) {
-          // Prefer the saved value
-          if (detail.userValues && detail.userValues[input.id] !== undefined) {
-            initialValues[input.id] = detail.userValues[input.id]
-          } else {
-            // Otherwise use default value
-            initialValues[input.id] = input.defaultValue ?? ''
-          }
-        }
-        setSecrets(initialValues)
+        setSecrets(buildInitialValues(detail.schema, detail.userValues))
       }
     } catch (error) {
       console.error('Failed to load preset details:', error)
@@ -323,19 +195,7 @@ export function Presets() {
             installed: true,
             ...detail
           })
-
-          // Initialize form values: prefer saved userValues, otherwise use defaultValue
-          const initialValues: Record<string, any> = {}
-          for (const input of detail.schema) {
-            // Prefer saved values
-            if (detail.userValues && detail.userValues[input.id] !== undefined) {
-              initialValues[input.id] = detail.userValues[input.id]
-            } else {
-              // Otherwise use default value
-              initialValues[input.id] = input.defaultValue ?? ''
-            }
-          }
-          setSecrets(initialValues)
+          setSecrets(buildInitialValues(detail.schema, detail.userValues))
 
           // Close installation dialog, open details dialog
           setInstallDialogOpen(false)
@@ -460,299 +320,59 @@ export function Presets() {
         ) : (
           <div className='space-y-3'>
             {presets.map((preset) => (
-              <div
+              <PresetListItem
                 key={preset.name}
-                className='flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors'
-              >
-                <div className='flex-1'>
-                  <div className='flex items-center gap-2'>
-                    <h3 className='font-medium'>{preset.name}</h3>
-                    <span className='text-xs text-muted-foreground'>v{preset.version}</span>
-                  </div>
-                  {preset.description && <p className='text-sm text-muted-foreground mt-1'>{preset.description}</p>}
-                  {preset.author && <p className='text-xs text-muted-foreground mt-1'>by {preset.author}</p>}
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Button variant='ghost' size='icon' onClick={() => handleViewDetail(preset)}>
-                    <Info className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={() => {
-                      setPresetToDelete(preset.id)
-                      setDeleteDialogOpen(true)
-                    }}
-                  >
-                    <Trash2 className='h-4 w-4 text-red-500' />
-                  </Button>
-                </div>
-              </div>
+                preset={preset}
+                onViewDetail={handleViewDetail}
+                onRequestDelete={(presetId) => {
+                  setPresetToDelete(presetId)
+                  setDeleteDialogOpen(true)
+                }}
+              />
             ))}
           </div>
         )}
       </CardContent>
 
-      {/* Install Dialog */}
-      <Dialog open={installDialogOpen} onOpenChange={setInstallDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('presets.install_dialog_title')}</DialogTitle>
-            <DialogDescription>{t('presets.install_dialog_description')}</DialogDescription>
-          </DialogHeader>
-          <div className='space-y-4 py-4'>
-            <div className='flex gap-2'>
-              <Button variant='default' onClick={() => setInstallMethod('url')} className='flex-1'>
-                <Link className='mr-2 h-4 w-4' />
-                {t('presets.from_url')}
-              </Button>
-            </div>
+      <InstallPresetDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+        installUrl={installUrl}
+        onInstallUrlChange={setInstallUrl}
+        installName={installName}
+        onInstallNameChange={setInstallName}
+        onSelectUrlMethod={() => setInstallMethod('url')}
+        onInstall={handleInstall}
+        isInstalling={isInstalling}
+      />
 
-            <div className='space-y-2'>
-              <Label htmlFor='preset-url'>{t('presets.github_repository')}</Label>
-              <Input
-                id='preset-url'
-                type='url'
-                placeholder={t('presets.preset_url_placeholder')}
-                value={installUrl}
-                onChange={(e) => setInstallUrl(e.target.value)}
-              />
-              <p className='text-xs text-muted-foreground'>{t('presets.github_url_hint')}</p>
-            </div>
+      <PresetDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        preset={selectedPreset}
+        initialValues={secrets}
+        isApplying={isApplying}
+        onApply={handleApplyPreset}
+      />
 
-            <div className='space-y-2'>
-              <Label htmlFor='preset-name'>{t('presets.preset_name')}</Label>
-              <Input
-                id='preset-name'
-                placeholder={t('presets.preset_name_placeholder')}
-                value={installName}
-                onChange={(e) => setInstallName(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setInstallDialogOpen(false)}>
-              {t('presets.close')}
-            </Button>
-            <Button onClick={handleInstall} disabled={isInstalling}>
-              {isInstalling ? (
-                <>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  {t('presets.installing')}
-                </>
-              ) : (
-                t('presets.install')
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <MarketPresetsDialog
+        open={marketDialogOpen}
+        onOpenChange={setMarketDialogOpen}
+        search={marketSearch}
+        onSearchChange={setMarketSearch}
+        presets={marketPresets}
+        loading={marketLoading}
+        installedPresets={presets}
+        installingId={installingFromMarket}
+        onInstall={handleInstallFromMarket}
+      />
 
-      {/* Detail Dialog */}
-      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className='max-w-2xl max-h-[80vh] overflow-hidden flex flex-col' aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
-              {selectedPreset?.name}
-              {selectedPreset?.version && (
-                <span className='text-sm font-normal text-muted-foreground'>v{selectedPreset.version}</span>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          <div className='flex-1 overflow-y-auto py-4 px-2'>
-            {selectedPreset?.description && <p className='text-foreground mb-4'>{selectedPreset.description}</p>}
-
-            {selectedPreset?.author && (
-              <p className='text-sm text-muted-foreground mb-1'>
-                <strong>Author:</strong> {selectedPreset.author}
-              </p>
-            )}
-
-            {selectedPreset?.homepage && (
-              <p className='text-sm text-muted-foreground mb-1'>
-                <strong>Homepage:</strong>{' '}
-                <a
-                  href={selectedPreset.homepage}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-primary hover:underline'
-                >
-                  {selectedPreset.homepage}
-                </a>
-              </p>
-            )}
-
-            {selectedPreset?.repository && (
-              <p className='text-sm text-muted-foreground mb-1'>
-                <strong>Repository:</strong>{' '}
-                <a
-                  href={selectedPreset.repository}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-primary hover:underline'
-                >
-                  {selectedPreset.repository}
-                </a>
-              </p>
-            )}
-
-            {selectedPreset?.keywords && selectedPreset.keywords.length > 0 && (
-              <div className='mt-4'>
-                <strong>Keywords:</strong>
-                <div className='flex flex-wrap gap-2 mt-2'>
-                  {selectedPreset.keywords.map((keyword) => (
-                    <span key={keyword} className='px-2 py-1 bg-muted rounded text-sm'>
-                      {keyword}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Configuration form */}
-            {selectedPreset?.schema && selectedPreset.schema.length > 0 && (
-              <div className='mt-6'>
-                <h4 className='font-medium text-sm mb-4'>{t('presets.required_information')}</h4>
-                <DynamicConfigForm
-                  schema={selectedPreset.schema}
-                  presetConfig={selectedPreset.config || {}}
-                  onSubmit={(values) => handleApplyPreset(values)}
-                  onCancel={() => setDetailDialogOpen(false)}
-                  isSubmitting={isApplying}
-                  initialValues={secrets}
-                />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Market Presets Dialog */}
-      <Dialog open={marketDialogOpen} onOpenChange={setMarketDialogOpen}>
-        <DialogContent className='max-w-4xl max-h-[80vh] overflow-hidden flex flex-col'>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
-              <Store className='h-5 w-5' />
-              {t('presets.market_title')}
-            </DialogTitle>
-            <DialogDescription>{t('presets.market_description')}</DialogDescription>
-          </DialogHeader>
-
-          <div className='flex items-center gap-2 py-4'>
-            <div className='relative flex-1'>
-              <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground' />
-              <Input
-                placeholder={t('presets.search_placeholder')}
-                value={marketSearch}
-                onChange={(e) => setMarketSearch(e.target.value)}
-                className='pl-9'
-              />
-            </div>
-          </div>
-
-          <div className='flex-1 overflow-y-auto'>
-            {marketLoading ? (
-              <div className='flex items-center justify-center h-64'>
-                <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
-              </div>
-            ) : filteredMarketPresets.length === 0 ? (
-              <div className='flex flex-col items-center justify-center h-64 text-muted-foreground'>
-                <Package className='h-12 w-12 mb-4 opacity-50' />
-                <p>{t('presets.no_presets_found')}</p>
-                <p className='text-sm'>{t('presets.no_presets_found_hint')}</p>
-              </div>
-            ) : (
-              <div className='space-y-3'>
-                {filteredMarketPresets.map((preset) => {
-                  // Check if this preset is already installed by repo
-                  const isInstalled = presets.some((p) => {
-                    // Extract repo from repository field (handle both formats)
-                    let installedRepo = ''
-                    if (p.repository) {
-                      // Remove GitHub URL prefix if present
-                      installedRepo = p.repository.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '')
-                    }
-                    // Match by repo (preferred), or name as fallback
-                    return installedRepo === preset.repo || p.name === preset.name
-                  })
-
-                  return (
-                    <div key={preset.id} className='p-4 border rounded-lg hover:bg-accent transition-colors'>
-                      <div className='flex items-start justify-between gap-4'>
-                        <div className='flex-1'>
-                          <div className='flex items-center gap-2 mb-2'>
-                            <h3 className='font-semibold text-lg'>{preset.name}</h3>
-                          </div>
-                          {preset.description && (
-                            <p className='text-sm text-muted-foreground mb-2'>{preset.description}</p>
-                          )}
-                          <div className='flex items-center gap-4 text-sm text-muted-foreground'>
-                            {preset.author && (
-                              <div className='flex items-center gap-1.5'>
-                                <span className='font-medium'>{t('presets.by', { author: preset.author })}</span>
-                                <a
-                                  href={`https://github.com/${preset.repo}`}
-                                  target='_blank'
-                                  rel='noopener noreferrer'
-                                  className='text-muted-foreground hover:text-foreground transition-colors'
-                                  title={t('presets.github_repository')}
-                                >
-                                  <i className='ri-github-fill text-xl'></i>
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => handleInstallFromMarket(preset)}
-                          disabled={installingFromMarket === preset.id || isInstalled}
-                          variant={isInstalled ? 'secondary' : 'default'}
-                          className='shrink-0'
-                        >
-                          {installingFromMarket === preset.id ? (
-                            <>
-                              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                              {t('presets.installing')}
-                            </>
-                          ) : isInstalled ? (
-                            <>
-                              <Check className='mr-2 h-4 w-4' />
-                              {t('presets.installed_label')}
-                            </>
-                          ) : (
-                            <>
-                              <Download className='mr-2 h-4 w-4' />
-                              {t('presets.install')}
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('presets.delete_dialog_title')}</DialogTitle>
-            <DialogDescription>{t('presets.delete_dialog_description', { name: presetToDelete })}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setDeleteDialogOpen(false)}>
-              {t('presets.close')}
-            </Button>
-            <Button variant='destructive' onClick={handleDelete}>
-              {t('presets.delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeletePresetDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        presetName={presetToDelete}
+        onConfirm={handleDelete}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </Card>

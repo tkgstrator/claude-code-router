@@ -1,8 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
-import { MultiSelectCombobox } from '@/components/MultiSelectCombobox'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -10,26 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
+import { FALLBACK_SLOTS } from '@/lib/router/fallback-slots'
 import { type RouterFormInput, type RouterFormOutput, RouterFormSchema } from '@/schemas/forms.dto'
 import type { Config } from '@/types'
 import type { ShellOutletContext } from './AppShell'
 import { useConfig } from './ConfigProvider'
-import { SelectCombobox } from './SelectCombobox'
-
-// Slots that carry an ordered fallback chain, in the order they're
-// rendered in the fallback section below.
-const FALLBACK_SLOTS = ['default', 'background', 'think', 'webSearch', 'longContext', 'image'] as const
-
-type FallbackSlot = (typeof FALLBACK_SLOTS)[number]
-
-// Pull the "provider" segment off a "provider,model" wire string. Empty
-// when the value is null/undefined/'' (no primary picked yet, in which
-// case there is no same-provider rule to enforce).
-function providerOf(value: string | null | undefined): string {
-  if (typeof value !== 'string' || value.length === 0) return ''
-  const idx = value.indexOf(',')
-  return idx === -1 ? value : value.slice(0, idx)
-}
+import { FallbackSlotField } from './router/FallbackSlotField'
+import { ModelSlotField } from './router/ModelSlotField'
 
 // Sentinel used for the "no active persona" choice. Radix Select cannot
 // carry an empty-string item value, so we map this back to '' (the wire
@@ -40,64 +26,6 @@ export function Router() {
   const { config } = useConfig()
   if (!config) return null
   return <RouterForm config={config} />
-}
-
-// One fallback slot's MultiSelect, with same-provider options stripped.
-// Watches the slot's primary value so toggling the primary live-updates
-// the fallback option list (and prunes any selected entry that now
-// matches the primary's provider — keeping the form state honest before
-// submit, where applyUiConfig would drop it anyway).
-function FallbackSlotField({
-  slot,
-  control,
-  modelOptions,
-  label,
-  selectPlaceholder,
-  searchPlaceholder,
-  emptyPlaceholder
-}: {
-  slot: FallbackSlot
-  control: ReturnType<typeof useForm<RouterFormInput, unknown, RouterFormOutput>>['control']
-  modelOptions: { value: string; label: string }[]
-  label: string
-  selectPlaceholder: string
-  searchPlaceholder: string
-  emptyPlaceholder: string
-}) {
-  const primaryValue = useWatch({ control, name: slot })
-  const primaryProvider = providerOf(typeof primaryValue === 'string' ? primaryValue : null)
-  const filteredOptions =
-    primaryProvider === '' ? modelOptions : modelOptions.filter((opt) => providerOf(opt.value) !== primaryProvider)
-  return (
-    <FormField
-      control={control}
-      name={`fallbacks.${slot}`}
-      render={({ field }) => {
-        // Drop any previously-selected fallback that now belongs to the
-        // same provider as the primary — the dropdown will not offer it
-        // any more, so leaving it in field.value would be misleading.
-        const current = Array.isArray(field.value) ? field.value : []
-        const sanitized =
-          primaryProvider === '' ? current : current.filter((v: string) => providerOf(v) !== primaryProvider)
-        return (
-          <FormItem>
-            <FormLabel>{label}</FormLabel>
-            <FormControl>
-              <MultiSelectCombobox
-                options={filteredOptions}
-                value={sanitized}
-                onChange={field.onChange}
-                placeholder={selectPlaceholder}
-                searchPlaceholder={searchPlaceholder}
-                emptyPlaceholder={emptyPlaceholder}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )
-      }}
-    />
-  )
 }
 
 function RouterForm({ config }: { config: Config }) {
@@ -176,105 +104,51 @@ function RouterForm({ config }: { config: Config }) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
             <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-end'>
-              <FormField
+              <ModelSlotField
                 control={form.control}
                 name='default'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('router.default')}</FormLabel>
-                    <FormControl>
-                      <SelectCombobox
-                        options={modelOptions}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder={t('router.selectModel')}
-                        emptyPlaceholder={t('router.noModelFound')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label={t('router.default')}
+                modelOptions={modelOptions}
+                selectPlaceholder={t('router.selectModel')}
+                emptyPlaceholder={t('router.noModelFound')}
               />
 
-              <FormField
+              <ModelSlotField
                 control={form.control}
                 name='background'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('router.background')}</FormLabel>
-                    <FormControl>
-                      <SelectCombobox
-                        options={modelOptions}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder={t('router.selectModel')}
-                        emptyPlaceholder={t('router.noModelFound')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label={t('router.background')}
+                modelOptions={modelOptions}
+                selectPlaceholder={t('router.selectModel')}
+                emptyPlaceholder={t('router.noModelFound')}
               />
 
-              <FormField
+              <ModelSlotField
                 control={form.control}
                 name='think'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('router.think')}</FormLabel>
-                    <FormControl>
-                      <SelectCombobox
-                        options={modelOptions}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder={t('router.selectModel')}
-                        emptyPlaceholder={t('router.noModelFound')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label={t('router.think')}
+                modelOptions={modelOptions}
+                selectPlaceholder={t('router.selectModel')}
+                emptyPlaceholder={t('router.noModelFound')}
               />
 
-              <FormField
+              <ModelSlotField
                 control={form.control}
                 name='webSearch'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('router.webSearch')}</FormLabel>
-                    <FormControl>
-                      <SelectCombobox
-                        options={modelOptions}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder={t('router.selectModel')}
-                        emptyPlaceholder={t('router.noModelFound')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label={t('router.webSearch')}
+                modelOptions={modelOptions}
+                selectPlaceholder={t('router.selectModel')}
+                emptyPlaceholder={t('router.noModelFound')}
               />
 
               <div className='flex items-end gap-3 md:col-span-2 xl:col-span-1'>
-                <FormField
+                <ModelSlotField
                   control={form.control}
                   name='longContext'
-                  render={({ field }) => (
-                    <FormItem className='flex-1'>
-                      <FormLabel>{t('router.longContext')}</FormLabel>
-                      <FormControl>
-                        <SelectCombobox
-                          options={modelOptions}
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder={t('router.selectModel')}
-                          emptyPlaceholder={t('router.noModelFound')}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  label={t('router.longContext')}
+                  modelOptions={modelOptions}
+                  selectPlaceholder={t('router.selectModel')}
+                  emptyPlaceholder={t('router.noModelFound')}
+                  className='flex-1'
                 />
                 <FormField
                   control={form.control}
@@ -297,24 +171,14 @@ function RouterForm({ config }: { config: Config }) {
               </div>
 
               <div className='flex items-end gap-3'>
-                <FormField
+                <ModelSlotField
                   control={form.control}
                   name='image'
-                  render={({ field }) => (
-                    <FormItem className='flex-1'>
-                      <FormLabel>{t('router.image')} (beta)</FormLabel>
-                      <FormControl>
-                        <SelectCombobox
-                          options={modelOptions}
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder={t('router.selectModel')}
-                          emptyPlaceholder={t('router.noModelFound')}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  label={`${t('router.image')} (beta)`}
+                  modelOptions={modelOptions}
+                  selectPlaceholder={t('router.selectModel')}
+                  emptyPlaceholder={t('router.noModelFound')}
+                  className='flex-1'
                 />
                 <FormField
                   control={form.control}
