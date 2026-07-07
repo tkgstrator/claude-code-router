@@ -7,53 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-
-// Type definitions
-interface InputOption {
-  label: string
-  value: string | number | boolean
-  description?: string
-  disabled?: boolean
-}
-
-interface DynamicOptions {
-  type: 'static' | 'providers' | 'models' | 'custom'
-  options?: InputOption[]
-  providerField?: string
-}
-
-interface Condition {
-  field: string
-  operator?: 'eq' | 'ne' | 'in' | 'nin' | 'gt' | 'lt' | 'gte' | 'lte' | 'exists'
-  value?: any
-}
-
-interface RequiredInput {
-  id: string
-  type?: 'password' | 'input' | 'select' | 'multiselect' | 'confirm' | 'editor' | 'number'
-  label?: string
-  prompt?: string
-  placeholder?: string
-  options?: InputOption[] | DynamicOptions
-  when?: Condition | Condition[]
-  defaultValue?: any
-  required?: boolean
-  validator?: RegExp | string | ((value: any) => boolean | string)
-  min?: number
-  max?: number
-  rows?: number
-  dependsOn?: string[]
-}
-
-interface PresetConfigSection {
-  Providers?: Array<{
-    name: string
-    api_base_url?: string
-    models?: string[]
-    [key: string]: any
-  }>
-  [key: string]: any
-}
+import { getOptions, shouldShowField, validateField } from '@/lib/presets/form-logic'
+import type { PresetConfigSection, RequiredInput } from '@/lib/presets/types'
 
 interface DynamicConfigFormProps {
   schema: RequiredInput[]
@@ -83,7 +38,7 @@ export function DynamicConfigForm({
       const visible = new Set<string>()
 
       for (const field of schema) {
-        if (shouldShowField(field)) {
+        if (shouldShowField(field, values)) {
           visible.add(field.id)
         }
       }
@@ -93,103 +48,6 @@ export function DynamicConfigForm({
 
     updateVisibility()
   }, [values, schema])
-
-  // Evaluate condition
-  const evaluateCondition = (condition: Condition): boolean => {
-    const actualValue = values[condition.field]
-
-    if (condition.operator === 'exists') {
-      return actualValue !== undefined && actualValue !== null
-    }
-
-    if (condition.operator === 'in') {
-      return Array.isArray(condition.value) && condition.value.includes(actualValue)
-    }
-
-    if (condition.operator === 'nin') {
-      return Array.isArray(condition.value) && !condition.value.includes(actualValue)
-    }
-
-    switch (condition.operator) {
-      case 'eq':
-        return actualValue === condition.value
-      case 'ne':
-        return actualValue !== condition.value
-      case 'gt':
-        return actualValue > condition.value
-      case 'lt':
-        return actualValue < condition.value
-      case 'gte':
-        return actualValue >= condition.value
-      case 'lte':
-        return actualValue <= condition.value
-      default:
-        return actualValue === condition.value
-    }
-  }
-
-  // Determine if field should be displayed
-  const shouldShowField = (field: RequiredInput): boolean => {
-    if (!field.when) {
-      return true
-    }
-
-    const conditions = Array.isArray(field.when) ? field.when : [field.when]
-    return conditions.every((condition) => evaluateCondition(condition))
-  }
-
-  // Get options list
-  const getOptions = (field: RequiredInput): InputOption[] => {
-    if (!field.options) {
-      return []
-    }
-
-    const options = field.options as any
-
-    if (Array.isArray(options)) {
-      return options as InputOption[]
-    }
-
-    if (options.type === 'static') {
-      return options.options || []
-    }
-
-    if (options.type === 'providers') {
-      const providers = presetConfig.Providers || []
-      return providers.map((p) => ({
-        label: p.name || p.id || String(p),
-        value: p.name || p.id || String(p),
-        description: p.api_base_url
-      }))
-    }
-
-    if (options.type === 'models') {
-      const providerField = options.providerField
-      if (!providerField) {
-        return []
-      }
-
-      const providerId = String(providerField).replace(/^{{(.+)}}$/, '$1')
-      const selectedProvider = values[providerId]
-
-      if (!selectedProvider || !presetConfig.Providers) {
-        return []
-      }
-
-      const provider = presetConfig.Providers.find((p) => p.name === selectedProvider || p.id === selectedProvider)
-
-      if (!provider || !provider.models) {
-        return []
-      }
-
-      return provider.models.map((model: string) => ({
-        label: model,
-        value: model
-      }))
-    }
-
-    return []
-  }
 
   // Update field value
   const updateValue = (fieldId: string, value: any) => {
@@ -205,51 +63,6 @@ export function DynamicConfigForm({
     })
   }
 
-  // Validate single field
-  const validateField = (field: RequiredInput): string | null => {
-    const value = values[field.id]
-    const fieldName = field.label || field.id
-
-    // Check required (for confirm type, false is a valid value)
-    const isEmpty =
-      value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)
-
-    if (field.required !== false && isEmpty) {
-      return t('presets.form.field_required', { field: fieldName })
-    }
-
-    // Type check
-    if (field.type === 'number' && value !== '' && isNaN(Number(value))) {
-      return t('presets.form.must_be_number', { field: fieldName })
-    }
-
-    if (field.type === 'number') {
-      const numValue = Number(value)
-      if (field.min !== undefined && numValue < field.min) {
-        return t('presets.form.must_be_at_least', { field: fieldName, min: field.min })
-      }
-      if (field.max !== undefined && numValue > field.max) {
-        return t('presets.form.must_be_at_most', { field: fieldName, max: field.max })
-      }
-    }
-
-    // Custom validator
-    if (field.validator && value !== '') {
-      if (field.validator instanceof RegExp) {
-        if (!field.validator.test(String(value))) {
-          return t('presets.form.format_invalid', { field: fieldName })
-        }
-      } else if (typeof field.validator === 'string') {
-        const regex = new RegExp(field.validator)
-        if (!regex.test(String(value))) {
-          return t('presets.form.format_invalid', { field: fieldName })
-        }
-      }
-    }
-
-    return null
-  }
-
   // Submit form
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -262,7 +75,7 @@ export function DynamicConfigForm({
         continue
       }
 
-      const error = validateField(field)
+      const error = validateField(field, values, t)
       if (error) {
         newErrors[field.id] = error
       }
@@ -333,7 +146,7 @@ export function DynamicConfigForm({
                   <SelectValue placeholder={field.placeholder || t('presets.form.select', { label })} />
                 </SelectTrigger>
                 <SelectContent>
-                  {getOptions(field).map((option) => (
+                  {getOptions(field, presetConfig, values).map((option) => (
                     <SelectItem key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
                       <div>
                         <div>{option.label}</div>
@@ -348,7 +161,7 @@ export function DynamicConfigForm({
             {/* Multiselect */}
             {field.type === 'multiselect' && (
               <div className='space-y-2'>
-                {getOptions(field).map((option) => (
+                {getOptions(field, presetConfig, values).map((option) => (
                   <div key={String(option.value)} className='flex items-center space-x-2'>
                     <Checkbox
                       id={`field-${field.id}-${option.value}`}
