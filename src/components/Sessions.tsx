@@ -564,20 +564,65 @@ function normaliseBlock(raw: unknown): NormalisedBlock {
 }
 
 // Text blocks in CCR sessions are a mix of natural chat and framework-injected
-// noise: <system-reminder> / <transcript> / <command-*> wrappers, proxied tool
-// traffic serialised as {"Agent": …} / {"Bash": …} / {"user": …}, and bracketed
-// mode instructions like [SUGGESTION MODE …]. The classifier collapses all
-// three shapes behind a preview so real conversation stays foreground.
+// noise: <system-reminder> / <command-*> wrappers, proxied tool traffic
+// serialised as {"Agent": …} / {"Bash": …} / {"user": …}, bracketed mode
+// instructions like [SUGGESTION MODE …], and tagless dumps Claude Code
+// appends before each turn (agent list, skills list, file contents,
+// harness metadata). The classifier strips the tag-wrapped pieces out
+// of the block and then decides whether anything user-typed remains.
+const CLAUDE_CODE_WRAPPER_TAGS = [
+  'system-reminder',
+  'command-name',
+  'command-message',
+  'command-args',
+  'command-stdout',
+  'local-command-stdout',
+  'user-prompt-submit-hook'
+]
+
+// Prefixes Claude Code injects *without* a surrounding tag. These start a
+// tagless system dump (agent inventory, skill inventory, file contents,
+// harness metadata) that should never appear in the chat view.
+const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
+  /^Available agent types\b/,
+  /^The following (deferred tools|skills|files|MCP)\b/,
+  /^The following agent types\b/,
+  /^Contents of\s/,
+  /^Codebase and user instructions\b/,
+  /^Tool loaded\.\s*$/,
+  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m
+]
+
+function stripClaudeCodeWrappers(text: string): string {
+  const stripped = CLAUDE_CODE_WRAPPER_TAGS.reduce(
+    (acc, tag) => acc.replace(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tag}>`, 'g'), ''),
+    text
+  )
+  return stripped.trim()
+}
+
 function classifyTextBlock(text: string): NormalisedBlock {
-  const trimmed = text.trimStart()
-  const head = trimmed.charAt(0)
-  const isXmlish = head === '<' && /^<[a-zA-Z/!?][^>]{0,120}>/.test(trimmed)
-  const isJsonish = (head === '{' || head === '[') && looksLikeJson(trimmed)
-  const isBracketMode = head === '[' && /^\[[A-Z][A-Z_ -]{2,60}[\]:]/.test(trimmed)
-  if (isXmlish || isJsonish || isBracketMode) {
-    return { kind: 'system_text', text, preview: makePreview(trimmed) }
+  const cleaned = stripClaudeCodeWrappers(text)
+  // Whole block is wrapper noise → hide behind the collapsible preview.
+  if (cleaned.length === 0) {
+    return { kind: 'system_text', text, preview: makePreview(text.trimStart()) }
   }
-  return { kind: 'text', text }
+  // Tagless system dump — Claude Code appends these verbatim before the
+  // user's turn, and they surface here as plain text.
+  if (CLAUDE_CODE_TAGLESS_PREFIXES.some((re) => re.test(cleaned))) {
+    return { kind: 'system_text', text, preview: makePreview(cleaned) }
+  }
+  const head = cleaned.charAt(0)
+  const isXmlish = head === '<' && /^<[a-zA-Z/!?][^>]{0,120}>/.test(cleaned)
+  const isJsonish = (head === '{' || head === '[') && looksLikeJson(cleaned)
+  const isBracketMode = head === '[' && /^\[[A-Z][A-Z_ -]{2,60}[\]:]/.test(cleaned)
+  if (isXmlish || isJsonish || isBracketMode) {
+    return { kind: 'system_text', text, preview: makePreview(cleaned) }
+  }
+  // Emit the cleaned remnant when stripping actually removed something,
+  // so a user turn with a trailing <system-reminder> doesn't drag the
+  // reminder body into the chat bubble.
+  return { kind: 'text', text: cleaned === text.trim() ? text : cleaned }
 }
 
 function looksLikeJson(s: string): boolean {
