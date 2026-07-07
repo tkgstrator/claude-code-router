@@ -455,15 +455,43 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
 function ConversationSection({ messages }: { messages: SessionMessageItem[] }) {
   const { t } = useTranslation()
+  const [showDeveloper, setShowDeveloper] = useState(false)
+
+  // Normalise once so the toggle only re-filters, never re-parses. Rows
+  // whose visible-in-current-mode block list is empty are dropped entirely
+  // so a tool-only turn doesn't leave an empty bubble behind.
+  const normalised = useMemo(
+    () =>
+      messages.map((m) => ({ id: m.id, role: m.role, createdAt: m.createdAt, blocks: normaliseContent(m.content) })),
+    [messages]
+  )
+  const hasDeveloperContent = useMemo(
+    () => normalised.some((m) => m.blocks.some((b) => b.kind !== 'text')),
+    [normalised]
+  )
+  const displayed = useMemo(() => {
+    if (showDeveloper) return normalised.filter((m) => m.blocks.length > 0)
+    return normalised
+      .map((m) => ({ ...m, blocks: m.blocks.filter((b) => b.kind === 'text') }))
+      .filter((m) => m.blocks.length > 0)
+  }, [normalised, showDeveloper])
+
   return (
     <div>
-      <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.conversation')}</h3>
-      {messages.length === 0 ? (
+      <div className='flex items-center justify-between mb-2'>
+        <h3 className='text-base font-semibold text-foreground'>{t('sessions.detail.conversation')}</h3>
+        {hasDeveloperContent && (
+          <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={() => setShowDeveloper((v) => !v)}>
+            {showDeveloper ? t('sessions.detail.hide_developer') : t('sessions.detail.show_developer')}
+          </Button>
+        )}
+      </div>
+      {displayed.length === 0 ? (
         <p className='text-sm text-muted-foreground'>{t('sessions.detail.conversation_empty')}</p>
       ) : (
         <div className='space-y-2'>
-          {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+          {displayed.map((m) => (
+            <MessageBubble key={m.id} id={m.id} role={m.role} createdAt={m.createdAt} blocks={m.blocks} />
           ))}
         </div>
       )}
@@ -471,21 +499,28 @@ function ConversationSection({ messages }: { messages: SessionMessageItem[] }) {
   )
 }
 
-function MessageBubble({ message }: { message: SessionMessageItem }) {
-  const isUser = message.role === 'user'
+function MessageBubble({
+  id,
+  role,
+  createdAt,
+  blocks
+}: {
+  id: string
+  role: SessionMessageItem['role']
+  createdAt: string
+  blocks: NormalisedBlock[]
+}) {
+  const isUser = role === 'user'
   const alignment = isUser ? 'items-end' : 'items-start'
   const bubble = isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
-  const blocks = normaliseContent(message.content)
   return (
     <div className={`flex flex-col ${alignment} gap-1`}>
       <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm space-y-1.5 ${bubble}`}>
         {blocks.map((b) => (
-          <MessageBlock key={blockKey(message.id, b)} block={b} />
+          <MessageBlock key={blockKey(id, b)} block={b} />
         ))}
       </div>
-      <span className='text-[10px] text-muted-foreground tabular-nums'>
-        {dayjs(message.createdAt).format('HH:mm:ss')}
-      </span>
+      <span className='text-[10px] text-muted-foreground tabular-nums'>{dayjs(createdAt).format('HH:mm:ss')}</span>
     </div>
   )
 }

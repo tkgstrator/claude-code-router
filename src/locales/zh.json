@@ -431,7 +431,9 @@
       "input_truncated": "输入已截断",
       "show_details": "显示详情",
       "hide_details": "隐藏详情",
-      "system_block": "系统块"
+      "system_block": "系统块",
+      "show_developer": "显示开发者视图",
+      "hide_developer": "隐藏开发者视图"
     }
   },
   "presets": {

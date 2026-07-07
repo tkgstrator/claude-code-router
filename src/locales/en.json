@@ -431,7 +431,9 @@
       "input_truncated": "input truncated",
       "show_details": "Show details",
       "hide_details": "Hide details",
-      "system_block": "System block"
+      "system_block": "System block",
+      "show_developer": "Show developer view",
+      "hide_developer": "Hide developer view"
     }
   },
   "presets": {
