@@ -1,4 +1,3 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Circle, LoaderCircle, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
@@ -16,34 +15,13 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
+import { buildModelRows, sortModelRows } from '@/lib/models/build-rows'
+import { formatContext } from '@/lib/models/format-context'
+import type { ModelRow, Reachability, SortKey } from '@/lib/models/types'
 import { ProviderIcon } from '@/lib/providerIcons'
 import { MODEL_PRICING } from '@/shared/data'
-
-type Reachability = 'unknown' | 'testing' | 'ok' | 'fail'
-
-interface ModelRow {
-  provider: string
-  model: string
-  key: string
-  enabled: boolean
-  isSubscription: boolean
-  deprecated: boolean
-  contextWindow?: number
-}
-
-// 1_000_000 → "1M", 1_050_000 → "1.05M", 200_000 → "200K", else the
-// raw count. Null when the vendor doesn't publish a context window.
-const formatContext = (n?: number): string | null => {
-  if (!n || n <= 0) return null
-  if (n >= 1_000_000) {
-    const m = n / 1_000_000
-    return `${Number.isInteger(m) ? m : parseFloat(m.toFixed(2))}M`
-  }
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`
-  return String(n)
-}
-
-type SortKey = 'provider' | 'model' | 'input' | 'output'
+import { SortHeader } from './models/SortHeader'
+import { StatusIcon } from './models/StatusIcon'
 
 export function ModelsDashboard() {
   const { t } = useTranslation()
@@ -93,54 +71,9 @@ export function ModelsDashboard() {
     setSortKey(null)
   }
 
-  const rows = useMemo<ModelRow[]>(() => {
+  const rows = useMemo(() => {
     const providers = Array.isArray(config?.Providers) ? config.Providers : []
-    const raw = providers.flatMap((provider) => {
-      if (!provider) return []
-      const providerName = provider.name || 'unknown'
-      if (provider.enabled === false) return []
-      const providerAvailable =
-        provider.auth_mode === 'subscription'
-          ? Boolean(planByProvider[providerName])
-          : (provider.api_key?.trim().length ?? 0) > 0
-      if (!providerAvailable) return []
-      const models = Array.isArray(provider.models) ? provider.models : []
-      const disabledList = Array.isArray((provider.transformer as Record<string, unknown> | undefined)?._disabledModels)
-        ? (provider.transformer as Record<string, string[]>)._disabledModels
-        : []
-      const isSubscription = provider.auth_mode === 'subscription'
-      const deprecatedSet = new Set(provider.deprecatedModels ?? [])
-      const ctxMap = provider.modelContextWindows ?? {}
-      return models.map((model: string) => {
-        const key = `${providerName},${model}`
-        const enabled = !disabledList.includes(model)
-        const deprecated = deprecatedSet.has(model)
-        return { provider: providerName, model, key, enabled, isSubscription, deprecated, contextWindow: ctxMap[model] }
-      })
-    })
-    // No active sort: keep the natural order — providers in config order,
-    // models in their per-provider order. We used to fall through to an
-    // alphabetical model tiebreak here, which surfaced "openai
-    // chatgpt-4o-latest" at the top because 'cha' < 'cla'.
-    if (!sortKey) return raw
-    const sign = sortDir === 'asc' ? 1 : -1
-    const priceOf = (model: string, which: 'inputPer1M' | 'outputPer1M') =>
-      MODEL_PRICING[model]?.[which] ?? Number.POSITIVE_INFINITY
-    const primary = (row: ModelRow) => {
-      if (sortKey === 'input') return priceOf(row.model, 'inputPer1M')
-      if (sortKey === 'output') return priceOf(row.model, 'outputPer1M')
-      return row[sortKey]
-    }
-    // Stable sort on primary only — ties preserve raw (provider-grouped,
-    // config-ordered) order, so sorting by Provider doesn't reorder the
-    // models inside each group.
-    return [...raw].sort((a, b) => {
-      const av = primary(a)
-      const bv = primary(b)
-      if (av < bv) return -1 * sign
-      if (av > bv) return 1 * sign
-      return 0
-    })
+    return sortModelRows(buildModelRows(providers, planByProvider), sortKey, sortDir)
   }, [config, sortKey, sortDir, planByProvider])
 
   const providerNames = useMemo(() => {
@@ -157,29 +90,6 @@ export function ModelsDashboard() {
       }),
     [rows, statusFilter, providerFilter]
   )
-
-  const SortHeader = ({
-    label,
-    sortKey: key,
-    align = 'left'
-  }: {
-    label: string
-    sortKey: SortKey
-    align?: 'left' | 'right'
-  }) => {
-    const active = sortKey === key
-    const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
-    return (
-      <button
-        type='button'
-        onClick={() => toggleSort(key)}
-        className={`inline-flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse' : ''} ${active ? 'text-foreground' : 'text-muted-foreground'} hover:text-foreground`}
-      >
-        {label}
-        <Icon className='h-3 w-3' />
-      </button>
-    )
-  }
 
   // Seed status + last-passed date from the DB-backed config so the
   // dashboard reflects persisted test results across reloads.
@@ -249,21 +159,6 @@ export function ModelsDashboard() {
     }
   }
 
-  const renderStatus = (state: Reachability) => {
-    if (state === 'testing') {
-      return (
-        <LoaderCircle className='h-4 w-4 animate-spin text-muted-foreground' aria-label={t('models.status_testing')} />
-      )
-    }
-    if (state === 'ok') {
-      return <CheckCircle2 className='h-4 w-4 text-green-600' aria-label={t('models.status_ok')} />
-    }
-    if (state === 'fail') {
-      return <XCircle className='h-4 w-4 text-red-600' aria-label={t('models.status_fail')} />
-    }
-    return <Circle className='h-4 w-4 text-muted-foreground/40' aria-label={t('models.status_unknown')} />
-  }
-
   return (
     <PageContainer>
       <PageHeader title={t('nav.models')}>
@@ -324,84 +219,113 @@ export function ModelsDashboard() {
             <thead className='sticky top-0 bg-muted text-left text-muted-foreground'>
               <tr>
                 <th className='px-6 py-2 font-medium'>
-                  <SortHeader label={t('models.provider')} sortKey='provider' />
+                  <SortHeader
+                    label={t('models.provider')}
+                    sortKey='provider'
+                    activeSortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                  />
                 </th>
                 <th className='px-6 py-2 font-medium'>
-                  <SortHeader label={t('models.model')} sortKey='model' />
+                  <SortHeader
+                    label={t('models.model')}
+                    sortKey='model'
+                    activeSortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                  />
                 </th>
                 <th className='px-6 py-2 font-medium text-right'>
-                  <SortHeader label={t('models.input')} sortKey='input' align='right' />
+                  <SortHeader
+                    label={t('models.input')}
+                    sortKey='input'
+                    activeSortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                    align='right'
+                  />
                 </th>
                 <th className='px-6 py-2 font-medium text-right'>
-                  <SortHeader label={t('models.output')} sortKey='output' align='right' />
+                  <SortHeader
+                    label={t('models.output')}
+                    sortKey='output'
+                    activeSortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                    align='right'
+                  />
                 </th>
                 <th className='px-2 py-2 font-medium text-center'>{t('models.status')}</th>
                 <th className='px-6 py-2 font-medium text-right'>{t('models.context_window')}</th>
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map((row) => (
-                <tr key={row.key} className={`border-t hover:bg-muted ${row.enabled ? '' : 'opacity-50'}`}>
-                  <td className='px-6 py-2 text-foreground'>
-                    <span className='inline-flex items-center gap-2'>
-                      <ProviderIcon name={row.provider} size={16} />
-                      {row.provider}
-                    </span>
-                  </td>
-                  <td className='px-6 py-2 font-mono text-xs text-foreground'>
-                    <span className='inline-flex items-center gap-2'>
-                      {row.model}
-                      {row.deprecated && (
-                        <Badge variant='outline' className='border-amber-300 bg-amber-50 text-[10px] text-amber-700'>
-                          {t('models.deprecated')}
-                        </Badge>
+              {visibleRows.map((row) => {
+                const passedAtValue = passedAt[row.key]
+                return (
+                  <tr key={row.key} className={`border-t hover:bg-muted ${row.enabled ? '' : 'opacity-50'}`}>
+                    <td className='px-6 py-2 text-foreground'>
+                      <span className='inline-flex items-center gap-2'>
+                        <ProviderIcon name={row.provider} size={16} />
+                        {row.provider}
+                      </span>
+                    </td>
+                    <td className='px-6 py-2 font-mono text-xs text-foreground'>
+                      <span className='inline-flex items-center gap-2'>
+                        {row.model}
+                        {row.deprecated && (
+                          <Badge variant='outline' className='border-amber-300 bg-amber-50 text-[10px] text-amber-700'>
+                            {t('models.deprecated')}
+                          </Badge>
+                        )}
+                      </span>
+                    </td>
+                    <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
+                      {MODEL_PRICING[row.model] ? (
+                        <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
+                          ${MODEL_PRICING[row.model].inputPer1M}
+                        </span>
+                      ) : (
+                        <span className='text-muted-foreground/40'>—</span>
                       )}
-                    </span>
-                  </td>
-                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                    {MODEL_PRICING[row.model] ? (
-                      <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
-                        ${MODEL_PRICING[row.model].inputPer1M}
-                      </span>
-                    ) : (
-                      <span className='text-muted-foreground/40'>—</span>
-                    )}
-                  </td>
-                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                    {MODEL_PRICING[row.model] ? (
-                      <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
-                        ${MODEL_PRICING[row.model].outputPer1M}
-                      </span>
-                    ) : (
-                      <span className='text-muted-foreground/40'>—</span>
-                    )}
-                  </td>
-                  <td className='px-2 py-2'>
-                    <div className='flex justify-center'>
-                      <button
-                        type='button'
-                        onClick={() => testOne(row)}
-                        disabled={isTestingAll || !row.enabled || status[row.key] === 'testing'}
-                        title={
-                          passedAt[row.key]
-                            ? `${t('models.last_passed')}: ${dayjs(passedAt[row.key] as string).format('YYYY/MM/DD HH:mm')}`
-                            : t('models.test')
-                        }
-                        className='rounded-md p-1 transition-all-ease hover:bg-accent disabled:cursor-not-allowed disabled:hover:bg-transparent'
-                      >
-                        {renderStatus(status[row.key] || 'unknown')}
-                      </button>
-                    </div>
-                  </td>
-                  <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                    {formatContext(row.contextWindow) ? (
-                      <span>{formatContext(row.contextWindow)}</span>
-                    ) : (
-                      <span className='text-muted-foreground/40'>—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
+                      {MODEL_PRICING[row.model] ? (
+                        <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
+                          ${MODEL_PRICING[row.model].outputPer1M}
+                        </span>
+                      ) : (
+                        <span className='text-muted-foreground/40'>—</span>
+                      )}
+                    </td>
+                    <td className='px-2 py-2'>
+                      <div className='flex justify-center'>
+                        <button
+                          type='button'
+                          onClick={() => testOne(row)}
+                          disabled={isTestingAll || !row.enabled || status[row.key] === 'testing'}
+                          title={
+                            passedAtValue
+                              ? `${t('models.last_passed')}: ${dayjs(passedAtValue).format('YYYY/MM/DD HH:mm')}`
+                              : t('models.test')
+                          }
+                          className='rounded-md p-1 transition-all-ease hover:bg-accent disabled:cursor-not-allowed disabled:hover:bg-transparent'
+                        >
+                          <StatusIcon state={status[row.key] || 'unknown'} />
+                        </button>
+                      </div>
+                    </td>
+                    <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
+                      {formatContext(row.contextWindow) ? (
+                        <span>{formatContext(row.contextWindow)}</span>
+                      ) : (
+                        <span className='text-muted-foreground/40'>—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
