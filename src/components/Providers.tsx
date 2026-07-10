@@ -126,24 +126,43 @@ export function Providers() {
   // been enabled here; the Manage dialog stays open so the user can
   // flip several vendors in a row.
   const handleToggleCatalog = async (entry: CatalogEntry, checked: boolean) => {
+    const buildFreshProvider = (): Provider => {
+      const catalogNames = entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
+      const defaults = entry.defaultEnabledModels
+      // Subscription vendors: seed the whole curated catalog so the
+      // provider editor's toggle list (now driven off provider.models)
+      // shows the full advertised set; mark anything outside the plan's
+      // defaults as disabled via _disabledModels so it stays opt-in.
+      // api_key vendors keep the old behavior — just the defaults land
+      // in the config until the user adds more.
+      if (entry.authMode === 'subscription') {
+        const models = catalogNames.length > 0 ? catalogNames : defaults
+        const defaultSet = new Set(defaults)
+        const disabled = models.filter((n) => !defaultSet.has(n))
+        return {
+          name: entry.name,
+          api_base_url: entry.apiBaseUrl,
+          api_key: null,
+          auth_mode: entry.authMode,
+          enabled: false,
+          models,
+          ...(disabled.length > 0 ? { transformer: { _disabledModels: disabled } } : {})
+        }
+      }
+      return {
+        name: entry.name,
+        api_base_url: entry.apiBaseUrl,
+        api_key: null,
+        auth_mode: entry.authMode,
+        // Fresh row lands disabled so the vendor doesn't get called
+        // before the user has entered a key / signed in via OAuth.
+        // Flip on from the row's Edit dialog after configuring.
+        enabled: false,
+        models: defaults.length > 0 ? defaults : catalogNames
+      }
+    }
     const newProviders = checked
-      ? [
-          ...validProviders,
-          {
-            name: entry.name,
-            api_base_url: entry.apiBaseUrl,
-            api_key: null,
-            auth_mode: entry.authMode,
-            // Fresh row lands disabled so the vendor doesn't get called
-            // before the user has entered a key / signed in via OAuth.
-            // Flip on from the row's Edit dialog after configuring.
-            enabled: false,
-            models:
-              entry.defaultEnabledModels.length > 0
-                ? entry.defaultEnabledModels
-                : entry.models.filter((m) => !m.deprecated && !m.legacy).map((m) => m.name)
-          } satisfies Provider
-        ]
+      ? [...validProviders, buildFreshProvider()]
       : validProviders.filter((p) => p.name !== entry.name)
     const newConfig = { ...config, Providers: newProviders }
     setConfig(newConfig)

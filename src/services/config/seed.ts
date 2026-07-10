@@ -47,6 +47,11 @@ export interface SeedRow {
   apiStyle: ApiStyle
   transformer: Prisma.InputJsonValue | typeof Prisma.DbNull
   models: string[]
+  // Subset of `models` to seed as enabled=true. Only consulted for
+  // subscription providers (a Pro/Max plan may not entitle the user to
+  // every advertised model, so we seed the rest as opt-in). Undefined
+  // means "enable everything" — the api_key path never sets this.
+  defaultEnabledModels?: string[]
 }
 
 // Context window for a SUBSCRIPTION model (priceSeedService skips
@@ -69,6 +74,18 @@ export const subscriptionContextWindow = (seed: SeedRow, name: string): number |
   return entry ? entry.contextWindow : undefined
 }
 
+// Which of a subscription seed's models should ship enabled. Undefined
+// `defaultEnabledModels` (api_key path) preserves the old "enable
+// everything not deprecated" behavior at the caller.
+const seedEnabledSet = (seed: SeedRow): Set<string> | null =>
+  seed.defaultEnabledModels === undefined ? null : new Set(seed.defaultEnabledModels)
+
+const initialSeedEnabled = (seed: SeedRow, name: string, defaults: Set<string> | null): boolean => {
+  if (isDeprecatedModel(name)) return false
+  if (seed.authMode !== AuthMode.subscription) return false
+  return defaults === null ? true : defaults.has(name)
+}
+
 // Insert one brand-new seed provider with all its models.
 export async function insertSeedProvider(tx: Tx, seed: SeedRow): Promise<void> {
   const provider = await tx.provider.create({
@@ -84,15 +101,17 @@ export async function insertSeedProvider(tx: Tx, seed: SeedRow): Promise<void> {
     }
   })
   if (seed.models.length === 0) return
+  const defaults = seedEnabledSet(seed)
   await tx.model.createMany({
     data: seed.models.map((name) => ({
       providerId: provider.id,
       name,
       deprecated: isDeprecatedModel(name),
-      // Registered != routable. Only subscription presets seed
-      // their curated default set as enabled; api_key vendor
-      // catalogs stay off (DB default) until the user enables.
-      enabled: seed.authMode === AuthMode.subscription && !isDeprecatedModel(name),
+      // Registered != routable. Subscription presets seed their curated
+      // default set as enabled (the rest ship disabled so the plan-gated
+      // ones don't 4xx by default); api_key vendor catalogs stay off
+      // (DB default) until the user enables.
+      enabled: initialSeedEnabled(seed, name, defaults),
       contextWindow: subscriptionContextWindow(seed, name),
       apiStyle: modelApiStyleOverride(name)
     }))
@@ -110,12 +129,17 @@ export async function topUpSeedProvider(
   const existingModelNames = new Set(current.models.map((m) => m.name))
   const newModels = seed.models.filter((name) => !existingModelNames.has(name))
   if (newModels.length > 0) {
+    const defaults = seedEnabledSet(seed)
     await tx.model.createMany({
       data: newModels.map((name) => ({
         providerId: current.id,
         name,
         deprecated: isDeprecatedModel(name),
-        enabled: !isDeprecatedModel(name),
+        // Widening an existing subscription seed (e.g. we now seed the
+        // full availableModels list) must not silently enable models the
+        // user hasn't opted in to. Mirror insertSeedProvider: only
+        // preset defaults land enabled=true.
+        enabled: initialSeedEnabled(seed, name, defaults),
         contextWindow: subscriptionContextWindow(seed, name),
         apiStyle: modelApiStyleOverride(name)
       }))
@@ -171,7 +195,13 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
     authMode: AuthMode.subscription,
     apiStyle: apiStyleForVendor(preset.id),
     transformer: Prisma.DbNull,
-    models: preset.defaultEnabledModels
+    // Seed every model the plan advertises (not just the defaults) so
+    // the provider editor's toggle list — now driven off provider.models
+    // — surfaces the full curated set even before the user runs
+    // refresh-models. `defaultEnabledModels` still gates which of those
+    // rows land enabled=true.
+    models: preset.availableModels,
+    defaultEnabledModels: preset.defaultEnabledModels
   }))
   const allSeeds = [...apiSeeds, ...subscriptionSeeds]
 
