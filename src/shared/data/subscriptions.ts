@@ -12,10 +12,18 @@ export interface SubscriptionPreset {
   description: string
   /** Provider.apiBaseUrl in the DB. */
   apiBaseUrl: string
-  /** Master list of models the subscription exposes. */
+  /** Master list of models the subscription exposes. Used by seed + catalog view. */
   availableModels: string[]
   /** Subset that ships as enabled when a fresh provider is created. */
   defaultEnabledModels: string[]
+  /**
+   * Models the vendor's subscription backend refuses to serve, even if
+   * the price scraper picks them up. The provider editor's toggle list
+   * is derived from `provider.models` (DB) so scraped ids surface
+   * automatically — this denylist hides the ones we know don't work.
+   * Empty array when nothing to hide.
+   */
+  excludedModels: string[]
   /** Vendor brand surfaced in the subscription hint (e.g. Anthropic, OpenAI). */
   vendor: string
   /** CLI name that mints the OAuth token (e.g. Claude, Codex). */
@@ -53,7 +61,8 @@ export const SUBSCRIPTION_PRESETS: SubscriptionPreset[] = [
     ],
     vendor: 'Anthropic',
     cli: 'Claude',
-    credentialsPath: '~/.claude/.credentials.json'
+    credentialsPath: '~/.claude/.credentials.json',
+    excludedModels: []
   },
   {
     id: 'codex',
@@ -61,13 +70,16 @@ export const SUBSCRIPTION_PRESETS: SubscriptionPreset[] = [
     description: 'ChatGPT subscription via Codex CLI OAuth',
     apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
     // gpt-5.3-codex is rejected by the ChatGPT-account Codex backend
-    // ("not supported when using Codex with a ChatGPT account"), so it's
-    // not offered here. Re-add if/when the backend supports it.
+    // ("not supported when using Codex with a ChatGPT account"). The
+    // OpenAI scraper already skips codex-family ids, so it wouldn't
+    // reach the toggle list either way — kept in the seed list for the
+    // Manage-providers catalog count.
     availableModels: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.2'],
     defaultEnabledModels: ['gpt-5.5'],
     vendor: 'OpenAI',
     cli: 'Codex',
-    credentialsPath: '~/.codex/auth.json'
+    credentialsPath: '~/.codex/auth.json',
+    excludedModels: []
   }
 ]
 
