@@ -2,11 +2,10 @@
  * Scenario router model-selection heuristics.
  *
  * `selectModel` decides which configured model a request lands on:
- * explicit "provider,model" override, bare-model-name match, size-based
- * longContext, `<CCR-SUBAGENT-MODEL>` tag, haiku->background, web-search,
- * thinking->think, and finally the heavy-effort/tier escalation. Each
- * branch is its own small function so `selectModel` reads as a priority
- * list.
+ * bare-model-name match, size-based longContext, `<CCR-SUBAGENT-MODEL>`
+ * tag, haiku->background, web-search, thinking->think, and finally the
+ * heavy-effort/tier escalation. Each branch is its own small function so
+ * `selectModel` reads as a priority list.
  */
 
 import type { ScenarioType } from '@/schemas'
@@ -74,11 +73,6 @@ export function selectModel(
   router: RouterConfig | undefined,
   config: ConfigStore
 ): { model: string; scenarioType: ScenarioType } {
-  // Explicit "provider,model" override — short-circuit, no scenario routing.
-  if (req.body.model.includes(',')) {
-    return resolveExplicitProviderModel(req.body.model, config)
-  }
-
   // Bare model-name override — when the request's `model` string is a
   // model name that some configured provider already hosts, honor that
   // choice as-is. This sits ABOVE the heuristic rewrites (haiku →
@@ -135,27 +129,11 @@ export function selectModel(
   return { model: fallback ? fallback : req.body.model, scenarioType: 'default' }
 }
 
-function resolveExplicitProviderModel(
-  rawModel: string,
-  config: ConfigStore
-): { model: string; scenarioType: ScenarioType } {
-  const [providerInput, modelInput] = rawModel.split(',')
-  const providers = config.get<ConfigProvider[]>('providers', [])
-  // Only consider providers the registry would actually register —
-  // otherwise we hand the chain walker a name that resolves to undefined.
-  const provider = providers.find(
-    (p) => p.name.toLowerCase() === providerInput.toLowerCase() && isProviderRegistrable(p)
-  )
-  const model = provider?.models?.find((m) => m.toLowerCase() === modelInput.toLowerCase())
-  if (provider && model) return { model: `${provider.name},${model}`, scenarioType: 'default' }
-  return { model: rawModel, scenarioType: 'default' }
-}
-
 // Look for the first provider whose registered `models` list contains
 // the bare model name. Returns the canonical `provider,model` pair so
-// the rest of the pipeline can resolve it. Case-insensitive to match
-// resolveExplicitProviderModel. Returns null when no provider hosts the
-// name — caller falls through to scenario routing.
+// the rest of the pipeline can resolve it. Case-insensitive. Returns
+// null when no provider hosts the name — caller falls through to
+// scenario routing.
 function resolveByModelName(
   rawModel: string,
   config: ConfigStore
