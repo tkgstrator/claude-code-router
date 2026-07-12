@@ -422,7 +422,6 @@
       "cache_hit_rate": "Cache hit rate",
       "estimated_cost": "Estimated cost",
       "requests": "Requests",
-      "requests_list": "Individual Requests",
       "model_breakdown": "Cost by Model",
       "conversation": "Conversation",
       "conversation_empty": "No archived messages for this session yet.",

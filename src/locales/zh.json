@@ -422,7 +422,6 @@
       "cache_hit_rate": "缓存命中率",
       "estimated_cost": "预估费用",
       "requests": "请求数",
-      "requests_list": "单次请求",
       "model_breakdown": "按模型费用",
       "conversation": "对话记录",
       "conversation_empty": "该会话暂无归档消息。",
