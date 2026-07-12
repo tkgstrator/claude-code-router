@@ -5,31 +5,29 @@
  */
 
 import { getPrismaClient } from '../../db/client'
+import { normaliseContent } from '../../lib/sessions/message-content'
 
 // Max chars kept in the session-list preview. Long enough for a full one-line
 // prompt, short enough that we can ship it inside every SessionSummary row
 // without bloating the /sessions payload.
 const PREVIEW_MAX_CHARS = 160
 
-function flattenUserText(content: unknown): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  const parts: string[] = []
-  for (const block of content) {
-    if (block === null || typeof block !== 'object') continue
-    if (Reflect.get(block, 'type') !== 'text') continue
-    const text = Reflect.get(block, 'text')
-    if (typeof text === 'string') parts.push(text)
-  }
-  return parts.join('\n')
-}
-
-// Pull a chat-style preview out of an archived user Message row. Content is
-// either a string (Codex-style plain text) or an Anthropic block array; we
-// concatenate the text blocks and drop tool_result-only turns (they're just
-// the client echoing tool output back and don't reflect user intent).
+// Pull a chat-style preview out of an archived user Message row. We reuse the
+// same classifier the chat view uses (normaliseContent) and keep only the real
+// `text` blocks, so framework-injected noise never leaks into the sidebar:
+//   - <system-reminder> / <command-*> wrappers are stripped in place
+//   - whole-block XML wrappers (e.g. <session>…</session>), JSON tool traffic,
+//     [BRACKET MODE] instructions and tagless system dumps are classified as
+//     system_text and dropped here
+// A message that yields no real text (pure wrapper noise, or a tool_result-only
+// turn echoing tool output back) returns null so loadPreviews falls through to
+// the next user message for that session.
 function extractPreview(content: unknown): string | null {
-  const text = flattenUserText(content).trim()
+  const text = normaliseContent(content)
+    .filter((block) => block.kind === 'text')
+    .map((block) => block.text)
+    .join('\n')
+    .trim()
   if (text.length === 0) return null
   return text.length > PREVIEW_MAX_CHARS ? `${text.slice(0, PREVIEW_MAX_CHARS).trimEnd()}…` : text
 }
