@@ -73,6 +73,20 @@ export function selectModel(
   router: RouterConfig | undefined,
   config: ConfigStore
 ): { model: string; scenarioType: ScenarioType } {
+  // Force gate — if the scenario this request classifies into has force
+  // enabled and a model assigned, override the client's bare model with
+  // the slot model. When force is absent/off for that scenario this falls
+  // straight through to the unchanged routing below, so default behavior
+  // is byte-identical to before this feature.
+  if (router) {
+    const forced = classifyForceScenario(req, tokenCount, router)
+    const slotModel = forced ? router[forced] : undefined
+    if (forced && router.force?.[forced] && slotModel) {
+      req.log.info({ model: slotModel, scenario: forced }, 'Force override — using slot model')
+      return { model: slotModel, scenarioType: forced }
+    }
+  }
+
   // Bare model-name override — when the request's `model` string is a
   // model name that some configured provider already hosts, honor that
   // choice as-is. This sits ABOVE the heuristic rewrites (haiku →
@@ -159,6 +173,33 @@ function resolveByModelName(
     if (match) return { model: `${p.name},${match}`, scenarioType: 'default' }
   }
   return null
+}
+
+// Which scenario slot a request would route into, for the force gate
+// only. Deliberately ignores the bare-model-name match (that is exactly
+// what force overrides) and returns undefined when a `<CCR-SUBAGENT-MODEL>`
+// tag is present (that override is force-exempt). The branch conditions
+// mirror selectModel so the forced scenario matches where a force-OFF
+// request of the same shape would land.
+function classifyForceScenario(req: RouterRequest, tokenCount: number, router: RouterConfig): ScenarioType | undefined {
+  if (hasSubagentModel(req.body.system)) return undefined
+  const threshold =
+    typeof router.longContextThreshold === 'number' ? router.longContextThreshold : DEFAULT_LONG_CONTEXT_THRESHOLD
+  if (tokenCount > threshold && router.longContext) return 'longContext'
+  if (isHaikuBackground(req.body.model, router)) return 'background'
+  if (router.webSearch && Array.isArray(req.body.tools) && req.body.tools.some(isWebSearchTool)) return 'webSearch'
+  if (req.body.thinking && router.think) return 'think'
+  if (router.longContext && isHeavyRequest(req.body)) return 'longContext'
+  return 'default'
+}
+
+// Presence-only check for the subagent tag — unlike extractSubagentModel
+// this does NOT strip the tag, so the force gate can peek without mutating
+// the request (the real strip still happens in selectModel's normal flow).
+function hasSubagentModel(system: RouterRequestBody['system']): boolean {
+  if (!Array.isArray(system) || system.length < 2) return false
+  const text = typeof system[1]?.text === 'string' ? system[1].text : undefined
+  return text?.startsWith('<CCR-SUBAGENT-MODEL>') === true
 }
 
 function pickLongContext(

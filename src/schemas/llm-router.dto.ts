@@ -23,6 +23,23 @@ export const ScenarioRouterConfigSchema = z.object({
   think: z.string().nonempty().optional(),
   longContext: z.string().nonempty().optional(),
   webSearch: z.string().nonempty().optional(),
+  /**
+   * Per-scenario force flags. When a scenario's flag is true AND that
+   * slot has a model, selectModel overrides the client's bare model with
+   * the slot model instead of honoring the request-specified model.
+   * Absent / all-false = current behavior (client model wins). The
+   * `<CCR-SUBAGENT-MODEL>` tag is never forced over.
+   */
+  force: z
+    .object({
+      default: z.boolean(),
+      background: z.boolean(),
+      think: z.boolean(),
+      longContext: z.boolean(),
+      webSearch: z.boolean()
+    })
+    .partial()
+    .optional(),
   /** Token threshold above which a request gets routed to longContext. */
   longContextThreshold: z.number().optional(),
   /**
