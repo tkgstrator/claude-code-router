@@ -1,37 +1,11 @@
-import { ChevronDown, ChevronRight, Clock, Layers, MessagesSquare, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
+import { ChevronDown, ChevronRight, Layers, MessagesSquare, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { api, type RequestLogItem, type SessionMessageItem, type SessionSummary } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
-  return String(n)
-}
-
-function fmtCost(usd: number | null): string {
-  if (usd == null) return '–'
-  if (usd < 0.00001) return '<$0.00001'
-  return `$${usd.toFixed(5)}`
-}
-
-function fmtMs(ms: number): string {
-  if (ms >= 1_000) return `${(ms / 1000).toFixed(1)}s`
-  return `${ms}ms`
-}
-
-function StatusBadge({ status }: { status: number }) {
-  const ok = status >= 200 && status < 300
-  return (
-    <span
-      className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
-    >
-      {status}
-    </span>
-  )
-}
+import { fmtChars, fmtCost, fmtMs, fmtTokens } from '@/lib/sessions/format'
+import { blockKey, type NormalisedBlock, normaliseContent } from '@/lib/sessions/message-content'
 
 function CacheBar({ pct }: { pct: number }) {
   return (
@@ -120,7 +94,7 @@ export function SessionsPage() {
   return (
     <div className='flex h-full'>
       {/* Left: session list */}
-      <aside className='w-72 flex-shrink-0 border-r flex flex-col'>
+      <aside className='w-80 flex-shrink-0 border-r flex flex-col'>
         <div className='flex items-center justify-between px-4 py-3 border-b'>
           <div className='flex items-center gap-2'>
             <MessagesSquare className='h-4 w-4' />
@@ -218,7 +192,6 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
   const [logs, setLogs] = useState<RequestLogItem[]>([])
   const [messages, setMessages] = useState<SessionMessageItem[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
-  const [expanded, setExpanded] = useState<string | null>(null)
 
   const loadedSessionRef = useRef<string | null>(null)
 
@@ -231,7 +204,6 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
     let cancelled = false
     if (isSwitch) {
       setLoadingLogs(true)
-      setExpanded(null)
     }
     // Logs and messages come from separate tables; fetch in parallel so the
     // chat view doesn't wait on the metrics query and vice versa.
@@ -339,9 +311,6 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
         </div>
       </div>
 
-      {/* Conversation */}
-      <ConversationSection messages={messages} />
-
       {/* Per-model breakdown */}
       {modelBreakdown.length > 0 && (
         <div>
@@ -371,77 +340,8 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
         </div>
       )}
 
-      {/* Individual requests */}
-      <div>
-        <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.requests_list')}</h3>
-        {loadingLogs ? (
-          <p className='text-sm text-muted-foreground'>{t('sessions.loading')}</p>
-        ) : (
-          <div className='space-y-1'>
-            {logs.map((log) => (
-              <div key={log.id} className='border rounded-lg overflow-hidden'>
-                <button
-                  type='button'
-                  className='w-full flex items-center gap-2 px-4 py-2.5 text-[11px] hover:bg-muted transition-colors'
-                  onClick={() => setExpanded(expanded === log.id ? null : log.id)}
-                >
-                  <Clock className='h-3 w-3 text-muted-foreground shrink-0' />
-                  <span className='tabular-nums text-muted-foreground w-14 shrink-0 whitespace-nowrap'>
-                    {dayjs(log.createdAt).format('HH:mm:ss')}
-                  </span>
-                  <span className='font-mono text-foreground flex-1 min-w-0 truncate text-left'>{log.model}</span>
-                  <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0 whitespace-nowrap'>
-                    {fmtTokens(log.totalInputTokens)}↑
-                  </span>
-                  <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0 whitespace-nowrap'>
-                    {fmtTokens(log.outputTokens)}↓
-                  </span>
-                  <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0 whitespace-nowrap'>
-                    {log.cacheHitPct}%
-                  </span>
-                  <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0 whitespace-nowrap'>
-                    {fmtCost(log.totalCostUsd)}
-                  </span>
-                  <StatusBadge status={log.status} />
-                  <ChevronRight
-                    className={`h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0 ${expanded === log.id ? 'rotate-90' : ''}`}
-                  />
-                </button>
-                {expanded === log.id && (
-                  <div className='border-t bg-muted px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-1.5 text-xs'>
-                    <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('sessions.detail.input_tokens')}</span>
-                      <span className='font-mono'>{fmtTokens(log.inputTokens)}</span>
-                    </div>
-                    <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('sessions.detail.output_tokens')}</span>
-                      <span className='font-mono'>{fmtTokens(log.outputTokens)}</span>
-                    </div>
-                    <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('sessions.detail.cache_read')}</span>
-                      <span className='font-mono'>{fmtTokens(log.cacheReadTokens)}</span>
-                    </div>
-                    <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('sessions.detail.cache_write')}</span>
-                      <span className='font-mono'>{fmtTokens(log.cacheWriteTokens)}</span>
-                    </div>
-                    <div className='flex justify-between'>
-                      <span className='text-muted-foreground'>{t('sessions.detail.duration')}</span>
-                      <span className='font-mono'>{fmtMs(log.durationMs)}</span>
-                    </div>
-                    {log.totalCostUsd != null && (
-                      <div className='flex justify-between'>
-                        <span className='text-muted-foreground'>{t('sessions.detail.estimated_cost')}</span>
-                        <span className='font-mono'>{fmtCost(log.totalCostUsd)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Conversation */}
+      <ConversationSection messages={messages} logs={logs} loading={loadingLogs} />
     </div>
   )
 }
@@ -453,17 +353,92 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 //   - Anthropic block array               → per-block bubble (text / tool_use / tool_result)
 //   - anything else                       → JSON-serialised fallback so debugging isn't blind
 
-function ConversationSection({ messages }: { messages: SessionMessageItem[] }) {
+function ConversationSection({
+  messages,
+  logs,
+  loading
+}: {
+  messages: SessionMessageItem[]
+  logs: RequestLogItem[]
+  loading: boolean
+}) {
   const { t } = useTranslation()
+  const [showDeveloper, setShowDeveloper] = useState(false)
+
+  // Pair each assistant turn with its request log. There is no shared id
+  // between the Message and RequestLog tables, but both are written once
+  // per successful request, so zipping the two createdAt-ordered sequences
+  // lines them up 1:1. Logs arrive newest-first and messages oldest-first,
+  // so sort logs ascending before zipping. Used to annotate assistant
+  // bubbles with the model + cost that produced them.
+  const logByMessageId = useMemo(() => {
+    const logsAsc = [...logs].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    const map = new Map<string, RequestLogItem>()
+    let i = 0
+    for (const m of messages) {
+      if (m.role !== 'assistant') continue
+      const log = logsAsc[i]
+      if (log) map.set(m.id, log)
+      i += 1
+    }
+    return map
+  }, [messages, logs])
+
+  // Normalise once so the toggle only re-filters, never re-parses. Rows
+  // whose visible-in-current-mode block list is empty are dropped entirely
+  // so a tool-only turn doesn't leave an empty bubble behind.
+  const normalised = useMemo(
+    () =>
+      messages.map((m) => ({ id: m.id, role: m.role, createdAt: m.createdAt, blocks: normaliseContent(m.content) })),
+    [messages]
+  )
+  const hasDeveloperContent = useMemo(
+    () => normalised.some((m) => m.blocks.some((b) => b.kind !== 'text')),
+    [normalised]
+  )
+  const displayed = useMemo(() => {
+    if (showDeveloper) return normalised.filter((m) => m.blocks.length > 0)
+    return normalised
+      .map((m) => ({ ...m, blocks: m.blocks.filter((b) => b.kind === 'text') }))
+      .filter((m) => m.blocks.length > 0)
+  }, [normalised, showDeveloper])
+
+  // Chat-app scrolling: pin the view to the newest turn at the bottom when a
+  // session's messages load, so the latest is visible and older history is
+  // reached by scrolling up. Keyed on the message data (not the developer
+  // toggle) so flipping developer mode doesn't yank the view to the bottom.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-pin only when the message set changes, not on developer-toggle re-renders
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages])
+
   return (
     <div>
-      <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.conversation')}</h3>
-      {messages.length === 0 ? (
+      <div className='flex items-center justify-between mb-2'>
+        <h3 className='text-base font-semibold text-foreground'>{t('sessions.detail.conversation')}</h3>
+        {hasDeveloperContent && (
+          <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={() => setShowDeveloper((v) => !v)}>
+            {showDeveloper ? t('sessions.detail.hide_developer') : t('sessions.detail.show_developer')}
+          </Button>
+        )}
+      </div>
+      {loading && messages.length === 0 ? (
+        <p className='text-sm text-muted-foreground'>{t('sessions.loading')}</p>
+      ) : displayed.length === 0 ? (
         <p className='text-sm text-muted-foreground'>{t('sessions.detail.conversation_empty')}</p>
       ) : (
-        <div className='space-y-2'>
-          {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+        <div ref={scrollRef} className='space-y-2 max-h-[70vh] overflow-y-auto pr-1'>
+          {displayed.map((m) => (
+            <MessageBubble
+              key={m.id}
+              id={m.id}
+              role={m.role}
+              createdAt={m.createdAt}
+              blocks={m.blocks}
+              log={m.role === 'assistant' ? logByMessageId.get(m.id) : undefined}
+            />
           ))}
         </div>
       )}
@@ -471,130 +446,42 @@ function ConversationSection({ messages }: { messages: SessionMessageItem[] }) {
   )
 }
 
-function MessageBubble({ message }: { message: SessionMessageItem }) {
-  const isUser = message.role === 'user'
+function MessageBubble({
+  id,
+  role,
+  createdAt,
+  blocks,
+  log
+}: {
+  id: string
+  role: SessionMessageItem['role']
+  createdAt: string
+  blocks: NormalisedBlock[]
+  log?: RequestLogItem
+}) {
+  const isUser = role === 'user'
   const alignment = isUser ? 'items-end' : 'items-start'
   const bubble = isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
-  const blocks = normaliseContent(message.content)
+  // Assistant turns carry the model + cost of the request that produced
+  // them (paired by order in ConversationSection). Cost is dropped when
+  // the price map has no entry for the model.
+  const meta = [
+    dayjs(createdAt).format('HH:mm:ss'),
+    log?.model,
+    log != null && log.totalCostUsd != null ? fmtCost(log.totalCostUsd) : undefined
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <div className={`flex flex-col ${alignment} gap-1`}>
       <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm space-y-1.5 ${bubble}`}>
         {blocks.map((b) => (
-          <MessageBlock key={blockKey(message.id, b)} block={b} />
+          <MessageBlock key={blockKey(id, b)} block={b} />
         ))}
       </div>
-      <span className='text-[10px] text-muted-foreground tabular-nums'>
-        {dayjs(message.createdAt).format('HH:mm:ss')}
-      </span>
+      <span className='text-[10px] text-muted-foreground tabular-nums font-mono'>{meta}</span>
     </div>
   )
-}
-
-type NormalisedBlock =
-  | { kind: 'text'; text: string }
-  | { kind: 'system_text'; text: string; preview: string }
-  | { kind: 'tool_use'; name: string; input: string; truncated: boolean }
-  | { kind: 'tool_result'; text: string }
-  | { kind: 'raw'; text: string }
-
-// Coerce the on-wire content into a flat list of blocks the renderer knows
-// how to draw. Never throws — an unrecognised shape falls back to a raw
-// JSON block so nothing is silently swallowed.
-function normaliseContent(content: unknown): NormalisedBlock[] {
-  if (typeof content === 'string') return [{ kind: 'text', text: content }]
-  if (!Array.isArray(content)) return [{ kind: 'raw', text: safeJson(content) }]
-  return content.map(normaliseBlock)
-}
-
-// Stable per-block React key. Blocks never shuffle within a message once
-// the row is persisted, but the noArrayIndexKey rule wants a content-derived
-// key; kind + a short content prefix collides only if two identical text /
-// tool_use blocks appear in the same message, which is fine for React's
-// reconciliation.
-function blockKey(messageId: string, block: NormalisedBlock): string {
-  if (block.kind === 'text') return `${messageId}:t:${block.text.slice(0, 32)}`
-  if (block.kind === 'system_text') return `${messageId}:s:${block.text.slice(0, 32)}`
-  if (block.kind === 'tool_use') return `${messageId}:u:${block.name}:${block.input.slice(0, 32)}`
-  if (block.kind === 'tool_result') return `${messageId}:r:${block.text.slice(0, 32)}`
-  return `${messageId}:x:${block.text.slice(0, 32)}`
-}
-
-function normaliseBlock(raw: unknown): NormalisedBlock {
-  if (raw === null || typeof raw !== 'object') return { kind: 'raw', text: String(raw) }
-  const type = Reflect.get(raw, 'type')
-  if (type === 'text') return classifyTextBlock(readString(raw, 'text', ''))
-  if (type === 'tool_use') return normaliseToolUse(raw)
-  if (type === 'tool_result') return { kind: 'tool_result', text: flattenToolResult(Reflect.get(raw, 'content')) }
-  return { kind: 'raw', text: safeJson(raw) }
-}
-
-// Text blocks in CCR sessions are a mix of natural chat and framework-injected
-// noise: <system-reminder> / <transcript> / <command-*> wrappers, proxied tool
-// traffic serialised as {"Agent": …} / {"Bash": …} / {"user": …}, and bracketed
-// mode instructions like [SUGGESTION MODE …]. The classifier collapses all
-// three shapes behind a preview so real conversation stays foreground.
-function classifyTextBlock(text: string): NormalisedBlock {
-  const trimmed = text.trimStart()
-  const head = trimmed.charAt(0)
-  const isXmlish = head === '<' && /^<[a-zA-Z/!?][^>]{0,120}>/.test(trimmed)
-  const isJsonish = (head === '{' || head === '[') && looksLikeJson(trimmed)
-  const isBracketMode = head === '[' && /^\[[A-Z][A-Z_ -]{2,60}[\]:]/.test(trimmed)
-  if (isXmlish || isJsonish || isBracketMode) {
-    return { kind: 'system_text', text, preview: makePreview(trimmed) }
-  }
-  return { kind: 'text', text }
-}
-
-function looksLikeJson(s: string): boolean {
-  try {
-    JSON.parse(s)
-    return true
-  } catch {
-    return false
-  }
-}
-
-function makePreview(s: string): string {
-  const oneLine = s.replace(/\s+/g, ' ').trim()
-  return oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine
-}
-
-function normaliseToolUse(raw: object): NormalisedBlock {
-  const input = Reflect.get(raw, 'input')
-  return {
-    kind: 'tool_use',
-    name: readString(raw, 'name', 'tool'),
-    input: typeof input === 'string' ? input : safeJson(input),
-    truncated: Reflect.get(raw, 'input_truncated') === true
-  }
-}
-
-function readString(source: object, key: string, fallback: string): string {
-  const value = Reflect.get(source, key)
-  return typeof value === 'string' ? value : fallback
-}
-
-// tool_result.content is either a string or a block array of text blocks;
-// flatten both into a single string for the chat view.
-function flattenToolResult(content: unknown): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return safeJson(content)
-  return content.map(flattenToolResultBlock).join('\n')
-}
-
-function flattenToolResultBlock(block: unknown): string {
-  if (block === null || typeof block !== 'object') return String(block)
-  if (Reflect.get(block, 'type') === 'text') return readString(block, 'text', '')
-  return safeJson(block)
-}
-
-function safeJson(value: unknown): string {
-  try {
-    const s = JSON.stringify(value, null, 2)
-    return typeof s === 'string' ? s : String(value)
-  } catch {
-    return String(value)
-  }
 }
 
 function MessageBlock({ block }: { block: NormalisedBlock }) {
@@ -680,10 +567,4 @@ function CollapsibleBlock({ header, children }: { header: ReactNode; children: R
       {open && <div className='border-t border-current/10 px-2 py-1.5 space-y-1'>{children}</div>}
     </div>
   )
-}
-
-function fmtChars(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M chars`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k chars`
-  return `${n} chars`
 }

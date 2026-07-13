@@ -37,6 +37,16 @@ export const ProviderSchema = z
       )
       .optional(),
     modelContextWindows: z.record(z.string().nonempty(), z.number().int().positive()).optional(),
+    // Per-model USD/1M prices sourced from the DB (scraped, or seeded from
+    // the llm-prices.json snapshot by backfillStaticPrices). The Models
+    // dashboard reads prices only from here — there is no frontend static
+    // fallback. null legs mean the vendor doesn't publish that side.
+    modelPrices: z
+      .record(
+        z.string().nonempty(),
+        z.object({ inputPer1M: z.number().nullable(), outputPer1M: z.number().nullable() })
+      )
+      .optional(),
     transformer: ProviderTransformerSchema.optional(),
     // Per-account enable/disable for subscription providers. Absent on
     // api_key providers. Only the { id, enabled } pairs the UI sends

@@ -1,0 +1,150 @@
+/**
+ * Re-fetch profile data for all SubAccounts and update the DB in-place.
+ * Claude: refreshes token first, then pulls /api/oauth/profile for name/plan/tier.
+ * Codex: calls wham/usage which returns the live plan_type; updates plan +
+ * monthlyPriceUsd in-place. The id_token JWT baked in at OAuth time is a
+ * static snapshot — wham/usage is the authoritative live source.
+ */
+
+import { getPrismaClient } from '../../db/client'
+import type { PrismaClient } from '../../generated/prisma/client'
+import dayjs from '../../lib/dayjs'
+import { logger } from '../../logger'
+import { OauthRefreshResponseSchema } from '../../schemas/llm-oauth.dto'
+import { fetchClaudeProfile } from '../claude-profile-service'
+import { decryptString, encryptionKey, encryptString, firstString } from './crypto'
+import { providersForKind } from './persist'
+import { claudeMonthlyPrice, codexMonthlyPrice } from './pricing'
+
+const CLAUDE_REFRESH_URL = 'https://platform.claude.com/v1/oauth/token'
+const CLAUDE_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
+const REFRESH_LEEWAY_MS = 5 * 60 * 1000
+
+// Refresh the access token if it is expired or near expiry, persist the
+// new grant to the DB, and return the usable token. Falls back to the
+// original token on any error so callers always get something to try.
+const ensureFreshClaudeToken = async (
+  subAccountId: string,
+  accessToken: string,
+  refreshToken: string | null,
+  expiresAt: Date | null,
+  key: Buffer,
+  prisma: PrismaClient
+): Promise<string> => {
+  const needsRefresh = expiresAt === null || expiresAt.valueOf() - Date.now() <= REFRESH_LEEWAY_MS
+  if (!needsRefresh || !refreshToken) return accessToken
+  try {
+    const res = await fetch(CLAUDE_REFRESH_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: CLAUDE_OAUTH_CLIENT_ID
+      })
+    })
+    if (!res.ok) return accessToken
+    const parsed = OauthRefreshResponseSchema.safeParse(await res.json())
+    if (!parsed.success) return accessToken
+    const { access_token, refresh_token, expires_in } = parsed.data
+    const newExpiresAt = expires_in !== undefined ? new Date(Date.now() + expires_in * 1000) : null
+    const newAccessEnc = encryptString(access_token, key)
+    const newRefreshEnc = refresh_token ? encryptString(refresh_token, key) : undefined
+    await prisma.subAccount.update({
+      where: { id: subAccountId },
+      data: {
+        accessTokenEnc: newAccessEnc,
+        ...(newRefreshEnc !== undefined ? { refreshTokenEnc: newRefreshEnc } : {}),
+        expiresAt: newExpiresAt
+      }
+    })
+    return access_token
+  } catch {
+    return accessToken
+  }
+}
+
+// Returns a count of rows updated / failed.
+export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaClient()): Promise<{
+  updated: number
+  failed: number
+}> {
+  const key = encryptionKey()
+  const claudeProviders = await providersForKind(prisma, 'claude')
+  let updated = 0
+  let failed = 0
+
+  for (const p of claudeProviders) {
+    const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
+    for (const account of accounts) {
+      const rawAccessToken = decryptString(account.accessTokenEnc, key)
+      if (!rawAccessToken) continue
+      const refreshToken = decryptString(account.refreshTokenEnc, key)
+      const accessToken = await ensureFreshClaudeToken(
+        account.id,
+        rawAccessToken,
+        refreshToken,
+        account.expiresAt,
+        key,
+        prisma
+      )
+      const profile = await fetchClaudeProfile(accessToken, { logger })
+      if (!profile) {
+        failed++
+        continue
+      }
+      await prisma.subAccount.update({
+        where: { id: account.id },
+        data: {
+          userName: firstString(profile.account.full_name, profile.account.display_name),
+          userEmail: firstString(profile.account.email),
+          plan: firstString(profile.organization?.organization_type),
+          rateLimitTier: firstString(profile.organization?.rate_limit_tier),
+          monthlyPriceUsd: claudeMonthlyPrice(profile.account, profile.organization?.rate_limit_tier),
+          lastSyncedAt: dayjs().toDate()
+        }
+      })
+      updated++
+    }
+  }
+
+  // Codex: call wham/usage for each account to get the live plan_type.
+  const codexProviders = await providersForKind(prisma, 'codex')
+  for (const p of codexProviders) {
+    const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
+    for (const account of accounts) {
+      const accessToken = decryptString(account.accessTokenEnc, key)
+      if (!accessToken) continue
+      try {
+        const res = await fetch('https://chatgpt.com/backend-api/wham/usage', {
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            'content-type': 'application/json',
+            ...(account.accountId ? { 'chatgpt-account-id': account.accountId } : {})
+          }
+        })
+        if (!res.ok) {
+          logger.warn({ status: res.status }, '[subaccount] codex wham/usage non-OK')
+          failed++
+          continue
+        }
+        const raw = (await res.json()) as Record<string, unknown>
+        const planType = typeof raw.plan_type === 'string' && raw.plan_type.length > 0 ? raw.plan_type : null
+        await prisma.subAccount.update({
+          where: { id: account.id },
+          data: {
+            plan: planType ?? account.plan,
+            monthlyPriceUsd: planType !== null ? codexMonthlyPrice(planType) : account.monthlyPriceUsd,
+            lastSyncedAt: dayjs().toDate()
+          }
+        })
+        updated++
+      } catch (err) {
+        logger.warn({ err }, '[subaccount] codex wham/usage threw')
+        failed++
+      }
+    }
+  }
+
+  return { updated, failed }
+}

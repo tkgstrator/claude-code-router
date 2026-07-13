@@ -1,0 +1,153 @@
+/**
+ * Request-side transformer chain.
+ *
+ * Detects bypass mode (single matching transformer, no real chain to
+ * run) and, when not bypassed, runs the endpoint transformer's
+ * `transformRequestOut` followed by the provider- and model-level
+ * `transformRequestIn` chains.
+ */
+
+import type { TransformerConfig, UnifiedChatRequest } from '@/schemas'
+import { isProviderModelBlock, isTransformerHookResult, viewPipelineBody } from '@/schemas'
+import type { ResolvedProviderTransformer } from '../registry/provider'
+import type { Transformer } from '../transformers/base'
+import type { PipelineInput } from './types'
+
+export function shouldBypass(
+  providerTx: ResolvedProviderTransformer | undefined,
+  transformer: Transformer,
+  body: Record<string, unknown>
+): boolean {
+  const topUse = providerTx?.use
+  if (!Array.isArray(topUse) || topUse.length !== 1 || topUse[0].name !== transformer.name) return false
+  const modelBlock = lookupProviderModelBlock(providerTx, typeof body.model === 'string' ? body.model : '')
+  const modelUse = modelBlock?.use
+  if (!modelUse || modelUse.length === 0) return true
+  return modelUse.length === 1 && modelUse[0].name === transformer.name
+}
+
+/**
+ * Resolve the per-model entry on `provider.transformer[modelKey]`. The
+ * registry stores arbitrary value kinds at this key (Transformer[],
+ * subscription metadata, ...); the type guard isolates the
+ * `{ use?: Transformer[] }` shape callers actually want.
+ *
+ * Exported for the response chain (`response-chain.ts`), which needs the
+ * same per-model lookup in reverse order.
+ */
+export function lookupProviderModelBlock(
+  providerTx: ResolvedProviderTransformer | undefined,
+  modelKey: string | undefined
+): { use?: Transformer[] } | undefined {
+  if (!providerTx || modelKey === undefined || modelKey.length === 0) return undefined
+  const raw = providerTx[modelKey]
+  if (!isProviderModelBlock(raw)) return undefined
+  // Narrow the shape: ProviderModelBlock allows `use?: unknown[]`; the
+  // registry stores Transformer instances there (resolveUseList builds
+  // Transformer[]), so the runtime invariant holds.
+  const use = raw.use
+  if (use === undefined) return {}
+  return { use: filterTransformerInstances(use) }
+}
+
+/**
+ * Filter an `unknown[]` from the registry shape down to the Transformer
+ * instances actually stored there. Defensive — the registry always
+ * inserts Transformer instances on the per-model `use` slot — but
+ * structural typing requires us to narrow before invoking the methods.
+ */
+function filterTransformerInstances(values: readonly unknown[]): Transformer[] {
+  const out: Transformer[] = []
+  for (const v of values) {
+    if (isTransformerInstance(v)) out.push(v)
+  }
+  return out
+}
+
+function isTransformerInstance(value: unknown): value is Transformer {
+  if (value === null || typeof value !== 'object') return false
+  if (!('name' in value) || !('transformRequestIn' in value)) return false
+  const name: unknown = Reflect.get(value, 'name')
+  const fn: unknown = Reflect.get(value, 'transformRequestIn')
+  return typeof name === 'string' && typeof fn === 'function'
+}
+
+export async function processRequestTransformers(
+  input: PipelineInput,
+  bypass: boolean
+): Promise<{ requestBody: unknown; config: TransformerConfig }> {
+  let requestBody: unknown = input.body
+  let config: TransformerConfig = {}
+
+  if (bypass) {
+    // Strip hop-by-hop and client-negotiation headers that must not be
+    // forwarded to the upstream provider:
+    //  - content-length: the body will be re-serialised by fetchProvider
+    //  - accept-encoding: CCR's fetch handles its own decompression; passing
+    //    the inbound value causes the upstream to return a compressed body
+    //    that Bun auto-decompresses, but the content-encoding header lingers
+    //    in the response and triggers a double-decompress ZlibError on the
+    //    Claude Code client side.
+    const headers: Record<string, string | undefined> = { ...input.headers }
+    for (const key of Object.keys(headers)) {
+      const lower = key.toLowerCase()
+      if (lower === 'content-length' || lower === 'accept-encoding') delete headers[key]
+    }
+    config = { headers }
+    return { requestBody, config }
+  }
+
+  // 1. Endpoint transformer's transformRequestOut (wire → unified).
+  const transformed = await input.transformer.transformRequestOut(requestBody, input.context)
+  requestBody = transformed
+
+  // 2. Provider-level transformer chain.
+  const providerTx: ResolvedProviderTransformer | undefined = input.provider.transformer
+  const use = Array.isArray(providerTx?.use) ? providerTx.use : []
+  for (const step of use) {
+    const result = await step.transformRequestIn(asUnifiedRequest(requestBody), input.provider, input.context)
+    ;({ requestBody, config } = mergeHookResult(result, requestBody, config))
+  }
+
+  // 3. Model-specific chain.
+  const view = viewPipelineBody(requestBody)
+  const modelBlock = lookupProviderModelBlock(providerTx, view.model)
+  const modelUse = modelBlock?.use
+  if (modelUse) {
+    for (const step of modelUse) {
+      const result = await step.transformRequestIn(asUnifiedRequest(requestBody), input.provider, input.context)
+      ;({ requestBody, config } = mergeHookResult(result, requestBody, config))
+    }
+  }
+
+  return { requestBody, config }
+}
+
+/**
+ * The pipeline carries the in-flight body as `unknown` because every
+ * transformer reshapes it differently. transformRequestIn expects a
+ * UnifiedChatRequest; this helper is the documented unsafe-narrowing
+ * boundary between the loose pipeline state and the strict hook input.
+ */
+function asUnifiedRequest(body: unknown): UnifiedChatRequest {
+  // biome-ignore plugin: pipeline state is unknown by design (every transformer reshapes the body);
+  // UnifiedChatRequest is what each hook expects on entry. The cast is the documented boundary.
+  return body as UnifiedChatRequest
+}
+
+function mergeHookResult(
+  result: unknown,
+  prevBody: unknown,
+  prevConfig: TransformerConfig
+): { requestBody: unknown; config: TransformerConfig } {
+  if (isTransformerHookResult(result)) {
+    const hookConfig: TransformerConfig = result.config !== undefined ? result.config : {}
+    return {
+      requestBody: result.body,
+      config: { ...prevConfig, ...hookConfig }
+    }
+  }
+  // Plain replacement body — fall back to the previous body only when
+  // the hook returned no value at all.
+  return { requestBody: result === undefined ? prevBody : result, config: prevConfig }
+}

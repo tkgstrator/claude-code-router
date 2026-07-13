@@ -440,7 +440,7 @@ flowchart TD
   R[c.req] --> PARSE[body 安全 parse<br/>headers コピー]
   PARSE --> RS[routeScenario]
   subgraph RS_BOX[routeScenario]
-    SEL[selectModel<br/>provider,model 明示 / bare 名 /<br/>longContext / subagent tag /<br/>haiku→background / webSearch /<br/>thinking / effort/tier escalation]
+    SEL[selectModel<br/>bare 名 /<br/>longContext / subagent tag /<br/>haiku→background / webSearch /<br/>thinking / effort/tier escalation]
     SEL --> APF[applyProactiveFailover<br/>weekly drain guard<br/>capability gate]
   end
   APF --> PERSONA[applyGlobalSystemPrompt<br/>active persona を<br/>cache-safe に append]
@@ -449,15 +449,14 @@ flowchart TD
 
 ### selectModel が見るシグナル (優先順)
 
-1. **`body.model.includes(',')`** → explicit `provider,model` を `resolveExplicitProviderModel` で正規化。
-2. **bare 名 hit** → `resolveByModelName` が **subscription provider を先に走査** して `provider,model` を組む。
-3. **longContext しきい値** — `tokenCount > Router.longContextThreshold` (default 60_000) → `Router.longContext`。
-4. **`<CCR-SUBAGENT-MODEL>` タグ** — system[1] に埋まる explicit override。
-5. **haiku → background** — `claude-*-haiku-*` の bare 名は `Router.background` に。
-6. **`tools[]` に `web_search`** → `Router.webSearch`。
-7. **`thinking` 付き** → `Router.think`。
-8. **effort/tier escalation** (`output_config.effort=high/xhigh/max` or model 名に opus) → `Router.longContext` レーン。
-9. それ以外 → `Router.default`。
+1. **bare 名 hit** → `resolveByModelName` が **subscription provider を先に走査** して `provider,model` を組む。
+2. **longContext しきい値** — `tokenCount > Router.longContextThreshold` (default 60_000) → `Router.longContext`。
+3. **`<CCR-SUBAGENT-MODEL>` タグ** — system[1] に埋まる explicit override。
+4. **haiku → background** — `claude-*-haiku-*` の bare 名は `Router.background` に。
+5. **`tools[]` に `web_search`** → `Router.webSearch`。
+6. **`thinking` 付き** → `Router.think`。
+7. **effort/tier escalation** (`output_config.effort=high/xhigh/max` or model 名に opus) → `Router.longContext` レーン。
+8. それ以外 → `Router.default`。
 
 ### applyProactiveFailover
 

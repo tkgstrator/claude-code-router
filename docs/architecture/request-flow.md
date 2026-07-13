@@ -27,12 +27,9 @@ flowchart TD
   subgraph RS_BOX[routeScenario]
     direction TB
     SM[selectModel]
-    SM --> SM1{body.model<br/>に , 含む?}
-    SM1 -- Yes --> SM2[resolveExplicit<br/>ProviderModel]
-    SM1 -- No --> SM3[resolveByModelName]
+    SM --> SM3[resolveByModelName]
     SM3 --> SM4{thresh/heuristic<br/>シナリオ判定}
     SM4 --> APF
-    SM2 --> APF
     APF[applyProactiveFailover<br/>weekly drain guard<br/>capability gate]
   end
 
@@ -150,7 +147,7 @@ flowchart TD
 | 6 | 同じ model を api_key の `anthropic` も hosts している | subscription preference により subscription 側が選ばれる。api_key には落ちない |
 | 7 | subscription primary が 429、fallback に api_key 混在 | auth_mode gate で api_key fallback は弾かれる。subscription fallback のみ試行 → 全部枯渇なら 429 verbatim |
 | 8 | `anthropic` provider が **api_key 未設定** | router がこの provider をスキップ＋registry が warn 出力 |
-| 9 | 明示 `anthropic,claude-opus-4-8` 指定 + 同上 | `resolveExplicitProviderModel` が解決失敗扱い → primary は生のまま、chain walker が `provider not found` でスキップ |
+| 9 | inbound `body.model` に `provider,model` 形式（コンマ）が来た | 入力側のコンマ解釈は廃止。`resolveByModelName` は bare 名一致せず素通り → シナリオルーティング（最終的に `Router.default`）に落ちる。※ `provider,model` は router 出力〜下流の内部表現としては引き続き使用 |
 | 10 | upstream が 401/403 (subscription) | `handleProviderError` が「OAuth 期限切れ → CLI 再ログイン」と warn、HTTPException として上に伝播 → 429 ではないので verbatim 返却（rotate なし）|
 | 11 | upstream が 400 で `effort` 不一致 | `attempt` 内で `bestSupportedLevel` を読んで effort 差し替え → 同 model に 1 回だけ retry |
 | 12 | 全 fallback exhaust | `lastForwarded` (最後の 429 body) を verbatim 返却 |

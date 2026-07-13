@@ -422,7 +422,6 @@
       "cache_hit_rate": "キャッシュヒット率",
       "estimated_cost": "推定コスト",
       "requests": "リクエスト数",
-      "requests_list": "個別リクエスト",
       "model_breakdown": "モデル別料金",
       "conversation": "会話ログ",
       "conversation_empty": "このセッションに保存された会話はまだありません。",
@@ -431,7 +430,9 @@
       "input_truncated": "入力を省略",
       "show_details": "詳細を表示",
       "hide_details": "詳細を隠す",
-      "system_block": "システムブロック"
+      "system_block": "システムブロック",
+      "show_developer": "開発者ビューを表示",
+      "hide_developer": "開発者ビューを隠す"
     }
   },
   "presets": {
