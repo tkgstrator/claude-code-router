@@ -22,7 +22,9 @@ COPY index.html vite.config.ts prisma.config.ts ./
 COPY scripts ./scripts
 COPY src ./src
 
-RUN bun install --frozen-lockfile
+# Retry once: bun's tarball extraction (large @electric-sql/pglite, pulled
+# via prisma → @prisma/dev) is intermittently flaky under QEMU arm64.
+RUN bun install --frozen-lockfile || bun install --frozen-lockfile
 RUN bunx prisma generate
 RUN bun run build
 
@@ -44,11 +46,13 @@ COPY src ./src
 # Production deps only — drops vite, @openai/codex, biome, typescript,
 # playwright, … `prisma` is a runtime dep (the entrypoint runs
 # `prisma migrate deploy` and prisma.config.ts imports `prisma/config`),
-# so scripts run normally: the postinstall regenerates the client and
-# prisma fetches its engines. Built SPA still comes from the builder.
-# --frozen-lockfile omitted: arm64 CDN sometimes serves valibot (transitive
-# @prisma/dev dep) with a different tarball hash; bun.lock still pins versions.
-RUN bun install --production --ignore-scripts
+# Scripts are skipped here (the generated client is copied from the
+# builder below) and the built SPA also comes from the builder.
+# --frozen-lockfile matches the builder: bun.lock is authoritative after
+# the CDN tarball hashes were re-aligned (commit e98a703). Retried once for
+# the same QEMU arm64 tarball-extraction flakiness as the builder stage.
+RUN bun install --production --frozen-lockfile --ignore-scripts \
+    || bun install --production --frozen-lockfile --ignore-scripts
 
 # Build outputs the production-only install does not reproduce.
 COPY --from=builder /app/dist ./dist
