@@ -82,7 +82,15 @@ export function selectModel(
     const forced = classifyForceScenario(req, tokenCount, router)
     const slotModel = forced ? router[forced] : undefined
     if (forced && router.force?.[forced] && slotModel) {
-      req.log.info({ model: slotModel, scenario: forced }, 'Force override — using slot model')
+      // Remember what the client originally asked for (resolved to
+      // provider,model) so the failover chain can fall back to it when the
+      // forced slot 429s: Force -> Request -> configured fallbacks.
+      const original = resolveByModelName(req.body.model, config)
+      req.forcedFrom = original && original.model !== slotModel ? original.model : undefined
+      req.log.info(
+        { model: slotModel, scenario: forced, forcedFrom: req.forcedFrom },
+        'Force override — using slot model'
+      )
       return { model: slotModel, scenarioType: forced }
     }
   }
