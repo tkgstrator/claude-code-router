@@ -73,7 +73,8 @@ export const RequestLogsListResponseSchema = z.object({
   total: z.number().int().nonnegative()
 })
 
-export const RequestLogsDeleteAllResponseSchema = z.object({ deleted: z.number().int().nonnegative() })
+// Archive-all response: number of active sessions moved to the archive.
+export const SessionsArchiveResponseSchema = z.object({ archived: z.number().int().nonnegative() })
 
 export const RequestLogsDeleteOneResponseSchema = z.object({ id: z.string().nonempty() })
 

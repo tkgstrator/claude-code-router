@@ -88,7 +88,6 @@ export const ConfigSchema = z.object({
   Router: RouterConfigSchema,
   transformers: z.array(TransformerSchema),
   StatusLine: StatusLineConfigSchema.optional(),
-  forceUseImageAgent: z.boolean().optional(),
   LOG: z.boolean(),
   LOG_LEVEL: z.string().nonempty(),
   CLAUDE_PATH: z.string().nonempty(),

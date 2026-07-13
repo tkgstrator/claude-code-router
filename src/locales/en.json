@@ -274,7 +274,6 @@
     "image": "Image",
     "force": "Force",
     "forceHint": "Ignore the client's model and always use this slot for this scenario",
-    "forceUseImageAgent": "Force Use Image Agent",
     "selectModel": "Select a model...",
     "searchModel": "Search model...",
     "noModelFound": "No model found.",
@@ -405,7 +404,8 @@
     "title": "Sessions",
     "no_history": "No sessions yet",
     "loading": "Loading...",
-    "clear_confirm": "Delete all sessions?",
+    "archive_confirm": "Archive all sessions? They leave the list, but cost totals are kept.",
+    "archive_all": "Archive all",
     "select_session": "Select a session to view details",
     "preview_empty": "(no user text yet)",
     "detail": {

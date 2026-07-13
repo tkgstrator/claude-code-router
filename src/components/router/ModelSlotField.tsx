@@ -5,8 +5,15 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/comp
 import type { RouterFormInput, RouterFormOutput } from '@/schemas/forms.dto'
 
 type ModelSlotName = 'default' | 'background' | 'think' | 'webSearch' | 'longContext' | 'image'
-// image has no runtime routing lane, so it is not forceable.
-type ForceFieldName = 'force.default' | 'force.background' | 'force.think' | 'force.webSearch' | 'force.longContext'
+// Every slot (image included) can carry the Force checkbox in the UI. image
+// force is persisted but not consumed at runtime (see RouterForceSchema).
+type ForceFieldName =
+  | 'force.default'
+  | 'force.background'
+  | 'force.think'
+  | 'force.webSearch'
+  | 'force.longContext'
+  | 'force.image'
 
 interface ModelSlotFieldProps {
   control: ReturnType<typeof useForm<RouterFormInput, unknown, RouterFormOutput>>['control']
@@ -17,7 +24,7 @@ interface ModelSlotFieldProps {
   emptyPlaceholder: string
   className?: string
   // When set, a "force" checkbox is rendered under the select, bound to
-  // this form field. Omit for slots that can't be forced (image).
+  // this form field. Omit to render the slot without a Force checkbox.
   forceName?: ForceFieldName
   forceLabel?: string
   forceHint?: string

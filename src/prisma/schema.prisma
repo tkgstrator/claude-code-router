@@ -230,6 +230,11 @@ model Session {
   id        String       @id
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
+  // Archive (soft-delete) marker. Non-null hides the session from the
+  // History list, but its RequestLog rows stay so cost/usage totals are
+  // preserved. Reset to null when the session receives new activity, so a
+  // resumed session reappears in the list. Never physically deleted here.
+  archivedAt DateTime?
   logs      RequestLog[]
   messages  Message[]
 }

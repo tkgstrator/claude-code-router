@@ -11,12 +11,9 @@
 import { z } from 'zod'
 import { RouterSchema } from './router.dto'
 
-// Router page form: the Router wire shape extended with the UI-only
-// `forceUseImageAgent` toggle (rendered as a yes/no select, hence the
-// string-typed value coerced back to a boolean on submit).
-export const RouterFormSchema = RouterSchema.extend({
-  forceUseImageAgent: z.string().nonempty()
-})
+// Router page form: the Router wire shape, driven straight through
+// react-hook-form (no extra UI-only fields).
+export const RouterFormSchema = RouterSchema
 export type RouterFormInput = z.input<typeof RouterFormSchema>
 export type RouterFormOutput = z.output<typeof RouterFormSchema>
 

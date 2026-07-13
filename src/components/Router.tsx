@@ -61,10 +61,10 @@ function RouterForm({ config }: { config: Config }) {
         background: config.Router.force?.background ?? false,
         think: config.Router.force?.think ?? false,
         webSearch: config.Router.force?.webSearch ?? false,
-        longContext: config.Router.force?.longContext ?? false
+        longContext: config.Router.force?.longContext ?? false,
+        image: config.Router.force?.image ?? false
       },
-      persona: defaultPersona,
-      forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
+      persona: defaultPersona
     }
   })
 
@@ -85,8 +85,7 @@ function RouterForm({ config }: { config: Config }) {
         fallbacks: values.fallbacks,
         force: values.force,
         persona
-      },
-      forceUseImageAgent: values.forceUseImageAgent === 'true'
+      }
     }
     setConfig(updated)
     try {
@@ -193,38 +192,17 @@ function RouterForm({ config }: { config: Config }) {
                 />
               </div>
 
-              <div className='flex items-end gap-3'>
-                <ModelSlotField
-                  control={form.control}
-                  name='image'
-                  label={`${t('router.image')} (beta)`}
-                  modelOptions={modelOptions}
-                  selectPlaceholder={t('router.selectModel')}
-                  emptyPlaceholder={t('router.noModelFound')}
-                  className='flex-1'
-                />
-                <FormField
-                  control={form.control}
-                  name='forceUseImageAgent'
-                  render={({ field }) => (
-                    <FormItem className='w-36 flex-shrink-0'>
-                      <FormLabel>{t('router.forceUseImageAgent')}</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className='w-full'>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value='false'>{t('common.no')}</SelectItem>
-                          <SelectItem value='true'>{t('common.yes')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <ModelSlotField
+                control={form.control}
+                name='image'
+                label={`${t('router.image')} (beta)`}
+                modelOptions={modelOptions}
+                selectPlaceholder={t('router.selectModel')}
+                emptyPlaceholder={t('router.noModelFound')}
+                forceName='force.image'
+                forceLabel={t('router.force')}
+                forceHint={t('router.forceHint')}
+              />
 
               <FormField
                 control={form.control}
@@ -234,11 +212,10 @@ function RouterForm({ config }: { config: Config }) {
                   // to the sentinel for display and back to '' on change.
                   const selectValue = field.value === '' || field.value === null ? PERSONA_NONE_VALUE : field.value
                   return (
-                    // Full-width own row: the helper text makes this cell
-                    // taller than the model-slot selects, so on the shared
-                    // `items-end` grid it would misalign with a half-width
-                    // neighbor. Spanning every column keeps it on its own row.
-                    <FormItem className='md:col-span-2 xl:col-span-3'>
+                    // A regular grid cell (same width as the model slots). The
+                    // helper text makes it taller, but the grid is `items-start`
+                    // so neighbors align to the top and nothing misaligns.
+                    <FormItem>
                       <FormLabel>{t('router.persona')}</FormLabel>
                       <Select
                         value={selectValue}
