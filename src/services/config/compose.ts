@@ -104,6 +104,12 @@ export const toProvider = (p: ProviderWithModels): Provider => {
     )
   const withContext = p.models.filter((m): m is DbModel & { contextWindow: number } => m.contextWindow !== null)
   const modelContextWindows = Object.fromEntries(withContext.map((m) => [m.name, m.contextWindow]))
+  // Expose DB-held prices (scraped or backfilled from llm-prices.json) so
+  // the dashboard can read prices without any frontend static fallback.
+  const withPrice = p.models.filter((m) => m.inputPer1M !== null || m.outputPer1M !== null)
+  const modelPrices = Object.fromEntries(
+    withPrice.map((m) => [m.name, { inputPer1M: m.inputPer1M, outputPer1M: m.outputPer1M }])
+  )
   return {
     name: p.name,
     enabled: providerEnabledFromTransformer(baseTransformer),
@@ -115,6 +121,7 @@ export const toProvider = (p: ProviderWithModels): Provider => {
     ...(deprecatedModels.length > 0 ? { deprecatedModels } : {}),
     ...(tested.length > 0 ? { modelTestStatus } : {}),
     ...(withContext.length > 0 ? { modelContextWindows } : {}),
+    ...(withPrice.length > 0 ? { modelPrices } : {}),
     // transformer is stored as JSONB; we re-derive _disabledModels from
     // Model.enabled so the UI sees the DB truth (the column on disk no
     // longer carries _disabledModels — see applyProviders).

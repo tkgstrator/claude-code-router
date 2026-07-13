@@ -18,7 +18,7 @@
  */
 
 import type { z } from '@hono/zod-openapi'
-import { isDeprecatedModel, SUBSCRIPTION_PRESETS } from '@/shared/data'
+import { isDeprecatedModel, LLM_PRICES_SEED, SUBSCRIPTION_PRESETS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, type Prisma } from '../generated/prisma/client'
 import { logger } from '../logger'
@@ -247,5 +247,22 @@ export async function refreshModelsForAllProviders(): Promise<RefreshOutcome[]> 
     const catalog: VendorCatalog = fetched === undefined ? emptyCatalog : fetched
     results.push(await refreshOneProvider(p, catalog))
   }
+  await backfillStaticPrices()
   return results
+}
+
+// Fill in prices from the bundled llm-prices.json snapshot for any model
+// the live scrape didn't cover (vendors without a scraper — qwen, xai,
+// mistral, …). Only touches rows whose inputPer1M is still null, so
+// scraped / already-set prices win. This makes the DB the single source
+// of truth the UI reads (via provider.modelPrices), so the frontend needs
+// no static-pricing fallback of its own.
+async function backfillStaticPrices(): Promise<void> {
+  const prisma = getPrismaClient()
+  for (const p of LLM_PRICES_SEED.prices) {
+    await prisma.model.updateMany({
+      where: { name: p.id, inputPer1M: null },
+      data: { inputPer1M: p.input, outputPer1M: p.output, cachedInputPer1M: p.input_cached }
+    })
+  }
 }

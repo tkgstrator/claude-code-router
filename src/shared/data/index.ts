@@ -1,5 +1,4 @@
 import seed from './llm-prices.json'
-import { OFFICIAL_VENDOR_PRICES } from './providers'
 
 export { DEPRECATED_MODELS, isDeprecatedModel } from './deprecations'
 export { SEED_PERSONAS, type SeedPersona } from './personas'
@@ -122,30 +121,7 @@ export function buildSeedProviders(prices: PriceEntry[] = LLM_PRICES_SEED.prices
   return result
 }
 
-export interface PricingEntry {
-  inputPer1M: number
-  outputPer1M: number
-  /** Max context window in tokens (vendor-official entries only). */
-  contextWindow?: number
-}
-
-export function buildSeedPricing(prices: PriceEntry[] = LLM_PRICES_SEED.prices): Record<string, PricingEntry> {
-  const result: Record<string, PricingEntry> = {}
-  for (const p of prices) {
-    result[p.id] = { inputPer1M: p.input, outputPer1M: p.output }
-  }
-  // Overlay vendor-published official prices — see ./vendor-prices.
-  // Later vendor files would simply iterate in insertion order; OpenAI
-  // is the only authoritative source we ship today.
-  for (const vendorMap of Object.values(OFFICIAL_VENDOR_PRICES)) {
-    for (const [id, entry] of Object.entries(vendorMap)) {
-      result[id] = entry
-    }
-  }
-  return result
-}
-
-// UI-facing snapshot: same data the seed routine consumes, frozen at
-// module load so the dashboard's price labels and the initial DB
-// contents always agree.
-export const MODEL_PRICING: Record<string, PricingEntry> = buildSeedPricing()
+// Model prices no longer live in a frontend-facing static map. The DB is
+// the single source of truth: the live scrape fills first-party vendor
+// prices and backfillStaticPrices (model-sync-service) seeds the rest from
+// llm-prices.json, so the UI reads prices via provider.modelPrices only.
