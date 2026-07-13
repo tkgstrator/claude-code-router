@@ -96,7 +96,9 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
     const paramsObj: Prisma.InputJsonObject = {
       ...(scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : {}),
       ...(scenario === 'default' && incomingMargin !== null ? { weeklyDrainMarginPct: incomingMargin } : {}),
-      ...(fallbacks.length > 0 ? { fallbacks } : {})
+      ...(fallbacks.length > 0 ? { fallbacks } : {}),
+      // image has no runtime routing lane, so it never carries force.
+      ...(scenario !== 'image' && incoming.force?.[scenario] === true ? { force: true } : {})
     }
     const params: Prisma.InputJsonValue | typeof Prisma.DbNull =
       Object.keys(paramsObj).length > 0 ? paramsObj : Prisma.DbNull
@@ -109,7 +111,13 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
   }
 
   // Surface any catchall (custom) keys we silently drop.
-  const knownKeys = new Set<string>([...SCENARIO_KEYS, 'longContextThreshold', 'weeklyDrainMarginPct', 'fallbacks'])
+  const knownKeys = new Set<string>([
+    ...SCENARIO_KEYS,
+    'longContextThreshold',
+    'weeklyDrainMarginPct',
+    'fallbacks',
+    'force'
+  ])
   const dropped = Object.keys(incoming).filter((k) => !knownKeys.has(k))
   if (dropped.length > 0) {
     warnings.push(`Router fields not yet stored in DB and were ignored: ${dropped.join(', ')}. (See PR #2.)`)

@@ -272,6 +272,8 @@
     "longContextThreshold": "Context Threshold",
     "webSearch": "Web Search",
     "image": "Image",
+    "force": "Force",
+    "forceHint": "Ignore the client's model and always use this slot for this scenario",
     "forceUseImageAgent": "Force Use Image Agent",
     "selectModel": "Select a model...",
     "searchModel": "Search model...",

@@ -1,9 +1,12 @@
 import type { useForm } from 'react-hook-form'
 import { SelectCombobox } from '@/components/SelectCombobox'
+import { Checkbox } from '@/components/ui/checkbox'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import type { RouterFormInput, RouterFormOutput } from '@/schemas/forms.dto'
 
 type ModelSlotName = 'default' | 'background' | 'think' | 'webSearch' | 'longContext' | 'image'
+// image has no runtime routing lane, so it is not forceable.
+type ForceFieldName = 'force.default' | 'force.background' | 'force.think' | 'force.webSearch' | 'force.longContext'
 
 interface ModelSlotFieldProps {
   control: ReturnType<typeof useForm<RouterFormInput, unknown, RouterFormOutput>>['control']
@@ -13,6 +16,11 @@ interface ModelSlotFieldProps {
   selectPlaceholder: string
   emptyPlaceholder: string
   className?: string
+  // When set, a "force" checkbox is rendered under the select, bound to
+  // this form field. Omit for slots that can't be forced (image).
+  forceName?: ForceFieldName
+  forceLabel?: string
+  forceHint?: string
 }
 
 // A single model-slot select (Default/Background/Think/WebSearch/LongContext/
@@ -24,27 +32,44 @@ export function ModelSlotField({
   modelOptions,
   selectPlaceholder,
   emptyPlaceholder,
-  className
+  className,
+  forceName,
+  forceLabel,
+  forceHint
 }: ModelSlotFieldProps) {
   return (
-    <FormField
-      control={control}
-      name={name}
-      render={({ field }) => (
-        <FormItem className={className}>
-          <FormLabel>{label}</FormLabel>
-          <FormControl>
-            <SelectCombobox
-              options={modelOptions}
-              value={field.value}
-              onChange={field.onChange}
-              placeholder={selectPlaceholder}
-              emptyPlaceholder={emptyPlaceholder}
-            />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
+    <FormItem className={className}>
+      <FormLabel>{label}</FormLabel>
+      <FormField
+        control={control}
+        name={name}
+        render={({ field }) => (
+          <>
+            <FormControl>
+              <SelectCombobox
+                options={modelOptions}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder={selectPlaceholder}
+                emptyPlaceholder={emptyPlaceholder}
+              />
+            </FormControl>
+            <FormMessage />
+          </>
+        )}
+      />
+      {forceName && (
+        <FormField
+          control={control}
+          name={forceName}
+          render={({ field }) => (
+            <label className='mt-1.5 flex items-center gap-2 text-xs text-muted-foreground' title={forceHint}>
+              <Checkbox checked={field.value === true} onCheckedChange={(v) => field.onChange(v === true)} />
+              {forceLabel}
+            </label>
+          )}
+        />
       )}
-    />
+    </FormItem>
   )
 }

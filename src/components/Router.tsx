@@ -56,6 +56,13 @@ function RouterForm({ config }: { config: Config }) {
       webSearch: config.Router.webSearch,
       image: config.Router.image,
       fallbacks: config.Router.fallbacks,
+      force: {
+        default: config.Router.force?.default ?? false,
+        background: config.Router.force?.background ?? false,
+        think: config.Router.force?.think ?? false,
+        webSearch: config.Router.force?.webSearch ?? false,
+        longContext: config.Router.force?.longContext ?? false
+      },
       persona: defaultPersona,
       forceUseImageAgent: config.forceUseImageAgent ? 'true' : 'false'
     }
@@ -76,6 +83,7 @@ function RouterForm({ config }: { config: Config }) {
         webSearch: values.webSearch,
         image: values.image,
         fallbacks: values.fallbacks,
+        force: values.force,
         persona
       },
       forceUseImageAgent: values.forceUseImageAgent === 'true'
@@ -111,6 +119,9 @@ function RouterForm({ config }: { config: Config }) {
                 modelOptions={modelOptions}
                 selectPlaceholder={t('router.selectModel')}
                 emptyPlaceholder={t('router.noModelFound')}
+                forceName='force.default'
+                forceLabel={t('router.force')}
+                forceHint={t('router.forceHint')}
               />
 
               <ModelSlotField
@@ -120,6 +131,9 @@ function RouterForm({ config }: { config: Config }) {
                 modelOptions={modelOptions}
                 selectPlaceholder={t('router.selectModel')}
                 emptyPlaceholder={t('router.noModelFound')}
+                forceName='force.background'
+                forceLabel={t('router.force')}
+                forceHint={t('router.forceHint')}
               />
 
               <ModelSlotField
@@ -129,6 +143,9 @@ function RouterForm({ config }: { config: Config }) {
                 modelOptions={modelOptions}
                 selectPlaceholder={t('router.selectModel')}
                 emptyPlaceholder={t('router.noModelFound')}
+                forceName='force.think'
+                forceLabel={t('router.force')}
+                forceHint={t('router.forceHint')}
               />
 
               <ModelSlotField
@@ -138,6 +155,9 @@ function RouterForm({ config }: { config: Config }) {
                 modelOptions={modelOptions}
                 selectPlaceholder={t('router.selectModel')}
                 emptyPlaceholder={t('router.noModelFound')}
+                forceName='force.webSearch'
+                forceLabel={t('router.force')}
+                forceHint={t('router.forceHint')}
               />
 
               <div className='flex items-end gap-3 md:col-span-2 xl:col-span-1'>
@@ -149,6 +169,9 @@ function RouterForm({ config }: { config: Config }) {
                   selectPlaceholder={t('router.selectModel')}
                   emptyPlaceholder={t('router.noModelFound')}
                   className='flex-1'
+                  forceName='force.longContext'
+                  forceLabel={t('router.force')}
+                  forceHint={t('router.forceHint')}
                 />
                 <FormField
                   control={form.control}

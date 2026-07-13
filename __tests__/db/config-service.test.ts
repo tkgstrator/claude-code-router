@@ -74,6 +74,48 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.weeklyDrainMarginPct).toBe(15)
   })
 
+  test('force flags round-trip on each scenario slot params', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5', 'gpt-5-nano']
+        }
+      ],
+      Router: {
+        default: 'openai,gpt-5',
+        background: 'openai,gpt-5-nano',
+        longContext: 'openai,gpt-5',
+        force: { longContext: true, background: true }
+      }
+    })
+
+    const ui = await composeUiConfig()
+    // Only the forced scenarios are emitted; unforced slots stay absent.
+    expect(ui.Router.force).toEqual({ longContext: true, background: true })
+  })
+
+  test('force is empty when no slot is forced', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: 'openai,gpt-5' }
+    })
+
+    const ui = await composeUiConfig()
+    expect(ui.Router.force).toEqual({})
+  })
+
   test('weeklyDrainMarginPct at 0 is omitted (collapses to the emptyRouter default)', async () => {
     await applyUiConfig({
       Providers: [

@@ -33,6 +33,22 @@ export const emptyFallbacks = (): RouterFallbacks => ({
   image: []
 })
 
+// Per-scenario force flags. When a scenario's flag is true and its slot
+// has a model, the router overrides the client's bare model with the slot
+// model. Absent keys / all-false = client model wins (current behavior).
+// image has no runtime routing lane so it is intentionally excluded.
+export const RouterForceSchema = z
+  .object({
+    default: z.boolean(),
+    background: z.boolean(),
+    think: z.boolean(),
+    longContext: z.boolean(),
+    webSearch: z.boolean()
+  })
+  .partial()
+  .openapi('RouterForce')
+export type RouterForce = z.infer<typeof RouterForceSchema>
+
 // API wire shape returned by /api/config.
 export const RouterSchema = z
   .object({
@@ -49,6 +65,9 @@ export const RouterSchema = z
     // composeUiConfig always emits the full object (empty arrays for
     // scenarios with no fallbacks), so the default covers an absent key.
     fallbacks: RouterFallbacksSchema.default(emptyFallbacks),
+    // Per-scenario force flags (see RouterForceSchema). composeUiConfig
+    // emits only the true scenarios; default {} covers the absent key.
+    force: RouterForceSchema.default({}),
     // Genuinely optional: composeUiConfig omits the key entirely when
     // there's no threshold (it is not emitted as null), so .optional()
     // matches the wire — .nullable() would reject the absent key.
@@ -71,7 +90,7 @@ export const RouterSchema = z
   // The fallbacks object is a declared field; the catchall union must
   // include its shape so the (declared keys + index signature) type
   // stays consistent. Unknown keys still accept scalar JSON.
-  .catchall(z.union([z.string().nonempty(), z.number(), z.null(), RouterFallbacksSchema]))
+  .catchall(z.union([z.string().nonempty(), z.number(), z.null(), RouterFallbacksSchema, RouterForceSchema]))
   .openapi('Router')
 export type Router = z.infer<typeof RouterSchema>
 
@@ -88,6 +107,9 @@ export const RouterConfigSchema = z.object({
   webSearch: z.string().nullable(),
   image: z.string().nullable(),
   fallbacks: RouterFallbacksSchema.default(emptyFallbacks),
+  // Per-scenario force flags (see RouterForceSchema). Optional so older
+  // configs / per-project router files without it still parse.
+  force: RouterForceSchema.optional(),
   // Phase 6 S5: extra margin (percentage points) over the weekly drain
   // target before the proactive failover guard trips. See RouterSchema.
   weeklyDrainMarginPct: z.number().int().min(0).max(100).optional(),
