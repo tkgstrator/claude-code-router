@@ -109,6 +109,11 @@ export interface RoutePlan {
   defaultTransformer: Transformer
   scenarioType: ScenarioType
   primaryModel: string
+  // When a force override replaced the client's model, the "provider,model"
+  // the client originally asked for — inserted into the failover chain right
+  // after the forced primary (Force -> Request -> fallbacks). Absent when no
+  // force fired or the original model resolves to no configured provider.
+  forcedFrom?: string
   path: string
   search: string
 }
@@ -175,6 +180,7 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     defaultTransformer,
     scenarioType,
     primaryModel,
+    forcedFrom: routeReq.forcedFrom,
     path,
     search: url.search
   }
@@ -277,8 +283,13 @@ export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] 
   const primaryName = providerNameOf(plan.primaryModel)
   const primaryAuth = authModeByName.get(primaryName)
 
+  // Force -> Request -> fallbacks: when a force override fired, the model the
+  // client originally asked for is tried right after the forced primary,
+  // ahead of the configured fallbacks. It still passes the same gates below
+  // (same-provider drop, auth_mode, exhausted) as any other fallback.
+  const forcedFrom = plan.forcedFrom !== undefined ? [plan.forcedFrom] : []
   const seen = new Set<string>()
-  const ordered = [plan.primaryModel, ...fallbacks].filter((m) => {
+  const ordered = [plan.primaryModel, ...forcedFrom, ...fallbacks].filter((m) => {
     if (seen.has(m)) return false
     seen.add(m)
     if (m === plan.primaryModel) return true

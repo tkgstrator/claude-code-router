@@ -272,6 +272,8 @@
     "longContextThreshold": "コンテキストしきい値",
     "webSearch": "Web 検索",
     "image": "画像",
+    "force": "強制",
+    "forceHint": "このシナリオに該当したら、クライアント指定のモデルを無視してこのスロットを常に使う",
     "forceUseImageAgent": "画像エージェントを強制使用",
     "selectModel": "モデルを選択...",
     "searchModel": "モデルを検索...",
