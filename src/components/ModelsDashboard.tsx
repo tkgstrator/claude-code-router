@@ -19,7 +19,6 @@ import { buildModelRows, sortModelRows } from '@/lib/models/build-rows'
 import { formatContext } from '@/lib/models/format-context'
 import type { ModelRow, Reachability, SortKey } from '@/lib/models/types'
 import { ProviderIcon } from '@/lib/providerIcons'
-import { MODEL_PRICING } from '@/shared/data'
 import { SortHeader } from './models/SortHeader'
 import { StatusIcon } from './models/StatusIcon'
 
@@ -282,18 +281,18 @@ export function ModelsDashboard() {
                       </span>
                     </td>
                     <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                      {MODEL_PRICING[row.model] ? (
+                      {row.inputPer1M != null ? (
                         <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
-                          ${MODEL_PRICING[row.model].inputPer1M}
+                          ${row.inputPer1M}
                         </span>
                       ) : (
                         <span className='text-muted-foreground/40'>—</span>
                       )}
                     </td>
                     <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                      {MODEL_PRICING[row.model] ? (
+                      {row.outputPer1M != null ? (
                         <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
-                          ${MODEL_PRICING[row.model].outputPer1M}
+                          ${row.outputPer1M}
                         </span>
                       ) : (
                         <span className='text-muted-foreground/40'>—</span>

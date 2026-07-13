@@ -4,9 +4,9 @@
  * Each `providers/<vendor>/prices.json` is the canonical source for
  * that vendor's official rates. The shape is intentionally trivial so
  * the per-vendor scraper scripts under `scripts/scrape-<vendor>-prices.ts`
- * can regenerate them without touching code. Vendor entries are
- * overlaid on top of the third-party llm-prices.json snapshot in
- * `buildSeedPricing` — see ../index.ts.
+ * can regenerate them without touching code. These official rates are
+ * seeded into the DB by price-seed-service / model-sync-service, taking
+ * precedence over the third-party llm-prices.json snapshot.
  *
  * Currently shipped:
  *   - openai     (developers.openai.com/api/docs/pricing)
