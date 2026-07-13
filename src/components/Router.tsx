@@ -193,7 +193,7 @@ function RouterForm({ config }: { config: Config }) {
                 />
               </div>
 
-              <div className='flex items-start gap-3'>
+              <div className='flex items-end gap-3'>
                 <ModelSlotField
                   control={form.control}
                   name='image'
