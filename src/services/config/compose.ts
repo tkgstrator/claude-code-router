@@ -28,6 +28,7 @@ export const emptyRouter = (): Router => ({
   webSearch: null,
   image: null,
   fallbacks: emptyFallbacks(),
+  force: {},
   longContextThreshold: 60_000,
   weeklyDrainMarginPct: 0
 })
@@ -53,6 +54,14 @@ export const fallbacksFromParams = (params: unknown): string[] | null => {
   if (!Array.isArray(raw)) return null
   const list = raw.filter((v): v is string => typeof v === 'string' && v.length > 0)
   return list.length > 0 ? list : null
+}
+
+// Read the `force` flag off a routerSlot.params JSON column. True only
+// when the slot is explicitly forced; anything else reads as false so
+// composeUiConfig can skip the assignment (client model wins by default).
+export const forceFromParams = (params: unknown): boolean => {
+  if (!isJsonObject(params)) return false
+  return params.force === true
 }
 
 // Read `weeklyDrainMarginPct` off the default slot's params JSON column.
@@ -184,6 +193,8 @@ export async function composeUiConfig(): Promise<AppConfig> {
     }
     const fallbacks = fallbacksFromParams(slot.params)
     if (fallbacks) router.fallbacks[key] = fallbacks
+    // image has no runtime routing lane, so it carries no force flag.
+    if (key !== 'image' && forceFromParams(slot.params)) router.force[key] = true
   }
 
   // Fold the active persona into the composed Router from its disk-only

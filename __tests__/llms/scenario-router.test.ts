@@ -539,3 +539,58 @@ test('applyProactiveFailover: capability-gate skips are recorded in the trace', 
     { candidate: 'codex,big', reason: 'kept' }
   ])
 })
+
+// ── Force override ──────────────────────────────────────────────────────────
+
+test('selectModel: force on longContext overrides a hosted opus bare model', () => {
+  const router = { default: 'anthropic,claude-sonnet', longContext: 'some,glm-4.6', force: { longContext: true } }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  // claude-opus is hosted (bare match would normally win) and opus-tier
+  // classifies as longContext; force flips it to the slot model.
+  const out = selectModel(makeReq({ model: 'claude-opus' }), 1000, router, config)
+  expect(out).toEqual({ model: 'some,glm-4.6', scenarioType: 'longContext' })
+})
+
+test('selectModel: force off leaves the hosted opus bare model untouched', () => {
+  const router = { default: 'anthropic,claude-sonnet', longContext: 'some,glm-4.6' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-opus' }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-opus', scenarioType: 'default' })
+})
+
+test('selectModel: force on background overrides a hosted haiku bare model', () => {
+  const provider = { ...claudeProvider, models: ['claude-haiku-4-5', 'claude-opus'] }
+  const router = { default: 'anthropic,claude-sonnet', background: 'some,cheap', force: { background: true } }
+  const config = new ConfigStore({ Router: router, providers: [provider] })
+  const out = selectModel(makeReq({ model: 'claude-haiku-4-5' }), 1000, router, config)
+  expect(out).toEqual({ model: 'some,cheap', scenarioType: 'background' })
+})
+
+test('selectModel: force never overrides a <CCR-SUBAGENT-MODEL> tag', () => {
+  const router = { default: 'some,forced', force: { default: true } }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  // Non-hosted model so the bare match falls through to the subagent tag;
+  // force.default would have produced 'some,forced' had it fired.
+  const system = [
+    { type: 'text', text: 'sys' },
+    { type: 'text', text: '<CCR-SUBAGENT-MODEL>foo,bar</CCR-SUBAGENT-MODEL>' }
+  ]
+  const out = selectModel(makeReq({ model: 'claude-sonnet-future', system }), 1000, router, config)
+  expect(out).toEqual({ model: 'foo,bar', scenarioType: 'default' })
+})
+
+test('selectModel: force on a non-matching scenario does not fire', () => {
+  // sonnet + low effort classifies as `default`, so longContext.force must
+  // leave the hosted bare model alone.
+  const router = { default: 'anthropic,claude-sonnet', longContext: 'some,glm', force: { longContext: true } }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-sonnet', output_config: { effort: 'low' } }), 1000, router, config)
+  expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default' })
+})
+
+test('selectModel: force on default overrides a hosted bare model', () => {
+  const router = { default: 'some,house-model', force: { default: true } }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-sonnet', output_config: { effort: 'low' } }), 1000, router, config)
+  expect(out).toEqual({ model: 'some,house-model', scenarioType: 'default' })
+})

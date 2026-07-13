@@ -272,6 +272,8 @@
     "longContextThreshold": "上下文阈值",
     "webSearch": "网络搜索",
     "image": "图像",
+    "force": "强制",
+    "forceHint": "命中该场景时忽略客户端指定的模型，始终使用此槽位",
     "forceUseImageAgent": "强制使用图像代理",
     "selectModel": "选择一个模型...",
     "searchModel": "搜索模型...",
