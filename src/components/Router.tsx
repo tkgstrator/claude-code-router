@@ -111,7 +111,7 @@ function RouterForm({ config }: { config: Config }) {
       <PageContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-end'>
+            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start'>
               <ModelSlotField
                 control={form.control}
                 name='default'
@@ -160,7 +160,7 @@ function RouterForm({ config }: { config: Config }) {
                 forceHint={t('router.forceHint')}
               />
 
-              <div className='flex items-end gap-3 md:col-span-2 xl:col-span-1'>
+              <div className='flex items-start gap-3 md:col-span-2 xl:col-span-1'>
                 <ModelSlotField
                   control={form.control}
                   name='longContext'
@@ -193,7 +193,7 @@ function RouterForm({ config }: { config: Config }) {
                 />
               </div>
 
-              <div className='flex items-end gap-3'>
+              <div className='flex items-start gap-3'>
                 <ModelSlotField
                   control={form.control}
                   name='image'
