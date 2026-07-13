@@ -1,4 +1,3 @@
-import { MODEL_PRICING } from '@/shared/data'
 import type { Provider } from '@/types'
 import type { ModelRow, SortKey } from './types'
 
@@ -23,17 +22,34 @@ export function buildModelRows(providers: Provider[], planByProvider: Record<str
     const isSubscription = provider.auth_mode === 'subscription'
     const deprecatedSet = new Set(provider.deprecatedModels ?? [])
     const ctxMap = provider.modelContextWindows ?? {}
+    const priceMap = provider.modelPrices ?? {}
     return models.map((model) => {
       const key = `${providerName},${model}`
       const enabled = !disabledList.includes(model)
       const deprecated = deprecatedSet.has(model)
-      return { provider: providerName, model, key, enabled, isSubscription, deprecated, contextWindow: ctxMap[model] }
+      // DB-only prices, mirroring how contextWindow is sourced. No static
+      // price fallback — a model absent from modelPrices shows "—".
+      const price = priceMap[model]
+      return {
+        provider: providerName,
+        model,
+        key,
+        enabled,
+        isSubscription,
+        deprecated,
+        contextWindow: ctxMap[model],
+        inputPer1M: price?.inputPer1M,
+        outputPer1M: price?.outputPer1M
+      }
     })
   })
 }
 
-function priceOf(model: string, which: 'inputPer1M' | 'outputPer1M'): number {
-  return MODEL_PRICING[model]?.[which] ?? Number.POSITIVE_INFINITY
+// Unpriced rows (null or absent) sort last regardless of direction handling
+// upstream; Number.POSITIVE_INFINITY is a sort sentinel, not a displayed value.
+function priceOf(row: ModelRow, which: 'inputPer1M' | 'outputPer1M'): number {
+  const v = row[which]
+  return typeof v === 'number' ? v : Number.POSITIVE_INFINITY
 }
 
 // No active sort: keep the natural order — providers in config order,
@@ -44,8 +60,8 @@ export function sortModelRows(rows: ModelRow[], sortKey: SortKey | null, sortDir
   if (!sortKey) return rows
   const sign = sortDir === 'asc' ? 1 : -1
   const primary = (row: ModelRow) => {
-    if (sortKey === 'input') return priceOf(row.model, 'inputPer1M')
-    if (sortKey === 'output') return priceOf(row.model, 'outputPer1M')
+    if (sortKey === 'input') return priceOf(row, 'inputPer1M')
+    if (sortKey === 'output') return priceOf(row, 'outputPer1M')
     return row[sortKey]
   }
   // Stable sort on primary only — ties preserve raw (provider-grouped,
