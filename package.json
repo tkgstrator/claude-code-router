@@ -63,7 +63,7 @@
     "ioredis": "5.11.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.111.0",
+    "@anthropic-ai/sdk": "^0.112.1",
     "@base-ui/react": "^1.6.0",
     "@fastify/cors": "^11.2.0",
     "@fontsource-variable/figtree": "^5.2.10",
