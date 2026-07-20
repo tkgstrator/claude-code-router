@@ -1,6 +1,7 @@
-import { ChevronDown, ChevronRight, Layers, MessagesSquare, RefreshCw, Trash2, Wrench, Zap } from 'lucide-react'
+import { Archive, ChevronDown, ChevronRight, Layers, MessagesSquare, RefreshCw, Wrench, Zap } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MarkdownViewer } from '@/components/MarkdownViewer'
 import { Button } from '@/components/ui/button'
 import { api, type RequestLogItem, type SessionMessageItem, type SessionSummary } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
@@ -83,9 +84,9 @@ export function SessionsPage() {
     return () => es.close()
   }, [])
 
-  const handleClearAll = async () => {
-    if (!window.confirm(t('sessions.clear_confirm'))) return
-    await api.deleteAllRequestLogs()
+  const handleArchiveAll = async () => {
+    if (!window.confirm(t('sessions.archive_confirm'))) return
+    await api.archiveAllSessions()
     setSessions([])
     setTotal(0)
     setSelected(null)
@@ -109,10 +110,11 @@ export function SessionsPage() {
               variant='ghost'
               size='icon'
               className='h-7 w-7'
-              onClick={handleClearAll}
+              onClick={handleArchiveAll}
               disabled={sessions.length === 0}
+              title={t('sessions.archive_all')}
             >
-              <Trash2 className='h-3.5 w-3.5' />
+              <Archive className='h-3.5 w-3.5' />
             </Button>
           </div>
         </div>
@@ -487,7 +489,10 @@ function MessageBubble({
 function MessageBlock({ block }: { block: NormalisedBlock }) {
   const { t } = useTranslation()
   if (block.kind === 'text') {
-    return <div className='whitespace-pre-wrap break-words'>{block.text}</div>
+    // Chat prose is Markdown (assistant replies especially). The viewer
+    // inherits the bubble's text color, so it stays legible on both the muted
+    // assistant bubble and the inverted (bg-primary) user bubble.
+    return <MarkdownViewer content={block.text} />
   }
   if (block.kind === 'system_text') {
     return (

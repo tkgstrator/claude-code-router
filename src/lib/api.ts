@@ -213,8 +213,10 @@ class ApiClient {
     return this.get<{ sessions: SessionSummary[]; total: number }>(`/request-logs/sessions${qs ? `?${qs}` : ''}`)
   }
 
-  async deleteAllRequestLogs(): Promise<void> {
-    return this.deleteRequest<void>('/request-logs')
+  // Archive every active session: it drops out of the History list while its
+  // cost/usage totals are preserved. Returns the number of sessions archived.
+  async archiveAllSessions(): Promise<{ archived: number }> {
+    return this.post<{ archived: number }>('/request-logs/sessions/archive', {})
   }
 }
 

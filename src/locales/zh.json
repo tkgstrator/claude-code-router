@@ -274,7 +274,6 @@
     "image": "图像",
     "force": "强制",
     "forceHint": "命中该场景时忽略客户端指定的模型，始终使用此槽位",
-    "forceUseImageAgent": "强制使用图像代理",
     "selectModel": "选择一个模型...",
     "searchModel": "搜索模型...",
     "noModelFound": "未找到模型.",
@@ -405,7 +404,8 @@
     "title": "会话",
     "no_history": "暂无会话",
     "loading": "加载中...",
-    "clear_confirm": "确定删除所有会话吗？",
+    "archive_confirm": "确定归档所有会话吗？会话将从列表移除，但费用统计会保留。",
+    "archive_all": "全部归档",
     "select_session": "选择一个会话查看详情",
     "preview_empty": "（暂无用户输入）",
     "detail": {
