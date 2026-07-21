@@ -193,8 +193,10 @@ export async function composeUiConfig(): Promise<AppConfig> {
     }
     const fallbacks = fallbacksFromParams(slot.params)
     if (fallbacks) router.fallbacks[key] = fallbacks
-    // image has no runtime routing lane, so it carries no force flag.
-    if (key !== 'image' && forceFromParams(slot.params)) router.force[key] = true
+    // Emit force for any slot that has it set, image included, so the UI
+    // checkbox reloads with the saved state. image force is a runtime no-op
+    // (see RouterForceSchema).
+    if (forceFromParams(slot.params)) router.force[key] = true
   }
 
   // Fold the active persona into the composed Router from its disk-only

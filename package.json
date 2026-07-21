@@ -1,6 +1,6 @@
 {
   "name": "@musistudio/claude-code-router",
-  "version": "2.32.2",
+  "version": "2.33.0",
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
     "dev": "vite --host --port 16175",
@@ -121,8 +121,11 @@
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.80.0",
     "react-i18next": "^17.0.8",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.0",
     "recharts": "3.9.2",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
     "remixicon": "^4.9.1",
     "shadcn": "^4.12.0",
     "simple-icons": "^16.24.0",

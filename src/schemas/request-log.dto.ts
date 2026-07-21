@@ -26,6 +26,10 @@ export const RequestLogItemSchema = z.object({
   sessionId: z.string().nonempty(),
   provider: z.string().nonempty(),
   model: z.string().nonempty(),
+  // What the client asked for pre-routing, and the routing lane it hit.
+  // Null on rows written before routing capture landed.
+  requestedModel: z.string().nullable(),
+  scenario: z.string().nullable(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   cacheReadTokens: z.number().int().nonnegative(),
@@ -73,7 +77,8 @@ export const RequestLogsListResponseSchema = z.object({
   total: z.number().int().nonnegative()
 })
 
-export const RequestLogsDeleteAllResponseSchema = z.object({ deleted: z.number().int().nonnegative() })
+// Archive-all response: number of active sessions moved to the archive.
+export const SessionsArchiveResponseSchema = z.object({ archived: z.number().int().nonnegative() })
 
 export const RequestLogsDeleteOneResponseSchema = z.object({ id: z.string().nonempty() })
 
@@ -89,4 +94,39 @@ export const SessionMessageItemSchema = z.object({
 
 export const SessionMessagesResponseSchema = z.object({
   items: z.array(SessionMessageItemSchema)
+})
+
+// ─── Model-routing report ──────────────────────────────────────────────
+// Cross-tab of "what the client requested" → "what CCR actually sent".
+// Answers: how often is each requested model honored vs rerouted, and to
+// which provider/model/scenario.
+
+export const ModelRoutingQuerySchema = z.object({
+  // Only count rows created within the last N hours (0 = all time).
+  sinceHours: z.coerce.number().int().min(0).max(8760).default(0)
+})
+
+// One actual upstream target a requested model was routed to.
+export const ModelRoutingTargetSchema = z.object({
+  provider: z.string().nonempty(),
+  model: z.string().nonempty(),
+  // Routing lane (default/background/think/longContext/webSearch). Null on
+  // rows written before scenario capture landed.
+  scenario: z.string().nullable(),
+  count: z.number().int().nonnegative()
+})
+
+// All targets a single requested model fanned out to, with its total.
+export const ModelRoutingRowSchema = z.object({
+  // The client's original body.model. Null bucket = rows written before
+  // routing capture landed ("untracked").
+  requestedModel: z.string().nullable(),
+  total: z.number().int().nonnegative(),
+  targets: z.array(ModelRoutingTargetSchema)
+})
+
+export const ModelRoutingResponseSchema = z.object({
+  rows: z.array(ModelRoutingRowSchema),
+  // Grand total of request_logs rows counted (across all requested models).
+  total: z.number().int().nonnegative()
 })

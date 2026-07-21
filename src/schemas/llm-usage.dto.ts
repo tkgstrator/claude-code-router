@@ -73,6 +73,12 @@ export const UsageRecordSchema = z.object({
   sessionId: z.string().nonempty(),
   provider: z.string().nonempty(),
   model: z.string().nonempty(),
+  // The client's original body.model (pre-routing) and the routing lane
+  // it landed on. Null when the capture site couldn't read them (e.g. a
+  // request that bypassed scenario routing) — the DB columns are nullable
+  // for the same reason.
+  requestedModel: z.string().nonempty().nullable(),
+  scenario: z.string().nonempty().nullable(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   cacheReadTokens: z.number().int().nonnegative(),

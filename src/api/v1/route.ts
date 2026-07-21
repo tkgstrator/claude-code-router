@@ -21,10 +21,12 @@ export const v1Route = new Hono()
 
 async function recordUsage(entry: UsageRecord): Promise<void> {
   const prisma = getPrismaClient()
+  // New activity un-archives a previously archived session so it returns to
+  // the History list (archivedAt: null), while still bumping updatedAt.
   await prisma.session.upsert({
     where: { id: entry.sessionId },
     create: { id: entry.sessionId },
-    update: { updatedAt: new Date() }
+    update: { updatedAt: new Date(), archivedAt: null }
   })
   await prisma.requestLog.create({ data: { ...entry } })
   requestLogEmitter.emit('new_log', { sessionId: entry.sessionId })
@@ -42,7 +44,7 @@ async function recordMessages(entries: MessageRecord[]): Promise<void> {
     await prisma.session.upsert({
       where: { id },
       create: { id },
-      update: { updatedAt: new Date() }
+      update: { updatedAt: new Date(), archivedAt: null }
     })
   }
   await prisma.message.createMany({

@@ -36,14 +36,18 @@ export const emptyFallbacks = (): RouterFallbacks => ({
 // Per-scenario force flags. When a scenario's flag is true and its slot
 // has a model, the router overrides the client's bare model with the slot
 // model. Absent keys / all-false = client model wins (current behavior).
-// image has no runtime routing lane so it is intentionally excluded.
+// `image` is accepted here for UI parity (the Router page shows a Force
+// checkbox on every slot), but the scenario-router force gate never
+// classifies a request as `image` — image traffic is handled by the image
+// agent, not selectModel — so a persisted image force is a runtime no-op.
 export const RouterForceSchema = z
   .object({
     default: z.boolean(),
     background: z.boolean(),
     think: z.boolean(),
     longContext: z.boolean(),
-    webSearch: z.boolean()
+    webSearch: z.boolean(),
+    image: z.boolean()
   })
   .partial()
   .openapi('RouterForce')

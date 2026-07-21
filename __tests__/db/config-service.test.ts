@@ -98,6 +98,29 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.force).toEqual({ longContext: true, background: true })
   })
 
+  test('image force round-trips even with no model assigned (UI-parity flag)', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: {
+        default: 'openai,gpt-5',
+        // image slot has no model here; the force flag still persists so the
+        // UI checkbox reloads with its saved state (runtime no-op).
+        force: { image: true }
+      }
+    })
+
+    const ui = await composeUiConfig()
+    expect(ui.Router.force).toEqual({ image: true })
+  })
+
   test('force is empty when no slot is forced', async () => {
     await applyUiConfig({
       Providers: [

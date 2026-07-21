@@ -230,6 +230,11 @@ model Session {
   id        String       @id
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
+  // Archive (soft-delete) marker. Non-null hides the session from the
+  // History list, but its RequestLog rows stay so cost/usage totals are
+  // preserved. Reset to null when the session receives new activity, so a
+  // resumed session reappears in the list. Never physically deleted here.
+  archivedAt DateTime?
   logs      RequestLog[]
   messages  Message[]
 }
@@ -259,6 +264,13 @@ model RequestLog {
   session          Session  @relation(fields: [sessionId], references: [id])
   provider         String
   model            String
+  // What the client (Claude Code) asked for in body.model BEFORE scenario
+  // routing rewrote it, and which routing lane it fell into. Both null for
+  // rows written before this landed (backfill is not possible — the
+  // original request is gone), so the model-routing report labels null as
+  // "untracked". `model`/`provider` above stay the actual upstream target.
+  requestedModel   String?
+  scenario         String?
   inputTokens      Int      @default(0)
   outputTokens     Int      @default(0)
   cacheReadTokens  Int      @default(0)

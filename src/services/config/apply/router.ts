@@ -97,8 +97,10 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
       ...(scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : {}),
       ...(scenario === 'default' && incomingMargin !== null ? { weeklyDrainMarginPct: incomingMargin } : {}),
       ...(fallbacks.length > 0 ? { fallbacks } : {}),
-      // image has no runtime routing lane, so it never carries force.
-      ...(scenario !== 'image' && incoming.force?.[scenario] === true ? { force: true } : {})
+      // Persist force for any slot the UI shows the checkbox on, including
+      // image. image force is a runtime no-op (see RouterForceSchema) but we
+      // still round-trip it so the checkbox state survives a save/reload.
+      ...(incoming.force?.[scenario] === true ? { force: true } : {})
     }
     const params: Prisma.InputJsonValue | typeof Prisma.DbNull =
       Object.keys(paramsObj).length > 0 ? paramsObj : Prisma.DbNull

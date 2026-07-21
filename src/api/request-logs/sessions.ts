@@ -56,9 +56,10 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
   const prisma = getPrismaClient()
 
   // Limit to sessions active within the recent window (0 = no limit) so the
-  // History list doesn't grow unbounded.
+  // History list doesn't grow unbounded. Archived sessions are always hidden
+  // — their RequestLog rows still count toward the Usage/cost totals.
   const since = sinceHours > 0 ? dayjs().subtract(sinceHours, 'hour').toDate() : null
-  const where = since ? { updatedAt: { gte: since } } : undefined
+  const where = { archivedAt: null, ...(since ? { updatedAt: { gte: since } } : {}) }
 
   // Sessions from the Session table (ordered by most-recently-updated first)
   const [total, sessionRows] = await Promise.all([

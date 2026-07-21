@@ -23,6 +23,7 @@ import { toast as sonnerToast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
 import { JsonEditor } from '@/components/JsonEditor'
 import { LogViewer } from '@/components/LogViewer'
+import { MarkdownViewer } from '@/components/MarkdownViewer'
 import { SetupDialog } from '@/components/SetupDialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -358,7 +359,7 @@ export function AppShell() {
             </DialogHeader>
             <div className='max-h-96 overflow-y-auto py-4'>
               {newVersionInfo?.changelog ? (
-                <div className='whitespace-pre-wrap text-sm'>{newVersionInfo.changelog}</div>
+                <MarkdownViewer content={newVersionInfo.changelog} className='text-sm' />
               ) : (
                 <div className='text-muted-foreground'>{t('app.no_changelog_available')}</div>
               )}

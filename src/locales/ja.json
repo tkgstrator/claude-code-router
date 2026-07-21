@@ -92,7 +92,12 @@
     "apiCostHistoryEmpty": "選択した期間に価格データがありません。",
     "subscriptionSavings": "サブスク節約額",
     "sync": "同期",
-    "current": "現在のレートリミット"
+    "current": "現在のレートリミット",
+    "routing": "モデル振り分け",
+    "routingHint": "Claude Codeが要求したモデルと、CCRが実際に上流へ送ったモデルの対応。",
+    "routingEmpty": "振り分けデータはまだありません。",
+    "routingUntracked": "（記録前）",
+    "routingRerouted": "振り替え"
   },
   "subscriptions": {
     "empty": "サブスクは未登録です。Providers から登録してください。",
@@ -274,7 +279,6 @@
     "image": "画像",
     "force": "強制",
     "forceHint": "このシナリオに該当したら、クライアント指定のモデルを無視してこのスロットを常に使う",
-    "forceUseImageAgent": "画像エージェントを強制使用",
     "selectModel": "モデルを選択...",
     "searchModel": "モデルを検索...",
     "noModelFound": "モデルが見つかりません。",
@@ -405,7 +409,8 @@
     "title": "セッション",
     "no_history": "セッションはまだありません",
     "loading": "読み込み中...",
-    "clear_confirm": "すべてのセッションを削除しますか?",
+    "archive_confirm": "すべてのセッションをアーカイブしますか?（一覧から消えますが、コスト集計には残ります）",
+    "archive_all": "すべてアーカイブ",
     "select_session": "セッションを選択して詳細を確認",
     "preview_empty": "（ユーザー入力なし）",
     "detail": {

@@ -1,15 +1,15 @@
 /**
- * Flat request-log routes: paginated list plus delete-all / delete-one.
+ * Flat request-log routes: paginated list, archive-all, and delete-one.
  */
 
 import { createRoute } from '@hono/zod-openapi'
 import { getPrismaClient } from '../../db/client'
 import {
   RequestLogIdParamSchema,
-  RequestLogsDeleteAllResponseSchema,
   RequestLogsDeleteOneResponseSchema,
   RequestLogsListQuerySchema,
-  RequestLogsListResponseSchema
+  RequestLogsListResponseSchema,
+  SessionsArchiveResponseSchema
 } from '../../schemas'
 import { buildPriceMap, computeCosts } from '../../services/cost-service'
 import { requestLogsRoute } from './app'
@@ -48,25 +48,30 @@ requestLogsRoute.openapi(getRequestLogsRoute, async (c) => {
   return c.json({ items, total }, 200)
 })
 
-// ── DELETE /api/request-logs ──────────────────────────────────────────────────
+// ── POST /api/request-logs/sessions/archive ───────────────────────────────────
+// Soft-clears the History list: marks every active session as archived so it
+// drops out of the sessions list, while leaving its RequestLog rows intact so
+// the Usage/cost totals (weekly, all-time) are preserved. A session reappears
+// automatically once it receives new activity (the upsert resets archivedAt).
 
 requestLogsRoute.openapi(
   createRoute({
-    method: 'delete',
-    path: '/api/request-logs',
+    method: 'post',
+    path: '/api/request-logs/sessions/archive',
     responses: {
       200: {
-        description: 'All deleted.',
-        content: { 'application/json': { schema: RequestLogsDeleteAllResponseSchema } }
+        description: 'All active sessions archived.',
+        content: { 'application/json': { schema: SessionsArchiveResponseSchema } }
       }
     }
   }),
   async (c) => {
     const prisma = getPrismaClient()
-    // Delete all logs first (FK constraint), then sessions
-    const { count } = await prisma.requestLog.deleteMany()
-    await prisma.session.deleteMany()
-    return c.json({ deleted: count }, 200)
+    const { count } = await prisma.session.updateMany({
+      where: { archivedAt: null },
+      data: { archivedAt: new Date() }
+    })
+    return c.json({ archived: count }, 200)
   }
 )
 
