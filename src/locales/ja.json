@@ -92,7 +92,12 @@
     "apiCostHistoryEmpty": "選択した期間に価格データがありません。",
     "subscriptionSavings": "サブスク節約額",
     "sync": "同期",
-    "current": "現在のレートリミット"
+    "current": "現在のレートリミット",
+    "routing": "モデル振り分け",
+    "routingHint": "Claude Codeが要求したモデルと、CCRが実際に上流へ送ったモデルの対応。",
+    "routingEmpty": "振り分けデータはまだありません。",
+    "routingUntracked": "（記録前）",
+    "routingRerouted": "振り替え"
   },
   "subscriptions": {
     "empty": "サブスクは未登録です。Providers から登録してください。",

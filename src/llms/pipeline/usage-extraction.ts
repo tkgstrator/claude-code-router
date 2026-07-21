@@ -37,10 +37,18 @@ export async function captureUsage(
   const tokens = computeTokenStats(usage)
   const view = viewPipelineBody(body)
 
+  // The client's original model and the routing lane ride on context.req
+  // (stamped in resolveInvocationForModel). Fall back to null so a request
+  // that never went through scenario routing still records a valid row.
+  const requestedModel = context.req?.requestedModel
+  const scenario = context.req?.scenarioType
+
   await deps.recordUsage?.({
     sessionId,
     provider: provider.name,
     model: view.model !== undefined ? view.model : 'unknown',
+    requestedModel: requestedModel !== undefined ? requestedModel : null,
+    scenario: scenario !== undefined ? scenario : null,
     inputTokens: tokens.rawInput,
     outputTokens: tokens.outputTokens,
     cacheReadTokens: tokens.cachedTokens,

@@ -109,6 +109,11 @@ export interface RoutePlan {
   defaultTransformer: Transformer
   scenarioType: ScenarioType
   primaryModel: string
+  // The client's original body.model (pre-routing), carried through to the
+  // usage-capture step so every request_logs row records "what was asked
+  // for" next to "what was actually sent". Absent when the body had no
+  // usable model string.
+  requestedModel?: string
   // When a force override replaced the client's model, the "provider,model"
   // the client originally asked for — inserted into the failover chain right
   // after the forced primary (Force -> Request -> fallbacks). Absent when no
@@ -157,6 +162,10 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     headers[k] = v
   })
 
+  // Capture what the client asked for BEFORE routeScenario rewrites
+  // body.model in place — this is the only point the original is visible.
+  const requestedModel = typeof body.model === 'string' && body.model.length > 0 ? body.model : undefined
+
   // Scenario routing: rewrite body.model to the resolved provider,model
   // and stamp req.scenarioType. We keep the request object so we can read
   // the scenario back — it selects the failover chain below.
@@ -180,6 +189,7 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     defaultTransformer,
     scenarioType,
     primaryModel,
+    requestedModel,
     forcedFrom: routeReq.forcedFrom,
     path,
     search: url.search
@@ -245,7 +255,8 @@ export function resolveInvocationForModel(
     url: plan.path + plan.search,
     provider: providerName,
     model,
-    scenarioType: plan.scenarioType
+    scenarioType: plan.scenarioType,
+    requestedModel: plan.requestedModel
   }
 
   return { body, headers, request, provider, transformer }

@@ -92,7 +92,12 @@
     "apiCostHistoryEmpty": "所选时段内无定价数据。",
     "subscriptionSavings": "订阅节省",
     "sync": "同步",
-    "current": "当前速率限制"
+    "current": "当前速率限制",
+    "routing": "模型路由",
+    "routingHint": "Claude Code 请求的模型与 CCR 实际发往上游的模型对照。",
+    "routingEmpty": "尚无路由数据。",
+    "routingUntracked": "（未记录）",
+    "routingRerouted": "已改路"
   },
   "subscriptions": {
     "empty": "未注册任何订阅。请从 Providers 添加。",

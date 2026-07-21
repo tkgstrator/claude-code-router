@@ -264,6 +264,13 @@ model RequestLog {
   session          Session  @relation(fields: [sessionId], references: [id])
   provider         String
   model            String
+  // What the client (Claude Code) asked for in body.model BEFORE scenario
+  // routing rewrote it, and which routing lane it fell into. Both null for
+  // rows written before this landed (backfill is not possible — the
+  // original request is gone), so the model-routing report labels null as
+  // "untracked". `model`/`provider` above stay the actual upstream target.
+  requestedModel   String?
+  scenario         String?
   inputTokens      Int      @default(0)
   outputTokens     Int      @default(0)
   cacheReadTokens  Int      @default(0)

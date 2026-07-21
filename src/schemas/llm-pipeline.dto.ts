@@ -82,6 +82,10 @@ export const PipelineRequestSchema = z.object({
   provider: z.string().nonempty().optional(),
   model: z.string().nonempty().optional(),
   scenarioType: z.string().nonempty().optional(),
+  // The client's original body.model, captured before scenario routing
+  // rewrote it. Carried so the usage-capture step can persist "what was
+  // asked for" alongside "what was actually sent".
+  requestedModel: z.string().nonempty().optional(),
   sessionId: z.string().nonempty().optional(),
   tokenCount: z.number().optional()
 })

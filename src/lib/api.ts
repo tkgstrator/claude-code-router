@@ -5,6 +5,10 @@ export interface RequestLogItem {
   sessionId: string
   provider: string
   model: string
+  // What the client asked for pre-routing, and the routing lane it hit.
+  // Null on rows written before routing capture landed.
+  requestedModel: string | null
+  scenario: string | null
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
@@ -46,6 +50,27 @@ export interface SessionMessageItem {
   role: string
   content: unknown
   createdAt: string
+}
+
+// One actual upstream target a requested model was routed to.
+export interface ModelRoutingTarget {
+  provider: string
+  model: string
+  scenario: string | null
+  count: number
+}
+
+// All targets a single requested model fanned out to, with its total.
+// requestedModel is null for rows written before routing capture landed.
+export interface ModelRoutingRow {
+  requestedModel: string | null
+  total: number
+  targets: ModelRoutingTarget[]
+}
+
+export interface ModelRoutingResponse {
+  rows: ModelRoutingRow[]
+  total: number
 }
 
 // Browser-side API client. Fetches under `${baseUrl}<endpoint>` with the
@@ -217,6 +242,15 @@ class ApiClient {
   // cost/usage totals are preserved. Returns the number of sessions archived.
   async archiveAllSessions(): Promise<{ archived: number }> {
     return this.post<{ archived: number }>('/request-logs/sessions/archive', {})
+  }
+
+  // Requested-model → actual-target routing distribution. sinceHours=0
+  // (default) counts all time.
+  async getModelRouting(params?: { sinceHours?: number }): Promise<ModelRoutingResponse> {
+    const q = new URLSearchParams()
+    if (params?.sinceHours != null) q.set('sinceHours', String(params.sinceHours))
+    const qs = q.toString()
+    return this.get<ModelRoutingResponse>(`/request-logs/model-routing${qs ? `?${qs}` : ''}`)
   }
 }
 

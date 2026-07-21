@@ -92,7 +92,12 @@
     "apiCostHistoryEmpty": "No pricing data available for the selected period.",
     "subscriptionSavings": "Subscription Savings",
     "sync": "Sync",
-    "current": "Current rate limits"
+    "current": "Current rate limits",
+    "routing": "Model routing",
+    "routingHint": "What Claude Code requested vs. the model CCR actually sent upstream.",
+    "routingEmpty": "No routing data recorded yet.",
+    "routingUntracked": "(untracked)",
+    "routingRerouted": "rerouted"
   },
   "subscriptions": {
     "empty": "No subscriptions registered. Add one from Providers.",
