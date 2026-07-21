@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/chart'
 import { ClaudeAccountSection } from '@/components/usage/ClaudeAccountSection'
 import { CodexAccountSection } from '@/components/usage/CodexAccountSection'
+import { ModelRoutingSection } from '@/components/usage/ModelRoutingSection'
 import { NotRegistered } from '@/components/usage/NotRegistered'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
@@ -37,6 +38,9 @@ export function Usage() {
   const [current, setCurrent] = useState<CurrentUsageResponse | null>(null)
   const [currentError, setCurrentError] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  // Bumped on Sync so the model-routing section refetches alongside the
+  // rest of the page.
+  const [routingReload, setRoutingReload] = useState(0)
 
   const refreshLive = useCallback(() => {
     api
@@ -78,6 +82,7 @@ export function Usage() {
     } finally {
       refreshLive()
       refreshCost()
+      setRoutingReload((n) => n + 1)
       setSyncing(false)
     }
   }
@@ -175,6 +180,8 @@ export function Usage() {
             </div>
           </div>
         </section>
+
+        <ModelRoutingSection reloadToken={routingReload} />
 
         <section className='space-y-3'>
           <div className='flex items-center justify-between'>
