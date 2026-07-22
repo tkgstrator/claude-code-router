@@ -324,6 +324,53 @@ test('selectModel: size-based longContext still wins when the request exceeds th
   expect(out).toEqual({ model: 'anthropic,claude-opus', scenarioType: 'longContext' })
 })
 
+// ---- <CCR-SUBAGENT-MODEL> tag is the highest-priority override --------
+
+test('selectModel: <CCR-SUBAGENT-MODEL> tag wins over size-based longContext', () => {
+  // A parent agent pinned this subagent to a specific model. Even though the
+  // request is large enough to trip the longContext lane, the explicit
+  // subagent choice must be honored — the tag now sits above every heuristic.
+  const router = {
+    default: 'anthropic,claude-sonnet',
+    longContext: 'anthropic,claude-opus',
+    longContextThreshold: 60_000
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({
+      model: 'claude-sonnet-4-5',
+      system: [
+        { type: 'text', text: 'You are a subagent.' },
+        { type: 'text', text: '<CCR-SUBAGENT-MODEL>anthropic,claude-fable</CCR-SUBAGENT-MODEL>' }
+      ]
+    }),
+    100_000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-fable', scenarioType: 'default' })
+})
+
+test('selectModel: <CCR-SUBAGENT-MODEL> tag wins over the bare model-name match', () => {
+  // claudeProvider hosts 'claude-sonnet', so the bare-name short-circuit
+  // would normally catch body.model. The explicit subagent tag outranks it.
+  const router = { default: 'anthropic,claude-opus', longContext: 'anthropic,claude-opus' }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({
+      model: 'claude-sonnet',
+      system: [
+        { type: 'text', text: 'You are a subagent.' },
+        { type: 'text', text: '<CCR-SUBAGENT-MODEL>anthropic,claude-fable</CCR-SUBAGENT-MODEL>' }
+      ]
+    }),
+    1000,
+    router,
+    config
+  )
+  expect(out).toEqual({ model: 'anthropic,claude-fable', scenarioType: 'default' })
+})
+
 // ---- Bare model-name match overrides heuristic rewrites ----------
 
 test('selectModel: a bare model name that a provider hosts is honored as-is', () => {

@@ -13,7 +13,8 @@ import {
   Server,
   Settings,
   Shuffle,
-  Sun
+  Sun,
+  Waypoints
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -68,6 +69,7 @@ const NAV_ITEMS = [
   { to: '/usage', icon: Gauge, key: 'nav.usage' },
   { to: '/sessions', icon: MessagesSquare, key: 'nav.sessions' },
   { to: '/router', icon: Shuffle, key: 'nav.router' },
+  { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
   { to: '/personas', icon: Drama, key: 'nav.personas' },
   { to: '/settings', icon: Settings, key: 'nav.settings' }
 ] as const

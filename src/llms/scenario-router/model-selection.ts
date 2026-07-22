@@ -73,6 +73,15 @@ export function selectModel(
   router: RouterConfig | undefined,
   config: ConfigStore
 ): { model: string; scenarioType: ScenarioType } {
+  // <CCR-SUBAGENT-MODEL> tag in the second system block — the explicit
+  // per-call model a parent agent picks for its subagents (e.g. "run these
+  // in parallel on Fable5"). Highest priority: honored above the force gate,
+  // the bare-model match, and longContext bumping, so the parent's explicit
+  // choice is never silently rewritten by scenario routing. Failover still
+  // applies (scenarioType 'default') if that model errors upstream.
+  const subagentModel = extractSubagentModel(req.body.system)
+  if (subagentModel) return { model: subagentModel, scenarioType: 'default' }
+
   // Force gate — if the scenario this request classifies into has force
   // enabled and a model assigned, override the client's bare model with
   // the slot model. When force is absent/off for that scenario this falls
@@ -114,11 +123,6 @@ export function selectModel(
     const longContext = pickLongContext(req, tokenCount, router)
     if (longContext) return longContext
   }
-
-  // <CCR-SUBAGENT-MODEL> tag in the second system block — explicit
-  // per-call model override Claude Code's subagent flow uses.
-  const subagentModel = extractSubagentModel(req.body.system)
-  if (subagentModel) return { model: subagentModel, scenarioType: 'default' }
 
   // Any Claude Haiku variant → background model.
   if (isHaikuBackground(req.body.model, router)) {
