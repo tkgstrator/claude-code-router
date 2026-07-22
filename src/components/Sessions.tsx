@@ -151,8 +151,8 @@ export function SessionsPage() {
                         >
                           {hasPreview ? session.preview : t('sessions.preview_empty')}
                         </p>
-                        <p className='flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums'>
-                          <span>{dayjs(session.lastAt).format('MM/DD HH:mm')}</span>
+                        <p className='flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums'>
+                          <span className='whitespace-nowrap'>{dayjs(session.lastAt).format('MM/DD HH:mm')}</span>
                           <span className='opacity-40'>·</span>
                           <span className='flex items-center gap-0.5'>
                             <Layers className='h-3 w-3' />
