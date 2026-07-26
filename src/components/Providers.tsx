@@ -320,11 +320,15 @@ export function Providers() {
             <TabsList variant='line' className='grid w-full max-w-xs grid-cols-2'>
               <TabsTrigger value='api_key'>
                 {t('providers.auth_api')}
-                <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.api_key.length})</span>
+                {providersByAuth.api_key.length > 0 && (
+                  <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.api_key.length})</span>
+                )}
               </TabsTrigger>
               <TabsTrigger value='subscription'>
                 {t('providers.auth_subscription')}
-                <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.subscription.length})</span>
+                {providersByAuth.subscription.length > 0 && (
+                  <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.subscription.length})</span>
+                )}
               </TabsTrigger>
             </TabsList>
           </Tabs>
