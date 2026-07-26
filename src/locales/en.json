@@ -120,7 +120,9 @@
     "usageHint": "Actual usage and rate-limit history are consolidated on the Usage page.",
     "noAccounts": "No accounts found. Sign in via the CLI first.",
     "activeLabel": "Active",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "authActive": "Active",
+    "authExpired": "Expired"
   },
   "models": {
     "provider": "Provider",

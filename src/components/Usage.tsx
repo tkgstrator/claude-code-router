@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   type ChartConfig,
   ChartContainer,
@@ -178,141 +177,135 @@ export function Usage() {
           {t('usage.sync')}
         </Button>
       </PageHeader>
-      <PageContent className='space-y-6'>
+      <PageContent className='space-y-8'>
         {/* ── Rate limits + auth health ─────────────────────────────── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('usage.current')}</CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {subsError && <p className='text-sm text-red-500'>{t('usage.loadError')}</p>}
-            {invalidCount > 0 && (
-              <div className='rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400'>
-                {t('usage.reauthNeeded', { count: invalidCount })}
-              </div>
-            )}
-            <div className='grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2'>
-              <div className='space-y-3'>
-                <h4 className='border-b pb-2 text-sm font-semibold text-muted-foreground'>{t('usage.claude')}</h4>
-                {subs === null ? (
-                  <p className='text-sm text-muted-foreground'>…</p>
-                ) : claudeAccounts.length === 0 ? (
-                  <NotRegistered
-                    message={t('usage.claudeNotRegistered')}
-                    hint={t('usage.claudeNotRegisteredHint')}
-                    href={CLAUDE_SUBSCRIBE_URL}
-                    cta={t('usage.openSubscriptionPage')}
-                  />
-                ) : (
-                  <div className='divide-y divide-border'>
-                    {claudeAccounts.map((account) => (
-                      <ClaudeAccountSection
-                        key={account.id}
-                        account={account}
-                        usage={claudeUsageById.get(account.id) ?? null}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className='space-y-3'>
-                <h4 className='border-b pb-2 text-sm font-semibold text-muted-foreground'>{t('usage.codex')}</h4>
-                {subs === null ? (
-                  <p className='text-sm text-muted-foreground'>…</p>
-                ) : codexAccounts.length === 0 ? (
-                  <NotRegistered
-                    message={t('usage.codexNotRegistered')}
-                    hint={t('usage.codexNotRegisteredHint')}
-                    href={CODEX_SUBSCRIBE_URL}
-                    cta={t('usage.openSubscriptionPage')}
-                  />
-                ) : (
-                  <div className='divide-y divide-border'>
-                    {codexAccounts.map((account) => (
-                      <CodexAccountSection
-                        key={account.id}
-                        account={account}
-                        usage={codexUsageById.get(account.id) ?? null}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+        <section className='space-y-4'>
+          <h3 className='border-b pb-2 text-base font-semibold'>{t('usage.current')}</h3>
+          {subsError && <p className='text-sm text-red-500'>{t('usage.loadError')}</p>}
+          {invalidCount > 0 && (
+            <div className='rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400'>
+              {t('usage.reauthNeeded', { count: invalidCount })}
             </div>
-            {/* Past-week utilization trend */}
-            <div className='space-y-2 border-t pt-4'>
-              <p className='text-sm font-medium text-muted-foreground'>{t('usage.history')}</p>
-              {rows.length === 0 ? (
-                <p className='text-sm text-muted-foreground'>{t('usage.historyEmpty')}</p>
+          )}
+          <div className='grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2'>
+            <div className='space-y-3'>
+              <h4 className='border-b pb-2 text-sm font-semibold text-muted-foreground'>{t('usage.claude')}</h4>
+              {subs === null ? (
+                <p className='text-sm text-muted-foreground'>…</p>
+              ) : claudeAccounts.length === 0 ? (
+                <NotRegistered
+                  message={t('usage.claudeNotRegistered')}
+                  hint={t('usage.claudeNotRegisteredHint')}
+                  href={CLAUDE_SUBSCRIBE_URL}
+                  cta={t('usage.openSubscriptionPage')}
+                />
               ) : (
-                <ChartContainer config={config} className='aspect-auto h-72 w-full'>
-                  <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey='t'
-                      ticks={ticks}
-                      tickFormatter={(val) => dayjs(String(val)).format('M/D')}
-                      tickLine={false}
-                      axisLine={false}
-                      minTickGap={40}
+                <div className='divide-y divide-border'>
+                  {claudeAccounts.map((account) => (
+                    <ClaudeAccountSection
+                      key={account.id}
+                      account={account}
+                      usage={claudeUsageById.get(account.id) ?? null}
                     />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      width={48}
-                      unit='%'
-                      domain={[0, CAP_PCT]}
-                      ticks={[0, 50, 100, 150, 200]}
-                    />
-                    <ReferenceLine y={100} stroke='#ef4444' strokeDasharray='4 4' />
-                    <ChartTooltip
-                      content={<ChartTooltipContent labelFormatter={(l) => dayjs(String(l)).format('M/D HH:mm')} />}
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    {metrics.map((m) => (
-                      <Line
-                        key={m}
-                        type='monotone'
-                        dataKey={m}
-                        stroke={metaFor(m).color}
-                        dot={false}
-                        strokeWidth={2}
-                        connectNulls
-                        isAnimationActive={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ChartContainer>
+                  ))}
+                </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+            <div className='space-y-3'>
+              <h4 className='border-b pb-2 text-sm font-semibold text-muted-foreground'>{t('usage.codex')}</h4>
+              {subs === null ? (
+                <p className='text-sm text-muted-foreground'>…</p>
+              ) : codexAccounts.length === 0 ? (
+                <NotRegistered
+                  message={t('usage.codexNotRegistered')}
+                  hint={t('usage.codexNotRegisteredHint')}
+                  href={CODEX_SUBSCRIBE_URL}
+                  cta={t('usage.openSubscriptionPage')}
+                />
+              ) : (
+                <div className='divide-y divide-border'>
+                  {codexAccounts.map((account) => (
+                    <CodexAccountSection
+                      key={account.id}
+                      account={account}
+                      usage={codexUsageById.get(account.id) ?? null}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Past-week utilization trend */}
+          <div className='space-y-2 border-t pt-4'>
+            <p className='text-sm font-medium text-muted-foreground'>{t('usage.history')}</p>
+            {rows.length === 0 ? (
+              <p className='text-sm text-muted-foreground'>{t('usage.historyEmpty')}</p>
+            ) : (
+              <ChartContainer config={config} className='aspect-auto h-72 w-full'>
+                <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey='t'
+                    ticks={ticks}
+                    tickFormatter={(val) => dayjs(String(val)).format('M/D')}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={40}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    unit='%'
+                    domain={[0, CAP_PCT]}
+                    ticks={[0, 50, 100, 150, 200]}
+                  />
+                  <ReferenceLine y={100} stroke='#ef4444' strokeDasharray='4 4' />
+                  <ChartTooltip
+                    content={<ChartTooltipContent labelFormatter={(l) => dayjs(String(l)).format('M/D HH:mm')} />}
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  {metrics.map((m) => (
+                    <Line
+                      key={m}
+                      type='monotone'
+                      dataKey={m}
+                      stroke={metaFor(m).color}
+                      dot={false}
+                      strokeWidth={2}
+                      connectNulls
+                      isAnimationActive={false}
+                    />
+                  ))}
+                </LineChart>
+              </ChartContainer>
+            )}
+          </div>
+        </section>
 
         {/* ── API cost ──────────────────────────────────────────────── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('usage.apiCost')}</CardTitle>
-            <CardAction>
-              <div className='flex gap-1'>
-                {([7, 30, 0] as const).map((d) => (
-                  <Button
-                    key={d}
-                    variant={costDays === d ? 'default' : 'ghost'}
-                    size='sm'
-                    className='h-6 px-2 text-xs'
-                    onClick={() => setCostDays(d)}
-                  >
-                    {d === 7
-                      ? t('usage.apiCostPeriod7d')
-                      : d === 30
-                        ? t('usage.apiCostPeriod30d')
-                        : t('usage.apiCostPeriodAll')}
-                  </Button>
-                ))}
-              </div>
-            </CardAction>
-          </CardHeader>
-          <CardContent
+        <section className='space-y-4'>
+          <div className='flex items-center justify-between border-b pb-2'>
+            <h3 className='text-base font-semibold'>{t('usage.apiCost')}</h3>
+            <div className='flex gap-1'>
+              {([7, 30, 0] as const).map((d) => (
+                <Button
+                  key={d}
+                  variant={costDays === d ? 'default' : 'ghost'}
+                  size='sm'
+                  className='h-6 px-2 text-xs'
+                  onClick={() => setCostDays(d)}
+                >
+                  {d === 7
+                    ? t('usage.apiCostPeriod7d')
+                    : d === 30
+                      ? t('usage.apiCostPeriod30d')
+                      : t('usage.apiCostPeriodAll')}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div
             className={`space-y-6 transition-opacity duration-150 ${costLoading ? 'pointer-events-none opacity-50' : ''}`}
           >
             {costData === null ? (
@@ -398,19 +391,17 @@ export function Usage() {
                 </ChartContainer>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         {/* ── Model routing ─────────────────────────────────────────── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('usage.routing')}</CardTitle>
-            <CardDescription>{t('usage.routingHint')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ModelRoutingSection reloadToken={routingReload} />
-          </CardContent>
-        </Card>
+        <section className='space-y-3'>
+          <div className='border-b pb-2'>
+            <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
+            <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
+          </div>
+          <ModelRoutingSection reloadToken={routingReload} />
+        </section>
       </PageContent>
     </PageContainer>
   )

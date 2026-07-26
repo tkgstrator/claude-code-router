@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
-import { AccountAuthBadge } from '@/components/usage/AuthBadge'
+import { SubscriptionAuthBadge } from '@/components/usage/AuthBadge'
 import { api } from '@/lib/api'
 import type { SubscriptionAccount, SubscriptionProvider, SubscriptionsResponse } from '@/lib/usage/types'
 
@@ -29,22 +29,14 @@ const fmtCost = (usd: number | null, noPricingLabel: string): string => {
 
 type Translator = (k: string, opts?: Record<string, unknown>) => string
 
-function AccountRow({
-  account,
-  kind,
-  t
-}: {
-  account: SubscriptionAccount
-  kind: 'claude' | 'codex' | 'other'
-  t: Translator
-}) {
+function AccountRow({ account, t }: { account: SubscriptionAccount; t: Translator }) {
   const subtitle = [account.userName, account.userEmail].filter(Boolean).join(' · ')
   return (
     <div className='flex items-center justify-between gap-3 border-t px-1 py-3 first:border-t-0'>
       <div className='min-w-0 flex-1'>
         <div className='flex items-center gap-2'>
           <span className='truncate text-sm font-medium'>{account.label}</span>
-          <AccountAuthBadge account={account} kind={kind} />
+          <SubscriptionAuthBadge account={account} />
           {!account.enabled && (
             <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground'>
               {t('subscriptions.disabled')}
@@ -92,7 +84,7 @@ function ProviderCard({
       ) : (
         <div>
           {provider.accounts.map((acc) => (
-            <AccountRow key={acc.id} account={acc} kind={provider.kind} t={t} />
+            <AccountRow key={acc.id} account={acc} t={t} />
           ))}
         </div>
       )}

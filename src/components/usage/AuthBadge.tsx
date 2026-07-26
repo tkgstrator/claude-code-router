@@ -63,3 +63,24 @@ export function AccountAuthBadge({
     </span>
   )
 }
+
+// Simplified two-state chip for the Subscriptions list: just active vs
+// expired, with no badge until the account has been probed at least once.
+export function SubscriptionAuthBadge({ account }: { account: SubscriptionAccount }) {
+  const { t } = useTranslation()
+  if (account.authStatus === 'invalid') {
+    return (
+      <span className={`${BADGE} bg-red-500/15 text-red-600 dark:text-red-400`} title={account.authError ?? undefined}>
+        {t('subscriptions.authExpired')}
+      </span>
+    )
+  }
+  if (account.authStatus === 'live') {
+    return (
+      <span className={`${BADGE} bg-green-500/15 text-green-600 dark:text-green-400`}>
+        {t('subscriptions.authActive')}
+      </span>
+    )
+  }
+  return null
+}

@@ -120,7 +120,9 @@
     "usageHint": "实际使用情况与速率限制变化已统一在 Usage 页面查看。",
     "noAccounts": "未找到账户。请先在 CLI 登录。",
     "activeLabel": "活跃",
-    "disabled": "已禁用"
+    "disabled": "已禁用",
+    "authActive": "有效",
+    "authExpired": "已过期"
   },
   "models": {
     "provider": "供应商",
