@@ -80,24 +80,20 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
 
   const groups = useMemo(() => (data === null ? [] : groupByScenario(data.rows)), [data])
 
+  // Body only — the enclosing Card on the Usage page provides the title
+  // and hint header.
+  if (data === null) {
+    return <p className='text-sm text-muted-foreground'>…</p>
+  }
+  if (groups.length === 0) {
+    return <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
+  }
   return (
-    <section className='space-y-3'>
-      <div className='border-b pb-2'>
-        <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
-        <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
-      </div>
-      {data === null ? (
-        <p className='text-sm text-muted-foreground'>…</p>
-      ) : groups.length === 0 ? (
-        <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
-      ) : (
-        <div className='space-y-6'>
-          {groups.map((group) => (
-            <ScenarioGroupCard key={group.scenario} group={group} />
-          ))}
-        </div>
-      )}
-    </section>
+    <div className='space-y-6'>
+      {groups.map((group) => (
+        <ScenarioGroupCard key={group.scenario} group={group} />
+      ))}
+    </div>
   )
 }
 

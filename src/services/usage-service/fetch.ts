@@ -52,6 +52,7 @@ const requestClaudeUsage = async (info: SubAccountTokenInfo): Promise<ClaudeUsag
     const extraUsageEnabled =
       typeof extra === 'object' && extra !== null && 'is_enabled' in extra && extra.is_enabled === true
     return {
+      subAccountId: info.subAccountId,
       accountLabel: info.displayName,
       fiveHour: windowOf(j.five_hour),
       sevenDay: windowOf(j.seven_day),
@@ -111,6 +112,7 @@ const requestCodexUsage = async (info: SubAccountTokenInfo): Promise<CodexUsage 
     const secondaryWindow =
       rl !== null && typeof rl === 'object' && 'secondary_window' in rl ? rl.secondary_window : undefined
     return {
+      subAccountId: info.subAccountId,
       accountLabel: info.displayName,
       planType: typeof j.plan_type === 'string' && j.plan_type.length > 0 ? j.plan_type : null,
       primary: codexWindowOf(primaryWindow),

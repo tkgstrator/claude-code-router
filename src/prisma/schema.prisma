@@ -41,6 +41,19 @@ enum ModelTestStatus {
   fail
 }
 
+// Outcome of the last real auth probe for a SubAccount (token refresh +
+// upstream profile/usage fetch). Distinct from expiresAt, which for
+// Claude is an auto-refreshed access-token expiry and for Codex is the
+// subscription end date — neither reliably signals "auth is dead".
+//   - unknown: never probed (or reset)
+//   - live:    the probe authenticated successfully
+//   - invalid: the probe failed — the account needs re-authentication
+enum AuthStatus {
+  unknown
+  live
+  invalid
+}
+
 // How a Provider authenticates against its upstream API.
 //   - api_key:      legacy mode; the stored apiKey is sent via Bearer / x-api-key.
 //   - subscription: reuses Claude CLI's OAuth credentials at
@@ -116,6 +129,12 @@ model SubAccount {
   // time (e.g. claude max → 100, codex pro → 200). Null when the plan
   // is unknown or free.
   monthlyPriceUsd Float?
+  // Last auth-probe outcome + timestamps. authCheckedAt is set on every
+  // probe; authError holds the latest failure reason for display. The
+  // periodic auth-health job and the manual profile sync both write these.
+  authStatus    AuthStatus @default(unknown)
+  authCheckedAt DateTime?
+  authError     String?
   lastSyncedAt DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

@@ -7,7 +7,7 @@
  */
 
 import { getPrismaClient } from '../../db/client'
-import type { PrismaClient } from '../../generated/prisma/client'
+import { AuthStatus, type PrismaClient } from '../../generated/prisma/client'
 import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
 import { OauthRefreshResponseSchema } from '../../schemas/llm-oauth.dto'
@@ -64,6 +64,25 @@ const ensureFreshClaudeToken = async (
   }
 }
 
+// Persist the outcome of an auth probe. authCheckedAt is stamped on
+// every call; authError is cleared on success and kept on failure so the
+// UI can explain why an account needs re-authentication.
+const recordAuthStatus = async (
+  prisma: PrismaClient,
+  subAccountId: string,
+  status: AuthStatus,
+  error: string | null
+): Promise<void> => {
+  await prisma.subAccount.update({
+    where: { id: subAccountId },
+    data: {
+      authStatus: status,
+      authCheckedAt: dayjs().toDate(),
+      authError: status === AuthStatus.live ? null : error
+    }
+  })
+}
+
 // Returns a count of rows updated / failed.
 export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaClient()): Promise<{
   updated: number
@@ -78,7 +97,11 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
     const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
     for (const account of accounts) {
       const rawAccessToken = decryptString(account.accessTokenEnc, key)
-      if (!rawAccessToken) continue
+      if (!rawAccessToken) {
+        await recordAuthStatus(prisma, account.id, AuthStatus.invalid, 'No access token stored')
+        failed++
+        continue
+      }
       const refreshToken = decryptString(account.refreshTokenEnc, key)
       const accessToken = await ensureFreshClaudeToken(
         account.id,
@@ -88,8 +111,22 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
         key,
         prisma
       )
-      const profile = await fetchClaudeProfile(accessToken, { logger })
+      let profileStatus: number | null = null
+      const profile = await fetchClaudeProfile(accessToken, {
+        logger,
+        onStatus: (s) => {
+          profileStatus = s
+        }
+      })
       if (!profile) {
+        // A dead refresh token leaves ensureFreshClaudeToken returning the
+        // stale (expired) access token, so the profile fetch 401/403s — that
+        // is the definitive "needs re-authentication" signal. Any other
+        // failure (5xx, network) is transient, so leave the prior authStatus
+        // untouched rather than flip a healthy account to invalid.
+        if (profileStatus === 401 || profileStatus === 403) {
+          await recordAuthStatus(prisma, account.id, AuthStatus.invalid, `Claude auth rejected (HTTP ${profileStatus})`)
+        }
         failed++
         continue
       }
@@ -101,6 +138,9 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
           plan: firstString(profile.organization?.organization_type),
           rateLimitTier: firstString(profile.organization?.rate_limit_tier),
           monthlyPriceUsd: claudeMonthlyPrice(profile.account, profile.organization?.rate_limit_tier),
+          authStatus: AuthStatus.live,
+          authCheckedAt: dayjs().toDate(),
+          authError: null,
           lastSyncedAt: dayjs().toDate()
         }
       })
@@ -114,7 +154,11 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
     const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
     for (const account of accounts) {
       const accessToken = decryptString(account.accessTokenEnc, key)
-      if (!accessToken) continue
+      if (!accessToken) {
+        await recordAuthStatus(prisma, account.id, AuthStatus.invalid, 'No access token stored')
+        failed++
+        continue
+      }
       try {
         const res = await fetch('https://chatgpt.com/backend-api/wham/usage', {
           headers: {
@@ -125,6 +169,12 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
         })
         if (!res.ok) {
           logger.warn({ status: res.status }, '[subaccount] codex wham/usage non-OK')
+          // Codex has no refresh flow — a 401/403 means the token is dead and
+          // the account must be re-authenticated via the CLI. Other statuses
+          // (429, 5xx) are transient, so leave the prior authStatus untouched.
+          if (res.status === 401 || res.status === 403) {
+            await recordAuthStatus(prisma, account.id, AuthStatus.invalid, `Codex auth rejected (HTTP ${res.status})`)
+          }
           failed++
           continue
         }
@@ -135,12 +185,16 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
           data: {
             plan: planType ?? account.plan,
             monthlyPriceUsd: planType !== null ? codexMonthlyPrice(planType) : account.monthlyPriceUsd,
+            authStatus: AuthStatus.live,
+            authCheckedAt: dayjs().toDate(),
+            authError: null,
             lastSyncedAt: dayjs().toDate()
           }
         })
         updated++
       } catch (err) {
         logger.warn({ err }, '[subaccount] codex wham/usage threw')
+        // Network/transient error — leave the last known authStatus intact.
         failed++
       }
     }

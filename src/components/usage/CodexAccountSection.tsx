@@ -1,30 +1,49 @@
 import { useTranslation } from 'react-i18next'
 import { fmtReset } from '@/lib/usage/format'
-import type { CodexAccountUsage } from '@/lib/usage/types'
+import type { CodexAccountUsage, SubscriptionAccount } from '@/lib/usage/types'
+import { AccountAuthBadge } from './AuthBadge'
 import { UsageBar } from './UsageBar'
 
-export function CodexAccountSection({ account }: { account: CodexAccountUsage }) {
+// One Codex account row: identity + auth-health chip, then its rate-limit
+// windows. `usage` is null when the account has no live/cached usage.
+export function CodexAccountSection({
+  account,
+  usage
+}: {
+  account: SubscriptionAccount
+  usage: CodexAccountUsage | null
+}) {
   const { t } = useTranslation()
+  const name = account.userName ?? account.userEmail ?? account.label
   return (
     <div className='space-y-3 py-4 first:pt-0 last:pb-0'>
-      <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
-      {account.primary && (
-        <UsageBar
-          label={t('usage.primary')}
-          percent={account.primary.usedPercent}
-          reset={`${t('usage.resets')}: ${fmtReset(account.primary.resetAt)}`}
-        />
-      )}
-      {account.secondary && (
-        <UsageBar
-          label={t('usage.secondary')}
-          percent={account.secondary.usedPercent}
-          reset={`${t('usage.resets')}: ${fmtReset(account.secondary.resetAt)}`}
-        />
-      )}
-      <div className='text-xs text-muted-foreground'>
-        {t('usage.capturedAt')}: {fmtReset(account.capturedAt)}
+      <div className='flex items-center justify-between gap-2'>
+        <p className='min-w-0 truncate text-sm font-medium text-foreground'>{name}</p>
+        <AccountAuthBadge account={account} kind='codex' />
       </div>
+      {usage === null ? (
+        <p className='text-xs text-muted-foreground'>{t('usage.noUsageData')}</p>
+      ) : (
+        <>
+          {usage.primary && (
+            <UsageBar
+              label={t('usage.primary')}
+              percent={usage.primary.usedPercent}
+              reset={`${t('usage.resets')}: ${fmtReset(usage.primary.resetAt)}`}
+            />
+          )}
+          {usage.secondary && (
+            <UsageBar
+              label={t('usage.secondary')}
+              percent={usage.secondary.usedPercent}
+              reset={`${t('usage.resets')}: ${fmtReset(usage.secondary.resetAt)}`}
+            />
+          )}
+          <div className='text-xs text-muted-foreground'>
+            {t('usage.capturedAt')}: {fmtReset(usage.capturedAt)}
+          </div>
+        </>
+      )}
     </div>
   )
 }

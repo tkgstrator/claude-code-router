@@ -25,11 +25,18 @@ export interface FetchClaudeProfileOptions {
   logger?: Logger
   /** Override for tests; defaults to `fetch`. */
   fetcher?: typeof fetch
+  /**
+   * Observe the HTTP status of the profile request (null on a network
+   * throw). Lets the auth-health probe tell a definitive auth rejection
+   * (401/403) apart from a transient blip that shouldn't flip an account
+   * to "needs re-authentication".
+   */
+  onStatus?: (status: number | null) => void
 }
 
 export async function fetchClaudeProfile(
   accessToken: string,
-  { logger, fetcher = fetch }: FetchClaudeProfileOptions = {}
+  { logger, fetcher = fetch, onStatus }: FetchClaudeProfileOptions = {}
 ): Promise<ClaudeOAuthProfile | null> {
   let res: Response
   try {
@@ -42,9 +49,11 @@ export async function fetchClaudeProfile(
     })
   } catch (err) {
     logger?.warn({ err }, '[claude-profile] fetch threw')
+    onStatus?.(null)
     return null
   }
 
+  onStatus?.(res.status)
   if (!res.ok) {
     logger?.warn({ status: res.status }, '[claude-profile] non-200 response')
     return null

@@ -105,7 +105,15 @@
     "routingHint": "Claude Codeが要求したモデルと、CCRが実際に上流へ送ったモデルの対応。",
     "routingEmpty": "振り分けデータはまだありません。",
     "routingUntracked": "（記録前）",
-    "routingRerouted": "振り替え"
+    "routingRerouted": "振り替え",
+    "authInvalid": "要再認証",
+    "authLive": "有効",
+    "authUnknown": "未確認",
+    "authCheckedAt": "最終確認",
+    "subEndingSoon": "サブスク終了間近",
+    "subEnded": "サブスク終了",
+    "noUsageData": "利用状況を取得できません",
+    "reauthNeeded": "{{count}} 件のアカウントが再認証を必要としています（CLI で再ログインしてください）。"
   },
   "subscriptions": {
     "empty": "サブスクは未登録です。Providers から登録してください。",

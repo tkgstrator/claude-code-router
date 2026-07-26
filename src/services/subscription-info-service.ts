@@ -12,6 +12,14 @@ const isProviderEnabled = (transformer: unknown): boolean => {
   return transformer.providerEnabled !== false
 }
 
+// Map a provider's apiBaseUrl to a vendor family for the UI. Mirrors the
+// substring matching in getSubAccountTokensForKind so the two stay in sync.
+const providerKind = (apiBaseUrl: string): 'claude' | 'codex' | 'other' => {
+  if (apiBaseUrl.includes('anthropic.com')) return 'claude'
+  if (apiBaseUrl.includes('chatgpt.com') || apiBaseUrl.includes('openai.com/v1')) return 'codex'
+  return 'other'
+}
+
 const toAccountInfo = (a: {
   id: string
   label: string
@@ -24,6 +32,9 @@ const toAccountInfo = (a: {
   rateLimitTier: string | null
   monthlyPriceUsd: number | null
   expiresAt: Date | null
+  authStatus: 'unknown' | 'live' | 'invalid'
+  authCheckedAt: Date | null
+  authError: string | null
   scopes: unknown
 }): SubscriptionAccountInfo => ({
   id: a.id,
@@ -37,6 +48,9 @@ const toAccountInfo = (a: {
   rateLimitTier: a.rateLimitTier,
   monthlyPriceUsd: a.monthlyPriceUsd,
   expiresAt: a.expiresAt ? a.expiresAt.valueOf() : null,
+  authStatus: a.authStatus,
+  authCheckedAt: a.authCheckedAt ? a.authCheckedAt.valueOf() : null,
+  authError: a.authError,
   scopes: Array.isArray(a.scopes) ? a.scopes.filter((s): s is string => typeof s === 'string') : []
 })
 
@@ -54,6 +68,7 @@ export async function getSubscriptionsInfo(prisma: PrismaClient = getPrismaClien
     const active = p.activeSubscriptionAccount ? toAccountInfo(p.activeSubscriptionAccount) : null
     return {
       providerName: p.name,
+      kind: providerKind(p.apiBaseUrl),
       enabled: isProviderEnabled(p.transformer),
       accounts,
       activeAccount: active

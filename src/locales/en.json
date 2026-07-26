@@ -105,7 +105,15 @@
     "routingHint": "What Claude Code requested vs. the model CCR actually sent upstream.",
     "routingEmpty": "No routing data recorded yet.",
     "routingUntracked": "(untracked)",
-    "routingRerouted": "rerouted"
+    "routingRerouted": "rerouted",
+    "authInvalid": "Re-authenticate",
+    "authLive": "Authenticated",
+    "authUnknown": "Not checked",
+    "authCheckedAt": "Last checked",
+    "subEndingSoon": "Sub ending soon",
+    "subEnded": "Sub ended",
+    "noUsageData": "Usage unavailable",
+    "reauthNeeded": "{{count}} account(s) need re-authentication — sign in again via the CLI."
   },
   "subscriptions": {
     "empty": "No subscriptions registered. Add one from Providers.",

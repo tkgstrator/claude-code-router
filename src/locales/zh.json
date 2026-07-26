@@ -105,7 +105,15 @@
     "routingHint": "Claude Code 请求的模型与 CCR 实际发往上游的模型对照。",
     "routingEmpty": "尚无路由数据。",
     "routingUntracked": "（未记录）",
-    "routingRerouted": "已改路"
+    "routingRerouted": "已改路",
+    "authInvalid": "需重新认证",
+    "authLive": "有效",
+    "authUnknown": "未检查",
+    "authCheckedAt": "最后检查",
+    "subEndingSoon": "订阅即将到期",
+    "subEnded": "订阅已到期",
+    "noUsageData": "无法获取用量",
+    "reauthNeeded": "{{count}} 个账户需要重新认证（请通过 CLI 重新登录）。"
   },
   "subscriptions": {
     "empty": "未注册任何订阅。请从 Providers 添加。",
