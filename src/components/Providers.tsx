@@ -315,8 +315,9 @@ export function Providers() {
         extra={
           <Tabs value={activeAuthMode} onValueChange={(v) => setActiveAuthMode(v as ProviderAuthMode)}>
             {/* `line` variant = underline-style tabs (active tab gets an
-                underbar) instead of the segmented/pill look. */}
-            <TabsList variant='line'>
+                underbar) instead of the segmented/pill look. grid-cols-2 keeps
+                both tabs equal width. */}
+            <TabsList variant='line' className='grid w-full max-w-xs grid-cols-2'>
               <TabsTrigger value='api_key'>
                 {t('providers.auth_api')}
                 <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.api_key.length})</span>
