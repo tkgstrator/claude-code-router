@@ -63,7 +63,17 @@ usageCostHistoryRoute.openapi(
           GROUP BY bucket, provider, model
           ORDER BY bucket, provider`
 
-    if (rows.length === 0) return c.json({ points: [], providers: [], granularity, days }, 200)
+    // Every day in the window gets a point (day granularity) so the chart
+    // always renders `days` bars, with empty days as 0 — instead of a few
+    // very wide bars when only a day or two has data.
+    const windowDates =
+      granularity === 'day' && days > 0
+        ? Array.from({ length: days }, (_, k) => dayjs().subtract(k, 'day').format('YYYY-MM-DD'))
+        : []
+
+    if (rows.length === 0) {
+      return c.json({ points: windowDates.map((date) => ({ date })), providers: [], granularity, days }, 200)
+    }
 
     const pairs = [...new Set(rows.map((r) => `${r.provider}||${r.model}`))]
     const priceMap = await buildPriceMap(prisma, pairs)
@@ -90,6 +100,11 @@ usageCostHistoryRoute.openapi(
       if (!byBucketProvider.has(dateKey)) byBucketProvider.set(dateKey, new Map())
       const providerMap = byBucketProvider.get(dateKey)!
       providerMap.set(r.provider, (providerMap.get(r.provider) ?? 0) + totalCostUsd)
+    }
+
+    // Backfill empty days so every day in the window is represented.
+    for (const date of windowDates) {
+      if (!byBucketProvider.has(date)) byBucketProvider.set(date, new Map())
     }
 
     const providers = [...providerSet].sort()
