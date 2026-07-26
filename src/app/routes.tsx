@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
+import { ApiCost } from '@/components/ApiCost'
 import { AppShell } from '@/components/AppShell'
 import { DebugPage } from '@/components/DebugPage'
 import { ErrorPage } from '@/components/ErrorPage'
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
           { path: '/routing-map', element: fullHeight(<RoutingMap />) },
           { path: '/transformers', element: fullHeight(<Transformers />) },
           { path: '/usage', element: fullHeight(<Usage />) },
+          { path: '/cost', element: fullHeight(<ApiCost />) },
           { path: '/sessions', element: fullHeight(<SessionsPage />) },
           { path: '/personas', element: fullHeight(<Personas />) },
           { path: '/personas/new', element: fullHeight(<PersonaEdit />) },

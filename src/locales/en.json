@@ -50,6 +50,7 @@
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
     "usage": "Usage",
+    "cost": "API Cost",
     "sessions": "Sessions",
     "personas": "Personas",
     "settings": "Settings"

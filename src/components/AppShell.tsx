@@ -1,5 +1,6 @@
 import {
   CircleArrowUp,
+  Coins,
   CreditCard,
   Drama,
   FileJson,
@@ -66,6 +67,7 @@ const NAV_ITEMS = [
   { to: '/providers', icon: Server, key: 'nav.providers' },
   { to: '/subscriptions', icon: CreditCard, key: 'nav.subscriptions' },
   { to: '/usage', icon: Gauge, key: 'nav.usage' },
+  { to: '/cost', icon: Coins, key: 'nav.cost' },
   { to: '/sessions', icon: MessagesSquare, key: 'nav.sessions' },
   { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
   { to: '/personas', icon: Drama, key: 'nav.personas' },

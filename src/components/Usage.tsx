@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,29 +18,17 @@ import { ModelRoutingSection } from '@/components/usage/ModelRoutingSection'
 import { NotRegistered } from '@/components/usage/NotRegistered'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
-import { CAP_PCT, fmtCost, fmtTokens, metaFor, projectedUsage } from '@/lib/usage/format'
-import type {
-  CostHistoryResponse,
-  CurrentUsageResponse,
-  HistoryResponse,
-  SubscriptionsResponse,
-  UsageCostResponse
-} from '@/lib/usage/types'
+import { CAP_PCT, metaFor, projectedUsage } from '@/lib/usage/format'
+import type { CurrentUsageResponse, HistoryResponse, SubscriptionsResponse } from '@/lib/usage/types'
 
 const REFRESH_MS = 5 * 60_000
 
 const CLAUDE_SUBSCRIBE_URL = 'https://claude.ai'
 const CODEX_SUBSCRIBE_URL = 'https://chatgpt.com'
 
-const PROVIDER_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
-
 export function Usage() {
   const { t } = useTranslation()
   const [history, setHistory] = useState<HistoryResponse>({ samples: [] })
-  const [costData, setCostData] = useState<UsageCostResponse | null>(null)
-  const [costHistory, setCostHistory] = useState<CostHistoryResponse | null>(null)
-  const [costLoading, setCostLoading] = useState(false)
-  const [costDays, setCostDays] = useState(30)
   const [current, setCurrent] = useState<CurrentUsageResponse | null>(null)
   // Account roster + auth health. Authoritative source for which accounts
   // exist: dead-auth accounts drop out of /usage but stay in the roster.
@@ -69,26 +57,9 @@ export function Usage() {
       .catch(() => setSubsError(true))
   }, [])
 
-  const refreshCost = useCallback(() => {
-    setCostLoading(true)
-    Promise.all([
-      api.get<UsageCostResponse>(`/usage/cost?days=${costDays}`).catch(() => ({ providers: [], days: costDays })),
-      api
-        // Daily Cost always shows the last two weeks regardless of the period
-        // selector (which drives the totals table only); route.ts zero-fills
-        // missing days so it renders 14 bars even when data is sparse/empty.
-        .get<CostHistoryResponse>('/usage/cost/history?days=14')
-        .catch(() => ({ points: [], providers: [], granularity: 'day' as const, days: 14 }))
-    ]).then(([cost, history]) => {
-      setCostData(cost)
-      setCostHistory(history)
-      setCostLoading(false)
-    })
-  }, [costDays])
-
   // Sync = pull fresh subscription profile data upstream (which also
-  // re-probes each account's auth), then re-fetch every usage panel so the
-  // roster, auth health, and API-cost breakdown all reflect the new state.
+  // re-probes each account's auth), then re-fetch the live panels so the
+  // roster and auth health reflect the new state.
   const handleSync = async () => {
     setSyncing(true)
     try {
@@ -97,7 +68,6 @@ export function Usage() {
       console.error('Failed to sync subscriptions:', err)
     } finally {
       refreshLive()
-      refreshCost()
       setRoutingReload((n) => n + 1)
       setSyncing(false)
     }
@@ -108,18 +78,6 @@ export function Usage() {
     const id = setInterval(refreshLive, REFRESH_MS)
     return () => clearInterval(id)
   }, [refreshLive])
-
-  useEffect(() => {
-    refreshCost()
-  }, [refreshCost])
-
-  const costHistoryConfig = useMemo<ChartConfig>(() => {
-    const cfg: ChartConfig = {}
-    for (const [i, p] of (costHistory?.providers ?? []).entries()) {
-      cfg[p] = { label: p, color: PROVIDER_COLORS[i % PROVIDER_COLORS.length] }
-    }
-    return cfg
-  }, [costHistory])
 
   // Join live usage onto the roster by stable SubAccount id, so an account
   // that failed to poll still renders (with its auth chip) instead of vanishing.
@@ -280,117 +238,6 @@ export function Usage() {
                 </LineChart>
               </ChartContainer>
             )}
-          </div>
-        </section>
-
-        {/* ── API cost ──────────────────────────────────────────────── */}
-        <section className='space-y-4'>
-          <div className='flex items-center justify-between border-b pb-2'>
-            <h3 className='text-base font-semibold'>{t('usage.apiCost')}</h3>
-            <div className='flex gap-1'>
-              {([7, 30, 0] as const).map((d) => (
-                <Button
-                  key={d}
-                  variant={costDays === d ? 'default' : 'ghost'}
-                  size='sm'
-                  className='h-6 px-2 text-xs'
-                  onClick={() => setCostDays(d)}
-                >
-                  {d === 7
-                    ? t('usage.apiCostPeriod7d')
-                    : d === 30
-                      ? t('usage.apiCostPeriod30d')
-                      : t('usage.apiCostPeriodAll')}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div
-            className={`space-y-6 transition-opacity duration-150 ${costLoading ? 'pointer-events-none opacity-50' : ''}`}
-          >
-            {costData === null ? (
-              <p className='text-sm text-muted-foreground'>…</p>
-            ) : costData.providers.length === 0 ? (
-              <p className='text-sm text-muted-foreground'>{t('usage.apiCostEmpty')}</p>
-            ) : (
-              <div className='space-y-3'>
-                {costData.providers.map((p) => (
-                  <div key={p.provider} className='space-y-1'>
-                    <div className='flex items-center justify-between'>
-                      <span className='text-sm font-medium'>{p.provider}</span>
-                      <span className='text-sm font-medium tabular-nums'>
-                        {fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}
-                      </span>
-                    </div>
-                    <table className='w-full text-xs'>
-                      <tbody>
-                        {p.models.map((m) => (
-                          <tr key={m.model}>
-                            <td className='py-1 pr-2 font-mono text-muted-foreground'>{m.model}</td>
-                            <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
-                              {m.requestCount.toLocaleString()} {t('usage.apiCostRequests')}
-                            </td>
-                            <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
-                              ↑{fmtTokens(m.inputTokens + m.cacheWriteTokens)} ↓{fmtTokens(m.outputTokens)}
-                            </td>
-                            <td className='whitespace-nowrap py-1 pl-2 text-right font-medium tabular-nums'>
-                              {fmtCost(m.totalCostUsd, t('usage.apiCostNoPricing'))}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Daily cost trend */}
-            <div className='space-y-2 border-t pt-4'>
-              <p className='text-sm font-medium text-muted-foreground'>{t('usage.apiCostHistory')}</p>
-              {costHistory === null || costHistory.points.length === 0 ? (
-                <p className='text-sm text-muted-foreground'>{t('usage.apiCostHistoryEmpty')}</p>
-              ) : (
-                <ChartContainer config={costHistoryConfig} className='aspect-auto h-56 w-full'>
-                  <BarChart data={costHistory.points} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey='date'
-                      tickFormatter={(v) =>
-                        costHistory.granularity === 'week'
-                          ? `${dayjs(String(v)).format('M/D')}~`
-                          : dayjs(String(v)).format('M/D')
-                      }
-                      tickLine={false}
-                      axisLine={false}
-                      minTickGap={28}
-                    />
-                    <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `$${v}`} />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          labelFormatter={(l) =>
-                            costHistory.granularity === 'week'
-                              ? `${dayjs(String(l)).format('YYYY/M/D')}~`
-                              : dayjs(String(l)).format('YYYY/M/D')
-                          }
-                          formatter={(value) => `$${Number(value).toFixed(2)}`}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    {(costHistory.providers ?? []).map((p, i) => (
-                      <Bar
-                        key={p}
-                        dataKey={p}
-                        stackId='cost'
-                        fill={PROVIDER_COLORS[i % PROVIDER_COLORS.length]}
-                        isAnimationActive={false}
-                      />
-                    ))}
-                  </BarChart>
-                </ChartContainer>
-              )}
-            </div>
           </div>
         </section>
 

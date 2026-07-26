@@ -50,6 +50,7 @@
     "transformers": "Transformer",
     "subscriptions": "サブスクリプション",
     "usage": "使用状況",
+    "cost": "API コスト",
     "sessions": "セッション",
     "personas": "ペルソナ",
     "settings": "設定"
