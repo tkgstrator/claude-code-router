@@ -25,7 +25,9 @@
       "type": "stdio",
       "command": "bunx",
       "args": [
-        "@playwright/mcp@latest"
+        "@playwright/mcp@latest",
+        "--browser",
+        "chromium"
       ],
       "env": {}
     },

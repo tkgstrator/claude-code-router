@@ -49,3 +49,4 @@ ccr-auth/
 # chrome-devtools save into the cwd). Never commit these.
 /*.png
 .playwright-mcp/
+screenshots/

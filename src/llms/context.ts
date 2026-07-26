@@ -10,6 +10,7 @@
 
 import type { Logger } from 'pino'
 import type { Provider, ProviderConfigShape } from '@/schemas'
+import { flattenNestedRouter } from '@/schemas'
 import { logger } from '../logger'
 import { loadFullConfig } from '../services/config'
 import { applyOpenAIOverlay } from '../services/openai-overlay'
@@ -69,11 +70,16 @@ async function buildLlmsContext(): Promise<LlmsContext> {
   //    HTTPS_PROXY, etc. The router uses configService.get('providers') for
   //    "provider,model" resolution; keep that key (lowercase) populated alongside
   //    the schema-canonical capital Providers.
+  // The wire/UI config carries the nested Router shape; the pipeline
+  // reads the historical flat shape (per-scenario primary slots plus
+  // sibling fallbacks / force maps and the two scalar knobs), so flatten
+  // it here — the single boundary where nested config crosses into the
+  // runtime ConfigStore. Per-project override files are already flat.
   const config = new ConfigStore({
     ...cfg,
     Providers: providersWithAuth,
     providers: providersWithAuth,
-    Router: cfg.Router
+    Router: flattenNestedRouter(cfg.Router)
   })
 
   // 3. Transformer registry — instantiate the 6 supported transformers.

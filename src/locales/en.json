@@ -46,7 +46,6 @@
   "nav": {
     "models": "Models",
     "providers": "Providers",
-    "router": "Router",
     "routingMap": "Routing Map",
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
@@ -57,22 +56,11 @@
   },
   "routingMap": {
     "title": "Routing Map",
-    "empty": "No routing data yet. Route some requests to see the map.",
-    "loading": "Loading routing data…",
-    "requests": "req",
-    "primaryBadge": "primary",
-    "allRequests": "All requests",
-    "requested": "Requested model",
-    "showFallbacks": "Show fallbacks",
-    "refresh": "Refresh",
-    "range24h": "24h",
-    "range7d": "7d",
-    "rangeAll": "All",
-    "rangeLabel": "Time range",
-    "legendHonored": "Honored (configured target)",
-    "legendRerouted": "Rerouted",
-    "legendConfigured": "Configured · no traffic",
-    "legendFallback": "Fallback"
+    "editMode": "Edit",
+    "editNoPrimary": "No primary model",
+    "editFallbacks": "fallback(s)",
+    "editPrimary": "Primary model",
+    "editMargin": "Drain margin (%)"
   },
   "usage": {
     "title": "Usage",

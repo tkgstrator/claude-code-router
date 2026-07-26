@@ -12,7 +12,6 @@ import {
   Save,
   Server,
   Settings,
-  Shuffle,
   Sun,
   Waypoints
 } from 'lucide-react'
@@ -68,7 +67,6 @@ const NAV_ITEMS = [
   { to: '/subscriptions', icon: CreditCard, key: 'nav.subscriptions' },
   { to: '/usage', icon: Gauge, key: 'nav.usage' },
   { to: '/sessions', icon: MessagesSquare, key: 'nav.sessions' },
-  { to: '/router', icon: Shuffle, key: 'nav.router' },
   { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
   { to: '/personas', icon: Drama, key: 'nav.personas' },
   { to: '/settings', icon: Settings, key: 'nav.settings' }

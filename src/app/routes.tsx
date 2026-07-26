@@ -13,7 +13,6 @@ import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
-import { Router as RouterPanel } from '@/components/Router'
 import { RoutingMap } from '@/components/RoutingMap'
 import { SessionsPage } from '@/components/Sessions'
 import { SettingsPage } from '@/components/SettingsPage'
@@ -54,7 +53,6 @@ export const router = createBrowserRouter([
           { path: '/models', element: fullHeight(<ModelsDashboard />) },
           { path: '/providers', element: fullHeight(<Providers />) },
           { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
-          { path: '/router', element: fullHeight(<RouterPanel />) },
           { path: '/routing-map', element: fullHeight(<RoutingMap />) },
           { path: '/transformers', element: fullHeight(<Transformers />) },
           { path: '/usage', element: fullHeight(<Usage />) },

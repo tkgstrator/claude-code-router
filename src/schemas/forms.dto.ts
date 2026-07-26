@@ -9,13 +9,6 @@
  */
 
 import { z } from 'zod'
-import { RouterSchema } from './router.dto'
-
-// Router page form: the Router wire shape, driven straight through
-// react-hook-form (no extra UI-only fields).
-export const RouterFormSchema = RouterSchema
-export type RouterFormInput = z.input<typeof RouterFormSchema>
-export type RouterFormOutput = z.output<typeof RouterFormSchema>
 
 // Transformer edit dialog form. `path` is the module path; `options`
 // is a list of arbitrary key/value pairs supplied to the transformer.

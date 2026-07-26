@@ -7,7 +7,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { Router, ScenarioType } from '@/schemas'
+import type { FlatRouter, ScenarioType } from '@/schemas'
 import dayjs from '../../lib/dayjs'
 import { isProviderExhausted, markProviderExhausted } from '../../services/failover-state'
 import { getKindWindowHeadroom } from '../../services/usage-service'
@@ -144,7 +144,7 @@ export function applyProactiveFailover(
   config: ConfigStore,
   log: Logger
 ): string {
-  const fullRouter = config.get<Router>('Router')
+  const fullRouter = config.get<FlatRouter>('Router')
   const configured = fullRouter?.fallbacks?.[scenarioType]
   if (!Array.isArray(configured) || configured.length === 0) return primaryModel
 

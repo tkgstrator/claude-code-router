@@ -46,7 +46,6 @@
   "nav": {
     "models": "モデル",
     "providers": "プロバイダー",
-    "router": "ルーター",
     "routingMap": "ルーティングマップ",
     "transformers": "Transformer",
     "subscriptions": "サブスクリプション",
@@ -57,22 +56,11 @@
   },
   "routingMap": {
     "title": "ルーティングマップ",
-    "empty": "ルーティングデータがまだありません。リクエストを流すとマップに表示されます。",
-    "loading": "ルーティングデータを読み込み中…",
-    "requests": "件",
-    "primaryBadge": "主モデル",
-    "allRequests": "全リクエスト",
-    "requested": "リクエストモデル",
-    "showFallbacks": "フォールバックを表示",
-    "refresh": "更新",
-    "range24h": "24時間",
-    "range7d": "7日",
-    "rangeAll": "全期間",
-    "rangeLabel": "期間",
-    "legendHonored": "設定通り（割り当て先）",
-    "legendRerouted": "リルート",
-    "legendConfigured": "設定済み・トラフィックなし",
-    "legendFallback": "フォールバック"
+    "editMode": "編集",
+    "editNoPrimary": "プライマリ未設定",
+    "editFallbacks": "フォールバック",
+    "editPrimary": "プライマリモデル",
+    "editMargin": "ドレイン余裕 (%)"
   },
   "usage": {
     "title": "使用状況",
