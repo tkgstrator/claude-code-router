@@ -37,16 +37,46 @@ function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
 }
 
-function normalizeFallbacks(raw: unknown): Config['Router']['fallbacks'] {
+// Coerce one scenario's raw route into the nested { primary, fallbacks,
+// force } shape the form binds to. Defensive against a partial / stale
+// wire object (missing keys default to unset).
+function normalizeRoute(raw: unknown): { primary: string | null; fallbacks: string[]; force: boolean } {
   const obj = raw !== null && typeof raw === 'object' ? raw : {}
-  const get = (k: string): string[] => asStringArray(Reflect.get(obj, k))
+  const primary = Reflect.get(obj, 'primary')
   return {
-    default: get('default'),
-    background: get('background'),
-    think: get('think'),
-    longContext: get('longContext'),
-    webSearch: get('webSearch'),
-    image: get('image')
+    primary: typeof primary === 'string' && primary !== '' ? primary : null,
+    fallbacks: asStringArray(Reflect.get(obj, 'fallbacks')),
+    force: Reflect.get(obj, 'force') === true
+  }
+}
+
+function numberOr(raw: unknown, fallback: number): number {
+  return typeof raw === 'number' ? raw : fallback
+}
+
+// Build the nested Config['Router'] from the raw wire object. Each
+// scenario nests its own primary + fallback chain + force; the two
+// scenario-scoped knobs (threshold on longContext, weeklyDrainMarginPct
+// on default) ride on their owning scenario.
+function normalizeRouter(raw: unknown): Config['Router'] {
+  const obj = raw !== null && typeof raw === 'object' ? raw : {}
+  const get = (k: string): unknown => Reflect.get(obj, k)
+  const defaultRaw = get('default')
+  const longContextRaw = get('longContext')
+  const defObj = defaultRaw !== null && typeof defaultRaw === 'object' ? defaultRaw : {}
+  const lcObj = longContextRaw !== null && typeof longContextRaw === 'object' ? longContextRaw : {}
+  const persona = get('persona')
+  return {
+    default: {
+      ...normalizeRoute(defaultRaw),
+      weeklyDrainMarginPct: numberOr(Reflect.get(defObj, 'weeklyDrainMarginPct'), 0)
+    },
+    background: normalizeRoute(get('background')),
+    think: normalizeRoute(get('think')),
+    longContext: { ...normalizeRoute(longContextRaw), threshold: numberOr(Reflect.get(lcObj, 'threshold'), 60000) },
+    webSearch: normalizeRoute(get('webSearch')),
+    image: normalizeRoute(get('image')),
+    persona: typeof persona === 'string' && persona !== '' ? persona : undefined
   }
 }
 
@@ -90,31 +120,7 @@ function normalizeConfig(data: Config): Config {
             default: { modules: [] },
             powerline: { modules: [] }
           },
-    Router:
-      data.Router && typeof data.Router === 'object'
-        ? {
-            default: typeof data.Router.default === 'string' ? data.Router.default : null,
-            background: typeof data.Router.background === 'string' ? data.Router.background : null,
-            think: typeof data.Router.think === 'string' ? data.Router.think : null,
-            longContext: typeof data.Router.longContext === 'string' ? data.Router.longContext : null,
-            longContextThreshold:
-              typeof data.Router.longContextThreshold === 'number' ? data.Router.longContextThreshold : 60000,
-            webSearch: typeof data.Router.webSearch === 'string' ? data.Router.webSearch : null,
-            image: typeof data.Router.image === 'string' ? data.Router.image : null,
-            fallbacks: normalizeFallbacks(data.Router.fallbacks),
-            persona: typeof data.Router.persona === 'string' ? data.Router.persona : undefined
-          }
-        : {
-            default: null,
-            background: null,
-            think: null,
-            longContext: null,
-            longContextThreshold: 60000,
-            webSearch: null,
-            image: null,
-            fallbacks: normalizeFallbacks(undefined),
-            persona: undefined
-          },
+    Router: normalizeRouter(data.Router),
     CUSTOM_ROUTER_PATH: typeof data.CUSTOM_ROUTER_PATH === 'string' ? data.CUSTOM_ROUTER_PATH : '',
     // Guarantee every persona carries a stable uuid `id` (the key the URL
     // and Router.persona reference). The server's boot migration backfills
@@ -143,14 +149,12 @@ const emptyConfig = (): Config => ({
   Providers: [],
   StatusLine: undefined,
   Router: {
-    default: '',
-    background: '',
-    think: '',
-    longContext: '',
-    longContextThreshold: 60000,
-    webSearch: '',
-    image: '',
-    fallbacks: normalizeFallbacks(undefined),
+    default: { primary: null, fallbacks: [], force: false, weeklyDrainMarginPct: 0 },
+    background: { primary: null, fallbacks: [], force: false },
+    think: { primary: null, fallbacks: [], force: false },
+    longContext: { primary: null, fallbacks: [], force: false, threshold: 60000 },
+    webSearch: { primary: null, fallbacks: [], force: false },
+    image: { primary: null, fallbacks: [], force: false },
     persona: undefined
   },
   CUSTOM_ROUTER_PATH: '',

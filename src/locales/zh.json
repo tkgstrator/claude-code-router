@@ -46,7 +46,6 @@
   "nav": {
     "models": "模型",
     "providers": "供应商",
-    "router": "路由",
     "routingMap": "路由图",
     "transformers": "转换器",
     "subscriptions": "订阅",
@@ -57,22 +56,11 @@
   },
   "routingMap": {
     "title": "路由图",
-    "empty": "暂无路由数据。发送一些请求后即可在图中查看。",
-    "loading": "正在加载路由数据…",
-    "requests": "次",
-    "primaryBadge": "主模型",
-    "allRequests": "全部请求",
-    "requested": "请求模型",
-    "showFallbacks": "显示回退",
-    "refresh": "刷新",
-    "range24h": "24小时",
-    "range7d": "7天",
-    "rangeAll": "全部",
-    "rangeLabel": "时间范围",
-    "legendHonored": "按配置（分配目标）",
-    "legendRerouted": "已重路由",
-    "legendConfigured": "已配置 · 无流量",
-    "legendFallback": "回退"
+    "editMode": "编辑",
+    "editNoPrimary": "未设置主模型",
+    "editFallbacks": "回退",
+    "editPrimary": "主模型",
+    "editMargin": "配额余量 (%)"
   },
   "usage": {
     "title": "用量",

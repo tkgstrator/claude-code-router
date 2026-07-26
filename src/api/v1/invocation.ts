@@ -13,7 +13,7 @@
  */
 
 import type { Context } from 'hono'
-import { type PipelineRequest, type Provider, RecordSchema, type Router } from '@/schemas'
+import { type FlatRouter, type PipelineRequest, type Provider, RecordSchema } from '@/schemas'
 import {
   type LlmsContext,
   type ResolvedProvider,
@@ -285,7 +285,7 @@ const providerNameOf = (modelString: string): string => modelString.split(',')[0
 // is the defence-in-depth for configs persisted before the validation
 // landed.
 export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] {
-  const router = ctx.config.get<Router>('Router')
+  const router = ctx.config.get<FlatRouter>('Router')
   const configured = router?.fallbacks?.[plan.scenarioType]
   const fallbacks = Array.isArray(configured) ? configured : []
 
