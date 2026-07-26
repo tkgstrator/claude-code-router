@@ -2,6 +2,7 @@ import { Archive, ChevronDown, ChevronRight, Layers, MessagesSquare, RefreshCw, 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MarkdownViewer } from '@/components/MarkdownViewer'
+import { PageContainer, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { api, type RequestLogItem, type SessionMessageItem, type SessionSummary } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
@@ -10,11 +11,31 @@ import { blockKey, type NormalisedBlock, normaliseContent } from '@/lib/sessions
 
 function CacheBar({ pct }: { pct: number }) {
   return (
-    <div className='flex items-center gap-1.5'>
-      <div className='w-16 h-1.5 bg-border rounded-full overflow-hidden'>
+    <div className='space-y-1.5'>
+      <span>{pct}%</span>
+      <div className='h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-border'>
         <div className='h-full rounded-full bg-amber-400' style={{ width: `${pct}%` }} />
       </div>
-      <span className='text-xs text-muted-foreground'>{pct}%</span>
+    </div>
+  )
+}
+
+// KPI-style stat cell: muted label on top, prominent value below. Values that
+// need a different scale (long time ranges, embedded bars) override via
+// `valueClassName`.
+function StatTile({
+  label,
+  value,
+  valueClassName = 'text-lg'
+}: {
+  label: string
+  value: ReactNode
+  valueClassName?: string
+}) {
+  return (
+    <div className='rounded-md border bg-card px-4 py-3'>
+      <p className='text-xs text-muted-foreground'>{label}</p>
+      <div className={`mt-1 font-semibold text-foreground tabular-nums ${valueClassName}`}>{value}</div>
     </div>
   )
 }
@@ -93,57 +114,48 @@ export function SessionsPage() {
   }
 
   return (
-    <div className='flex h-full'>
-      {/* Left: session list */}
-      <aside className='w-80 flex-shrink-0 border-r flex flex-col'>
-        <div className='flex items-center justify-between px-4 py-3 border-b'>
-          <div className='flex items-center gap-2'>
-            <MessagesSquare className='h-4 w-4' />
-            <span className='font-semibold text-sm'>{t('sessions.title')}</span>
-            {total > 0 && <span className='text-xs text-muted-foreground'>({total})</span>}
-          </div>
-          <div className='flex items-center gap-1'>
-            <Button variant='ghost' size='icon' className='h-7 w-7' onClick={load} disabled={loading}>
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-7 w-7'
-              onClick={handleArchiveAll}
-              disabled={sessions.length === 0}
-              title={t('sessions.archive_all')}
-            >
-              <Archive className='h-3.5 w-3.5' />
-            </Button>
-          </div>
-        </div>
+    <PageContainer>
+      <PageHeader fluid title={total > 0 ? `${t('sessions.title')} (${total})` : t('sessions.title')}>
+        <Button variant='outline' onClick={load} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          {t('sessions.refresh')}
+        </Button>
+        <Button variant='outline' onClick={handleArchiveAll} disabled={sessions.length === 0}>
+          <Archive className='h-4 w-4' />
+          {t('sessions.archive_all')}
+        </Button>
+      </PageHeader>
 
-        <div className='flex-1 overflow-y-auto'>
-          {loading ? (
-            <div className='flex items-center justify-center h-32 text-muted-foreground text-sm'>
-              {t('sessions.loading')}
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className='flex flex-col items-center justify-center h-48 text-muted-foreground gap-2'>
-              <MessagesSquare className='h-10 w-10 text-muted-foreground/30' />
-              <p className='text-sm'>{t('sessions.no_history')}</p>
-            </div>
-          ) : (
-            <ul>
-              {sessions.map((session) => {
-                const isActive = selected?.sessionId === session.sessionId
-                const hasPreview = session.preview !== null && session.preview.length > 0
-                return (
-                  <li
-                    key={session.sessionId}
-                    className={`group relative px-4 py-2.5 cursor-pointer border-b transition-colors ${
-                      isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-                    }`}
-                    onClick={() => setSelected(session)}
-                  >
-                    <div className='flex items-start justify-between gap-1'>
-                      <div className='min-w-0 flex-1 space-y-1'>
+      {/* Master–detail body: two independently scrollable panes below the
+          shared header. PageContent is intentionally not used here — its
+          single scroll container can't host two separate scroll areas. */}
+      <div className='flex min-h-0 flex-1'>
+        {/* Left: session list */}
+        <aside className='flex w-80 shrink-0 flex-col border-r xl:w-96'>
+          <div className='flex-1 overflow-y-auto p-2'>
+            {loading ? (
+              <div className='flex h-32 items-center justify-center text-sm text-muted-foreground'>
+                {t('sessions.loading')}
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className='flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground'>
+                <MessagesSquare className='h-10 w-10 text-muted-foreground/30' />
+                <p className='text-sm'>{t('sessions.no_history')}</p>
+              </div>
+            ) : (
+              <ul className='space-y-1'>
+                {sessions.map((session) => {
+                  const isActive = selected?.sessionId === session.sessionId
+                  const hasPreview = session.preview !== null && session.preview.length > 0
+                  return (
+                    <li key={session.sessionId}>
+                      <button
+                        type='button'
+                        className={`w-full rounded-md px-3 py-2.5 text-left transition-colors ${
+                          isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => setSelected(session)}
+                      >
                         <p
                           className={`text-sm leading-snug line-clamp-2 ${
                             hasPreview ? 'text-foreground' : 'italic text-muted-foreground'
@@ -151,7 +163,7 @@ export function SessionsPage() {
                         >
                           {hasPreview ? session.preview : t('sessions.preview_empty')}
                         </p>
-                        <p className='flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums'>
+                        <p className='mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums'>
                           <span className='whitespace-nowrap'>{dayjs(session.lastAt).format('MM/DD HH:mm')}</span>
                           <span className='opacity-40'>·</span>
                           <span className='flex items-center gap-0.5'>
@@ -161,31 +173,30 @@ export function SessionsPage() {
                           <span>{fmtTokens(session.totalInputTokens + session.totalOutputTokens)} tok</span>
                           {session.totalCostUsd != null && <span>{fmtCost(session.totalCostUsd)}</span>}
                         </p>
-                      </div>
-                      <ChevronRight
-                        className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${isActive ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}
-                      />
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-      </aside>
-
-      {/* Right: detail */}
-      <main className='flex-1 overflow-y-auto p-6'>
-        {!selected ? (
-          <div className='flex flex-col items-center justify-center h-full text-muted-foreground gap-3'>
-            <Zap className='h-12 w-12 text-muted-foreground/30' />
-            <p className='text-sm'>{t('sessions.select_session')}</p>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
-        ) : (
-          <SessionDetail session={selected} refreshTrigger={detailRefresh} />
-        )}
-      </main>
-    </div>
+        </aside>
+
+        {/* Right: detail */}
+        <main className='min-w-0 flex-1 overflow-y-auto'>
+          {!selected ? (
+            <div className='flex h-full flex-col items-center justify-center gap-3 text-muted-foreground'>
+              <Zap className='h-12 w-12 text-muted-foreground/30' />
+              <p className='text-sm'>{t('sessions.select_session')}</p>
+            </div>
+          ) : (
+            <div className='px-6 py-6'>
+              <SessionDetail session={selected} refreshTrigger={detailRefresh} />
+            </div>
+          )}
+        </main>
+      </div>
+    </PageContainer>
   )
 }
 
@@ -249,16 +260,21 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       .sort((a, b) => b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens))
   }, [logs])
 
-  const summaryRows = [
+  const overviewTiles = [
     {
       label: t('sessions.detail.time'),
-      value: `${dayjs(session.firstAt).format('YYYY/MM/DD HH:mm')} – ${dayjs(session.lastAt).format('HH:mm')}`
+      value: `${dayjs(session.firstAt).format('YYYY/MM/DD HH:mm')} – ${dayjs(session.lastAt).format('HH:mm')}`,
+      valueClassName: 'text-sm leading-7'
     },
     { label: t('sessions.detail.duration'), value: fmtMs(session.totalDurationMs) },
-    { label: t('sessions.detail.requests'), value: String(session.requestCount) }
+    { label: t('sessions.detail.requests'), value: String(session.requestCount) },
+    {
+      label: t('sessions.detail.cache_hit_rate'),
+      value: <CacheBar pct={session.avgCacheHitPct} />
+    }
   ]
 
-  const tokenRows = [
+  const tokenTiles = [
     { label: t('sessions.detail.input_tokens'), value: fmtTokens(session.totalInputTokens) },
     { label: t('sessions.detail.output_tokens'), value: fmtTokens(session.totalOutputTokens) },
     { label: t('sessions.detail.cache_read'), value: fmtTokens(session.totalCacheReadTokens) },
@@ -266,80 +282,67 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
   ]
 
   return (
-    <div className='max-w-2xl mx-auto space-y-6'>
+    <div className='space-y-6'>
       {/* Header */}
-      <div className='flex items-start justify-between'>
-        <div>
-          <p className='text-xs text-muted-foreground font-mono truncate max-w-xs'>{session.sessionId}</p>
+      <div className='flex flex-wrap items-start justify-between gap-4 border-b pb-4'>
+        <div className='min-w-0'>
           <h2 className='text-xl font-semibold text-foreground'>{dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}</h2>
+          <p className='truncate font-mono text-xs text-muted-foreground'>{session.sessionId}</p>
         </div>
         <div className='text-right'>
           {session.totalCostUsd != null && (
-            <p className='text-2xl font-bold text-foreground'>{fmtCost(session.totalCostUsd)}</p>
+            <p className='text-2xl font-bold text-foreground tabular-nums'>{fmtCost(session.totalCostUsd)}</p>
           )}
           <p className='text-xs text-muted-foreground'>{t('sessions.detail.estimated_cost')}</p>
         </div>
       </div>
 
-      {/* Summary */}
-      <div className='divide-y border-y'>
-        {summaryRows.map((row) => (
-          <div key={row.label} className='flex items-center justify-between px-1 py-2.5 text-sm'>
-            <span className='text-muted-foreground'>{row.label}</span>
-            <span className='font-medium text-foreground'>{row.value}</span>
-          </div>
+      {/* Overview stat tiles */}
+      <div className='grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3'>
+        {overviewTiles.map((tile) => (
+          <StatTile key={tile.label} label={tile.label} value={tile.value} valueClassName={tile.valueClassName} />
         ))}
       </div>
 
       {/* Token stats */}
-      <div>
-        <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.tokens')}</h3>
-        <div className='divide-y border-y'>
-          {tokenRows.map((row) => (
-            <div key={row.label} className='flex items-center justify-between px-1 py-2.5 text-sm'>
-              <span className='text-muted-foreground'>{row.label}</span>
-              <span className='font-mono font-medium text-foreground'>{row.value}</span>
-            </div>
+      <section className='space-y-3'>
+        <h3 className='border-b pb-2 text-base font-semibold text-foreground'>{t('sessions.detail.tokens')}</h3>
+        <div className='grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3'>
+          {tokenTiles.map((tile) => (
+            <StatTile key={tile.label} label={tile.label} value={tile.value} valueClassName='font-mono text-lg' />
           ))}
         </div>
-      </div>
-
-      {/* Cache hit rate */}
-      <div>
-        <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.cache')}</h3>
-        <div className='border-y px-1 py-3 flex items-center gap-4'>
-          <CacheBar pct={session.avgCacheHitPct} />
-          <span className='text-sm text-muted-foreground'>{t('sessions.detail.cache_hit_rate')}</span>
-        </div>
-      </div>
+      </section>
 
       {/* Per-model breakdown */}
       {modelBreakdown.length > 0 && (
-        <div>
-          <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.model_breakdown')}</h3>
-          <div className='divide-y border-y'>
+        <section className='space-y-3'>
+          <h3 className='border-b pb-2 text-base font-semibold text-foreground'>
+            {t('sessions.detail.model_breakdown')}
+          </h3>
+          <div className='divide-y rounded-md border'>
             {modelBreakdown.map((entry) => (
-              <div key={entry.model} className='flex items-center gap-2 px-1 py-2 text-[11px]'>
-                <span className='font-mono text-foreground flex-1 min-w-0 truncate'>{entry.model}</span>
-                <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0 whitespace-nowrap'>
+              <div key={entry.model} className='flex items-center gap-3 px-3 py-2 text-xs'>
+                <span className='min-w-0 flex-1 truncate font-mono text-foreground'>{entry.model}</span>
+                <span className='w-14 shrink-0 whitespace-nowrap text-right text-muted-foreground tabular-nums'>
                   {entry.requests} req
                 </span>
-                <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0 whitespace-nowrap'>
+                <span className='w-16 shrink-0 whitespace-nowrap text-right text-muted-foreground tabular-nums'>
                   {fmtTokens(entry.inputTokens)}↑
                 </span>
-                <span className='text-muted-foreground tabular-nums w-12 text-right shrink-0 whitespace-nowrap'>
+                <span className='w-14 shrink-0 whitespace-nowrap text-right text-muted-foreground tabular-nums'>
                   {fmtTokens(entry.outputTokens)}↓
                 </span>
-                <span className='text-muted-foreground tabular-nums w-9 text-right shrink-0 whitespace-nowrap'>
+                <span className='w-10 shrink-0 whitespace-nowrap text-right text-muted-foreground tabular-nums'>
                   {entry.avgCacheHitPct}%
                 </span>
-                <span className='font-mono text-foreground tabular-nums w-18 text-right shrink-0 whitespace-nowrap'>
+                <span className='w-20 shrink-0 whitespace-nowrap text-right font-mono text-foreground tabular-nums'>
                   {fmtCost(entry.cost)}
                 </span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Conversation */}
@@ -417,8 +420,8 @@ function ConversationSection({
   }, [messages])
 
   return (
-    <div>
-      <div className='flex items-center justify-between mb-2'>
+    <section>
+      <div className='mb-3 flex items-center justify-between border-b pb-2'>
         <h3 className='text-base font-semibold text-foreground'>{t('sessions.detail.conversation')}</h3>
         {hasDeveloperContent && (
           <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={() => setShowDeveloper((v) => !v)}>
@@ -431,7 +434,7 @@ function ConversationSection({
       ) : displayed.length === 0 ? (
         <p className='text-sm text-muted-foreground'>{t('sessions.detail.conversation_empty')}</p>
       ) : (
-        <div ref={scrollRef} className='space-y-2 max-h-[70vh] overflow-y-auto pr-1'>
+        <div ref={scrollRef} className='max-h-[70vh] space-y-2 overflow-y-auto pr-1'>
           {displayed.map((m) => (
             <MessageBubble
               key={m.id}
@@ -444,7 +447,7 @@ function ConversationSection({
           ))}
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
