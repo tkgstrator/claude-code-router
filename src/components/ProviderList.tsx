@@ -55,14 +55,16 @@ export function ProviderList({ providers, onEdit }: ProviderListProps) {
   }
 
   return (
-    <div className='divide-y border-y empty:border-none'>
+    // Auto-fill grid: provider rows sit side-by-side at a comfortable width
+    // on wide screens instead of stretching edge-to-edge.
+    <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-6 gap-y-1'>
       {providers.map((provider, index) => {
         // Handle case where individual provider might be null or undefined
         if (!provider) {
           return (
             <div
               key={index}
-              className='flex items-start justify-between gap-3 px-1 py-3 transition-colors animate-slide-in hover:bg-muted/50'
+              className='flex items-start justify-between gap-3 rounded-md px-2 py-3 transition-colors animate-slide-in hover:bg-muted/50'
             >
               <div className='flex-1 space-y-1.5'>
                 <p className='text-md font-semibold text-foreground'>Invalid Provider</p>
@@ -92,7 +94,7 @@ export function ProviderList({ providers, onEdit }: ProviderListProps) {
         return (
           <div
             key={index}
-            className='flex items-center justify-between gap-3 px-1 py-3 transition-colors animate-slide-in hover:bg-muted/50'
+            className='flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors animate-slide-in hover:bg-muted/50'
           >
             <div className='flex flex-1 items-center gap-3'>
               <ProviderIcon name={providerName} size={28} className='flex-shrink-0' />

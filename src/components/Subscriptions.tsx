@@ -175,7 +175,9 @@ export function Subscriptions() {
         {providers.length === 0 ? (
           <p className='text-sm text-muted-foreground'>{t('subscriptions.empty')}</p>
         ) : (
-          <div className='space-y-6'>
+          // Auto-fill grid so provider cards sit side-by-side at a comfortable
+          // width on wide screens instead of stacking full-width rows.
+          <div className='grid grid-cols-[repeat(auto-fill,minmax(24rem,1fr))] items-start gap-x-8 gap-y-6'>
             {providers.map((p) => (
               <ProviderCard
                 key={p.providerName}

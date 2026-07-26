@@ -272,7 +272,10 @@ export function AppShell() {
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
-          <header className='flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4'>
+          {/* px-6 matches PageHeader/PageContent gutters so the global header
+              actions (Save) line up with the page header actions (e.g. Sync)
+              and the page content's edges. */}
+          <header className='flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-6'>
             <SidebarTrigger />
             <div className='flex items-center gap-2'>
               <Tooltip>

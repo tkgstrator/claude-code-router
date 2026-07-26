@@ -4,9 +4,10 @@ import type { ClaudeAccountUsage, SubscriptionAccount } from '@/lib/usage/types'
 import { AccountAuthBadge } from './AuthBadge'
 import { UsageBar } from './UsageBar'
 
-// One Claude account row: identity + auth-health chip, then its rate-limit
-// windows. `usage` is null when the account has no live/cached usage (auth
-// dead, disabled, or not yet polled) — the chip still explains why.
+// One Claude account cell (rendered inside the Usage page's account grid):
+// identity + auth-health chip, then its rate-limit windows. `usage` is null
+// when the account has no live/cached usage (auth dead, disabled, or not yet
+// polled) — the chip still explains why.
 export function ClaudeAccountSection({
   account,
   usage
@@ -17,7 +18,7 @@ export function ClaudeAccountSection({
   const { t } = useTranslation()
   const name = account.userName ?? account.userEmail ?? account.label
   return (
-    <div className='space-y-3 py-4 first:pt-0 last:pb-0'>
+    <div className='space-y-3'>
       <div className='flex items-center justify-between gap-2'>
         <p className='min-w-0 truncate text-sm font-medium text-foreground'>{name}</p>
         <AccountAuthBadge account={account} kind='claude' />

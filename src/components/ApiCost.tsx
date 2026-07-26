@@ -82,34 +82,38 @@ export function ApiCost() {
           ) : costData.providers.length === 0 ? (
             <p className='text-sm text-muted-foreground'>{t('usage.apiCostEmpty')}</p>
           ) : (
-            costData.providers.map((p) => (
-              <div key={p.provider} className='space-y-1'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm font-medium'>{p.provider}</span>
-                  <span className='text-sm font-medium tabular-nums'>
-                    {fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}
-                  </span>
+            // Auto-fill grid: one cell per provider so the per-model cost
+            // tables stay a readable width instead of spanning the full page.
+            <div className='grid grid-cols-[repeat(auto-fill,minmax(28rem,1fr))] items-start gap-x-8 gap-y-6'>
+              {costData.providers.map((p) => (
+                <div key={p.provider} className='space-y-1'>
+                  <div className='flex items-center justify-between'>
+                    <span className='text-sm font-medium'>{p.provider}</span>
+                    <span className='text-sm font-medium tabular-nums'>
+                      {fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}
+                    </span>
+                  </div>
+                  <table className='w-full text-xs'>
+                    <tbody>
+                      {p.models.map((m) => (
+                        <tr key={m.model}>
+                          <td className='py-1 pr-2 font-mono text-muted-foreground'>{m.model}</td>
+                          <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
+                            {m.requestCount.toLocaleString()} {t('usage.apiCostRequests')}
+                          </td>
+                          <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
+                            ↑{fmtTokens(m.inputTokens + m.cacheWriteTokens)} ↓{fmtTokens(m.outputTokens)}
+                          </td>
+                          <td className='whitespace-nowrap py-1 pl-2 text-right font-medium tabular-nums'>
+                            {fmtCost(m.totalCostUsd, t('usage.apiCostNoPricing'))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <table className='w-full text-xs'>
-                  <tbody>
-                    {p.models.map((m) => (
-                      <tr key={m.model}>
-                        <td className='py-1 pr-2 font-mono text-muted-foreground'>{m.model}</td>
-                        <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
-                          {m.requestCount.toLocaleString()} {t('usage.apiCostRequests')}
-                        </td>
-                        <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
-                          ↑{fmtTokens(m.inputTokens + m.cacheWriteTokens)} ↓{fmtTokens(m.outputTokens)}
-                        </td>
-                        <td className='whitespace-nowrap py-1 pl-2 text-right font-medium tabular-nums'>
-                          {fmtCost(m.totalCostUsd, t('usage.apiCostNoPricing'))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </section>
 

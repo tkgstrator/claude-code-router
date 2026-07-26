@@ -1,10 +1,11 @@
 import { cn } from '@/lib/utils'
 
 // Single source of truth for the shared page shell. Every routed page gets
-// the same content cap, gutters, and section rhythm from here:
+// the same gutters and section rhythm from here:
 //
-// - `max-w-5xl` (1024px) keeps text, forms, and tables at a comfortable
-//   reading measure on 1440-1920px monitors instead of stretching thin.
+// - Full-width, no cap: pages use the whole viewport width. Sections that
+//   repeat items are expected to lay them out in responsive grids so content
+//   stays a comfortable size instead of stretching thin.
 // - LEFT-aligned (no `mx-auto`) on purpose: the header doesn't scroll but the
 //   content does, so a vertical scrollbar in PageContent would shift a
 //   *centered* block left by ~half the scrollbar width and misalign it from
@@ -15,9 +16,9 @@ import { cn } from '@/lib/utils'
 // - PageContent spaces its direct children with `gap-6` and pads with
 //   `py-6`, giving all pages one vertical rhythm (24px).
 //
-// Pass `fluid` to opt out of the cap on full-bleed pages (e.g. the routing
-// canvas or master-detail splits).
-const CONTENT_WIDTH = 'w-full max-w-5xl'
+// `fluid` remains for full-bleed pages that manage their own padding/scroll
+// (e.g. the routing canvas or master-detail splits).
+const CONTENT_WIDTH = 'w-full'
 
 export function PageContainer({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn('flex h-full flex-col', className)}>{children}</div>
@@ -64,9 +65,10 @@ export function PageContent({
   fluid?: boolean
 }) {
   // Outer div is the full-width scroll container (keeps the scrollbar at the
-  // viewport edge); the inner box carries the shared cap, gutters, and
-  // rhythm. It is a min-h-full flex column so pages can center empty/loading
-  // states (justify-center) or fill the viewport (flex-1 children).
+  // viewport edge); the inner box carries the shared gutters and rhythm
+  // (full-width, left-aligned, no cap). It is a min-h-full flex column so
+  // pages can center empty/loading states (justify-center) or fill the
+  // viewport (flex-1 children).
   return (
     <div className='flex-1 overflow-auto'>
       <div className={cn('flex min-h-full flex-col gap-6 px-6 py-6', fluid ? 'w-full' : CONTENT_WIDTH, className)}>

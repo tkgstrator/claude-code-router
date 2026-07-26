@@ -19,14 +19,16 @@ export function TransformerList({ transformers, onEdit, onRemove }: TransformerL
   }
 
   return (
-    <div className='divide-y border-y'>
+    // Auto-fill grid: transformer rows sit side-by-side at a comfortable
+    // width on wide screens instead of stretching edge-to-edge.
+    <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-6 gap-y-1'>
       {transformers.map((transformer, index) => {
         // Handle case where individual transformer might be null or undefined
         if (!transformer) {
           return (
             <div
               key={index}
-              className='flex items-start justify-between gap-3 px-1 py-3 animate-slide-in hover:bg-muted/50 transition-colors'
+              className='flex items-start justify-between gap-3 rounded-md px-2 py-3 animate-slide-in hover:bg-muted/50 transition-colors'
             >
               <div className='flex-1 space-y-1.5'>
                 <p className='text-md font-semibold text-foreground'>Invalid Transformer</p>

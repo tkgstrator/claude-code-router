@@ -135,12 +135,9 @@ export function Usage() {
           {t('usage.sync')}
         </Button>
       </PageHeader>
-      {/* Fluid so the Model routing grid can span the full width; the
-          rate-limit panel and every heading below re-apply the shared
-          max-w-5xl cap so they stay aligned with the (capped) page header. */}
       <PageContent fluid>
         {/* ── Rate limits + auth health ─────────────────────────────── */}
-        <section className='w-full max-w-5xl space-y-4'>
+        <section className='w-full space-y-4'>
           <h3 className='border-b pb-2 text-base font-semibold'>{t('usage.current')}</h3>
           {subsError && <p className='text-sm text-red-500'>{t('usage.loadError')}</p>}
           {invalidCount > 0 && (
@@ -161,7 +158,7 @@ export function Usage() {
                   cta={t('usage.openSubscriptionPage')}
                 />
               ) : (
-                <div className='divide-y divide-border'>
+                <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-8 gap-y-6'>
                   {claudeAccounts.map((account) => (
                     <ClaudeAccountSection
                       key={account.id}
@@ -184,7 +181,7 @@ export function Usage() {
                   cta={t('usage.openSubscriptionPage')}
                 />
               ) : (
-                <div className='divide-y divide-border'>
+                <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-8 gap-y-6'>
                   {codexAccounts.map((account) => (
                     <CodexAccountSection
                       key={account.id}
@@ -246,8 +243,7 @@ export function Usage() {
 
         {/* ── Model routing ─────────────────────────────────────────── */}
         <section className='space-y-3'>
-          {/* Heading stays capped/aligned; the grid below fills the width. */}
-          <div className='w-full max-w-5xl border-b pb-2'>
+          <div className='w-full border-b pb-2'>
             <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
             <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
           </div>

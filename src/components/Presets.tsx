@@ -319,7 +319,9 @@ export function Presets() {
             <p className='text-sm'>{t('presets.no_presets_hint')}</p>
           </div>
         ) : (
-          <div className='divide-y border-y'>
+          // Auto-fill grid: preset entries sit side-by-side at a comfortable
+          // width on wide screens instead of full-width rows.
+          <div className='grid grid-cols-[repeat(auto-fill,minmax(24rem,1fr))] items-start gap-x-6 gap-y-1'>
             {presets.map((preset) => (
               <PresetListItem
                 key={preset.name}
