@@ -61,11 +61,11 @@ export function Usage() {
     Promise.all([
       api.get<UsageCostResponse>(`/usage/cost?days=${costDays}`).catch(() => ({ providers: [], days: costDays })),
       api
-        // Daily Cost always shows the last week regardless of the period
+        // Daily Cost always shows the last two weeks regardless of the period
         // selector (which drives the totals table only); route.ts zero-fills
-        // missing days so it renders 7 bars even when data is sparse/empty.
-        .get<CostHistoryResponse>('/usage/cost/history?days=7')
-        .catch(() => ({ points: [], providers: [], granularity: 'day' as const, days: 7 }))
+        // missing days so it renders 14 bars even when data is sparse/empty.
+        .get<CostHistoryResponse>('/usage/cost/history?days=14')
+        .catch(() => ({ points: [], providers: [], granularity: 'day' as const, days: 14 }))
     ]).then(([cost, history]) => {
       setCostData(cost)
       setCostHistory(history)
@@ -125,7 +125,9 @@ export function Usage() {
       config[m] = { label: meta.label, color: meta.color }
     }
     const rows = [...byT.values()].sort((a, b) => (String(a.t) < String(b.t) ? -1 : 1))
-    const ticks = rows.map((r) => String(r.t)).filter((iso) => dayjs(iso).minute() % 10 === 0)
+    // One tick per calendar day so the week reads as a 7-day progression
+    // instead of a wall of intraday times.
+    const ticks = [...new Map(rows.map((r) => [dayjs(String(r.t)).format('YYYY-MM-DD'), String(r.t)])).values()]
     return { rows, metrics, config, ticks }
   }, [history])
 
@@ -216,23 +218,25 @@ export function Usage() {
               className={`space-y-3 transition-opacity duration-150 ${costLoading ? 'pointer-events-none opacity-50' : ''}`}
             >
               {costData.providers.map((p) => (
-                <div key={p.provider} className='rounded-md border'>
-                  <div className='flex items-center justify-between border-b px-4 py-2'>
+                <div key={p.provider} className='space-y-1'>
+                  <div className='flex items-center justify-between'>
                     <span className='text-sm font-medium'>{p.provider}</span>
-                    <span className='text-sm font-medium'>{fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}</span>
+                    <span className='text-sm font-medium tabular-nums'>
+                      {fmtCost(p.totalCostUsd, t('usage.apiCostNoPricing'))}
+                    </span>
                   </div>
                   <table className='w-full text-xs'>
                     <tbody>
                       {p.models.map((m) => (
-                        <tr key={m.model} className='border-b last:border-0'>
-                          <td className='px-4 py-2 font-mono text-muted-foreground'>{m.model}</td>
-                          <td className='whitespace-nowrap px-2 py-2 text-right text-muted-foreground'>
+                        <tr key={m.model}>
+                          <td className='py-1 pr-2 font-mono text-muted-foreground'>{m.model}</td>
+                          <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
                             {m.requestCount.toLocaleString()} {t('usage.apiCostRequests')}
                           </td>
-                          <td className='whitespace-nowrap px-2 py-2 text-right text-muted-foreground'>
+                          <td className='whitespace-nowrap px-2 py-1 text-right text-muted-foreground tabular-nums'>
                             ↑{fmtTokens(m.inputTokens + m.cacheWriteTokens)} ↓{fmtTokens(m.outputTokens)}
                           </td>
-                          <td className='whitespace-nowrap px-4 py-2 text-right font-medium'>
+                          <td className='whitespace-nowrap py-1 pl-2 text-right font-medium tabular-nums'>
                             {fmtCost(m.totalCostUsd, t('usage.apiCostNoPricing'))}
                           </td>
                         </tr>
@@ -305,7 +309,7 @@ export function Usage() {
                 <XAxis
                   dataKey='t'
                   ticks={ticks}
-                  tickFormatter={(val) => dayjs(String(val)).format('HH:mm')}
+                  tickFormatter={(val) => dayjs(String(val)).format('M/D')}
                   tickLine={false}
                   axisLine={false}
                   minTickGap={40}
