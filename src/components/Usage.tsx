@@ -143,10 +143,10 @@ export function Usage() {
         {currentError && <div className='text-sm text-red-500'>{t('usage.loadError')}</div>}
 
         <section className='space-y-3'>
-          <h3 className='text-base font-semibold'>{t('usage.current')}</h3>
+          <h3 className='border-b pb-2 text-base font-semibold'>{t('usage.current')}</h3>
           <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
             <div className='space-y-3'>
-              <h4 className='text-sm font-semibold text-muted-foreground'>{t('usage.claude')}</h4>
+              <h4 className='border-b pb-2 text-sm font-semibold text-muted-foreground'>{t('usage.claude')}</h4>
               {current === null ? (
                 <p className='text-sm text-muted-foreground'>…</p>
               ) : current.claude.length === 0 ? (
@@ -157,7 +157,7 @@ export function Usage() {
                   cta={t('usage.openSubscriptionPage')}
                 />
               ) : (
-                <div className='space-y-3'>
+                <div className='divide-y divide-border'>
                   {current.claude.map((account) => (
                     <ClaudeAccountSection key={account.accountLabel} account={account} />
                   ))}
@@ -165,7 +165,7 @@ export function Usage() {
               )}
             </div>
             <div className='space-y-3'>
-              <h4 className='text-sm font-semibold text-muted-foreground'>{t('usage.codex')}</h4>
+              <h4 className='border-b pb-2 text-sm font-semibold text-muted-foreground'>{t('usage.codex')}</h4>
               {current === null ? (
                 <p className='text-sm text-muted-foreground'>…</p>
               ) : current.codex.length === 0 ? (
@@ -176,7 +176,7 @@ export function Usage() {
                   cta={t('usage.openSubscriptionPage')}
                 />
               ) : (
-                <div className='space-y-3'>
+                <div className='divide-y divide-border'>
                   {current.codex.map((account) => (
                     <CodexAccountSection key={account.accountLabel} account={account} />
                   ))}
@@ -189,7 +189,7 @@ export function Usage() {
         <ModelRoutingSection reloadToken={routingReload} />
 
         <section className='space-y-3'>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between border-b pb-2'>
             <h3 className='text-base font-semibold'>{t('usage.apiCost')}</h3>
             <div className='flex gap-1'>
               {([7, 30, 0] as const).map((d) => (
@@ -250,7 +250,7 @@ export function Usage() {
         </section>
 
         <section className='space-y-3'>
-          <h3 className='text-base font-semibold'>{t('usage.apiCostHistory')}</h3>
+          <h3 className='border-b pb-2 text-base font-semibold'>{t('usage.apiCostHistory')}</h3>
           {costHistory === null || costHistory.points.length === 0 ? (
             <p className='text-sm text-muted-foreground'>{t('usage.apiCostHistoryEmpty')}</p>
           ) : (
@@ -299,7 +299,7 @@ export function Usage() {
         </section>
 
         <section className='space-y-3'>
-          <h3 className='text-base font-semibold'>{t('usage.history')}</h3>
+          <h3 className='border-b pb-2 text-base font-semibold'>{t('usage.history')}</h3>
           {rows.length === 0 ? (
             <p className='text-sm text-muted-foreground'>{t('usage.historyEmpty')}</p>
           ) : (

@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Toast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { buildInitialValues } from '@/lib/presets/initial-values'
@@ -294,19 +293,19 @@ export function Presets() {
   }
 
   return (
-    <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
-      <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
+    <section className='flex h-full flex-col'>
+      <div className='flex flex-row items-center justify-between border-b p-4'>
         <Button variant='ghost' size='icon' onClick={handleGoBack}>
           <ArrowLeft className='h-5 w-5' />
         </Button>
-        <CardTitle className='text-lg'>
+        <h2 className='text-lg font-semibold'>
           {t('presets.title')} <span className='text-sm font-normal text-muted-foreground'>({presets.length})</span>
-        </CardTitle>
+        </h2>
         <Button variant='ghost' size='icon' onClick={() => setMarketDialogOpen(true)}>
           <Store className='h-5 w-5' />
         </Button>
-      </CardHeader>
-      <CardContent className='flex-grow overflow-y-auto p-4'>
+      </div>
+      <div className='flex-grow overflow-y-auto p-4'>
         {loading ? (
           <div className='flex items-center justify-center h-full'>
             <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
@@ -318,7 +317,7 @@ export function Presets() {
             <p className='text-sm'>{t('presets.no_presets_hint')}</p>
           </div>
         ) : (
-          <div className='space-y-3'>
+          <div className='divide-y border-y'>
             {presets.map((preset) => (
               <PresetListItem
                 key={preset.name}
@@ -332,7 +331,7 @@ export function Presets() {
             ))}
           </div>
         )}
-      </CardContent>
+      </div>
 
       <InstallPresetDialog
         open={installDialogOpen}
@@ -375,6 +374,6 @@ export function Presets() {
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </Card>
+    </section>
   )
 }

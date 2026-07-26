@@ -10,7 +10,7 @@ interface PresetListItemProps {
 
 export function PresetListItem({ preset, onViewDetail, onRequestDelete }: PresetListItemProps) {
   return (
-    <div className='flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors'>
+    <div className='flex items-center justify-between gap-3 px-1 py-3 hover:bg-muted/50 transition-colors'>
       <div className='flex-1'>
         <div className='flex items-center gap-2'>
           <h3 className='font-medium'>{preset.name}</h3>

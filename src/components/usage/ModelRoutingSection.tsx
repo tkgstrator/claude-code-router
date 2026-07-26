@@ -82,7 +82,7 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
 
   return (
     <section className='space-y-3'>
-      <div>
+      <div className='border-b pb-2'>
         <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
         <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
       </div>
@@ -91,7 +91,7 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
       ) : groups.length === 0 ? (
         <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
       ) : (
-        <div className='space-y-3'>
+        <div className='space-y-6'>
           {groups.map((group) => (
             <ScenarioGroupCard key={group.scenario} group={group} />
           ))}
@@ -111,14 +111,14 @@ function ScenarioGroupCard({ group }: { group: ScenarioGroup }) {
         : group.scenario
 
   return (
-    <div className='rounded-md border'>
-      <div className='flex items-center justify-between gap-2 border-b px-4 py-2'>
+    <div className='space-y-3'>
+      <div className='flex items-center justify-between gap-2 border-b pb-2'>
         <span className='text-sm font-semibold'>{label}</span>
         <span className='shrink-0 text-xs text-muted-foreground'>
           {group.total.toLocaleString()} {t('usage.apiCostRequests')}
         </span>
       </div>
-      <div className='space-y-3 px-4 py-3'>
+      <div className='space-y-3'>
         {group.pairs.map((pair) => (
           <PairRow key={`${pair.requested}/${pair.provider}/${pair.model}`} pair={pair} total={group.total} />
         ))}

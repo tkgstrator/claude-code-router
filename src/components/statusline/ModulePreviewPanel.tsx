@@ -33,8 +33,8 @@ export function ModulePreviewPanel({
   const isPowerline = currentStyle === 'powerline'
 
   return (
-    <div className='border rounded-lg p-4 flex flex-col col-span-3'>
-      <h3 className='text-sm font-medium mb-3'>{title}</h3>
+    <div className='flex flex-col col-span-3'>
+      <h3 className='text-sm font-medium border-b pb-2 mb-3'>{title}</h3>
       <div
         key={fontKey}
         className={`rounded bg-black/90 text-white font-mono text-sm overflow-x-auto flex items-center border border-border p-3 py-5 shadow-inner overflow-hidden ${

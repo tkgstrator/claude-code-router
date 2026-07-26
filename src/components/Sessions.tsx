@@ -282,9 +282,9 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       </div>
 
       {/* Summary */}
-      <div className='bg-muted rounded-lg divide-y'>
+      <div className='divide-y border-y'>
         {summaryRows.map((row) => (
-          <div key={row.label} className='flex items-center justify-between px-4 py-2.5 text-sm'>
+          <div key={row.label} className='flex items-center justify-between px-1 py-2.5 text-sm'>
             <span className='text-muted-foreground'>{row.label}</span>
             <span className='font-medium text-foreground'>{row.value}</span>
           </div>
@@ -294,9 +294,9 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       {/* Token stats */}
       <div>
         <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.tokens')}</h3>
-        <div className='bg-muted rounded-lg divide-y'>
+        <div className='divide-y border-y'>
           {tokenRows.map((row) => (
-            <div key={row.label} className='flex items-center justify-between px-4 py-2.5 text-sm'>
+            <div key={row.label} className='flex items-center justify-between px-1 py-2.5 text-sm'>
               <span className='text-muted-foreground'>{row.label}</span>
               <span className='font-mono font-medium text-foreground'>{row.value}</span>
             </div>
@@ -307,7 +307,7 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       {/* Cache hit rate */}
       <div>
         <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.cache')}</h3>
-        <div className='bg-muted rounded-lg px-4 py-3 flex items-center gap-4'>
+        <div className='border-y px-1 py-3 flex items-center gap-4'>
           <CacheBar pct={session.avgCacheHitPct} />
           <span className='text-sm text-muted-foreground'>{t('sessions.detail.cache_hit_rate')}</span>
         </div>
@@ -317,9 +317,9 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
       {modelBreakdown.length > 0 && (
         <div>
           <h3 className='text-base font-semibold text-foreground mb-2'>{t('sessions.detail.model_breakdown')}</h3>
-          <div className='bg-muted rounded-lg divide-y'>
+          <div className='divide-y border-y'>
             {modelBreakdown.map((entry) => (
-              <div key={entry.model} className='flex items-center gap-2 px-4 py-2 text-[11px]'>
+              <div key={entry.model} className='flex items-center gap-2 px-1 py-2 text-[11px]'>
                 <span className='font-mono text-foreground flex-1 min-w-0 truncate'>{entry.model}</span>
                 <span className='text-muted-foreground tabular-nums w-14 text-right shrink-0 whitespace-nowrap'>
                   {entry.requests} req

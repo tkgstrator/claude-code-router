@@ -48,7 +48,7 @@ type Translator = (k: string, opts?: Record<string, unknown>) => string
 function AccountRow({ account, t }: { account: SubscriptionAccount; t: Translator }) {
   const subtitle = [account.userName, account.userEmail].filter(Boolean).join(' · ')
   return (
-    <div className='flex items-center justify-between gap-3 border-t px-4 py-3 first:border-t-0'>
+    <div className='flex items-center justify-between gap-3 border-t px-1 py-3 first:border-t-0'>
       <div className='min-w-0 flex-1'>
         <div className='flex items-center gap-2'>
           <span className='truncate text-sm font-medium'>{account.label}</span>
@@ -82,8 +82,8 @@ function ProviderCard({
   const monthlyUsd = provider.accounts.find((a) => a.monthlyPriceUsd != null)?.monthlyPriceUsd ?? null
   const savingsUsd = apiCostUsd != null && monthlyUsd != null ? apiCostUsd - monthlyUsd : null
   return (
-    <div className='rounded-md border'>
-      <div className='flex items-center justify-between border-b px-4 py-2'>
+    <section>
+      <div className='flex items-center justify-between border-b px-1 pb-2'>
         <div className='flex items-center gap-2'>
           <span className='text-sm font-medium'>{provider.providerName}</span>
           {provider.activeAccount && (
@@ -95,7 +95,7 @@ function ProviderCard({
         {monthlyUsd != null && <span className='text-xs text-muted-foreground'>${monthlyUsd.toFixed(0)}/mo</span>}
       </div>
       {provider.accounts.length === 0 ? (
-        <div className='px-4 py-3 text-xs text-muted-foreground'>{t('subscriptions.noAccounts')}</div>
+        <div className='px-1 py-3 text-xs text-muted-foreground'>{t('subscriptions.noAccounts')}</div>
       ) : (
         <div>
           {provider.accounts.map((acc) => (
@@ -104,7 +104,7 @@ function ProviderCard({
         </div>
       )}
       {monthlyUsd != null && (
-        <div className='flex items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground'>
+        <div className='flex items-center justify-between border-t px-1 py-2 text-xs text-muted-foreground'>
           <span>
             {t('usage.apiCostPeriod30d')} API:{' '}
             <span className='font-medium text-foreground'>{fmtCost(apiCostUsd, t('usage.apiCostNoPricing'))}</span>
@@ -126,7 +126,7 @@ function ProviderCard({
           )}
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -190,7 +190,7 @@ export function Subscriptions() {
         {providers.length === 0 ? (
           <p className='text-sm text-muted-foreground'>{t('subscriptions.empty')}</p>
         ) : (
-          <div className='space-y-3'>
+          <div className='space-y-6'>
             {providers.map((p) => (
               <ProviderCard
                 key={p.providerName}

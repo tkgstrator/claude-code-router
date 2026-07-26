@@ -11,7 +11,9 @@
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { cn } from '@/lib/utils'
 
-const nodeCardClass = 'rounded-md border bg-card px-3 py-2 shadow-sm transition-shadow'
+// Canvas nodes keep a 1px border and modest rounding for legibility, but
+// no shadow — selection is expressed via border color instead of a ring.
+const nodeCardClass = 'rounded-md border bg-background px-3 py-2 transition-colors'
 
 export interface ScenarioEditNodeData extends Record<string, unknown> {
   label: string
@@ -36,7 +38,7 @@ export type ModelEditNodeType = Node<ModelEditNodeData, 'modelEdit'>
 
 function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
   return (
-    <div className={cn(nodeCardClass, 'min-w-[170px] space-y-1', data.selected && 'ring-2 ring-primary')}>
+    <div className={cn(nodeCardClass, 'min-w-[170px] space-y-1', data.selected && 'border-2 border-primary')}>
       <div className='text-sm font-medium leading-tight'>{data.label}</div>
       <div
         className={cn('truncate text-[11px]', data.primaryLabel === '' ? 'text-muted-foreground italic' : 'font-mono')}

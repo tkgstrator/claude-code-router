@@ -14,7 +14,6 @@
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type Status = 'ok' | 'error'
 type Provider = 'claude' | 'codex'
@@ -45,11 +44,13 @@ export function OauthResultPage() {
 
   return (
     <div className='flex min-h-screen items-center justify-center bg-background p-6'>
-      <Card className='w-full max-w-md'>
-        <CardHeader>
-          <CardTitle className={status === 'ok' ? 'text-emerald-600' : 'text-destructive'}>{title}</CardTitle>
-        </CardHeader>
-        <CardContent className='space-y-4'>
+      <div className='w-full max-w-md space-y-6'>
+        <div className='border-b pb-4'>
+          <h1 className={`text-base font-semibold ${status === 'ok' ? 'text-emerald-600' : 'text-destructive'}`}>
+            {title}
+          </h1>
+        </div>
+        <div className='space-y-4'>
           <p className='text-sm text-muted-foreground'>{body}</p>
           <Button
             type='button'
@@ -60,8 +61,8 @@ export function OauthResultPage() {
           >
             {t('providers.oauth_result_close_tab')}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

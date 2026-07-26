@@ -245,7 +245,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col'>
       {editable && (
-        <div className='flex shrink-0 items-center justify-between gap-3 border-b bg-card/50 px-3 py-1.5'>
+        <div className='flex shrink-0 items-center justify-between gap-3 border-b px-3 py-1.5'>
           <div className='flex items-center gap-2 text-xs text-muted-foreground'>
             <span>{t('router.persona')}</span>
             <Select

@@ -36,8 +36,8 @@ export function RoutingEditorPanel({ scenario, router, onChange, modelLabel, onC
   const primary = route.primary
 
   return (
-    <div className='absolute top-14 right-3 w-72 space-y-3 rounded-md border bg-card p-3 text-sm shadow-lg'>
-      <div className='flex items-center justify-between'>
+    <div className='absolute inset-y-0 right-0 w-72 space-y-3 overflow-y-auto border-l bg-background p-3 text-sm'>
+      <div className='flex items-center justify-between border-b pb-2'>
         <span className='font-medium'>{t(`router.${scenario}`)}</span>
         <Button type='button' size='icon' variant='ghost' className='h-6 w-6' onClick={onClose}>
           <X className='h-4 w-4' aria-hidden='true' />

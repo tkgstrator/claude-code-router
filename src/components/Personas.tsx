@@ -56,16 +56,14 @@ export function Personas() {
           <p className='text-sm text-muted-foreground'>{t('personas.description')}</p>
 
           {rows.length === 0 ? (
-            <div className='flex items-center justify-center rounded-md border bg-background p-8 text-muted-foreground'>
-              {t('personas.empty')}
-            </div>
+            <div className='flex items-center justify-center py-8 text-muted-foreground'>{t('personas.empty')}</div>
           ) : (
-            <div className='divide-y rounded-md border bg-background'>
+            <div className='divide-y border-y'>
               {rows.map((row) => (
                 <button
                   key={row.id}
                   type='button'
-                  className='flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none'
+                  className='flex w-full items-start gap-3 px-1 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none'
                   onClick={() => navigate(`/personas/view/${encodeURIComponent(row.id)}`)}
                 >
                   <div className='min-w-0 flex-1 space-y-1'>

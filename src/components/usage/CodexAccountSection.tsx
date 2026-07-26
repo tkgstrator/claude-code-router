@@ -6,7 +6,7 @@ import { UsageBar } from './UsageBar'
 export function CodexAccountSection({ account }: { account: CodexAccountUsage }) {
   const { t } = useTranslation()
   return (
-    <div className='space-y-3 rounded-md border p-4'>
+    <div className='space-y-3 py-4 first:pt-0 last:pb-0'>
       <p className='text-sm font-medium text-foreground'>{account.accountLabel}</p>
       {account.primary && (
         <UsageBar

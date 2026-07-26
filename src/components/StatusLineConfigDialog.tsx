@@ -311,10 +311,10 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
         </div>
 
         <DialogFooter className='border-t pt-4 mt-4'>
-          <Button variant='outline' onClick={() => onOpenChange(false)} className='transition-all hover:scale-105'>
+          <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('app.cancel')}
           </Button>
-          <Button onClick={handleSave} data-testid='save-statusline-config' className='transition-all hover:scale-105'>
+          <Button onClick={handleSave} data-testid='save-statusline-config'>
             {t('app.save')}
           </Button>
         </DialogFooter>

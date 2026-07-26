@@ -15,8 +15,8 @@ interface ResponseViewerProps {
 export function ResponseViewer({ responseData, isLoading }: ResponseViewerProps) {
   return (
     <div className='h-1/2 flex flex-col gap-4'>
-      <div className='flex-1 bg-background rounded-lg border p-4 flex flex-col'>
-        <div className='flex items-center justify-between mb-4'>
+      <div className='flex-1 flex flex-col'>
+        <div className='flex items-center justify-between border-b pb-2 mb-4'>
           <h3 className='font-medium'>响应信息</h3>
           {responseData.status > 0 && (
             <div className='flex items-center gap-4 text-sm'>
@@ -50,13 +50,13 @@ export function ResponseViewer({ responseData, isLoading }: ResponseViewerProps)
               </TabsList>
 
               <TabsContent value='body' className='flex-1 mt-2'>
-                <div className='bg-gray-50 border rounded-md p-3 h-full overflow-auto'>
+                <div className='bg-muted/40 p-3 h-full overflow-auto'>
                   <pre className='text-sm whitespace-pre-wrap'>{responseData.body}</pre>
                 </div>
               </TabsContent>
 
               <TabsContent value='headers' className='flex-1 mt-2'>
-                <div className='bg-gray-50 border rounded-md p-3 h-full overflow-auto'>
+                <div className='bg-muted/40 p-3 h-full overflow-auto'>
                   <pre className='text-sm'>{responseData.headers}</pre>
                 </div>
               </TabsContent>
