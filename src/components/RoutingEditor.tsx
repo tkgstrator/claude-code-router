@@ -103,8 +103,6 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
           emptyLabel: t('routingMap.editNoPrimary'),
           fallbackCount: route.fallbacks.length,
           fallbackLabel: t('routingMap.editFallbacks'),
-          forceOn: route.force,
-          forceLabel: t('router.force'),
           selected: selected === node.scenario
         }
       }
