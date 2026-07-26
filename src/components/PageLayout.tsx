@@ -2,9 +2,10 @@ import { cn } from '@/lib/utils'
 
 // Shared max content width so pages don't stretch edge-to-edge on wide
 // monitors now that flat sections no longer sit inside width-capped cards.
-// Header and content use the same cap so their left edges stay aligned.
-// Pass `fluid` to opt out on full-bleed pages (e.g. the routing canvas).
-const CONTENT_WIDTH = 'mx-auto w-full max-w-6xl'
+// Left-aligned (no auto margins); header and content share the same cap so
+// their left edges line up. Pass `fluid` to opt out on full-bleed pages
+// (e.g. the routing canvas).
+const CONTENT_WIDTH = 'w-full max-w-6xl'
 
 export function PageContainer({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn('flex h-full flex-col', className)}>{children}</div>
