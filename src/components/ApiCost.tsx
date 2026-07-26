@@ -75,9 +75,7 @@ export function ApiCost() {
           ))}
         </div>
       </PageHeader>
-      <PageContent
-        className={`space-y-8 transition-opacity duration-150 ${costLoading ? 'pointer-events-none opacity-50' : ''}`}
-      >
+      <PageContent className={`transition-opacity duration-150 ${costLoading ? 'pointer-events-none opacity-50' : ''}`}>
         <section className='space-y-3'>
           {costData === null ? (
             <p className='text-sm text-muted-foreground'>…</p>

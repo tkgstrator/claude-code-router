@@ -2,6 +2,7 @@ import { ArrowLeft, Download, Loader2, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Toast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
@@ -293,25 +294,26 @@ export function Presets() {
   }
 
   return (
-    <section className='flex h-full flex-col'>
-      <div className='flex flex-row items-center justify-between border-b p-4'>
-        <Button variant='ghost' size='icon' onClick={handleGoBack}>
-          <ArrowLeft className='h-5 w-5' />
-        </Button>
-        <h2 className='text-lg font-semibold'>
-          {t('presets.title')} <span className='text-sm font-normal text-muted-foreground'>({presets.length})</span>
-        </h2>
+    <PageContainer className='h-screen'>
+      <PageHeader
+        title={`${t('presets.title')} (${presets.length})`}
+        leading={
+          <Button variant='ghost' size='icon' onClick={handleGoBack}>
+            <ArrowLeft className='h-5 w-5' />
+          </Button>
+        }
+      >
         <Button variant='ghost' size='icon' onClick={() => setMarketDialogOpen(true)}>
           <Store className='h-5 w-5' />
         </Button>
-      </div>
-      <div className='flex-grow overflow-y-auto p-4'>
+      </PageHeader>
+      <PageContent>
         {loading ? (
-          <div className='flex items-center justify-center h-full'>
+          <div className='flex flex-1 items-center justify-center'>
             <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
           </div>
         ) : presets.length === 0 ? (
-          <div className='flex flex-col items-center justify-center h-full text-muted-foreground'>
+          <div className='flex flex-1 flex-col items-center justify-center text-muted-foreground'>
             <Download className='h-12 w-12 mb-4 opacity-50' />
             <p>{t('presets.no_presets')}</p>
             <p className='text-sm'>{t('presets.no_presets_hint')}</p>
@@ -331,7 +333,7 @@ export function Presets() {
             ))}
           </div>
         )}
-      </div>
+      </PageContent>
 
       <InstallPresetDialog
         open={installDialogOpen}
@@ -374,6 +376,6 @@ export function Presets() {
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </section>
+    </PageContainer>
   )
 }

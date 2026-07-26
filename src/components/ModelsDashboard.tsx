@@ -209,7 +209,7 @@ export function ModelsDashboard() {
 
       <PageContent className='p-0'>
         {visibleRows.length === 0 ? (
-          <div className='flex h-full flex-col items-center justify-center gap-2 p-6 text-center'>
+          <div className='flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center'>
             <p className='text-sm text-muted-foreground'>{t('models.no_models')}</p>
           </div>
         ) : (

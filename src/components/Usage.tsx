@@ -135,7 +135,7 @@ export function Usage() {
           {t('usage.sync')}
         </Button>
       </PageHeader>
-      <PageContent className='space-y-8'>
+      <PageContent>
         {/* ── Rate limits + auth health ─────────────────────────────── */}
         <section className='space-y-4'>
           <h3 className='border-b pb-2 text-base font-semibold'>{t('usage.current')}</h3>

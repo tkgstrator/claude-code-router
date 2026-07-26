@@ -169,7 +169,7 @@ export function Subscriptions() {
           </Button>
         </div>
       </PageHeader>
-      <PageContent className='space-y-6'>
+      <PageContent>
         <p className='text-xs text-muted-foreground'>{t('subscriptions.usageHint')}</p>
 
         {providers.length === 0 ? (

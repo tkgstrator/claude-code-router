@@ -61,7 +61,7 @@ function PersonaViewBody({ config }: { config: Config }) {
         </Button>
       </PageHeader>
       <PageContent>
-        <div className='flex h-full flex-col gap-4'>
+        <div className='flex flex-1 flex-col gap-4'>
           <div className='flex min-h-0 flex-1 flex-col gap-2'>
             <div className='flex items-center justify-between'>
               <p className='text-sm font-medium text-foreground'>{t('personas.prompt_label')}</p>
