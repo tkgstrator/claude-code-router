@@ -112,7 +112,7 @@
     "authUnknown": "未检查",
     "authCheckedAt": "最后检查",
     "subEndingSoon": "订阅即将到期",
-    "subEnded": "订阅已到期",
+    "subEnded": "已过期",
     "noUsageData": "无法获取用量",
     "reauthNeeded": "{{count}} 个账户需要重新认证（请通过 CLI 重新登录）。"
   },

@@ -112,7 +112,7 @@
     "authUnknown": "Not checked",
     "authCheckedAt": "Last checked",
     "subEndingSoon": "Sub ending soon",
-    "subEnded": "Sub ended",
+    "subEnded": "Expired",
     "noUsageData": "Usage unavailable",
     "reauthNeeded": "{{count}} account(s) need re-authentication — sign in again via the CLI."
   },

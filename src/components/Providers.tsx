@@ -318,18 +318,8 @@ export function Providers() {
                 underbar) instead of the segmented/pill look. grid-cols-2 keeps
                 both tabs equal width. */}
             <TabsList variant='line' className='grid w-full max-w-xs grid-cols-2'>
-              <TabsTrigger value='api_key'>
-                {t('providers.auth_api')}
-                {providersByAuth.api_key.length > 0 && (
-                  <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.api_key.length})</span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value='subscription'>
-                {t('providers.auth_subscription')}
-                {providersByAuth.subscription.length > 0 && (
-                  <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.subscription.length})</span>
-                )}
-              </TabsTrigger>
+              <TabsTrigger value='api_key'>{t('providers.auth_api')}</TabsTrigger>
+              <TabsTrigger value='subscription'>{t('providers.auth_subscription')}</TabsTrigger>
             </TabsList>
           </Tabs>
         }

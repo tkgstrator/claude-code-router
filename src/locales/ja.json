@@ -112,7 +112,7 @@
     "authUnknown": "未確認",
     "authCheckedAt": "最終確認",
     "subEndingSoon": "サブスク終了間近",
-    "subEnded": "サブスク終了",
+    "subEnded": "期限切れ",
     "noUsageData": "利用状況を取得できません",
     "reauthNeeded": "{{count}} 件のアカウントが再認証を必要としています（CLI で再ログインしてください）。"
   },
