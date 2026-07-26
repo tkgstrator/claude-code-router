@@ -61,8 +61,11 @@ export function Usage() {
     Promise.all([
       api.get<UsageCostResponse>(`/usage/cost?days=${costDays}`).catch(() => ({ providers: [], days: costDays })),
       api
-        .get<CostHistoryResponse>(`/usage/cost/history?days=${costDays}`)
-        .catch(() => ({ points: [], providers: [], granularity: 'day' as const, days: costDays }))
+        // Daily Cost always shows the last week regardless of the period
+        // selector (which drives the totals table only); route.ts zero-fills
+        // missing days so it renders 7 bars even when data is sparse/empty.
+        .get<CostHistoryResponse>('/usage/cost/history?days=7')
+        .catch(() => ({ points: [], providers: [], granularity: 'day' as const, days: 7 }))
     ]).then(([cost, history]) => {
       setCostData(cost)
       setCostHistory(history)
