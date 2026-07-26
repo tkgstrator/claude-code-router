@@ -9,7 +9,6 @@
  */
 
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 const nodeCardClass = 'rounded-md border bg-card px-3 py-2 shadow-sm transition-shadow'
@@ -22,8 +21,6 @@ export interface ScenarioEditNodeData extends Record<string, unknown> {
   emptyLabel: string
   fallbackCount: number
   fallbackLabel: string
-  forceOn: boolean
-  forceLabel: string
   selected: boolean
 }
 
@@ -40,14 +37,7 @@ export type ModelEditNodeType = Node<ModelEditNodeData, 'modelEdit'>
 function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
   return (
     <div className={cn(nodeCardClass, 'min-w-[170px] space-y-1', data.selected && 'ring-2 ring-primary')}>
-      <div className='flex items-center justify-between gap-2'>
-        <span className='text-sm font-medium leading-tight'>{data.label}</span>
-        {data.forceOn && (
-          <Badge variant='secondary' className='shrink-0 text-[10px]'>
-            {data.forceLabel}
-          </Badge>
-        )}
-      </div>
+      <div className='text-sm font-medium leading-tight'>{data.label}</div>
       <div
         className={cn('truncate text-[11px]', data.primaryLabel === '' ? 'text-muted-foreground italic' : 'font-mono')}
       >
