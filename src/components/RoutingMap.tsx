@@ -25,6 +25,7 @@ export function RoutingMap() {
   return (
     <PageContainer>
       <PageHeader
+        fluid
         title={t('routingMap.title')}
         extra={
           <label htmlFor='routing-edit' className='flex items-center gap-2 text-xs text-muted-foreground'>
