@@ -88,13 +88,14 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
   if (groups.length === 0) {
     return <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
   }
-  // Two columns on wider viewports: each "requested → actual" row spans only
-  // half the page instead of stretching edge-to-edge (the gap between the
-  // model names and the percentage would otherwise read as too wide). Mirrors
-  // the two-column rate-limit panel above it. `items-start` keeps groups top-
-  // aligned rather than stretching to the tallest cell in a row.
+  // Auto-fill grid: each "requested → actual" row spans one ~22rem column
+  // instead of stretching edge-to-edge (the gap between the model names and
+  // the percentage would otherwise read as too wide). The column count grows
+  // with the viewport since the section is allowed to use the full width.
+  // `items-start` keeps groups top-aligned rather than stretching to the
+  // tallest cell in their row.
   return (
-    <div className='grid grid-cols-1 items-start gap-x-8 gap-y-6 lg:grid-cols-2'>
+    <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-8 gap-y-6'>
       {groups.map((group) => (
         <ScenarioGroupCard key={group.scenario} group={group} />
       ))}

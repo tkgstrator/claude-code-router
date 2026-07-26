@@ -135,9 +135,12 @@ export function Usage() {
           {t('usage.sync')}
         </Button>
       </PageHeader>
-      <PageContent>
+      {/* Fluid so the Model routing grid can span the full width; the
+          rate-limit panel and every heading below re-apply the shared
+          max-w-5xl cap so they stay aligned with the (capped) page header. */}
+      <PageContent fluid>
         {/* ── Rate limits + auth health ─────────────────────────────── */}
-        <section className='space-y-4'>
+        <section className='w-full max-w-5xl space-y-4'>
           <h3 className='border-b pb-2 text-base font-semibold'>{t('usage.current')}</h3>
           {subsError && <p className='text-sm text-red-500'>{t('usage.loadError')}</p>}
           {invalidCount > 0 && (
@@ -243,7 +246,8 @@ export function Usage() {
 
         {/* ── Model routing ─────────────────────────────────────────── */}
         <section className='space-y-3'>
-          <div className='border-b pb-2'>
+          {/* Heading stays capped/aligned; the grid below fills the width. */}
+          <div className='w-full max-w-5xl border-b pb-2'>
             <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
             <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
           </div>
