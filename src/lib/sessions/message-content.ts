@@ -43,16 +43,14 @@ const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
   /^The user stepped away and is coming back\b/
 ]
 
-// Detect the permission-gate directive Claude Code prepends before it
-// evaluates certain tool calls. Openers vary (seen: "Err on the side of
-// blocking. Stage 1 ..." / "Stage 1 does NOT apply user intent ...") so a
-// prefix regex misses fragments, and the block reliably terminates with a
-// `<block>` / `<allow>` sentinel plus stage-1/2 wording. Requiring BOTH
-// the sentinel AND stage wording keeps the false-positive risk low
-// against genuine chat that happens to say "block" or "stage".
+// Detect the permission-gate boilerplate Claude Code prepends before it
+// evaluates certain tool calls. Every observed variant (with/without the
+// "Err on the side of blocking" opener; ending in `<block>`/`<allow>` or
+// `<severity>` sentinels) shares the exact sentence "Stage 1 does NOT
+// apply user intent" verbatim, so key on that phrase — it's specific
+// enough to keep the false-positive risk low against genuine chat.
 function looksLikePermissionGate(text: string): boolean {
-  if (!/<(block|allow)>/i.test(text)) return false
-  return /\bstage\s+[12]\b/i.test(text)
+  return /Stage 1 does NOT apply user intent/.test(text)
 }
 
 export function normaliseContent(content: unknown): NormalisedBlock[] {
