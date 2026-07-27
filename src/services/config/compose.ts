@@ -23,13 +23,13 @@ const emptyRoute = (): { primary: null; fallbacks: [] } => ({ primary: null, fal
 // have a null primary (not '' — "no model bound" reads the same on the
 // wire as everywhere else) and an empty fallback chain, so composeUiConfig
 // can fill each route in place without a guard. Scenario-scoped knobs sit
-// on their owning scenario (threshold on longContext, weeklyDrainMarginPct
-// on default) at their policy defaults.
+// on their owning scenario (currently only threshold on longContext) at
+// their policy defaults.
 export const emptyRouter = (): Router => ({
-  default: { agent: emptyRoute(), subagent: emptyRoute(), weeklyDrainMarginPct: 0 },
+  default: { agent: emptyRoute(), subagent: emptyRoute() },
   background: { agent: emptyRoute(), subagent: emptyRoute() },
   think: { agent: emptyRoute(), subagent: emptyRoute() },
-  longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: 60_000 },
+  longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: 128_000 },
   webSearch: { agent: emptyRoute(), subagent: emptyRoute() },
   image: { agent: emptyRoute(), subagent: emptyRoute() },
   persona: null
@@ -64,20 +64,6 @@ export const fallbacksFromParams = (params: unknown): string[] | null => stringL
 // Subagent-route fallback chain (`subagentFallbacks`).
 export const subagentFallbacksFromParams = (params: unknown): string[] | null =>
   stringListFromParams(params, 'subagentFallbacks')
-
-// Read `weeklyDrainMarginPct` off the default slot's params JSON column.
-// The margin is a Router-level policy knob (not slot-specific) but rides
-// on the default slot's params for the same reason longContextThreshold
-// rides on the longContext slot's params: it dodges a dedicated table /
-// migration. 0 reads as null so composeUiConfig can omit the key when
-// the policy is at its default (matching the threshold pattern).
-export const weeklyDrainMarginPctFromParams = (params: unknown): number | null => {
-  if (!isJsonObject(params)) return null
-  const m = params.weeklyDrainMarginPct
-  if (typeof m !== 'number') return null
-  if (!Number.isInteger(m) || m < 0 || m > 100) return null
-  return m > 0 ? m : null
-}
 
 export type ProviderWithModels = DbProvider & {
   models: DbModel[]
@@ -198,10 +184,6 @@ export async function composeUiConfig(): Promise<AppConfig> {
     if (key === 'longContext') {
       const threshold = thresholdFromParams(slot.params)
       if (threshold !== null) router.longContext.threshold = threshold
-    }
-    if (key === 'default') {
-      const margin = weeklyDrainMarginPctFromParams(slot.params)
-      if (margin !== null) router.default.weeklyDrainMarginPct = margin
     }
   }
 

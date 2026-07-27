@@ -54,7 +54,6 @@ function fmtSessionRange(firstAt: string, lastAt: string): string {
 export function SessionsPage() {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
-  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<SessionSummary | null>(null)
   const [detailRefresh, setDetailRefresh] = useState(0)
@@ -64,7 +63,6 @@ export function SessionsPage() {
     try {
       const res = await api.getRequestLogSessions({ limit: 100, sinceHours: 6 })
       setSessions(res.sessions)
-      setTotal(res.total)
       // Keep selected in sync with latest aggregated stats.
       setSelected((prev) => (prev ? (res.sessions.find((s) => s.sessionId === prev.sessionId) ?? prev) : null))
     } catch {
@@ -91,10 +89,7 @@ export function SessionsPage() {
         void api.getSessionSummary(sessionId).then((summary) => {
           setSessions((prev) => {
             const idx = prev.findIndex((s) => s.sessionId === sessionId)
-            if (idx === -1) {
-              setTotal((t) => t + 1)
-              return [summary, ...prev]
-            }
+            if (idx === -1) return [summary, ...prev]
             const next = [...prev]
             next[idx] = summary
             return next
@@ -120,13 +115,12 @@ export function SessionsPage() {
     if (!window.confirm(t('sessions.archive_confirm'))) return
     await api.archiveAllSessions()
     setSessions([])
-    setTotal(0)
     setSelected(null)
   }
 
   return (
     <PageContainer>
-      <PageHeader fluid title={total > 0 ? `${t('sessions.title')} (${total})` : t('sessions.title')}>
+      <PageHeader fluid title={t('sessions.title')}>
         <Button variant='outline' onClick={load} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           {t('sessions.refresh')}

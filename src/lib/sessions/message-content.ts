@@ -23,6 +23,7 @@ const CLAUDE_CODE_WRAPPER_TAGS = [
   'command-args',
   'command-stdout',
   'local-command-stdout',
+  'local-command-caveat',
   'user-prompt-submit-hook'
 ]
 
@@ -44,7 +45,14 @@ const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
   // Context-compaction request Claude Code emits when it wants a
   // conversation summary ("CRITICAL: Respond with TEXT ONLY. Do NOT call
   // any tools. ... create a detailed summary of the conversation ...").
-  /^CRITICAL: Respond with TEXT ONLY\. Do NOT call any tools\b/
+  /^CRITICAL: Respond with TEXT ONLY\. Do NOT call any tools\b/,
+  // Interruption sentinel Claude Code injects when the user cancels
+  // mid-turn ("[Request interrupted by user]" and the "for tool use"
+  // variant). Either arrives on its own or as the opener of a combined
+  // block whose remainder is another sentinel (e.g. the stepped-away
+  // recap), so the first character check `isBracketMode` misses it —
+  // "[Request" starts with a lowercase run.
+  /^\[Request interrupted by user(?: for tool use)?\]/
 ]
 
 // Detect the permission-gate boilerplate Claude Code prepends before it

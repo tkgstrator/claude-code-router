@@ -152,6 +152,26 @@ export function processNonSystemMessage(message: UnifiedChatRequest['messages'][
   input.push(message)
 }
 
+// Reshape `tool_choice` from the unified Chat-Completions form to the
+// flat Responses-API form. Mirrors `remapTools`:
+//   - string literals ('auto' / 'none' / 'required') pass through verbatim
+//   - `{type:'function', function:{name}}` -> `{type:'function', name}`
+//     (the OpenAI-Responses schema expects `name` at the top level; a
+//     nested `function.name` triggers a 400
+//     "Missing required parameter: 'tool_choice.name'")
+//   - a `web_search` target collapses to the hosted-tool shape
+//     `{type:'web_search'}`, matching how remapTools emits the tool itself
+//   - unknown shapes pass through so the upstream surfaces the mismatch
+//     directly instead of being silently masked here
+export function remapToolChoice(choice: UnifiedChatRequest['tool_choice']): unknown {
+  if (choice === undefined) return undefined
+  if (typeof choice === 'string') return choice
+  if (choice.type !== 'function') return choice
+  const name = choice.function.name
+  if (name === 'web_search') return { type: 'web_search' }
+  return { type: 'function', name }
+}
+
 export function remapTools(tools: UnifiedChatRequest['tools']): unknown[] {
   if (!Array.isArray(tools)) return []
   const webSearch = tools.find((tool) => tool.function.name === 'web_search')

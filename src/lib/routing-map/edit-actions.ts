@@ -19,9 +19,9 @@ import type { RouterConfig } from '@/schemas'
 type RouteTarget = RouterConfig[EditScenario]['agent']
 
 // Replace one kind's route on a scenario slot, preserving the slot's own
-// shape (weeklyDrainMarginPct on default, threshold on longContext).
-// Branching on `kind` keeps each spread a literal-key spread so it stays
-// type-safe without assertions.
+// shape (currently only `threshold` on longContext). Branching on `kind`
+// keeps each spread a literal-key spread so it stays type-safe without
+// assertions.
 function withRoute<S extends { agent: RouteTarget; subagent: RouteTarget }>(
   slot: S,
   kind: RouteKind,
@@ -98,10 +98,6 @@ export function moveFallback(
 // use concrete keys (not a computed scenario) to stay type-safe.
 export function setLongContextThreshold(router: RouterConfig, threshold: number): RouterConfig {
   return { ...router, longContext: { ...router.longContext, threshold } }
-}
-
-export function setWeeklyDrainMarginPct(router: RouterConfig, weeklyDrainMarginPct: number): RouterConfig {
-  return { ...router, default: { ...router.default, weeklyDrainMarginPct } }
 }
 
 export function setPersona(router: RouterConfig, persona: string | undefined): RouterConfig {

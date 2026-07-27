@@ -68,6 +68,22 @@ function kindFromEdge(edge: Edge): RouteKind {
   return edge.id.split('__').at(-2) === 'subagent' ? 'subagent' : 'agent'
 }
 
+// Human-friendly token count for the longContext threshold caption. Rounds
+// to a whole `k` at 1000+ (so 128000 → "128k"), otherwise prints the raw
+// number — matches how limits are conventionally quoted in this domain.
+function formatTokenCount(n: number): string {
+  if (n >= 1000) return `${Math.round(n / 1000)}k`
+  return String(n)
+}
+
+// Scenario-scoped caption shown on the node under the label. Currently only
+// longContext carries one — the token threshold the request must exceed to
+// take this lane. Other scenarios have no meaningful summary at this scale.
+function scenarioNote(scenario: EditScenario, router: RouterConfig): string | undefined {
+  if (scenario === 'longContext') return `≥ ${formatTokenCount(router.longContext.threshold)} tok`
+  return undefined
+}
+
 // Interpret the /api/config response: { success, message } when present,
 // otherwise treat the write as succeeded (mirrors the Router form).
 function readSaveResult(res: unknown): { ok: boolean; message: string | undefined } {
@@ -122,6 +138,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         position: node.position,
         data: {
           label: t(`router.${node.scenario}`),
+          note: scenarioNote(node.scenario, router),
           agentPrimaryLabel: agent.primary === null ? '' : modelLabel(agent.primary),
           agentFallbackCount: agent.fallbacks.length,
           subagentPrimaryLabel: subagent.primary === null ? '' : modelLabel(subagent.primary),
@@ -313,11 +330,11 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
           onReconnectStart={editable ? onReconnectStart : undefined}
           onReconnectEnd={editable ? onReconnectEnd : undefined}
           onEdgesDelete={editable ? onEdgesDelete : undefined}
-          onNodeClick={editable ? onNodeClick : undefined}
+          onNodeClick={onNodeClick}
           colorMode={resolvedTheme === 'dark' ? 'dark' : 'light'}
           nodesConnectable={editable}
           nodesDraggable={false}
-          elementsSelectable={editable}
+          elementsSelectable
           deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
           fitView
           fitViewOptions={{ padding: 0.2 }}
@@ -325,13 +342,14 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         >
           <Background />
         </ReactFlow>
-        {editable && selected !== null && (
+        {selected !== null && (
           <RoutingEditorPanel
             scenario={selected}
             router={router}
             onChange={setRouter}
             modelLabel={modelLabel}
             onClose={() => setSelected(null)}
+            readOnly={!editable}
           />
         )}
       </div>
