@@ -140,12 +140,16 @@ function candidateFitsContext(candidate: string, tokenCount: number, providers: 
 export function applyProactiveFailover(
   primaryModel: string,
   scenarioType: ScenarioType,
+  isSubagent: boolean,
   tokenCount: number,
   config: ConfigStore,
   log: Logger
 ): string {
   const fullRouter = config.get<FlatRouter>('Router')
-  const configured = fullRouter?.fallbacks?.[scenarioType]
+  // Walk the fallback chain for the SELECTED route (agent vs subagent) —
+  // a subagent request must not fall over onto the agent route's chain.
+  const fallbacksMap = isSubagent ? fullRouter?.subagentFallbacks : fullRouter?.agentFallbacks
+  const configured = fallbacksMap?.[scenarioType]
   if (!Array.isArray(configured) || configured.length === 0) return primaryModel
 
   // Phase 6 S5: read the drain-target margin from Router config so the

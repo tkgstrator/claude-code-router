@@ -31,9 +31,9 @@ export function ModulePropertiesPanel({
   t
 }: ModulePropertiesPanelProps) {
   return (
-    <div className='border rounded-lg flex flex-col overflow-hidden col-span-1'>
-      <h3 className='text-sm font-medium p-4 pb-0 mb-3'>{title}</h3>
-      <div className='overflow-y-auto px-4 pb-4 flex-1'>
+    <div className='flex flex-col overflow-hidden col-span-1'>
+      <h3 className='text-sm font-medium border-b pb-2 mb-3'>{title}</h3>
+      <div className='overflow-y-auto flex-1'>
         {selectedModule && selectedModuleIndex !== null ? (
           <div className='space-y-4'>
             <div className='space-y-2'>

@@ -35,13 +35,16 @@ export function ManageProvidersDialog({
           <DialogDescription>{t('providers.manage_description')}</DialogDescription>
         </DialogHeader>
         <div className='flex-1 overflow-y-auto'>
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+          <div className='divide-y border-y empty:border-none'>
             {catalog
               .filter((entry) => entry.authMode === activeAuthMode)
               .map((entry) => {
                 const enabled = validProviders.some((p) => p.name === entry.name)
                 return (
-                  <div key={entry.name} className='flex items-center gap-3 rounded-md border px-3 py-2'>
+                  <div
+                    key={entry.name}
+                    className='flex items-center gap-3 px-1 py-3 transition-colors hover:bg-muted/50'
+                  >
                     <ProviderIcon name={entry.name} size={24} className='flex-shrink-0' />
                     <div className='min-w-0 flex-1'>
                       <div className='font-medium text-sm truncate'>{entry.displayName}</div>

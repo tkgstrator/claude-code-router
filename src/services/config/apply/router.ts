@@ -57,25 +57,47 @@ export async function resolveFallbackTargets(
 
 // Assemble the scenario-scoped params JSON for a RouterSlot row:
 // longContext keeps its threshold; default keeps the Router-wide
-// weeklyDrainMarginPct policy knob; any slot may carry a fallbacks chain
-// and a force flag (image force is a runtime no-op but still round-trips
-// so the UI checkbox survives a save/reload). An empty object collapses
-// to DbNull so a slot with no knobs stores NULL.
+// weeklyDrainMarginPct policy knob; any slot may carry the two fallback
+// chains (`fallbacks` for the agent route, `subagentFallbacks` for the
+// subagent route). An empty object collapses to DbNull so a slot with no
+// knobs stores NULL.
 function buildSlotParams(args: {
   scenario: string
-  force: boolean
   fallbacks: string[]
+  subagentFallbacks: string[]
   longContextThreshold: number | null
   incomingMargin: number | null
 }): Prisma.InputJsonValue | typeof Prisma.DbNull {
-  const { scenario, force, fallbacks, longContextThreshold, incomingMargin } = args
+  const { scenario, fallbacks, subagentFallbacks, longContextThreshold, incomingMargin } = args
   const paramsObj: Prisma.InputJsonObject = {
     ...(scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : {}),
     ...(scenario === 'default' && incomingMargin !== null ? { weeklyDrainMarginPct: incomingMargin } : {}),
     ...(fallbacks.length > 0 ? { fallbacks } : {}),
-    ...(force ? { force: true } : {})
+    ...(subagentFallbacks.length > 0 ? { subagentFallbacks } : {})
   }
   return Object.keys(paramsObj).length > 0 ? paramsObj : Prisma.DbNull
+}
+
+// Resolve one route's primary "provider,model" string to a Model id, or
+// null when unset / unknown. `kind` labels the warning so the operator
+// can tell which route (agent / subagent) dropped a bad reference.
+async function resolvePrimaryModelId(
+  tx: Tx,
+  scenario: string,
+  primary: string | null | undefined,
+  kind: 'agent' | 'subagent',
+  warnings: string[]
+): Promise<string | null> {
+  const { providerName, modelName } = parseSlot(primary)
+  if (!providerName || !modelName) return null
+  const model = await tx.model.findFirst({
+    where: { name: modelName, provider: { name: providerName } }
+  })
+  if (model) return model.id
+  warnings.push(
+    `Router ${kind} slot "${scenario}" references unknown model "${providerName},${modelName}"; left empty.`
+  )
+  return null
 }
 
 export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: string[]): Promise<void> {
@@ -92,34 +114,42 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
 
   for (const scenario of SCENARIO_KEYS) {
     const route = incoming[scenario]
-    const { providerName, modelName } = parseSlot(route?.primary)
 
-    let modelId: string | null = null
-    if (providerName && modelName) {
-      const model = await tx.model.findFirst({
-        where: { name: modelName, provider: { name: providerName } }
-      })
-      if (model) {
-        modelId = model.id
-      } else {
-        warnings.push(`Router slot "${scenario}" references unknown model "${providerName},${modelName}"; left empty.`)
-      }
-    }
+    // Resolve the agent and subagent primaries independently.
+    const modelId = await resolvePrimaryModelId(tx, scenario, route?.agent?.primary, 'agent', warnings)
+    const subagentModelId = await resolvePrimaryModelId(tx, scenario, route?.subagent?.primary, 'subagent', warnings)
 
-    const fallbacks = await resolveFallbackTargets(tx, scenario, route?.fallbacks, warnings, providerName)
+    // Validate each route's fallback chain against ITS OWN primary — the
+    // same-provider-as-primary drop rule applies per route.
+    const agentPrimaryProvider = parseSlot(route?.agent?.primary).providerName
+    const subagentPrimaryProvider = parseSlot(route?.subagent?.primary).providerName
+    const fallbacks = await resolveFallbackTargets(
+      tx,
+      scenario,
+      route?.agent?.fallbacks,
+      warnings,
+      agentPrimaryProvider
+    )
+    const subagentFallbacks = await resolveFallbackTargets(
+      tx,
+      scenario,
+      route?.subagent?.fallbacks,
+      warnings,
+      subagentPrimaryProvider
+    )
 
     const params = buildSlotParams({
       scenario,
-      force: route?.force === true,
       fallbacks,
+      subagentFallbacks,
       longContextThreshold,
       incomingMargin
     })
 
     await tx.routerSlot.upsert({
       where: { scenario },
-      update: { modelId, params },
-      create: { scenario, modelId, params }
+      update: { modelId, subagentModelId, params },
+      create: { scenario, modelId, subagentModelId, params }
     })
   }
 

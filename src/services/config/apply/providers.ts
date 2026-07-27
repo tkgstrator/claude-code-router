@@ -22,12 +22,20 @@ export async function deleteRemovedProviders(
 ): Promise<void> {
   for (const ex of existing) {
     if (incomingByName.has(ex.name)) continue
-    const cleared = await tx.routerSlot.updateMany({
+    // Null both FK columns a slot can bind through this provider's models:
+    // the agent route (modelId) and the subagent route (subagentModelId).
+    // Restrict would otherwise abort the transaction on the provider delete.
+    const clearedAgent = await tx.routerSlot.updateMany({
       where: { model: { providerId: ex.id } },
       data: { modelId: null }
     })
-    if (cleared.count > 0) {
-      warnings.push(`Cleared ${cleared.count} router slot(s) bound to deleted provider "${ex.name}".`)
+    const clearedSubagent = await tx.routerSlot.updateMany({
+      where: { subagentModel: { providerId: ex.id } },
+      data: { subagentModelId: null }
+    })
+    const cleared = clearedAgent.count + clearedSubagent.count
+    if (cleared > 0) {
+      warnings.push(`Cleared ${cleared} router slot binding(s) bound to deleted provider "${ex.name}".`)
     }
     await tx.provider.delete({ where: { id: ex.id } })
   }

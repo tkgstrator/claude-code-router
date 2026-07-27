@@ -50,6 +50,7 @@
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
     "usage": "Usage",
+    "cost": "API Cost",
     "sessions": "Sessions",
     "personas": "Personas",
     "settings": "Settings"
@@ -105,14 +106,24 @@
     "routingHint": "What Claude Code requested vs. the model CCR actually sent upstream.",
     "routingEmpty": "No routing data recorded yet.",
     "routingUntracked": "(untracked)",
-    "routingRerouted": "rerouted"
+    "routingRerouted": "rerouted",
+    "authInvalid": "Re-authenticate",
+    "authLive": "Authenticated",
+    "authUnknown": "Not checked",
+    "authCheckedAt": "Last checked",
+    "subEndingSoon": "Sub ending soon",
+    "subEnded": "Expired",
+    "noUsageData": "Usage unavailable",
+    "reauthNeeded": "{{count}} account(s) need re-authentication — sign in again via the CLI."
   },
   "subscriptions": {
     "empty": "No subscriptions registered. Add one from Providers.",
     "usageHint": "Actual usage and rate-limit history are consolidated on the Usage page.",
     "noAccounts": "No accounts found. Sign in via the CLI first.",
     "activeLabel": "Active",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "authActive": "Active",
+    "authExpired": "Expired"
   },
   "models": {
     "provider": "Provider",
@@ -285,8 +296,16 @@
     "longContextThreshold": "Context Threshold",
     "webSearch": "Web Search",
     "image": "Image",
-    "force": "Force",
-    "forceHint": "Ignore the client's model and always use this slot for this scenario",
+    "trigger": {
+      "default": "Fallback — requests no other lane claims",
+      "background": "Claude Haiku-tier requests (lightweight subtasks)",
+      "think": "Requests with a thinking field (extended thinking / Plan)",
+      "longContext": "Token count over the threshold (or opus-tier / high effort)",
+      "webSearch": "Requests carrying a web_search tool",
+      "image": "Requests with image input"
+    },
+    "agentRoute": "Agent",
+    "subagentRoute": "Subagent",
     "selectModel": "Select a model...",
     "searchModel": "Search model...",
     "noModelFound": "No model found.",
@@ -417,6 +436,7 @@
     "title": "Sessions",
     "no_history": "No sessions yet",
     "loading": "Loading...",
+    "refresh": "Refresh",
     "archive_confirm": "Archive all sessions? They leave the list, but cost totals are kept.",
     "archive_all": "Archive all",
     "select_session": "Select a session to view details",

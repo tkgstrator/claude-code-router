@@ -17,7 +17,10 @@ export const CodexUsageWindowSchema = CodexUsageWindowValueSchema.nullable()
 
 // Per-account usage snapshots. accountLabel is the human-readable name
 // (userName ?? userEmail ?? userId) resolved at fetch time from the DB row.
+// subAccountId is the stable SubAccount id, used by the UI to join usage
+// bars onto the account roster from /api/subscriptions.
 export const ClaudeUsageSchema = z.object({
+  subAccountId: z.string().nonempty(),
   accountLabel: z.string(),
   fiveHour: ClaudeUsageWindowSchema,
   sevenDay: ClaudeUsageWindowSchema,
@@ -28,6 +31,7 @@ export const ClaudeUsageSchema = z.object({
 })
 
 export const CodexUsageSchema = z.object({
+  subAccountId: z.string().nonempty(),
   accountLabel: z.string(),
   planType: z.string().nonempty().nullable(),
   primary: CodexUsageWindowSchema,

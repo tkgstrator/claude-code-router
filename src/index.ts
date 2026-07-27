@@ -27,6 +27,7 @@ import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
 import { logger, syncLevelFromEnv } from './logger'
+import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
@@ -63,6 +64,10 @@ await reconcileActiveSubAccounts()
 // is resilient and registers the BullMQ schedule once Redis is reachable;
 // it has its own per-process guard so HMR re-evaluation is a no-op.
 void startUsageCapture()
+// Same pattern: periodically re-probe each subscription account and
+// persist its authStatus so the UI can flag accounts that need
+// re-authentication.
+void startAuthHealthCheck()
 
 const app = new OpenAPIHono()
 

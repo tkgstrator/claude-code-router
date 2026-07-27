@@ -2,8 +2,8 @@ import { ArrowLeft, Download, Loader2, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Toast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { buildInitialValues } from '@/lib/presets/initial-values'
@@ -294,31 +294,34 @@ export function Presets() {
   }
 
   return (
-    <Card className='flex h-full flex-col rounded-lg border shadow-sm'>
-      <CardHeader className='flex flex-row items-center justify-between border-b p-4'>
-        <Button variant='ghost' size='icon' onClick={handleGoBack}>
-          <ArrowLeft className='h-5 w-5' />
-        </Button>
-        <CardTitle className='text-lg'>
-          {t('presets.title')} <span className='text-sm font-normal text-muted-foreground'>({presets.length})</span>
-        </CardTitle>
+    <PageContainer className='h-screen'>
+      <PageHeader
+        title={`${t('presets.title')} (${presets.length})`}
+        leading={
+          <Button variant='ghost' size='icon' onClick={handleGoBack}>
+            <ArrowLeft className='h-5 w-5' />
+          </Button>
+        }
+      >
         <Button variant='ghost' size='icon' onClick={() => setMarketDialogOpen(true)}>
           <Store className='h-5 w-5' />
         </Button>
-      </CardHeader>
-      <CardContent className='flex-grow overflow-y-auto p-4'>
+      </PageHeader>
+      <PageContent>
         {loading ? (
-          <div className='flex items-center justify-center h-full'>
+          <div className='flex flex-1 items-center justify-center'>
             <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
           </div>
         ) : presets.length === 0 ? (
-          <div className='flex flex-col items-center justify-center h-full text-muted-foreground'>
+          <div className='flex flex-1 flex-col items-center justify-center text-muted-foreground'>
             <Download className='h-12 w-12 mb-4 opacity-50' />
             <p>{t('presets.no_presets')}</p>
             <p className='text-sm'>{t('presets.no_presets_hint')}</p>
           </div>
         ) : (
-          <div className='space-y-3'>
+          // Auto-fill grid: preset entries sit side-by-side at a comfortable
+          // width on wide screens instead of full-width rows.
+          <div className='grid grid-cols-[repeat(auto-fill,minmax(24rem,1fr))] items-start gap-x-6 gap-y-1'>
             {presets.map((preset) => (
               <PresetListItem
                 key={preset.name}
@@ -332,7 +335,7 @@ export function Presets() {
             ))}
           </div>
         )}
-      </CardContent>
+      </PageContent>
 
       <InstallPresetDialog
         open={installDialogOpen}
@@ -375,6 +378,6 @@ export function Presets() {
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </Card>
+    </PageContainer>
   )
 }

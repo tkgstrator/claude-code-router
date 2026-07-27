@@ -12,8 +12,10 @@ import { cn } from '@/lib/utils'
 
 const hiddenHandle = { opacity: 0 } as const
 
-// Shared card chrome for both node types so they stay visually in sync.
-const nodeCardClass = 'rounded-md border bg-card px-3 py-2 shadow-sm transition-opacity'
+// Shared flat chrome for both node types so they stay visually in sync.
+// Canvas nodes keep a 1px border and modest rounding for legibility, but
+// no shadow — the graph stays flat like the rest of the UI.
+const nodeCardClass = 'rounded-md border bg-background px-3 py-2 transition-opacity'
 
 export interface ScenarioNodeData extends Record<string, unknown> {
   label: string

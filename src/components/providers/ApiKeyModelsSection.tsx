@@ -110,7 +110,7 @@ export function ApiKeyModelsSection({
         {isFetchingModels ? t("providers.fetching_models") : t("providers.fetch_available_models")}
       </Button> */}
         </div>
-        <div className='divide-y rounded-md border'>
+        <div className='divide-y border-y empty:border-none'>
           {[...models]
             .sort((a, b) => b.localeCompare(a))
             .map((model) => {

@@ -47,7 +47,7 @@ export function ProviderList({ providers, onEdit }: ProviderListProps) {
   if (!providers || !Array.isArray(providers)) {
     return (
       <div className='space-y-3'>
-        <div className='flex items-center justify-center rounded-md border bg-background p-8 text-muted-foreground'>
+        <div className='flex items-center justify-center bg-muted/40 p-8 text-muted-foreground'>
           No providers configured
         </div>
       </div>
@@ -55,27 +55,23 @@ export function ProviderList({ providers, onEdit }: ProviderListProps) {
   }
 
   return (
-    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+    // Auto-fill grid: provider rows sit side-by-side at a comfortable width
+    // on wide screens instead of stretching edge-to-edge.
+    <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-6 gap-y-1'>
       {providers.map((provider, index) => {
         // Handle case where individual provider might be null or undefined
         if (!provider) {
           return (
             <div
               key={index}
-              className='flex items-start justify-between rounded-md border bg-background p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
+              className='flex items-start justify-between gap-3 rounded-md px-2 py-3 transition-colors animate-slide-in hover:bg-muted/50'
             >
               <div className='flex-1 space-y-1.5'>
                 <p className='text-md font-semibold text-foreground'>Invalid Provider</p>
                 <p className='text-sm text-muted-foreground'>Provider data is missing</p>
               </div>
               <div className='ml-4 flex flex-shrink-0 items-center gap-2'>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  onClick={() => onEdit(index)}
-                  className='transition-all-ease hover:scale-110'
-                  disabled
-                >
+                <Button variant='ghost' size='icon' onClick={() => onEdit(index)} disabled>
                   <Pencil className='h-4 w-4' />
                 </Button>
               </div>
@@ -98,7 +94,7 @@ export function ProviderList({ providers, onEdit }: ProviderListProps) {
         return (
           <div
             key={index}
-            className='flex items-center justify-between rounded-md border bg-background p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]'
+            className='flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors animate-slide-in hover:bg-muted/50'
           >
             <div className='flex flex-1 items-center gap-3'>
               <ProviderIcon name={providerName} size={28} className='flex-shrink-0' />
@@ -115,17 +111,11 @@ export function ProviderList({ providers, onEdit }: ProviderListProps) {
                 size='icon'
                 onClick={() => handleTest(providerName)}
                 disabled={testState[providerName] === 'testing'}
-                className='transition-all-ease hover:scale-110'
                 title={testError[providerName] ?? 'Test connection'}
               >
                 {renderTestIcon(testState[providerName])}
               </Button>
-              <Button
-                variant='ghost'
-                size='icon'
-                onClick={() => onEdit(index)}
-                className='transition-all-ease hover:scale-110'
-              >
+              <Button variant='ghost' size='icon' onClick={() => onEdit(index)}>
                 <Pencil className='h-4 w-4' />
               </Button>
             </div>

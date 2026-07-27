@@ -71,10 +71,10 @@ async function buildLlmsContext(): Promise<LlmsContext> {
   //    "provider,model" resolution; keep that key (lowercase) populated alongside
   //    the schema-canonical capital Providers.
   // The wire/UI config carries the nested Router shape; the pipeline
-  // reads the historical flat shape (per-scenario primary slots plus
-  // sibling fallbacks / force maps and the two scalar knobs), so flatten
-  // it here — the single boundary where nested config crosses into the
-  // runtime ConfigStore. Per-project override files are already flat.
+  // reads the flat shape (per-kind agent/subagent primary + fallback maps
+  // and the two scalar knobs), so flatten it here — the single boundary
+  // where nested config crosses into the runtime ConfigStore. Per-project
+  // override files are already flat.
   const config = new ConfigStore({
     ...cfg,
     Providers: providersWithAuth,

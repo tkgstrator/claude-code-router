@@ -11,17 +11,32 @@ import { EmptyStringToNullSchema } from './common.dto'
 // downstream (applyRouter / the UI option filter), not here.
 const FallbackEntrySchema = z.string().nonempty()
 
-// The fields every scenario shares, gathered in one place. The old flat
-// shape scattered these across top-level slots plus sibling `fallbacks`
-// and `force` objects; nesting them per scenario keeps one scenario's
-// whole config together (and maps 1:1 onto a Routing Map node). `primary`
-// is the "providerName,modelName" model reference or null ('' folds to
-// null on parse); `fallbacks` is the ordered chain; `force` overrides the
-// client's bare model with the slot model.
+// A single route target: the primary model reference plus its ordered
+// fallback chain. `primary` is the "providerName,modelName" reference or
+// null ('' folds to null on parse); `fallbacks` is the failover chain the
+// runtime walks when the primary is rate-limited. Every scenario carries
+// two of these — one per caller kind (agent / subagent).
+export const RouteTargetSchema = z
+  .object({
+    primary: EmptyStringToNullSchema.default(null),
+    fallbacks: z.array(FallbackEntrySchema).default([])
+  })
+  .openapi('RouteTarget')
+
+// The fields every scenario shares: TWO routes keyed by caller kind.
+// `agent` handles normal / main-agent traffic; `subagent` handles a
+// request carrying a <CCR-SUBAGENT-MODEL> tag. selectModel picks the
+// `subagent` route iff the tag is present, else `agent`. The tag's model
+// VALUE is no longer used to route — only its presence selects the route.
+//
+// Both routes default to an empty route target: a partial write may omit
+// either side (e.g. a save that only touches the agent route) without a
+// parse error, and the .default() keeps them REQUIRED (always present) in
+// the inferred output type — so composeUiConfig and the UI read
+// `router[scenario].agent.primary` without a `?.` guard.
 const scenarioBase = {
-  primary: EmptyStringToNullSchema.default(null),
-  fallbacks: z.array(FallbackEntrySchema).default([]),
-  force: z.boolean().default(false)
+  agent: RouteTargetSchema.default({ primary: null, fallbacks: [] }),
+  subagent: RouteTargetSchema.default({ primary: null, fallbacks: [] })
 }
 
 // A scenario with no scenario-specific parameters.
@@ -50,15 +65,15 @@ export const LongContextScenarioRouteSchema = z
 
 // --- Router (nested wire shape) ---------------------------------------------
 
-// API wire shape returned by /api/config. One nested object per scenario
-// (each holds its own primary + fallback chain + force). Scenario-scoped
-// parameters live on the scenario that owns them: `threshold` on
-// longContext, `weeklyDrainMarginPct` on default — so the type makes it
-// impossible to set them on the wrong scenario. `persona` is a
-// scenario-independent global folded in from the disk envelope's
-// ActivePersona key by composeUiConfig. `image` accepts `force` for UI
-// parity, but it is a runtime no-op (image traffic is handled by the
-// image agent, not selectModel).
+// API wire shape returned by /api/config. One nested object per scenario,
+// each holding its `agent` and `subagent` routes (primary + fallback
+// chain). Scenario-scoped parameters live on the scenario that owns them:
+// `threshold` on longContext, `weeklyDrainMarginPct` on default — so the
+// type makes it impossible to set them on the wrong scenario. `persona` is
+// a scenario-independent global folded in from the disk envelope's
+// ActivePersona key by composeUiConfig. `image` routes are accepted for UI
+// parity but are a runtime no-op (image traffic is handled by the image
+// agent, not selectModel).
 export const RouterSchema = z
   .object({
     default: DefaultScenarioRouteSchema,
@@ -102,22 +117,24 @@ export type ScenarioKey = z.infer<typeof ScenarioKeySchema>
 
 // --- Runtime (flat) adapter -------------------------------------------------
 
+// Per-kind primary map: scenario -> "provider,model" (null when unset).
+export type FlatRouteMap = Record<ScenarioKey, string | null>
+// Per-kind fallback map: scenario -> ordered "provider,model" chain.
+export type FlatFallbackMap = Record<ScenarioKey, string[]>
+
 // The flat Router shape the scenario-router pipeline reads at runtime
-// (failover.ts, model-selection.ts, invocation.ts). It is the historical
-// pre-nesting shape: per-scenario primary slots plus sibling fallbacks /
-// force maps and the two scalar knobs. composeUiConfig emits the nested
-// RouterSchema for the UI/API; context.ts flattens it here before handing
-// it to the runtime ConfigStore, so the runtime read-sites stay unchanged
-// and per-project override files (already flat) need no adapter.
+// (failover.ts, model-selection.ts, invocation.ts). Each caller kind
+// (agent / subagent) gets its own primary + fallback map keyed by
+// scenario, plus the two scalar knobs and the persona. composeUiConfig
+// emits the nested RouterSchema for the UI/API; context.ts flattens it
+// here before handing it to the runtime ConfigStore, so the runtime
+// read-sites stay flat and per-project override files (already flat) need
+// no adapter.
 export interface FlatRouter {
-  default: string | null
-  background: string | null
-  think: string | null
-  longContext: string | null
-  webSearch: string | null
-  image: string | null
-  fallbacks: Record<ScenarioKey, string[]>
-  force: Record<ScenarioKey, boolean>
+  agent: FlatRouteMap
+  subagent: FlatRouteMap
+  agentFallbacks: FlatFallbackMap
+  subagentFallbacks: FlatFallbackMap
   longContextThreshold: number
   weeklyDrainMarginPct: number
   persona: string | null
@@ -128,27 +145,37 @@ export interface FlatRouter {
 export function flattenNestedRouter(router: Router): FlatRouter {
   const persona = typeof router.persona === 'string' ? router.persona : null
   return {
-    default: router.default.primary,
-    background: router.background.primary,
-    think: router.think.primary,
-    longContext: router.longContext.primary,
-    webSearch: router.webSearch.primary,
-    image: router.image.primary,
-    fallbacks: {
-      default: router.default.fallbacks,
-      background: router.background.fallbacks,
-      think: router.think.fallbacks,
-      longContext: router.longContext.fallbacks,
-      webSearch: router.webSearch.fallbacks,
-      image: router.image.fallbacks
+    agent: {
+      default: router.default.agent.primary,
+      background: router.background.agent.primary,
+      think: router.think.agent.primary,
+      longContext: router.longContext.agent.primary,
+      webSearch: router.webSearch.agent.primary,
+      image: router.image.agent.primary
     },
-    force: {
-      default: router.default.force,
-      background: router.background.force,
-      think: router.think.force,
-      longContext: router.longContext.force,
-      webSearch: router.webSearch.force,
-      image: router.image.force
+    subagent: {
+      default: router.default.subagent.primary,
+      background: router.background.subagent.primary,
+      think: router.think.subagent.primary,
+      longContext: router.longContext.subagent.primary,
+      webSearch: router.webSearch.subagent.primary,
+      image: router.image.subagent.primary
+    },
+    agentFallbacks: {
+      default: router.default.agent.fallbacks,
+      background: router.background.agent.fallbacks,
+      think: router.think.agent.fallbacks,
+      longContext: router.longContext.agent.fallbacks,
+      webSearch: router.webSearch.agent.fallbacks,
+      image: router.image.agent.fallbacks
+    },
+    subagentFallbacks: {
+      default: router.default.subagent.fallbacks,
+      background: router.background.subagent.fallbacks,
+      think: router.think.subagent.fallbacks,
+      longContext: router.longContext.subagent.fallbacks,
+      webSearch: router.webSearch.subagent.fallbacks,
+      image: router.image.subagent.fallbacks
     },
     longContextThreshold: router.longContext.threshold,
     weeklyDrainMarginPct: router.default.weeklyDrainMarginPct,

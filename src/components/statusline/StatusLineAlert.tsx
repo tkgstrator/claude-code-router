@@ -12,7 +12,7 @@ export function StatusLineAlert({ title, description, variant = 'default' }: Sta
 
   return (
     <div
-      className={`rounded-lg border p-4 ${
+      className={`border p-4 ${
         isError ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'
       }`}
     >

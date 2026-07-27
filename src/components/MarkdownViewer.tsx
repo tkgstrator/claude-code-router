@@ -46,7 +46,7 @@ const components: Components = {
     <code className={`rounded bg-current/10 px-1.5 py-0.5 font-mono text-[0.85em] ${className}`}>{children}</code>
   ),
   pre: ({ children }) => (
-    <pre className='my-3 overflow-x-auto rounded-md border border-current/15 bg-current/5 p-3 text-sm [&>code]:block [&>code]:bg-transparent [&>code]:p-0'>
+    <pre className='my-3 overflow-x-auto border border-current/15 bg-current/5 p-3 text-sm [&>code]:block [&>code]:bg-transparent [&>code]:p-0'>
       {children}
     </pre>
   ),
@@ -59,9 +59,7 @@ const components: Components = {
     <th className='border border-current/20 bg-current/5 px-3 py-1.5 text-left font-semibold'>{children}</th>
   ),
   td: ({ children }) => <td className='border border-current/20 px-3 py-1.5'>{children}</td>,
-  img: ({ src, alt }) => (
-    <img src={typeof src === 'string' ? src : undefined} alt={alt} className='my-3 max-w-full rounded-md' />
-  )
+  img: ({ src, alt }) => <img src={typeof src === 'string' ? src : undefined} alt={alt} className='my-3 max-w-full' />
 }
 
 interface MarkdownViewerProps {

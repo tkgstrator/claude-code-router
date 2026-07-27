@@ -18,6 +18,7 @@
  * per-session/per-project Router override lookup.
  */
 
+import type { FlatRouter } from '@/schemas'
 import { applyProactiveFailover } from './scenario-router/failover'
 import { selectModel } from './scenario-router/model-selection'
 import { applyGlobalSystemPrompt, resolveActivePersonaPrompt } from './scenario-router/persona'
@@ -61,9 +62,10 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // when no per-project file applies.
     const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
 
-    const { model, scenarioType } = selectModel(req, tokenCount, router, ctx.config)
-    req.body.model = applyProactiveFailover(model, scenarioType, tokenCount, ctx.config, req.log)
+    const { model, scenarioType, isSubagent } = selectModel(req, tokenCount, router, ctx.config)
+    req.body.model = applyProactiveFailover(model, scenarioType, isSubagent, tokenCount, ctx.config, req.log)
     req.scenarioType = scenarioType
+    req.isSubagent = isSubagent
 
     // Append the active persona's prompt to user-facing routes only,
     // AFTER subagent-tag handling (done inside selectModel) so it
@@ -75,8 +77,10 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     req.body.system = applyGlobalSystemPrompt(req.body.system, personaPrompt)
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')
-    const fallback = ctx.config.get<RouterConfig>('Router')?.default
-    if (fallback) req.body.model = fallback
+    // The runtime Router is the flat shape; the default agent primary is
+    // the safe fallback target when routing itself threw.
+    const fallback = ctx.config.get<FlatRouter>('Router')?.agent?.default
+    if (typeof fallback === 'string' && fallback.length > 0) req.body.model = fallback
     req.scenarioType = 'default'
   }
 }

@@ -2,63 +2,133 @@
  * Custom React Flow nodes for the EDITABLE routing graph:
  *   scenario lane (left) → target model (right).
  * Unlike the read-only nodes (nodes.tsx), the handles here are
- * connectable: dragging from a scenario's right handle to a model's left
- * handle wires that model into the scenario (primary, then fallbacks).
- * All presentational — every label is translated by the page and passed
- * in via node data.
+ * connectable. A scenario node exposes TWO source handles on its right
+ * edge — an `agent` route (top) and a `subagent` route (bottom) — so
+ * dragging from either wires the model into THAT route (primary, then
+ * fallbacks). All presentational — every label is translated by the page
+ * and passed in via node data.
  */
 
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-const nodeCardClass = 'rounded-md border bg-card px-3 py-2 shadow-sm transition-shadow'
+// Canvas nodes keep a 1px border and modest rounding for legibility, but
+// no shadow — selection is expressed via border color instead of a ring.
+const nodeCardClass = 'rounded-md border bg-background px-3 py-2 transition-colors'
+
+// Handle colors mirror the edge stroke: agent rides --primary, subagent
+// rides --muted-foreground, so the two exits read the same on node and edge.
+const AGENT_COLOR = 'var(--primary)'
+const SUBAGENT_COLOR = 'var(--muted-foreground)'
 
 export interface ScenarioEditNodeData extends Record<string, unknown> {
   label: string
-  // The primary model label, or an empty string when the slot is unset.
-  primaryLabel: string
-  // Localized "no primary" placeholder shown when primaryLabel is empty.
+  // Agent route summary: primary model label ('' when unset) + fallback count.
+  agentPrimaryLabel: string
+  agentFallbackCount: number
+  // Subagent route summary: primary model label ('' when unset) + fallback count.
+  subagentPrimaryLabel: string
+  subagentFallbackCount: number
+  // Localized "no primary" placeholder shown when a primary label is empty.
   emptyLabel: string
-  fallbackCount: number
+  // Localized "fallback(s)" suffix for the +n counters.
   fallbackLabel: string
-  forceOn: boolean
-  forceLabel: string
+  // Localized route names, used as the handle aria-labels.
+  agentRouteLabel: string
+  subagentRouteLabel: string
   selected: boolean
 }
 
 export interface ModelEditNodeData extends Record<string, unknown> {
   provider: string
   model: string
-  // Number of scenarios wiring this model (primary or fallback).
+  // Number of scenarios wiring this model (in either route, primary or fallback).
   usedBy: number
 }
 
 export type ScenarioEditNodeType = Node<ScenarioEditNodeData, 'scenarioEdit'>
 export type ModelEditNodeType = Node<ModelEditNodeData, 'modelEdit'>
 
+// One compact route summary row: a chip marker (A / S), the primary model
+// label (or the localized empty placeholder), and a +n fallback counter.
+function RouteSummary({
+  chip,
+  chipClass,
+  primaryLabel,
+  emptyLabel,
+  fallbackCount,
+  fallbackLabel
+}: {
+  chip: string
+  chipClass: string
+  primaryLabel: string
+  emptyLabel: string
+  fallbackCount: number
+  fallbackLabel: string
+}) {
+  return (
+    <div className='flex items-center gap-1.5'>
+      <span
+        className={cn(
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded text-[9px] font-semibold leading-none',
+          chipClass
+        )}
+      >
+        {chip}
+      </span>
+      <span
+        className={cn(
+          'min-w-0 flex-1 truncate text-[11px]',
+          primaryLabel === '' ? 'text-muted-foreground italic' : 'font-mono'
+        )}
+      >
+        {primaryLabel === '' ? emptyLabel : primaryLabel}
+      </span>
+      {fallbackCount > 0 && (
+        <span className='shrink-0 text-[10px] tabular-nums text-muted-foreground'>
+          +{fallbackCount} {fallbackLabel}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
   return (
-    <div className={cn(nodeCardClass, 'min-w-[170px] space-y-1', data.selected && 'ring-2 ring-primary')}>
-      <div className='flex items-center justify-between gap-2'>
-        <span className='text-sm font-medium leading-tight'>{data.label}</span>
-        {data.forceOn && (
-          <Badge variant='secondary' className='shrink-0 text-[10px]'>
-            {data.forceLabel}
-          </Badge>
-        )}
-      </div>
-      <div
-        className={cn('truncate text-[11px]', data.primaryLabel === '' ? 'text-muted-foreground italic' : 'font-mono')}
-      >
-        {data.primaryLabel === '' ? data.emptyLabel : data.primaryLabel}
-      </div>
-      {data.fallbackCount > 0 && (
-        <div className='text-[11px] tabular-nums text-muted-foreground'>
-          +{data.fallbackCount} {data.fallbackLabel}
-        </div>
-      )}
-      <Handle type='source' position={Position.Right} />
+    <div className={cn(nodeCardClass, 'min-w-[210px] space-y-1', data.selected && 'border-2 border-primary')}>
+      <div className='text-sm font-medium leading-tight'>{data.label}</div>
+      <RouteSummary
+        chip='A'
+        chipClass='bg-primary text-primary-foreground'
+        primaryLabel={data.agentPrimaryLabel}
+        emptyLabel={data.emptyLabel}
+        fallbackCount={data.agentFallbackCount}
+        fallbackLabel={data.fallbackLabel}
+      />
+      <RouteSummary
+        chip='S'
+        chipClass='border border-muted-foreground/50 text-muted-foreground'
+        primaryLabel={data.subagentPrimaryLabel}
+        emptyLabel={data.emptyLabel}
+        fallbackCount={data.subagentFallbackCount}
+        fallbackLabel={data.fallbackLabel}
+      />
+      <Handle
+        type='source'
+        position={Position.Right}
+        id='agent'
+        aria-label={data.agentRouteLabel}
+        title={data.agentRouteLabel}
+        style={{ top: '35%', background: AGENT_COLOR }}
+      />
+      <Handle
+        type='source'
+        position={Position.Right}
+        id='subagent'
+        aria-label={data.subagentRouteLabel}
+        title={data.subagentRouteLabel}
+        style={{ top: '65%', background: SUBAGENT_COLOR }}
+      />
     </div>
   )
 }

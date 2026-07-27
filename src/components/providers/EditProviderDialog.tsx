@@ -57,7 +57,7 @@ export function EditProviderDialog({
         </DialogHeader>
         {provider && (
           <div className='space-y-4 p-4 overflow-y-auto flex-grow'>
-            <div className='flex items-center justify-between rounded-md border p-3'>
+            <div className='flex items-center justify-between border-b pb-3'>
               <div className='space-y-0.5'>
                 <Label>{t('providers.provider_enabled')}</Label>
               </div>

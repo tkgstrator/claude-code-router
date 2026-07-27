@@ -19,20 +19,20 @@ export function LogFileList({ files, onSelect, t }: LogFileListProps) {
           <p>{t('log_viewer.no_log_files_available')}</p>
         </div>
       ) : (
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+        <div className='divide-y border-y'>
           {files.map((file) => (
             <div
               key={file.path}
-              className='border rounded-lg p-4 hover:bg-muted/50 cursor-pointer transition-colors'
+              className='flex items-center justify-between gap-3 px-1 py-3 hover:bg-muted/50 cursor-pointer transition-colors'
               onClick={() => onSelect(file)}
             >
-              <div className='flex items-start justify-between mb-2'>
+              <div className='flex items-start justify-between'>
                 <div className='flex items-center gap-2'>
                   <File className='h-5 w-5 text-primary' />
                   <span className='font-medium text-sm'>{file.name}</span>
                 </div>
               </div>
-              <div className='text-xs text-muted-foreground space-y-1'>
+              <div className='text-xs text-muted-foreground space-y-1 text-right'>
                 <div>{formatFileSize(file.size)}</div>
                 <div>{formatDate(file.lastModified)}</div>
               </div>

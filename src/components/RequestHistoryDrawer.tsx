@@ -95,11 +95,11 @@ export function RequestHistoryDrawer({ isOpen, onClose, onSelectRequest }: Reque
           {loading ? (
             <div className='flex items-center justify-center h-32 text-muted-foreground'>加载中...</div>
           ) : requests.length > 0 ? (
-            <div className='space-y-2'>
+            <div className='divide-y border-y'>
               {requests.map((item) => (
                 <div
                   key={item.id}
-                  className='p-3 bg-muted rounded-lg border cursor-pointer hover:bg-accent transition-colors'
+                  className='px-1 py-3 cursor-pointer hover:bg-muted/50 transition-colors'
                   onClick={() => {
                     onSelectRequest(item)
                     onClose()

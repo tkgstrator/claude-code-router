@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isRouteErrorResponse, useLocation, useNavigate, useRouteError } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 // Renders both React Router 404s (thrown Response 404) and runtime errors
 // thrown from a rendered route. The layout matches OauthResultPage so a
@@ -28,20 +27,18 @@ function NotFoundCard() {
   const { pathname } = useLocation()
   return (
     <ErrorShell>
-      <Card className='w-full max-w-md'>
-        <CardHeader>
-          <div className='flex items-center gap-3'>
-            <div className='rounded-full bg-muted p-2'>
-              <Compass className='h-5 w-5 text-muted-foreground' />
-            </div>
-            <div>
-              <CardTitle>{t('errors.not_found_title')}</CardTitle>
-              <CardDescription>{t('errors.not_found_body')}</CardDescription>
-            </div>
+      <div className='w-full max-w-md space-y-6'>
+        <div className='flex items-center gap-3 border-b pb-4'>
+          <div className='rounded-full bg-muted p-2'>
+            <Compass className='h-5 w-5 text-muted-foreground' />
           </div>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='rounded border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground break-all'>
+          <div>
+            <h1 className='text-base font-semibold'>{t('errors.not_found_title')}</h1>
+            <p className='text-sm text-muted-foreground'>{t('errors.not_found_body')}</p>
+          </div>
+        </div>
+        <div className='space-y-4'>
+          <div className='border bg-muted/40 px-3 py-2 font-mono text-xs text-muted-foreground break-all'>
             {pathname}
           </div>
           <div className='flex gap-2'>
@@ -50,8 +47,8 @@ function NotFoundCard() {
               {t('errors.go_home')}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </ErrorShell>
   )
 }
@@ -64,20 +61,18 @@ function RuntimeErrorCard({ error }: { error: unknown }) {
   const details = describe(error)
   return (
     <ErrorShell>
-      <Card className='w-full max-w-lg'>
-        <CardHeader>
-          <div className='flex items-center gap-3'>
-            <div className='rounded-full bg-destructive/10 p-2'>
-              <AlertTriangle className='h-5 w-5 text-destructive' />
-            </div>
-            <div>
-              <CardTitle>{t('errors.generic_title')}</CardTitle>
-              <CardDescription>{t('errors.generic_body')}</CardDescription>
-            </div>
+      <div className='w-full max-w-lg space-y-6'>
+        <div className='flex items-center gap-3 border-b pb-4'>
+          <div className='rounded-full bg-destructive/10 p-2'>
+            <AlertTriangle className='h-5 w-5 text-destructive' />
           </div>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='rounded border bg-muted px-3 py-2 text-sm break-words'>{summary}</div>
+          <div>
+            <h1 className='text-base font-semibold'>{t('errors.generic_title')}</h1>
+            <p className='text-sm text-muted-foreground'>{t('errors.generic_body')}</p>
+          </div>
+        </div>
+        <div className='space-y-4'>
+          <div className='border bg-muted/40 px-3 py-2 text-sm break-words'>{summary}</div>
           {details && (
             <div>
               <button
@@ -88,7 +83,7 @@ function RuntimeErrorCard({ error }: { error: unknown }) {
                 {detailsOpen ? t('errors.hide_details') : t('errors.show_details')}
               </button>
               {detailsOpen && (
-                <pre className='mt-2 max-h-64 overflow-auto rounded border bg-muted px-3 py-2 font-mono text-[10px] whitespace-pre-wrap break-all'>
+                <pre className='mt-2 max-h-64 overflow-auto border bg-muted/40 px-3 py-2 font-mono text-[10px] whitespace-pre-wrap break-all'>
                   {details}
                 </pre>
               )}
@@ -104,8 +99,8 @@ function RuntimeErrorCard({ error }: { error: unknown }) {
               {t('errors.go_home')}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </ErrorShell>
   )
 }

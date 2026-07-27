@@ -22,6 +22,12 @@ export const DiscoveredAccountSchema = z.object({
 })
 export type DiscoveredAccount = z.infer<typeof DiscoveredAccountSchema>
 
+// Result of the last auth probe (token refresh + upstream profile/usage
+// fetch). Mirrors the SubAccount.authStatus enum. `invalid` means the
+// account needs re-authentication via the CLI.
+export const AuthStatusSchema = z.enum(['unknown', 'live', 'invalid'])
+export type AuthStatus = z.infer<typeof AuthStatusSchema>
+
 export const SubscriptionInfoSchema = z
   .object({
     id: z.string().nonempty(),
@@ -34,7 +40,13 @@ export const SubscriptionInfoSchema = z
     plan: z.string().nonempty().nullable(),
     rateLimitTier: z.string().nonempty().nullable(),
     monthlyPriceUsd: z.number().nullable(),
+    // For Claude this is the auto-refreshed access-token expiry; for Codex
+    // it is the subscription end date. Neither on its own means "auth is
+    // dead" — authStatus is the authoritative health signal.
     expiresAt: z.number().nullable(),
+    authStatus: AuthStatusSchema,
+    authCheckedAt: z.number().nullable(),
+    authError: z.string().nonempty().nullable(),
     scopes: z.array(z.string().nonempty())
   })
   .openapi('SubscriptionAccountInfo')
@@ -42,6 +54,10 @@ export const SubscriptionInfoSchema = z
 export const SubscriptionProviderInfoSchema = z
   .object({
     providerName: z.string().nonempty(),
+    // Vendor family, derived from the provider's apiBaseUrl. Lets the UI
+    // pick the right usage-window shape and group accounts without hard-
+    // coding provider names.
+    kind: z.enum(['claude', 'codex', 'other']),
     enabled: z.boolean(),
     accounts: z.array(SubscriptionInfoSchema),
     activeAccount: SubscriptionInfoSchema.nullable()
