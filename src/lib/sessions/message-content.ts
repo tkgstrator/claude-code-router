@@ -36,8 +36,26 @@ const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
   /^Contents of\s/,
   /^Codebase and user instructions\b/,
   /^Tool loaded\.\s*$/,
-  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m
+  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m,
+  // Recap-on-return directive Claude Code prepends when the user steps
+  // away and comes back ("The user stepped away and is coming back.
+  // Recap in under 40 words, ..."). No sentinel — matched by opener.
+  /^The user stepped away and is coming back\b/,
+  // Context-compaction request Claude Code emits when it wants a
+  // conversation summary ("CRITICAL: Respond with TEXT ONLY. Do NOT call
+  // any tools. ... create a detailed summary of the conversation ...").
+  /^CRITICAL: Respond with TEXT ONLY\. Do NOT call any tools\b/
 ]
+
+// Detect the permission-gate boilerplate Claude Code prepends before it
+// evaluates certain tool calls. Every observed variant (with/without the
+// "Err on the side of blocking" opener; ending in `<block>`/`<allow>` or
+// `<severity>` sentinels) shares the exact sentence "Stage 1 does NOT
+// apply user intent" verbatim, so key on that phrase — it's specific
+// enough to keep the false-positive risk low against genuine chat.
+function looksLikePermissionGate(text: string): boolean {
+  return /Stage 1 does NOT apply user intent/.test(text)
+}
 
 export function normaliseContent(content: unknown): NormalisedBlock[] {
   if (typeof content === 'string') return [{ kind: 'text', text: content }]
@@ -83,7 +101,7 @@ function classifyTextBlock(text: string): NormalisedBlock {
   }
   // Tagless system dump — Claude Code appends these verbatim before the
   // user's turn, and they surface here as plain text.
-  if (CLAUDE_CODE_TAGLESS_PREFIXES.some((re) => re.test(cleaned))) {
+  if (CLAUDE_CODE_TAGLESS_PREFIXES.some((re) => re.test(cleaned)) || looksLikePermissionGate(cleaned)) {
     return { kind: 'system_text', text, preview: makePreview(cleaned) }
   }
   const head = cleaned.charAt(0)

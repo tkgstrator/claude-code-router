@@ -283,8 +283,9 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
 
   return (
     <div className='space-y-6'>
-      {/* Header */}
-      <div className='flex flex-wrap items-start justify-between gap-4 border-b pb-4'>
+      {/* Header — plain top block, no card/frame styling. The trailing
+          `space-y-6` on the parent handles rhythm between sections. */}
+      <div className='flex flex-wrap items-start justify-between gap-4'>
         <div className='min-w-0'>
           <h2 className='text-xl font-semibold text-foreground'>{dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}</h2>
           <p className='truncate font-mono text-xs text-muted-foreground'>{session.sessionId}</p>
