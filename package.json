@@ -37,7 +37,7 @@
   "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
-    "@openai/codex": "^0.144.1",
+    "@openai/codex": "^0.145.0",
     "@tailwindcss/postcss": "^4.3.1",
     "@types/bun": "^1.3.14",
     "@types/node": "^26.0.1",
@@ -63,7 +63,7 @@
     "ioredis": "5.11.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.111.0",
+    "@anthropic-ai/sdk": "^0.115.0",
     "@base-ui/react": "^1.6.0",
     "@fastify/cors": "^11.2.0",
     "@fontsource-variable/figtree": "^5.2.10",
@@ -124,7 +124,7 @@
     "react-i18next": "^17.0.8",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.0",
-    "recharts": "3.9.2",
+    "recharts": "3.10.1",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "remixicon": "^4.9.1",
