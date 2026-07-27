@@ -38,8 +38,10 @@ export const ClaudeUsageSchema = z.object({
   // Per-model weekly windows (Fable, Mythos, ...). Anthropic no longer
   // populates the flat `seven_day_sonnet`/`seven_day_opus` fields for most
   // plans and puts every scoped window in a `limits[]` array instead. This
-  // list carries whatever the API returned, in order.
-  weeklyScoped: z.array(ClaudeScopedWindowSchema),
+  // list carries whatever the API returned, in order. Defaults to `[]` so
+  // a value cached before this field existed still validates through the
+  // response schema (missing key -> empty list).
+  weeklyScoped: z.array(ClaudeScopedWindowSchema).default([]),
   extraUsageEnabled: z.boolean(),
   capturedAt: z.string().nonempty()
 })
