@@ -36,7 +36,12 @@ const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
   /^Contents of\s/,
   /^Codebase and user instructions\b/,
   /^Tool loaded\.\s*$/,
-  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m
+  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m,
+  // Permission-gate directive block Claude Code prepends before evaluating
+  // a tool call. Characteristic openers: "Err on the side of blocking",
+  // followed by "Stage 1" / "Stage 2" wording and terminated with a
+  // `<block>` / `<allow>` sentinel.
+  /^Err on the side of blocking\b/
 ]
 
 export function normaliseContent(content: unknown): NormalisedBlock[] {
