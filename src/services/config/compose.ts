@@ -5,7 +5,6 @@
  */
 
 import type { AppConfig, Provider, Router } from '@/schemas'
-import { emptyFallbacks } from '@/schemas'
 import type { ConfigEnvelope, ScenarioKey } from '@/shared'
 import { getPrismaClient } from '../../db/client'
 import {
@@ -17,20 +16,23 @@ import {
 import { readConfigFile } from './envelope'
 import { isJsonObject, providerEnabledFromTransformer } from './transformer'
 
-// Unassigned slots are null (not '') so "no model bound" reads the
-// same on the wire as everywhere else. fallbacks starts as all-empty
-// lists so composeUiConfig can assign per-scenario without a guard.
+// A fresh, unassigned route target: no primary, empty fallback chain.
+const emptyRoute = (): { primary: null; fallbacks: [] } => ({ primary: null, fallbacks: [] })
+
+// Every scenario starts unassigned: both the agent and subagent routes
+// have a null primary (not '' — "no model bound" reads the same on the
+// wire as everywhere else) and an empty fallback chain, so composeUiConfig
+// can fill each route in place without a guard. Scenario-scoped knobs sit
+// on their owning scenario (threshold on longContext, weeklyDrainMarginPct
+// on default) at their policy defaults.
 export const emptyRouter = (): Router => ({
-  default: null,
-  background: null,
-  think: null,
-  longContext: null,
-  webSearch: null,
-  image: null,
-  fallbacks: emptyFallbacks(),
-  force: {},
-  longContextThreshold: 60_000,
-  weeklyDrainMarginPct: 0
+  default: { agent: emptyRoute(), subagent: emptyRoute(), weeklyDrainMarginPct: 0 },
+  background: { agent: emptyRoute(), subagent: emptyRoute() },
+  think: { agent: emptyRoute(), subagent: emptyRoute() },
+  longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: 60_000 },
+  webSearch: { agent: emptyRoute(), subagent: emptyRoute() },
+  image: { agent: emptyRoute(), subagent: emptyRoute() },
+  persona: null
 })
 
 export const formatSlot = (
@@ -45,24 +47,23 @@ export const thresholdFromParams = (params: unknown): number | null => {
   return typeof t === 'number' ? t : null
 }
 
-// Read the ordered `fallbacks` list off a routerSlot.params JSON column.
-// Returns the "provider,model" strings in order, or null when none are
-// configured (so callers can skip the assignment entirely).
-export const fallbacksFromParams = (params: unknown): string[] | null => {
+// Read a named ordered "provider,model" list off a routerSlot.params JSON
+// column. Returns the strings in order, or null when the key is absent /
+// empty (so callers can skip the assignment entirely).
+const stringListFromParams = (params: unknown, key: 'fallbacks' | 'subagentFallbacks'): string[] | null => {
   if (!isJsonObject(params)) return null
-  const raw = params.fallbacks
+  const raw = params[key]
   if (!Array.isArray(raw)) return null
   const list = raw.filter((v): v is string => typeof v === 'string' && v.length > 0)
   return list.length > 0 ? list : null
 }
 
-// Read the `force` flag off a routerSlot.params JSON column. True only
-// when the slot is explicitly forced; anything else reads as false so
-// composeUiConfig can skip the assignment (client model wins by default).
-export const forceFromParams = (params: unknown): boolean => {
-  if (!isJsonObject(params)) return false
-  return params.force === true
-}
+// Agent-route fallback chain (the existing `fallbacks` key, reused).
+export const fallbacksFromParams = (params: unknown): string[] | null => stringListFromParams(params, 'fallbacks')
+
+// Subagent-route fallback chain (`subagentFallbacks`).
+export const subagentFallbacksFromParams = (params: unknown): string[] | null =>
+  stringListFromParams(params, 'subagentFallbacks')
 
 // Read `weeklyDrainMarginPct` off the default slot's params JSON column.
 // The margin is a Router-level policy knob (not slot-specific) but rides
@@ -173,7 +174,10 @@ export async function composeUiConfig(): Promise<AppConfig> {
       orderBy: { createdAt: 'asc' }
     }),
     prisma.routerSlot.findMany({
-      include: { model: { include: { provider: true } } }
+      include: {
+        model: { include: { provider: true } },
+        subagentModel: { include: { provider: true } }
+      }
     })
   ])
 
@@ -182,21 +186,23 @@ export async function composeUiConfig(): Promise<AppConfig> {
     // slot.scenario is the Prisma ScenarioKey enum; assignable to the
     // local ScenarioKey union without a cast.
     const key: ScenarioKey = slot.scenario
-    router[key] = formatSlot(slot.model?.provider, slot.model)
+    const route = router[key]
+    // Agent route primary from modelId; subagent route primary from
+    // subagentModelId. Each is null when the FK is unbound.
+    route.agent.primary = formatSlot(slot.model?.provider, slot.model)
+    route.subagent.primary = formatSlot(slot.subagentModel?.provider, slot.subagentModel)
+    const agentFallbacks = fallbacksFromParams(slot.params)
+    if (agentFallbacks) route.agent.fallbacks = agentFallbacks
+    const subagentFallbacks = subagentFallbacksFromParams(slot.params)
+    if (subagentFallbacks) route.subagent.fallbacks = subagentFallbacks
     if (key === 'longContext') {
       const threshold = thresholdFromParams(slot.params)
-      if (threshold !== null) router.longContextThreshold = threshold
+      if (threshold !== null) router.longContext.threshold = threshold
     }
     if (key === 'default') {
       const margin = weeklyDrainMarginPctFromParams(slot.params)
-      if (margin !== null) router.weeklyDrainMarginPct = margin
+      if (margin !== null) router.default.weeklyDrainMarginPct = margin
     }
-    const fallbacks = fallbacksFromParams(slot.params)
-    if (fallbacks) router.fallbacks[key] = fallbacks
-    // Emit force for any slot that has it set, image included, so the UI
-    // checkbox reloads with the saved state. image force is a runtime no-op
-    // (see RouterForceSchema).
-    if (forceFromParams(slot.params)) router.force[key] = true
   }
 
   // Fold the active persona into the composed Router from its disk-only

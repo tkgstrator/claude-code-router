@@ -67,12 +67,12 @@ export function MarketPresetsDialog({
               <p className='text-sm'>{t('presets.no_presets_found_hint')}</p>
             </div>
           ) : (
-            <div className='space-y-3'>
+            <div className='divide-y border-y'>
               {filteredPresets.map((preset) => {
                 const isInstalled = isMarketPresetInstalled(preset, installedPresets)
 
                 return (
-                  <div key={preset.id} className='p-4 border rounded-lg hover:bg-accent transition-colors'>
+                  <div key={preset.id} className='px-1 py-3 hover:bg-muted/50 transition-colors'>
                     <div className='flex items-start justify-between gap-4'>
                       <div className='flex-1'>
                         <div className='flex items-center gap-2 mb-2'>

@@ -169,9 +169,9 @@ export function DebugPage() {
   }
 
   return (
-    <div className='h-screen bg-gray-50 font-sans'>
+    <div className='h-screen bg-background font-sans'>
       {/* Header */}
-      <header className='flex h-16 items-center justify-between border-b bg-background px-6'>
+      <header className='flex h-16 items-center justify-between border-b px-6'>
         <div className='flex items-center gap-4'>
           <Button variant='ghost' size='sm' onClick={() => navigate('/models')}>
             <ArrowLeft className='h-4 w-4 mr-2' />
@@ -195,8 +195,8 @@ export function DebugPage() {
       <main className='flex h-[calc(100vh-4rem)] flex-col gap-4 p-4 overflow-hidden'>
         {/* Top: request parameter configuration - vertical layout */}
         <div className='h-1/2 flex flex-col gap-4'>
-          <div className='bg-background rounded-lg border p-4 flex-1 flex flex-col'>
-            <h3 className='font-medium mb-4'>请求参数配置</h3>
+          <div className='flex-1 flex flex-col'>
+            <h3 className='font-medium border-b pb-2 mb-4'>请求参数配置</h3>
             <div className='flex flex-col gap-4 flex-1'>
               {/* Top: method, URL, and send-request button */}
               <div className='flex gap-4 items-end'>

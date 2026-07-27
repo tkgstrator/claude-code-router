@@ -1,24 +1,27 @@
 /**
  * Scenario router model-selection heuristics.
  *
- * `selectModel` decides which configured model a request lands on:
- * bare-model-name match, size-based longContext, `<CCR-SUBAGENT-MODEL>`
- * tag, haiku->background, web-search, thinking->think, and finally the
- * heavy-effort/tier escalation. Each branch is its own small function so
- * `selectModel` reads as a priority list.
+ * `selectModel` decides which configured model a request lands on in three
+ * stages:
+ *   1. Caller kind — a <CCR-SUBAGENT-MODEL> tag's PRESENCE selects the
+ *      scenario's `subagent` route; otherwise the `agent` route. The tag's
+ *      model value is not used to route; the tag is stripped either way so
+ *      the marker never leaks upstream.
+ *   2. Scenario classification — size-based longContext, haiku→background,
+ *      web-search, thinking→think, effort/tier escalation, else default.
+ *   3. Route lookup — the chosen route's primary, or the request's own
+ *      model when that route has no primary configured.
  */
 
 import type { ScenarioType } from '@/schemas'
 import type { ConfigStore } from '../registry/config'
-import {
-  type ConfigProvider,
-  isProviderRegistrable,
-  type RouterConfig,
-  type RouterRequest,
-  type RouterRequestBody
-} from './types'
+import type { RouterConfig, RouterRequest, RouterRequestBody } from './types'
 
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
+
+// Which route within a scenario a request uses: `agent` for normal /
+// main-agent traffic, `subagent` when a <CCR-SUBAGENT-MODEL> tag is present.
+type RouteKind = 'agent' | 'subagent'
 
 // Effort levels Claude Code sends in `output_config.effort`. The router
 // reads this as a "how heavy is this work" hint to bias toward the
@@ -59,7 +62,7 @@ function classifyModelTier(model: string): ModelTier | undefined {
 //
 // thinking presence and message size are NOT consulted here — they are
 // already routed by the `think` / `longContext`-by-threshold lanes in
-// selectModel and would double-count if we mixed them in.
+// classifyScenario and would double-count if we mixed them in.
 export function isHeavyRequest(body: RouterRequestBody): boolean {
   const effort = readEffort(body)
   if (effort === 'high' || effort === 'xhigh' || effort === 'max') return true
@@ -71,174 +74,91 @@ export function selectModel(
   req: RouterRequest,
   tokenCount: number,
   router: RouterConfig | undefined,
-  config: ConfigStore
-): { model: string; scenarioType: ScenarioType } {
-  // <CCR-SUBAGENT-MODEL> tag in the second system block — the explicit
-  // per-call model a parent agent picks for its subagents (e.g. "run these
-  // in parallel on Fable5"). Highest priority: honored above the force gate,
-  // the bare-model match, and longContext bumping, so the parent's explicit
-  // choice is never silently rewritten by scenario routing. Failover still
-  // applies (scenarioType 'default') if that model errors upstream.
-  const subagentModel = extractSubagentModel(req.body.system)
-  if (subagentModel) return { model: subagentModel, scenarioType: 'default' }
+  // Kept for call-site compatibility; model selection no longer resolves
+  // by the request's bare model name, so the provider registry isn't read.
+  _config: ConfigStore
+): { model: string; scenarioType: ScenarioType; isSubagent: boolean } {
+  // Stage 1 — caller kind. A <CCR-SUBAGENT-MODEL> tag's PRESENCE selects
+  // the subagent route; its value is ignored. The tag is stripped in place
+  // regardless so the CCR-internal marker never reaches upstream.
+  const isSubagent = stripSubagentTag(req.body.system)
+  req.isSubagent = isSubagent
+  const kind: RouteKind = isSubagent ? 'subagent' : 'agent'
 
-  // Force gate — if the scenario this request classifies into has force
-  // enabled and a model assigned, override the client's bare model with
-  // the slot model. When force is absent/off for that scenario this falls
-  // straight through to the unchanged routing below, so default behavior
-  // is byte-identical to before this feature.
-  if (router) {
-    const forced = classifyForceScenario(req, tokenCount, router)
-    const slotModel = forced ? router[forced] : undefined
-    if (forced && router.force?.[forced] && slotModel) {
-      // Remember what the client originally asked for (resolved to
-      // provider,model) so the failover chain can fall back to it when the
-      // forced slot 429s: Force -> Request -> configured fallbacks.
-      const original = resolveByModelName(req.body.model, config)
-      req.forcedFrom = original && original.model !== slotModel ? original.model : undefined
-      req.log.info(
-        { model: slotModel, scenario: forced, forcedFrom: req.forcedFrom },
-        'Force override — using slot model'
-      )
-      return { model: slotModel, scenarioType: forced }
-    }
+  // Stage 2 — scenario classification from the request signals.
+  const scenario = classifyScenario(req, tokenCount, router, kind)
+
+  // Stage 3 — the chosen route's primary, falling back to the request's
+  // own model when that route has no primary configured.
+  const primary = primaryFor(router, kind, scenario)
+  const model = primary !== undefined ? primary : req.body.model
+  return { model, scenarioType: scenario, isSubagent }
+}
+
+// The primary "provider,model" configured for a scenario on the chosen
+// route kind, or undefined when unset. Reads the flat runtime maps
+// (router.agent / router.subagent); null / empty read as unset.
+function primaryFor(router: RouterConfig | undefined, kind: RouteKind, scenario: ScenarioType): string | undefined {
+  const map = kind === 'subagent' ? router?.subagent : router?.agent
+  const value = map?.[scenario]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+// Classify the request into a scenario. A scenario only wins when the
+// chosen route has a primary configured for it — an unconfigured lane
+// falls through so a heavy/haiku/etc. request without a matching route
+// lands on `default` (matching the pre-refactor behaviour).
+function classifyScenario(
+  req: RouterRequest,
+  tokenCount: number,
+  router: RouterConfig | undefined,
+  kind: RouteKind
+): ScenarioType {
+  const threshold =
+    typeof router?.longContextThreshold === 'number' ? router.longContextThreshold : DEFAULT_LONG_CONTEXT_THRESHOLD
+
+  // Long context by size — token count exceeds threshold.
+  if (tokenCount > threshold && primaryFor(router, kind, 'longContext') !== undefined) {
+    req.log.info(`Using long context model due to token count: ${tokenCount}, threshold: ${threshold}`)
+    return 'longContext'
   }
 
-  // Bare model-name override — when the request's `model` string is a
-  // model name that some configured provider already hosts, honor that
-  // choice as-is. This sits ABOVE the heuristic rewrites (haiku →
-  // background, opus → longContext, thinking → think) so a client that
-  // explicitly asks for `claude-haiku-4-5` lands on the matching
-  // provider rather than whatever the background slot points at.
-  // Falls through silently when no provider hosts the name, so the
-  // existing scenario routing remains the catch-all.
-  const direct = resolveByModelName(req.body.model, config)
-  if (direct) {
-    req.log.info({ model: direct.model }, 'Using request-specified model — exact provider match')
-    return direct
-  }
-
-  // Long context — token count exceeds threshold AND Router.longContext set.
-  if (router) {
-    const longContext = pickLongContext(req, tokenCount, router)
-    if (longContext) return longContext
-  }
-
-  // Any Claude Haiku variant → background model.
-  if (isHaikuBackground(req.body.model, router)) {
+  // Any Claude Haiku variant → background.
+  if (isHaiku(req.body.model) && primaryFor(router, kind, 'background') !== undefined) {
     req.log.info(`Using background model for ${req.body.model}`)
-    return { model: router.background, scenarioType: 'background' }
+    return 'background'
   }
 
   // Web search tools — higher priority than `thinking`. body.tools may
   // carry vendor-specific shapes (Anthropic's `{ type: 'web_search_*' }`
   // block) that TokenizeTool doesn't model.
-  if (router?.webSearch && Array.isArray(req.body.tools) && req.body.tools.some(isWebSearchTool)) {
-    return { model: router.webSearch, scenarioType: 'webSearch' }
+  if (
+    primaryFor(router, kind, 'webSearch') !== undefined &&
+    Array.isArray(req.body.tools) &&
+    req.body.tools.some(isWebSearchTool)
+  ) {
+    return 'webSearch'
   }
 
   // `thinking` field present → think model.
-  if (req.body.thinking && router?.think) {
+  if (req.body.thinking && primaryFor(router, kind, 'think') !== undefined) {
     req.log.info({ thinking: req.body.thinking }, 'Using think model')
-    return { model: router.think, scenarioType: 'think' }
+    return 'think'
   }
 
   // Effort/tier escalation — high effort or an opus-tier requested model
   // routes into the longContext (Opus) lane even when the request is
-  // short enough to skip the size-based pickLongContext above.
-  if (router?.longContext && isHeavyRequest(req.body)) {
+  // short enough to skip the size-based branch above.
+  if (primaryFor(router, kind, 'longContext') !== undefined && isHeavyRequest(req.body)) {
     req.log.info({ model: req.body.model }, 'Using long context model due to heavy effort/tier signal')
-    return { model: router.longContext, scenarioType: 'longContext' }
+    return 'longContext'
   }
 
-  const fallback = router?.default
-  return { model: fallback ? fallback : req.body.model, scenarioType: 'default' }
-}
-
-// Look for the first provider whose registered `models` list contains
-// the bare model name. Returns the canonical `provider,model` pair so
-// the rest of the pipeline can resolve it. Case-insensitive. Returns
-// null when no provider hosts the name — caller falls through to
-// scenario routing.
-function resolveByModelName(
-  rawModel: string,
-  config: ConfigStore
-): { model: string; scenarioType: ScenarioType } | null {
-  const providers = config.get<ConfigProvider[]>('providers', [])
-  // Prefer subscription providers over api_key when both host the same
-  // model. Subscription is the user's primary "free" capacity (they
-  // already paid the seat); api_key burns per-token spend. Without this
-  // bias, a bare `claude-opus-4-8` request can land on a half-configured
-  // anthropic api_key provider while a healthy claude-code subscription
-  // hosts the same model.
-  const subscriptionFirst = [
-    ...providers.filter((p) => p.auth_mode === 'subscription'),
-    ...providers.filter((p) => p.auth_mode !== 'subscription')
-  ]
-  for (const p of subscriptionFirst) {
-    if (!p.models) continue
-    // Skip providers the ProviderRegistry would reject (missing api_key
-    // etc.) — picking them here just bait the chain walker into a dead
-    // "provider not found; skipping" hop.
-    if (!isProviderRegistrable(p)) continue
-    const match = p.models.find((m) => m.toLowerCase() === rawModel.toLowerCase())
-    if (match) return { model: `${p.name},${match}`, scenarioType: 'default' }
-  }
-  return null
-}
-
-// Which scenario slot a request would route into, for the force gate
-// only. Deliberately ignores the bare-model-name match (that is exactly
-// what force overrides) and returns undefined when a `<CCR-SUBAGENT-MODEL>`
-// tag is present (that override is force-exempt). The branch conditions
-// mirror selectModel so the forced scenario matches where a force-OFF
-// request of the same shape would land.
-function classifyForceScenario(req: RouterRequest, tokenCount: number, router: RouterConfig): ScenarioType | undefined {
-  if (hasSubagentModel(req.body.system)) return undefined
-  const threshold =
-    typeof router.longContextThreshold === 'number' ? router.longContextThreshold : DEFAULT_LONG_CONTEXT_THRESHOLD
-  if (tokenCount > threshold && router.longContext) return 'longContext'
-  if (isHaikuBackground(req.body.model, router)) return 'background'
-  if (router.webSearch && Array.isArray(req.body.tools) && req.body.tools.some(isWebSearchTool)) return 'webSearch'
-  if (req.body.thinking && router.think) return 'think'
-  if (router.longContext && isHeavyRequest(req.body)) return 'longContext'
   return 'default'
 }
 
-// Presence-only check for the subagent tag — unlike extractSubagentModel
-// this does NOT strip the tag, so the force gate can peek without mutating
-// the request (the real strip still happens in selectModel's normal flow).
-function hasSubagentModel(system: RouterRequestBody['system']): boolean {
-  if (!Array.isArray(system) || system.length < 2) return false
-  const text = typeof system[1]?.text === 'string' ? system[1].text : undefined
-  return text?.startsWith('<CCR-SUBAGENT-MODEL>') === true
-}
-
-function pickLongContext(
-  req: RouterRequest,
-  tokenCount: number,
-  router: RouterConfig
-): { model: string; scenarioType: ScenarioType } | undefined {
-  const threshold =
-    typeof router.longContextThreshold === 'number' ? router.longContextThreshold : DEFAULT_LONG_CONTEXT_THRESHOLD
-  if (tokenCount > threshold && router.longContext) {
-    req.log.info(`Using long context model due to token count: ${tokenCount}, threshold: ${threshold}`)
-    return { model: router.longContext, scenarioType: 'longContext' }
-  }
-  return undefined
-}
-
-function isHaikuBackground(
-  model: string,
-  router: RouterConfig | undefined
-): router is RouterConfig & { background: string } {
-  return (
-    typeof model === 'string' &&
-    model.includes('claude') &&
-    model.includes('haiku') &&
-    typeof router?.background === 'string' &&
-    router.background.length > 0
-  )
+function isHaiku(model: string): boolean {
+  return typeof model === 'string' && model.includes('claude') && model.includes('haiku')
 }
 
 function isWebSearchTool(tool: unknown): tool is { type: string } {
@@ -247,14 +167,20 @@ function isWebSearchTool(tool: unknown): tool is { type: string } {
   return typeof type === 'string' && type.startsWith('web_search')
 }
 
-function extractSubagentModel(system: RouterRequestBody['system']): string | undefined {
-  if (!Array.isArray(system) || system.length < 2) return undefined
+// Detect a <CCR-SUBAGENT-MODEL> tag in the second system block and strip
+// it in place so the CCR-internal marker never leaks upstream. Returns
+// true when the tag is present — its PRESENCE selects the subagent route;
+// its VALUE is not used for routing. Only a well-formed (closed) tag is
+// stripped, matching the old extractSubagentModel behaviour; a malformed
+// (unclosed) tag still counts as present but is left untouched.
+function stripSubagentTag(system: RouterRequestBody['system']): boolean {
+  if (!Array.isArray(system) || system.length < 2) return false
   const block = system[1]
   const text = typeof block?.text === 'string' ? block.text : undefined
-  if (!text?.startsWith('<CCR-SUBAGENT-MODEL>')) return undefined
+  if (text?.startsWith('<CCR-SUBAGENT-MODEL>') !== true) return false
   const match = text.match(/<CCR-SUBAGENT-MODEL>(.*?)<\/CCR-SUBAGENT-MODEL>/s)
-  if (!match) return undefined
-  // Strip the tag so it doesn't reach the upstream provider.
-  block.text = text.replace(`<CCR-SUBAGENT-MODEL>${match[1]}</CCR-SUBAGENT-MODEL>`, '')
-  return match[1]
+  if (match) {
+    block.text = text.replace(`<CCR-SUBAGENT-MODEL>${match[1]}</CCR-SUBAGENT-MODEL>`, '')
+  }
+  return true
 }

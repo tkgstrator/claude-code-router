@@ -187,7 +187,6 @@ export function ModelsDashboard() {
           onClick={() => setScopeDialogOpen(true)}
           disabled={isTestingAll || visibleRows.length === 0}
           variant='outline'
-          className='transition-all-ease hover:scale-[1.02] active:scale-[0.98]'
         >
           {isTestingAll ? t('models.status_testing') : t('models.test_all')}
         </Button>
@@ -210,7 +209,7 @@ export function ModelsDashboard() {
 
       <PageContent className='p-0'>
         {visibleRows.length === 0 ? (
-          <div className='flex h-full flex-col items-center justify-center gap-2 p-6 text-center'>
+          <div className='flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center'>
             <p className='text-sm text-muted-foreground'>{t('models.no_models')}</p>
           </div>
         ) : (
@@ -263,7 +262,10 @@ export function ModelsDashboard() {
               {visibleRows.map((row) => {
                 const passedAtValue = passedAt[row.key]
                 return (
-                  <tr key={row.key} className={`border-t hover:bg-muted ${row.enabled ? '' : 'opacity-50'}`}>
+                  <tr
+                    key={row.key}
+                    className={`border-t transition-colors hover:bg-muted/50 ${row.enabled ? '' : 'opacity-50'}`}
+                  >
                     <td className='px-6 py-2 text-foreground'>
                       <span className='inline-flex items-center gap-2'>
                         <ProviderIcon name={row.provider} size={16} />

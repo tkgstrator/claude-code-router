@@ -18,11 +18,11 @@ export function RequestGroupList({ summary, onSelectReqId, t }: RequestGroupList
           {t('log_viewer.total_requests')}: {summary.totalRequests} |{t('log_viewer.total_logs')}: {summary.totalLogs}
         </p>
       </div>
-      <div className='flex-1 min-h-0 overflow-y-auto space-y-3'>
+      <div className='flex-1 min-h-0 overflow-y-auto divide-y border-y'>
         {summary.requests.map((request) => (
           <div
             key={request.reqId}
-            className='border rounded-lg p-4 hover:bg-muted/50 cursor-pointer transition-colors'
+            className='px-1 py-3 hover:bg-muted/50 cursor-pointer transition-colors'
             onClick={() => onSelectReqId(request.reqId)}
           >
             <div className='flex items-center justify-between mb-2'>

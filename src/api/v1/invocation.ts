@@ -13,7 +13,7 @@
  */
 
 import type { Context } from 'hono'
-import { type PipelineRequest, type Provider, RecordSchema, type Router } from '@/schemas'
+import { type FlatRouter, type PipelineRequest, type Provider, RecordSchema } from '@/schemas'
 import {
   type LlmsContext,
   type ResolvedProvider,
@@ -114,11 +114,10 @@ export interface RoutePlan {
   // for" next to "what was actually sent". Absent when the body had no
   // usable model string.
   requestedModel?: string
-  // When a force override replaced the client's model, the "provider,model"
-  // the client originally asked for — inserted into the failover chain right
-  // after the forced primary (Force -> Request -> fallbacks). Absent when no
-  // force fired or the original model resolves to no configured provider.
-  forcedFrom?: string
+  // Whether the request carried a <CCR-SUBAGENT-MODEL> tag. Selects the
+  // scenario's subagent route (vs agent) for the reactive failover chain,
+  // so it matches the route selectModel used for the primary.
+  isSubagent: boolean
   path: string
   search: string
 }
@@ -190,7 +189,7 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     scenarioType,
     primaryModel,
     requestedModel,
-    forcedFrom: routeReq.forcedFrom,
+    isSubagent: routeReq.isSubagent === true,
     path,
     search: url.search
   }
@@ -285,8 +284,11 @@ const providerNameOf = (modelString: string): string => modelString.split(',')[0
 // is the defence-in-depth for configs persisted before the validation
 // landed.
 export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] {
-  const router = ctx.config.get<Router>('Router')
-  const configured = router?.fallbacks?.[plan.scenarioType]
+  const router = ctx.config.get<FlatRouter>('Router')
+  // Read the fallback chain for the SELECTED route (agent vs subagent) so a
+  // reactive 429 walks the same chain the subagent/agent primary came from.
+  const fallbacksMap = plan.isSubagent ? router?.subagentFallbacks : router?.agentFallbacks
+  const configured = fallbacksMap?.[plan.scenarioType]
   const fallbacks = Array.isArray(configured) ? configured : []
 
   const providers = ctx.config.get<Provider[]>('providers', [])
@@ -294,13 +296,8 @@ export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] 
   const primaryName = providerNameOf(plan.primaryModel)
   const primaryAuth = authModeByName.get(primaryName)
 
-  // Force -> Request -> fallbacks: when a force override fired, the model the
-  // client originally asked for is tried right after the forced primary,
-  // ahead of the configured fallbacks. It still passes the same gates below
-  // (same-provider drop, auth_mode, exhausted) as any other fallback.
-  const forcedFrom = plan.forcedFrom !== undefined ? [plan.forcedFrom] : []
   const seen = new Set<string>()
-  const ordered = [plan.primaryModel, ...forcedFrom, ...fallbacks].filter((m) => {
+  const ordered = [plan.primaryModel, ...fallbacks].filter((m) => {
     if (seen.has(m)) return false
     seen.add(m)
     if (m === plan.primaryModel) return true

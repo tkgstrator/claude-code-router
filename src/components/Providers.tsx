@@ -314,15 +314,12 @@ export function Providers() {
         title={t('providers.title')}
         extra={
           <Tabs value={activeAuthMode} onValueChange={(v) => setActiveAuthMode(v as ProviderAuthMode)}>
-            <TabsList className='grid w-full grid-cols-2'>
-              <TabsTrigger value='api_key'>
-                {t('providers.auth_api')}
-                <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.api_key.length})</span>
-              </TabsTrigger>
-              <TabsTrigger value='subscription'>
-                {t('providers.auth_subscription')}
-                <span className='ml-2 text-xs text-muted-foreground'>({providersByAuth.subscription.length})</span>
-              </TabsTrigger>
+            {/* `line` variant = underline-style tabs (active tab gets an
+                underbar) instead of the segmented/pill look. grid-cols-2 keeps
+                both tabs equal width. */}
+            <TabsList variant='line' className='grid w-full max-w-xs grid-cols-2'>
+              <TabsTrigger value='api_key'>{t('providers.auth_api')}</TabsTrigger>
+              <TabsTrigger value='subscription'>{t('providers.auth_subscription')}</TabsTrigger>
             </TabsList>
           </Tabs>
         }

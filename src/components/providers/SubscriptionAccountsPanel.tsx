@@ -35,7 +35,7 @@ export function SubscriptionAccountsPanel({
 
   return (
     <div className='space-y-3'>
-      <div className='rounded-md border bg-muted/40 p-4 text-sm text-foreground space-y-1'>
+      <div className='bg-muted/40 p-4 text-sm text-foreground space-y-1'>
         <p className='font-medium'>{t('providers.subscription_intro', { vendor, cli })}</p>
         <p className='text-muted-foreground'>{t('providers.subscription_hint', { credentialsPath })}</p>
       </div>
@@ -44,7 +44,7 @@ export function SubscriptionAccountsPanel({
         {accounts.length === 0 ? (
           <p className='text-sm text-muted-foreground'>{t('providers.subscription_no_accounts')}</p>
         ) : (
-          <div className='divide-y rounded-md border'>
+          <div className='divide-y border-y empty:border-none'>
             {accounts.map((account) => {
               const enabled = isEnabled(account.id, account.enabled)
               return (

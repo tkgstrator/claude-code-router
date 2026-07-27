@@ -41,6 +41,19 @@ enum ModelTestStatus {
   fail
 }
 
+// Outcome of the last real auth probe for a SubAccount (token refresh +
+// upstream profile/usage fetch). Distinct from expiresAt, which for
+// Claude is an auto-refreshed access-token expiry and for Codex is the
+// subscription end date — neither reliably signals "auth is dead".
+//   - unknown: never probed (or reset)
+//   - live:    the probe authenticated successfully
+//   - invalid: the probe failed — the account needs re-authentication
+enum AuthStatus {
+  unknown
+  live
+  invalid
+}
+
 // How a Provider authenticates against its upstream API.
 //   - api_key:      legacy mode; the stored apiKey is sent via Bearer / x-api-key.
 //   - subscription: reuses Claude CLI's OAuth credentials at
@@ -116,6 +129,12 @@ model SubAccount {
   // time (e.g. claude max → 100, codex pro → 200). Null when the plan
   // is unknown or free.
   monthlyPriceUsd Float?
+  // Last auth-probe outcome + timestamps. authCheckedAt is set on every
+  // probe; authError holds the latest failure reason for display. The
+  // periodic auth-health job and the manual profile sync both write these.
+  authStatus    AuthStatus @default(unknown)
+  authCheckedAt DateTime?
+  authError     String?
   lastSyncedAt DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -201,7 +220,12 @@ model Model {
   testCheckedAt DateTime?
   testPassedAt  DateTime?
   testError     String?
-  routerSlots RouterSlot[]
+  // A RouterSlot binds two independent model references per scenario: the
+  // agent route (main-agent traffic) and the subagent route (requests
+  // carrying a <CCR-SUBAGENT-MODEL> tag). Named relations keep the two
+  // back-references distinct on this side.
+  routerSlots         RouterSlot[] @relation("RouterSlotAgentModel")
+  subagentRouterSlots RouterSlot[] @relation("RouterSlotSubagentModel")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -212,12 +236,19 @@ model Model {
 model RouterSlot {
   id        String      @id @default(cuid())
   scenario  ScenarioKey @unique
+  // Agent route primary — the model main-agent traffic routes to for this
+  // scenario. onDelete: Restrict means deleting a Model that's bound to a
+  // slot fails — configService null-s the slot first inside its transaction.
   modelId   String?
-  // onDelete: Restrict means deleting a Model that's bound to a slot
-  // fails — configService null-s the slot first inside its transaction.
-  model     Model?      @relation(fields: [modelId], references: [id], onDelete: Restrict)
-  // Scenario-scoped params (e.g. longContext.threshold). JSONB keeps us
-  // from migrating every time a new knob lands.
+  model     Model?      @relation("RouterSlotAgentModel", fields: [modelId], references: [id], onDelete: Restrict)
+  // Subagent route primary — the model that requests carrying a
+  // <CCR-SUBAGENT-MODEL> tag route to for this scenario. Same Restrict
+  // semantics as the agent route.
+  subagentModelId String?
+  subagentModel   Model?  @relation("RouterSlotSubagentModel", fields: [subagentModelId], references: [id], onDelete: Restrict)
+  // Scenario-scoped params: `fallbacks` (agent chain), `subagentFallbacks`
+  // (subagent chain), `threshold` (longContext), `weeklyDrainMarginPct`
+  // (default). JSONB keeps us from migrating every time a new knob lands.
   params    Json?
   updatedAt DateTime    @updatedAt
 }

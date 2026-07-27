@@ -46,33 +46,22 @@
   "nav": {
     "models": "模型",
     "providers": "供应商",
-    "router": "路由",
     "routingMap": "路由图",
     "transformers": "转换器",
     "subscriptions": "订阅",
     "usage": "用量",
+    "cost": "API 成本",
     "sessions": "会话",
     "personas": "人设",
     "settings": "设置"
   },
   "routingMap": {
     "title": "路由图",
-    "empty": "暂无路由数据。发送一些请求后即可在图中查看。",
-    "loading": "正在加载路由数据…",
-    "requests": "次",
-    "primaryBadge": "主模型",
-    "allRequests": "全部请求",
-    "requested": "请求模型",
-    "showFallbacks": "显示回退",
-    "refresh": "刷新",
-    "range24h": "24小时",
-    "range7d": "7天",
-    "rangeAll": "全部",
-    "rangeLabel": "时间范围",
-    "legendHonored": "按配置（分配目标）",
-    "legendRerouted": "已重路由",
-    "legendConfigured": "已配置 · 无流量",
-    "legendFallback": "回退"
+    "editMode": "编辑",
+    "editNoPrimary": "未设置主模型",
+    "editFallbacks": "回退",
+    "editPrimary": "主模型",
+    "editMargin": "配额余量 (%)"
   },
   "usage": {
     "title": "用量",
@@ -117,14 +106,24 @@
     "routingHint": "Claude Code 请求的模型与 CCR 实际发往上游的模型对照。",
     "routingEmpty": "尚无路由数据。",
     "routingUntracked": "（未记录）",
-    "routingRerouted": "已改路"
+    "routingRerouted": "已改路",
+    "authInvalid": "需重新认证",
+    "authLive": "有效",
+    "authUnknown": "未检查",
+    "authCheckedAt": "最后检查",
+    "subEndingSoon": "订阅即将到期",
+    "subEnded": "已过期",
+    "noUsageData": "无法获取用量",
+    "reauthNeeded": "{{count}} 个账户需要重新认证（请通过 CLI 重新登录）。"
   },
   "subscriptions": {
     "empty": "未注册任何订阅。请从 Providers 添加。",
     "usageHint": "实际使用情况与速率限制变化已统一在 Usage 页面查看。",
     "noAccounts": "未找到账户。请先在 CLI 登录。",
     "activeLabel": "活跃",
-    "disabled": "已禁用"
+    "disabled": "已禁用",
+    "authActive": "有效",
+    "authExpired": "已过期"
   },
   "models": {
     "provider": "供应商",
@@ -297,8 +296,16 @@
     "longContextThreshold": "上下文阈值",
     "webSearch": "网络搜索",
     "image": "图像",
-    "force": "强制",
-    "forceHint": "命中该场景时忽略客户端指定的模型，始终使用此槽位",
+    "trigger": {
+      "default": "兜底（其他车道未命中的全部）",
+      "background": "Claude Haiku 级轻量子任务",
+      "think": "带 thinking 字段的请求（扩展思考／Plan）",
+      "longContext": "token 数超过阈值（或 opus 级／high effort）",
+      "webSearch": "包含 web_search 工具的请求",
+      "image": "包含图像输入的请求"
+    },
+    "agentRoute": "代理",
+    "subagentRoute": "子代理",
     "selectModel": "选择一个模型...",
     "searchModel": "搜索模型...",
     "noModelFound": "未找到模型.",
@@ -429,6 +436,7 @@
     "title": "会话",
     "no_history": "暂无会话",
     "loading": "加载中...",
+    "refresh": "刷新",
     "archive_confirm": "确定归档所有会话吗？会话将从列表移除，但费用统计会保留。",
     "archive_all": "全部归档",
     "select_session": "选择一个会话查看详情",

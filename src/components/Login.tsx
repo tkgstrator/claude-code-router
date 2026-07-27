@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
@@ -85,31 +84,29 @@ export function Login() {
 
   if (isLoading) {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-background'>
-        <Card className='w-full max-w-md'>
-          <CardHeader className='space-y-1'>
-            <CardTitle className='text-2xl'>{t('login.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <div className='flex min-h-screen items-center justify-center bg-background p-6'>
+        <div className='w-full max-w-md space-y-6'>
+          <h1 className='text-2xl font-semibold'>{t('login.title')}</h1>
+          <div>
             <div className='flex justify-center py-8'>
               <div className='h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent'></div>
             </div>
             <p className='text-center text-sm text-muted-foreground'>{t('login.validating')}</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className='flex min-h-screen items-center justify-center bg-background'>
-      <Card className='w-full max-w-md'>
-        <CardHeader className='space-y-1'>
-          <CardTitle className='text-2xl'>{t('login.title')}</CardTitle>
-          <CardDescription>{t('login.description')}</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleLogin}>
-          <CardContent className='space-y-4'>
+    <div className='flex min-h-screen items-center justify-center bg-background p-6'>
+      <div className='w-full max-w-md space-y-6'>
+        <div className='space-y-1 border-b pb-4'>
+          <h1 className='text-2xl font-semibold'>{t('login.title')}</h1>
+          <p className='text-sm text-muted-foreground'>{t('login.description')}</p>
+        </div>
+        <form onSubmit={handleLogin} className='space-y-6'>
+          <div className='space-y-4'>
             <div className='space-y-2'>
               <Label htmlFor='apiKey'>{t('login.apiKey')}</Label>
               <Input
@@ -122,14 +119,14 @@ export function Login() {
             </div>
             <p className='text-sm text-muted-foreground'>{t('login.keyHint')}</p>
             {error && <div className='text-sm text-red-500'>{error}</div>}
-          </CardContent>
-          <CardFooter>
+          </div>
+          <div>
             <Button className='w-full' type='submit'>
               {t('login.signIn')}
             </Button>
-          </CardFooter>
+          </div>
         </form>
-      </Card>
+      </div>
     </div>
   )
 }

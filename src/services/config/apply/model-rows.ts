@@ -45,13 +45,21 @@ export async function reconcileModelRows(
   const toCreate = [...desired].filter((n) => !existingNames.has(n))
 
   if (toDelete.length > 0) {
-    const cleared = await tx.routerSlot.updateMany({
+    // Null both FK columns a slot can bind through a removed model — the
+    // agent route (modelId) and the subagent route (subagentModelId) —
+    // before the delete, or Restrict aborts the transaction.
+    const clearedAgent = await tx.routerSlot.updateMany({
       where: { model: { providerId: provider.id, name: { in: toDelete } } },
       data: { modelId: null }
     })
-    if (cleared.count > 0) {
+    const clearedSubagent = await tx.routerSlot.updateMany({
+      where: { subagentModel: { providerId: provider.id, name: { in: toDelete } } },
+      data: { subagentModelId: null }
+    })
+    const cleared = clearedAgent.count + clearedSubagent.count
+    if (cleared > 0) {
       warnings.push(
-        `Cleared ${cleared.count} router slot(s) for "${provider.name}" model(s) removed in this save: ${toDelete.join(', ')}.`
+        `Cleared ${cleared} router slot binding(s) for "${provider.name}" model(s) removed in this save: ${toDelete.join(', ')}.`
       )
     }
     await tx.model.deleteMany({

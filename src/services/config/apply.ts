@@ -31,8 +31,11 @@ export type ApplyResult = {
 
 export type SplitPayload = {
   envelope: Record<string, unknown>
-  incomingProviders: Provider[]
-  incomingRouter: Partial<Router>
+  // undefined = the key was absent from the payload, so the store is left
+  // untouched. A partial save must never wipe what it didn't send — an
+  // empty [] / {} would read as "delete everything".
+  incomingProviders: Provider[] | undefined
+  incomingRouter: Partial<Router> | undefined
 }
 
 // Parse the unvalidated UI payload at the boundary, then split into
@@ -50,11 +53,14 @@ export const splitPayload = (payload: Record<string, unknown>): SplitPayload => 
   const parsed = ApplyConfigPayloadSchema.parse(payload)
   const { Providers, Router, ...rest } = parsed
   const { persona, ...routerWithoutPersona } = Router !== undefined ? Router : {}
-  const envelope = 'persona' in (Router !== undefined ? Router : {}) ? { ...rest, ActivePersona: persona } : rest
+  const envelope = Router !== undefined && 'persona' in Router ? { ...rest, ActivePersona: persona } : rest
   return {
     envelope,
-    incomingProviders: Providers !== undefined ? Providers : [],
-    incomingRouter: routerWithoutPersona
+    // Keep "absent" as undefined so applyUiConfig can skip the store
+    // entirely instead of treating an omitted Providers / Router as a
+    // request to delete everything it holds.
+    incomingProviders: Providers,
+    incomingRouter: Router !== undefined ? routerWithoutPersona : undefined
   }
 }
 
@@ -68,8 +74,12 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // a Provider deleted with a RouterSlot still pointing at one of its
   // models (which Restrict would block mid-way otherwise).
   await prisma.$transaction(async (tx) => {
-    await applyProviders(tx, incomingProviders, warnings)
-    await applyRouter(tx, incomingRouter, warnings)
+    // Skip a store the payload didn't include, so a partial save (e.g. a
+    // Router-only write from the editor) leaves the omitted store intact
+    // instead of wiping it — the bug this guards against cascaded from a
+    // Provider delete all the way to OAuth accounts.
+    if (incomingProviders !== undefined) await applyProviders(tx, incomingProviders, warnings)
+    if (incomingRouter !== undefined) await applyRouter(tx, incomingRouter, warnings)
   })
 
   // Envelope changes happen on disk after the DB transaction commits;
@@ -82,8 +92,8 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // null). A real value is written through unchanged.
   await writeConfigFile({
     ...pruneUnsetEnvelopePaths(envelope),
-    Providers: incomingProviders,
-    Router: incomingRouter
+    ...(incomingProviders !== undefined ? { Providers: incomingProviders } : {}),
+    ...(incomingRouter !== undefined ? { Router: incomingRouter } : {})
   })
 
   // Force the llms context to rebuild on the next request so Router /

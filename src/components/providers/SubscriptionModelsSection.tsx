@@ -45,7 +45,7 @@ export function SubscriptionModelsSection({
   return (
     <div className='space-y-2'>
       <Label>{t('providers.models')}</Label>
-      <div className='divide-y rounded-md border'>
+      <div className='divide-y border-y empty:border-none'>
         {models
           .sort((a, b) => b.localeCompare(a))
           .map((model) => {

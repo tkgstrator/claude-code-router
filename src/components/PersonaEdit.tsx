@@ -118,7 +118,7 @@ function PersonaEditForm({ config }: { config: Config }) {
     <PageContainer>
       <PageHeader title={isEdit ? t('personas.edit_title') : t('personas.add_title')} />
       <PageContent>
-        <div className='flex h-full flex-col gap-4'>
+        <div className='flex flex-1 flex-col gap-4'>
           <div className='space-y-2'>
             <Label htmlFor='persona-name'>{t('personas.name_label')}</Label>
             <Input

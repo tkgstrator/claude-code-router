@@ -20,6 +20,7 @@ export interface CodexWindow {
   windowSeconds: number | null
 }
 export interface ClaudeAccountUsage {
+  subAccountId: string
   accountLabel: string
   fiveHour: ClaudeWindow | null
   sevenDay: ClaudeWindow | null
@@ -29,6 +30,7 @@ export interface ClaudeAccountUsage {
   capturedAt: string
 }
 export interface CodexAccountUsage {
+  subAccountId: string
   accountLabel: string
   planType: string | null
   primary: CodexWindow | null
@@ -38,6 +40,38 @@ export interface CodexAccountUsage {
 export interface CurrentUsageResponse {
   claude: ClaudeAccountUsage[]
   codex: CodexAccountUsage[]
+}
+
+// Result of the last auth probe. `invalid` = the account needs
+// re-authentication via the CLI. Mirrors the server AuthStatus enum.
+export type AuthStatus = 'unknown' | 'live' | 'invalid'
+
+// Account roster from /api/subscriptions — the authoritative list of every
+// connected account (including ones whose auth is dead and therefore drop
+// out of the live usage feed). The Usage rate-limit panel is driven by this
+// roster and joins usage bars on by subAccountId.
+export interface SubscriptionAccount {
+  id: string
+  label: string
+  enabled: boolean
+  userName: string | null
+  userEmail: string | null
+  plan: string | null
+  monthlyPriceUsd: number | null
+  expiresAt: number | null
+  authStatus: AuthStatus
+  authCheckedAt: number | null
+  authError: string | null
+}
+export interface SubscriptionProvider {
+  providerName: string
+  kind: 'claude' | 'codex' | 'other'
+  enabled: boolean
+  accounts: SubscriptionAccount[]
+  activeAccount: SubscriptionAccount | null
+}
+export interface SubscriptionsResponse {
+  subscriptions: SubscriptionProvider[]
 }
 
 export interface SeriesPoint {

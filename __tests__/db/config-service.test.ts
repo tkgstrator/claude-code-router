@@ -1,9 +1,10 @@
 /**
  * Round-trip tests for the DB-backed config service. Cover the diff
  * behaviour we'd otherwise only learn about by losing a slot binding
- * in production: provider/model deletion nulls dependent RouterSlots,
- * provider renames are delete+create (and warn about it), longContext
- * threshold survives composition.
+ * in production: provider/model deletion nulls dependent RouterSlots
+ * (agent AND subagent), provider renames are delete+create (and warn
+ * about it), longContext threshold survives composition, and the agent /
+ * subagent routes round-trip independently.
  */
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
@@ -15,8 +16,6 @@ import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
 // so CONFIG_FILE points at a tmp dir and the DB writes hit the test DB.
 
 describe.skipIf(!HAS_DB)('configService', () => {
-  // TODO(phase-1): Add API-route level tests for /api/config error contracts
-  // (auth failures, validation errors, and normalized 5xx payload shape).
   beforeEach(async () => {
     await resetDbTables()
     await ensureRouterSlots()
@@ -38,10 +37,9 @@ describe.skipIf(!HAS_DB)('configService', () => {
         }
       ],
       Router: {
-        default: 'openai,gpt-5',
-        background: 'openai,gpt-5-nano',
-        longContext: 'openai,gpt-5',
-        longContextThreshold: 60_000
+        default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
+        background: { agent: { primary: 'openai,gpt-5-nano' }, subagent: {} },
+        longContext: { agent: { primary: 'openai,gpt-5' }, subagent: {}, threshold: 60_000 }
       }
     })
 
@@ -49,11 +47,87 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Providers).toHaveLength(1)
     expect(ui.Providers[0].name).toBe('openai')
     expect(ui.Providers[0].models.sort()).toEqual(['gpt-5', 'gpt-5-nano'])
-    expect(ui.Router.default).toBe('openai,gpt-5')
-    expect(ui.Router.background).toBe('openai,gpt-5-nano')
-    expect(ui.Router.longContext).toBe('openai,gpt-5')
-    expect(ui.Router.longContextThreshold).toBe(60_000)
-    expect(ui.Router.think).toBeNull()
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.background.agent.primary).toBe('openai,gpt-5-nano')
+    expect(ui.Router.longContext.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.longContext.threshold).toBe(60_000)
+    expect(ui.Router.think.agent.primary).toBeNull()
+  })
+
+  test('subagent route primary round-trips on the subagentModelId column', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5', 'gpt-5-nano']
+        }
+      ],
+      Router: {
+        default: { agent: { primary: 'openai,gpt-5' }, subagent: { primary: 'openai,gpt-5-nano' } }
+      }
+    })
+
+    const ui = await composeUiConfig()
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.default.subagent.primary).toBe('openai,gpt-5-nano')
+  })
+
+  test('agent and subagent fallback chains round-trip independently', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5', 'gpt-5-nano']
+        },
+        {
+          name: 'anthropic',
+          api_base_url: 'https://api.anthropic.com',
+          api_key: 'sk-y',
+          auth_mode: 'api_key',
+          models: ['claude-sonnet-4-6']
+        }
+      ],
+      Router: {
+        default: {
+          // Agent primary on openai, agent fallback on a DIFFERENT provider.
+          agent: { primary: 'openai,gpt-5', fallbacks: ['anthropic,claude-sonnet-4-6'] },
+          // Subagent primary on anthropic, subagent fallback on openai.
+          subagent: { primary: 'anthropic,claude-sonnet-4-6', fallbacks: ['openai,gpt-5'] }
+        }
+      }
+    })
+
+    const ui = await composeUiConfig()
+    expect(ui.Router.default.agent.fallbacks).toEqual(['anthropic,claude-sonnet-4-6'])
+    expect(ui.Router.default.subagent.fallbacks).toEqual(['openai,gpt-5'])
+  })
+
+  test('a Router payload omitting the subagent route parses and leaves it unset', async () => {
+    // A partial save touching only the agent route must NOT 400/500 — the
+    // subagent route defaults to an empty target and round-trips as null.
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: { agent: { primary: 'openai,gpt-5' } } }
+    })
+
+    const ui = await composeUiConfig()
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.default.subagent.primary).toBeNull()
+    expect(ui.Router.default.subagent.fallbacks).toEqual([])
   })
 
   test('weeklyDrainMarginPct round-trips on the default slot params (S5)', async () => {
@@ -67,76 +141,11 @@ describe.skipIf(!HAS_DB)('configService', () => {
           models: ['gpt-5']
         }
       ],
-      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 15 }
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: {}, weeklyDrainMarginPct: 15 } }
     })
 
     const ui = await composeUiConfig()
-    expect(ui.Router.weeklyDrainMarginPct).toBe(15)
-  })
-
-  test('force flags round-trip on each scenario slot params', async () => {
-    await applyUiConfig({
-      Providers: [
-        {
-          name: 'openai',
-          api_base_url: 'https://api.openai.com/v2',
-          api_key: 'sk-x',
-          auth_mode: 'api_key',
-          models: ['gpt-5', 'gpt-5-nano']
-        }
-      ],
-      Router: {
-        default: 'openai,gpt-5',
-        background: 'openai,gpt-5-nano',
-        longContext: 'openai,gpt-5',
-        force: { longContext: true, background: true }
-      }
-    })
-
-    const ui = await composeUiConfig()
-    // Only the forced scenarios are emitted; unforced slots stay absent.
-    expect(ui.Router.force).toEqual({ longContext: true, background: true })
-  })
-
-  test('image force round-trips even with no model assigned (UI-parity flag)', async () => {
-    await applyUiConfig({
-      Providers: [
-        {
-          name: 'openai',
-          api_base_url: 'https://api.openai.com/v2',
-          api_key: 'sk-x',
-          auth_mode: 'api_key',
-          models: ['gpt-5']
-        }
-      ],
-      Router: {
-        default: 'openai,gpt-5',
-        // image slot has no model here; the force flag still persists so the
-        // UI checkbox reloads with its saved state (runtime no-op).
-        force: { image: true }
-      }
-    })
-
-    const ui = await composeUiConfig()
-    expect(ui.Router.force).toEqual({ image: true })
-  })
-
-  test('force is empty when no slot is forced', async () => {
-    await applyUiConfig({
-      Providers: [
-        {
-          name: 'openai',
-          api_base_url: 'https://api.openai.com/v2',
-          api_key: 'sk-x',
-          auth_mode: 'api_key',
-          models: ['gpt-5']
-        }
-      ],
-      Router: { default: 'openai,gpt-5' }
-    })
-
-    const ui = await composeUiConfig()
-    expect(ui.Router.force).toEqual({})
+    expect(ui.Router.default.weeklyDrainMarginPct).toBe(15)
   })
 
   test('weeklyDrainMarginPct at 0 is omitted (collapses to the emptyRouter default)', async () => {
@@ -150,21 +159,14 @@ describe.skipIf(!HAS_DB)('configService', () => {
           models: ['gpt-5']
         }
       ],
-      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 0 }
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: {}, weeklyDrainMarginPct: 0 } }
     })
 
     const ui = await composeUiConfig()
-    // emptyRouter() seeds 0 so the wire reads 0 either way; the
-    // important invariant is that we did NOT round-trip a literal 0
-    // into the DB (verified by the next test stashing 25 then writing 0
-    // and seeing 0 come back).
-    expect(ui.Router.weeklyDrainMarginPct).toBe(0)
+    expect(ui.Router.default.weeklyDrainMarginPct).toBe(0)
   })
 
   test('writing weeklyDrainMarginPct=0 clears a previously-set value', async () => {
-    // First set a non-zero margin, then overwrite with 0 — the second
-    // apply must drop the key so compose reads the default 0 instead of
-    // the stale 25.
     await applyUiConfig({
       Providers: [
         {
@@ -175,14 +177,14 @@ describe.skipIf(!HAS_DB)('configService', () => {
           models: ['gpt-5']
         }
       ],
-      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 25 }
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: {}, weeklyDrainMarginPct: 25 } }
     })
-    expect((await composeUiConfig()).Router.weeklyDrainMarginPct).toBe(25)
+    expect((await composeUiConfig()).Router.default.weeklyDrainMarginPct).toBe(25)
 
     await applyUiConfig({
-      Router: { default: 'openai,gpt-5', weeklyDrainMarginPct: 0 }
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: {}, weeklyDrainMarginPct: 0 } }
     })
-    expect((await composeUiConfig()).Router.weeklyDrainMarginPct).toBe(0)
+    expect((await composeUiConfig()).Router.default.weeklyDrainMarginPct).toBe(0)
   })
 
   test('per-slot fallbacks round-trip and unknown models are dropped with a warning', async () => {
@@ -204,24 +206,22 @@ describe.skipIf(!HAS_DB)('configService', () => {
         }
       ],
       Router: {
-        default: 'openai,gpt-5',
-        // A missing nested key defaults to [] (RouterFallbacksSchema),
-        // so a partial fallbacks object is enough to set one slot. The
-        // valid fallback is on a DIFFERENT provider — the same-provider
+        // The valid fallback is on a DIFFERENT provider — the same-provider
         // gate (see resolveFallbackTargets) drops same-provider fallbacks
         // because per-account quota windows are shared across models.
-        fallbacks: { default: ['anthropic,claude-sonnet-4-6', 'anthropic,does-not-exist'] }
+        default: {
+          agent: { primary: 'openai,gpt-5', fallbacks: ['anthropic,claude-sonnet-4-6', 'anthropic,does-not-exist'] },
+          subagent: {}
+        }
       }
     })
 
-    // The unknown model is dropped with a warning; the valid one stays,
-    // in order.
     expect(result.warnings.some((w) => w.includes('does-not-exist'))).toBe(true)
 
     const ui = await composeUiConfig()
-    expect(ui.Router.default).toBe('openai,gpt-5')
-    expect(ui.Router.fallbacks.default).toEqual(['anthropic,claude-sonnet-4-6'])
-    expect(ui.Router.fallbacks.background).toEqual([])
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.default.agent.fallbacks).toEqual(['anthropic,claude-sonnet-4-6'])
+    expect(ui.Router.background.agent.fallbacks).toEqual([])
   })
 
   test('removing a model nulls any RouterSlot that referenced it and warns', async () => {
@@ -235,7 +235,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
           models: ['gpt-5', 'gpt-5-nano']
         }
       ],
-      Router: { default: 'openai,gpt-5-nano' }
+      Router: { default: { agent: { primary: 'openai,gpt-5-nano' }, subagent: {} } }
     })
 
     const result = await applyUiConfig({
@@ -248,15 +248,49 @@ describe.skipIf(!HAS_DB)('configService', () => {
           models: ['gpt-5']
         }
       ],
-      Router: { default: 'openai,gpt-5-nano' } // points at a model we just removed
+      Router: { default: { agent: { primary: 'openai,gpt-5-nano' }, subagent: {} } } // points at a model we just removed
     })
 
     expect(result.warnings.some((w) => w.includes('gpt-5-nano'))).toBe(true)
     const ui = await composeUiConfig()
-    expect(ui.Router.default).toBeNull()
+    expect(ui.Router.default.agent.primary).toBeNull()
   })
 
-  test('deleting a provider cascades models and nulls bound slots', async () => {
+  test('removing a model nulls a subagent-bound RouterSlot and warns', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5', 'gpt-5-nano']
+        }
+      ],
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: { primary: 'openai,gpt-5-nano' } } }
+    })
+
+    const result = await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      // subagent still points at the removed model
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: { primary: 'openai,gpt-5-nano' } } }
+    })
+
+    expect(result.warnings.some((w) => w.includes('gpt-5-nano'))).toBe(true)
+    const ui = await composeUiConfig()
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.default.subagent.primary).toBeNull()
+  })
+
+  test('deleting a provider cascades models and nulls bound slots (agent and subagent)', async () => {
     await applyUiConfig({
       Providers: [
         {
@@ -275,8 +309,8 @@ describe.skipIf(!HAS_DB)('configService', () => {
         }
       ],
       Router: {
-        default: 'openai,gpt-5',
-        background: 'gemini,gemini-2.5-flash'
+        default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
+        background: { agent: { primary: 'gemini,gemini-2.5-flash' }, subagent: { primary: 'gemini,gemini-2.5-flash' } }
       }
     })
 
@@ -292,27 +326,24 @@ describe.skipIf(!HAS_DB)('configService', () => {
         }
       ],
       Router: {
-        default: 'openai,gpt-5',
-        background: 'gemini,gemini-2.5-flash'
+        default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
+        background: { agent: { primary: 'gemini,gemini-2.5-flash' }, subagent: { primary: 'gemini,gemini-2.5-flash' } }
       }
     })
 
     expect(result.warnings.some((w) => w.includes('gemini'))).toBe(true)
     const ui = await composeUiConfig()
     expect(ui.Providers.map((p) => p.name)).toEqual(['openai'])
-    expect(ui.Router.default).toBe('openai,gpt-5')
-    expect(ui.Router.background).toBeNull()
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.background.agent.primary).toBeNull()
+    expect(ui.Router.background.subagent.primary).toBeNull()
 
-    // Cascade should have removed gemini and gemini's models. Only the
-    // single openai model remains, attached to openai.
     const prisma = getPrismaClient()
     const allModels = await prisma.model.findMany({ include: { provider: true } })
     expect(allModels.map((m) => m.provider.name)).toEqual(['openai'])
   })
 
   test('API_TIMEOUT_MS number is written to disk and read back via composeUiConfig', async () => {
-    // APIKEY must be present in the envelope; applyUiConfig writes only what is
-    // passed, and readConfigFile requires a non-empty APIKEY to pass schema validation.
     await applyUiConfig({
       Providers: [],
       Router: {},
@@ -334,18 +365,17 @@ describe.skipIf(!HAS_DB)('configService', () => {
           models: ['gpt-5']
         }
       ],
-      Router: { default: 'openai,gpt-5' },
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: {} } },
       APIKEY: 'test-key',
       API_TIMEOUT_MS: 45000
     })
     const ui = await composeUiConfig()
     expect(ui.API_TIMEOUT_MS).toBe(45000)
-    expect(ui.Router.default).toBe('openai,gpt-5')
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
   })
 
   test('omitting API_TIMEOUT_MS from payload removes it from disk', async () => {
     await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key', API_TIMEOUT_MS: 30000 })
-    // Second write without the field — envelope strips it.
     await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key' })
     const ui = await composeUiConfig()
     expect(ui.API_TIMEOUT_MS).toBeUndefined()
@@ -366,7 +396,6 @@ describe.skipIf(!HAS_DB)('configService', () => {
       { name: 'pirate', prompt: 'Talk like a pirate.' },
       { name: 'lawyer', prompt: 'Be precise and cite statutes.' }
     ])
-    // The active persona now rides on Router.persona, not as a top-level field.
     expect(ui.Router.persona).toBe('pirate')
   })
 
@@ -377,8 +406,6 @@ describe.skipIf(!HAS_DB)('configService', () => {
       APIKEY: 'test-key',
       Personas: [{ name: 'pirate', prompt: 'Talk like a pirate.' }]
     })
-    // Empty string collapses to null on the wire and is pruned off disk,
-    // so the library survives but no persona is active.
     await applyUiConfig({
       Providers: [],
       Router: { persona: '' },
@@ -391,9 +418,6 @@ describe.skipIf(!HAS_DB)('configService', () => {
   })
 
   test('disabling the active subscription account promotes another enabled one', async () => {
-    // Stand up a subscription provider directly via Prisma — applyUiConfig
-    // does not own the SubAccount create path (that's the OAuth flow), it
-    // only owns the toggle path we are exercising here.
     const prisma = getPrismaClient()
     const { AuthMode } = await import('../../src/generated/prisma/client')
     const provider = await prisma.provider.create({
@@ -495,7 +519,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(after?.activeSubscriptionAccountId).toBeNull()
   })
 
-  test('unknown router scenarios are dropped with a warning', async () => {
+  test('unknown router scenarios are dropped', async () => {
     await applyUiConfig({
       Providers: [
         {
@@ -507,13 +531,72 @@ describe.skipIf(!HAS_DB)('configService', () => {
         }
       ],
       Router: {
-        default: 'openai,gpt-5',
+        default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
         custom: 'openai,gpt-5'
       }
     })
 
     const ui = await composeUiConfig()
-    expect(ui.Router.default).toBe('openai,gpt-5')
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
     expect(ui.Router.custom).toBeUndefined()
+  })
+
+  test('omitting Providers from a partial save preserves existing providers', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: {} } }
+    })
+    // A save WITHOUT a Providers key must NOT delete the provider — the bug
+    // that cascaded a Provider delete all the way to OAuth accounts. Router
+    // carries the slots we want to keep (applyRouter clears any scenario
+    // absent from a Router it IS given, which is why the editor sends all).
+    await applyUiConfig({
+      Router: {
+        default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
+        background: { agent: { primary: 'openai,gpt-5' }, subagent: {} }
+      }
+    })
+    const ui = await composeUiConfig()
+    expect(ui.Providers.map((p) => p.name)).toEqual(['openai'])
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.background.agent.primary).toBe('openai,gpt-5')
+  })
+
+  test('omitting Router from a partial save preserves existing router slots', async () => {
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: { default: { agent: { primary: 'openai,gpt-5' }, subagent: {} } }
+    })
+    // A Providers-only save (no Router key) must NOT clear the router.
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5', 'gpt-5-nano']
+        }
+      ]
+    })
+    const ui = await composeUiConfig()
+    expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Providers[0].models.sort()).toEqual(['gpt-5', 'gpt-5-nano'])
   })
 })

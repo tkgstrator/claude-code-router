@@ -80,45 +80,51 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
 
   const groups = useMemo(() => (data === null ? [] : groupByScenario(data.rows)), [data])
 
+  // Body only — the enclosing Card on the Usage page provides the title
+  // and hint header.
+  if (data === null) {
+    return <p className='text-sm text-muted-foreground'>…</p>
+  }
+  if (groups.length === 0) {
+    return <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
+  }
+  // Auto-fill grid: each "requested → actual" row spans one ~22rem column
+  // instead of stretching edge-to-edge (the gap between the model names and
+  // the percentage would otherwise read as too wide). The column count grows
+  // with the viewport since the section is allowed to use the full width.
+  // `items-start` keeps groups top-aligned rather than stretching to the
+  // tallest cell in their row.
   return (
-    <section className='space-y-3'>
-      <div>
-        <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
-        <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
-      </div>
-      {data === null ? (
-        <p className='text-sm text-muted-foreground'>…</p>
-      ) : groups.length === 0 ? (
-        <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
-      ) : (
-        <div className='space-y-3'>
-          {groups.map((group) => (
-            <ScenarioGroupCard key={group.scenario} group={group} />
-          ))}
-        </div>
-      )}
-    </section>
+    <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-8 gap-y-6'>
+      {groups.map((group) => (
+        <ScenarioGroupCard key={group.scenario} group={group} />
+      ))}
+    </div>
   )
 }
 
 function ScenarioGroupCard({ group }: { group: ScenarioGroup }) {
   const { t } = useTranslation()
+  const known = group.scenario !== UNTRACKED && SCENARIO_ORDER.includes(group.scenario)
   const label =
-    group.scenario === UNTRACKED
-      ? t('usage.routingUntracked')
-      : SCENARIO_ORDER.includes(group.scenario)
-        ? t(`router.${group.scenario}`)
-        : group.scenario
+    group.scenario === UNTRACKED ? t('usage.routingUntracked') : known ? t(`router.${group.scenario}`) : group.scenario
+  // What kind of request lands in this lane (the router's trigger condition),
+  // so the panel reads as "this sort of request → here" rather than just
+  // observed counts.
+  const trigger = known ? t(`router.trigger.${group.scenario}`) : null
 
   return (
-    <div className='rounded-md border'>
-      <div className='flex items-center justify-between gap-2 border-b px-4 py-2'>
-        <span className='text-sm font-semibold'>{label}</span>
+    <div className='space-y-3'>
+      <div className='flex items-start justify-between gap-2 border-b pb-2'>
+        <div className='min-w-0'>
+          <span className='text-sm font-semibold'>{label}</span>
+          {trigger && <p className='text-[11px] leading-snug text-muted-foreground'>{trigger}</p>}
+        </div>
         <span className='shrink-0 text-xs text-muted-foreground'>
           {group.total.toLocaleString()} {t('usage.apiCostRequests')}
         </span>
       </div>
-      <div className='space-y-3 px-4 py-3'>
+      <div className='space-y-3'>
         {group.pairs.map((pair) => (
           <PairRow key={`${pair.requested}/${pair.provider}/${pair.model}`} pair={pair} total={group.total} />
         ))}

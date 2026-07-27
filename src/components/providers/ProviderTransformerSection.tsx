@@ -82,7 +82,7 @@ export function ProviderTransformerSection({
               transformer: string | (string | Record<string, unknown> | { max_tokens: number })[],
               transformerIndex: number
             ) => (
-              <div key={transformerIndex} className='border rounded-md p-3'>
+              <div key={transformerIndex} className='border-b pb-3 last:border-b-0 last:pb-0'>
                 <div className='flex gap-2 items-center mb-2'>
                   <div className='flex-1 bg-muted rounded p-2 text-sm'>
                     {typeof transformer === 'string'

@@ -46,33 +46,22 @@
   "nav": {
     "models": "モデル",
     "providers": "プロバイダー",
-    "router": "ルーター",
     "routingMap": "ルーティングマップ",
     "transformers": "Transformer",
     "subscriptions": "サブスクリプション",
     "usage": "使用状況",
+    "cost": "API コスト",
     "sessions": "セッション",
     "personas": "ペルソナ",
     "settings": "設定"
   },
   "routingMap": {
     "title": "ルーティングマップ",
-    "empty": "ルーティングデータがまだありません。リクエストを流すとマップに表示されます。",
-    "loading": "ルーティングデータを読み込み中…",
-    "requests": "件",
-    "primaryBadge": "主モデル",
-    "allRequests": "全リクエスト",
-    "requested": "リクエストモデル",
-    "showFallbacks": "フォールバックを表示",
-    "refresh": "更新",
-    "range24h": "24時間",
-    "range7d": "7日",
-    "rangeAll": "全期間",
-    "rangeLabel": "期間",
-    "legendHonored": "設定通り（割り当て先）",
-    "legendRerouted": "リルート",
-    "legendConfigured": "設定済み・トラフィックなし",
-    "legendFallback": "フォールバック"
+    "editMode": "編集",
+    "editNoPrimary": "プライマリ未設定",
+    "editFallbacks": "フォールバック",
+    "editPrimary": "プライマリモデル",
+    "editMargin": "ドレイン余裕 (%)"
   },
   "usage": {
     "title": "使用状況",
@@ -117,14 +106,24 @@
     "routingHint": "Claude Codeが要求したモデルと、CCRが実際に上流へ送ったモデルの対応。",
     "routingEmpty": "振り分けデータはまだありません。",
     "routingUntracked": "（記録前）",
-    "routingRerouted": "振り替え"
+    "routingRerouted": "振り替え",
+    "authInvalid": "要再認証",
+    "authLive": "有効",
+    "authUnknown": "未確認",
+    "authCheckedAt": "最終確認",
+    "subEndingSoon": "サブスク終了間近",
+    "subEnded": "期限切れ",
+    "noUsageData": "利用状況を取得できません",
+    "reauthNeeded": "{{count}} 件のアカウントが再認証を必要としています（CLI で再ログインしてください）。"
   },
   "subscriptions": {
     "empty": "サブスクは未登録です。Providers から登録してください。",
     "usageHint": "実際の使用状況・レートリミット推移は Usage ページに集約しています。",
     "noAccounts": "アカウントが見つかりません。CLI でログインしてください。",
     "activeLabel": "アクティブ",
-    "disabled": "無効"
+    "disabled": "無効",
+    "authActive": "有効",
+    "authExpired": "期限切れ"
   },
   "models": {
     "provider": "プロバイダー",
@@ -297,8 +296,16 @@
     "longContextThreshold": "コンテキストしきい値",
     "webSearch": "Web 検索",
     "image": "画像",
-    "force": "強制",
-    "forceHint": "このシナリオに該当したら、クライアント指定のモデルを無視してこのスロットを常に使う",
+    "trigger": {
+      "default": "フォールバック（他レーンに該当しない全て）",
+      "background": "Claude Haiku 系の軽量サブタスク",
+      "think": "thinking 付きリクエスト（拡張思考／Plan）",
+      "longContext": "トークン数が閾値超え（または opus級／high effort）",
+      "webSearch": "web_search ツールを含むリクエスト",
+      "image": "画像入力を含むリクエスト"
+    },
+    "agentRoute": "エージェント",
+    "subagentRoute": "サブエージェント",
     "selectModel": "モデルを選択...",
     "searchModel": "モデルを検索...",
     "noModelFound": "モデルが見つかりません。",
@@ -429,6 +436,7 @@
     "title": "セッション",
     "no_history": "セッションはまだありません",
     "loading": "読み込み中...",
+    "refresh": "更新",
     "archive_confirm": "すべてのセッションをアーカイブしますか?（一覧から消えますが、コスト集計には残ります）",
     "archive_all": "すべてアーカイブ",
     "select_session": "セッションを選択して詳細を確認",
