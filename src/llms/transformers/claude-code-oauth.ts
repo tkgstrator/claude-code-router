@@ -72,6 +72,7 @@ export function withClaudeCodeIdentity(system: unknown): AnthropicSystemBlock[] 
 type ClaudeCodeRequestShape = {
   system?: unknown
   messages?: Array<{ content?: unknown; [k: string]: unknown }>
+  thinking?: unknown
   [k: string]: unknown
 }
 
@@ -81,6 +82,21 @@ function keepSignedBlock(block: unknown): boolean {
   if (type !== 'thinking') return true
   const signature = Reflect.get(block, 'signature')
   return typeof signature === 'string' && signature.length > 0
+}
+
+// Strip an inbound top-level `thinking` block unless the caller opted
+// into extended thinking. Recent Claude Code builds send
+// `thinking: { type: "disabled" }` to explicitly turn thinking off, but
+// Anthropic rejects any type other than `enabled` with a 400
+// ("thinking.type.disabled is not supported for this model. Thinking
+// defaults to adaptive mode when not specified"). Omitting the field
+// entirely gives the same behaviour the client intended (no extended
+// thinking), so drop everything except an explicit `enabled` request.
+// Exported for unit testing.
+export function stripDisabledThinking(req: { thinking?: unknown }): void {
+  if (typeof req.thinking !== 'object' || req.thinking === null) return
+  const thinkingType = Reflect.get(req.thinking, 'type')
+  if (thinkingType !== 'enabled') delete req.thinking
 }
 
 export class ClaudeCodeOauthTransformer extends OAuthTransformer {
@@ -139,6 +155,8 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
         return { ...msg, content: filtered }
       })
     }
+
+    stripDisabledThinking(req)
 
     return {
       body: req,
