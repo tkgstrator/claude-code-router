@@ -105,17 +105,21 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
 
 function ScenarioGroupCard({ group }: { group: ScenarioGroup }) {
   const { t } = useTranslation()
+  const known = group.scenario !== UNTRACKED && SCENARIO_ORDER.includes(group.scenario)
   const label =
-    group.scenario === UNTRACKED
-      ? t('usage.routingUntracked')
-      : SCENARIO_ORDER.includes(group.scenario)
-        ? t(`router.${group.scenario}`)
-        : group.scenario
+    group.scenario === UNTRACKED ? t('usage.routingUntracked') : known ? t(`router.${group.scenario}`) : group.scenario
+  // What kind of request lands in this lane (the router's trigger condition),
+  // so the panel reads as "this sort of request → here" rather than just
+  // observed counts.
+  const trigger = known ? t(`router.trigger.${group.scenario}`) : null
 
   return (
     <div className='space-y-3'>
-      <div className='flex items-center justify-between gap-2 border-b pb-2'>
-        <span className='text-sm font-semibold'>{label}</span>
+      <div className='flex items-start justify-between gap-2 border-b pb-2'>
+        <div className='min-w-0'>
+          <span className='text-sm font-semibold'>{label}</span>
+          {trigger && <p className='text-[11px] leading-snug text-muted-foreground'>{trigger}</p>}
+        </div>
         <span className='shrink-0 text-xs text-muted-foreground'>
           {group.total.toLocaleString()} {t('usage.apiCostRequests')}
         </span>

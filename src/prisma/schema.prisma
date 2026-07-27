@@ -220,7 +220,12 @@ model Model {
   testCheckedAt DateTime?
   testPassedAt  DateTime?
   testError     String?
-  routerSlots RouterSlot[]
+  // A RouterSlot binds two independent model references per scenario: the
+  // agent route (main-agent traffic) and the subagent route (requests
+  // carrying a <CCR-SUBAGENT-MODEL> tag). Named relations keep the two
+  // back-references distinct on this side.
+  routerSlots         RouterSlot[] @relation("RouterSlotAgentModel")
+  subagentRouterSlots RouterSlot[] @relation("RouterSlotSubagentModel")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -231,12 +236,19 @@ model Model {
 model RouterSlot {
   id        String      @id @default(cuid())
   scenario  ScenarioKey @unique
+  // Agent route primary — the model main-agent traffic routes to for this
+  // scenario. onDelete: Restrict means deleting a Model that's bound to a
+  // slot fails — configService null-s the slot first inside its transaction.
   modelId   String?
-  // onDelete: Restrict means deleting a Model that's bound to a slot
-  // fails — configService null-s the slot first inside its transaction.
-  model     Model?      @relation(fields: [modelId], references: [id], onDelete: Restrict)
-  // Scenario-scoped params (e.g. longContext.threshold). JSONB keeps us
-  // from migrating every time a new knob lands.
+  model     Model?      @relation("RouterSlotAgentModel", fields: [modelId], references: [id], onDelete: Restrict)
+  // Subagent route primary — the model that requests carrying a
+  // <CCR-SUBAGENT-MODEL> tag route to for this scenario. Same Restrict
+  // semantics as the agent route.
+  subagentModelId String?
+  subagentModel   Model?  @relation("RouterSlotSubagentModel", fields: [subagentModelId], references: [id], onDelete: Restrict)
+  // Scenario-scoped params: `fallbacks` (agent chain), `subagentFallbacks`
+  // (subagent chain), `threshold` (longContext), `weeklyDrainMarginPct`
+  // (default). JSONB keeps us from migrating every time a new knob lands.
   params    Json?
   updatedAt DateTime    @updatedAt
 }

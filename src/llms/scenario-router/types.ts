@@ -38,10 +38,10 @@ export type RouterRequest = {
   sessionId?: string
   scenarioType?: ScenarioType
   tokenCount?: number
-  // Set by selectModel when a force override replaced the client's model:
-  // the resolved "provider,model" the client originally requested, so the
-  // failover chain can try it after the forced slot (Force -> Request).
-  forcedFrom?: string
+  // Set by selectModel: true when the request carried a
+  // <CCR-SUBAGENT-MODEL> tag, so the pipeline routes and fails over on the
+  // scenario's `subagent` route instead of the `agent` route.
+  isSubagent?: boolean
 }
 
 export type RouterContext = {

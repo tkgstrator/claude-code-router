@@ -296,8 +296,16 @@
     "longContextThreshold": "上下文阈值",
     "webSearch": "网络搜索",
     "image": "图像",
-    "force": "强制",
-    "forceHint": "命中该场景时忽略客户端指定的模型，始终使用此槽位",
+    "trigger": {
+      "default": "兜底（其他车道未命中的全部）",
+      "background": "Claude Haiku 级轻量子任务",
+      "think": "带 thinking 字段的请求（扩展思考／Plan）",
+      "longContext": "token 数超过阈值（或 opus 级／high effort）",
+      "webSearch": "包含 web_search 工具的请求",
+      "image": "包含图像输入的请求"
+    },
+    "agentRoute": "代理",
+    "subagentRoute": "子代理",
     "selectModel": "选择一个模型...",
     "searchModel": "搜索模型...",
     "noModelFound": "未找到模型.",

@@ -296,8 +296,16 @@
     "longContextThreshold": "Context Threshold",
     "webSearch": "Web Search",
     "image": "Image",
-    "force": "Force",
-    "forceHint": "Ignore the client's model and always use this slot for this scenario",
+    "trigger": {
+      "default": "Fallback — requests no other lane claims",
+      "background": "Claude Haiku-tier requests (lightweight subtasks)",
+      "think": "Requests with a thinking field (extended thinking / Plan)",
+      "longContext": "Token count over the threshold (or opus-tier / high effort)",
+      "webSearch": "Requests carrying a web_search tool",
+      "image": "Requests with image input"
+    },
+    "agentRoute": "Agent",
+    "subagentRoute": "Subagent",
     "selectModel": "Select a model...",
     "searchModel": "Search model...",
     "noModelFound": "No model found.",

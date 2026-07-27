@@ -28,6 +28,7 @@ import {
   EDIT_SCENARIOS,
   type EditScenario,
   modelKeyFromNodeId,
+  type RouteKind,
   scenarioFromNodeId
 } from '@/lib/routing-map/edit-graph'
 import type { RouterConfig } from '@/schemas'
@@ -42,12 +43,30 @@ const isEditScenario = (s: string): s is EditScenario => EDIT_SCENARIOS.some((x)
 // Radix Select needs a non-empty value; this sentinel maps to "no persona".
 const PERSONA_NONE = '__none__'
 
-const strokeFor = (kind: 'primary' | 'fallback'): string =>
-  kind === 'primary' ? 'var(--primary)' : 'var(--muted-foreground)'
+// Edge color encodes the ROLE (primary vs fallback); the dash pattern
+// encodes the KIND (agent solid, subagent dotted) so a scenario's two
+// exits stay distinguishable regardless of role.
+const strokeColorFor = (role: 'primary' | 'fallback'): string =>
+  role === 'primary' ? 'var(--primary)' : 'var(--muted-foreground)'
+const strokeDashFor = (role: 'primary' | 'fallback', kind: RouteKind): string | undefined =>
+  role === 'fallback' ? '6 4' : kind === 'subagent' ? '2 4' : undefined
 
-// amber-500 — highlights a forced scenario's primary edge (the slot
-// overrides the client's bare model instead of honoring the request).
-const AMBER = '#f59e0b'
+// Read a source-handle id as a route kind, defaulting to agent when absent.
+const kindFromHandle = (handle: string | null | undefined): RouteKind => (handle === 'subagent' ? 'subagent' : 'agent')
+
+// Recover an edge's route kind for delete/reconnect: prefer the value
+// stashed in edge.data, fall back to parsing the id, else default to agent.
+// The kind is always the second-to-last '__'-delimited id segment, so match
+// that segment exactly rather than substring-scanning (a model key could
+// itself contain the token).
+function kindFromEdge(edge: Edge): RouteKind {
+  const data = edge.data
+  if (data !== undefined && data !== null && typeof data === 'object' && 'kind' in data) {
+    const raw = data.kind
+    if (raw === 'subagent' || raw === 'agent') return raw
+  }
+  return edge.id.split('__').at(-2) === 'subagent' ? 'subagent' : 'agent'
+}
 
 // Interpret the /api/config response: { success, message } when present,
 // otherwise treat the write as succeeded (mirrors the Router form).
@@ -84,25 +103,33 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   const usedBy = useCallback(
     (key: string): number =>
       EDIT_SCENARIOS.reduce((n, s) => {
-        const route = router[s]
-        return n + (route.primary === key || route.fallbacks.includes(key) ? 1 : 0)
+        const agent = router[s].agent
+        const subagent = router[s].subagent
+        const inAgent = agent.primary === key || agent.fallbacks.includes(key)
+        const inSubagent = subagent.primary === key || subagent.fallbacks.includes(key)
+        return n + (inAgent || inSubagent ? 1 : 0)
       }, 0),
     [router]
   )
 
   const nodes = useMemo<AppEditNode[]>(() => {
     const scenarioNodes: AppEditNode[] = graph.scenarioNodes.map((node) => {
-      const route = router[node.scenario]
+      const agent = router[node.scenario].agent
+      const subagent = router[node.scenario].subagent
       return {
         id: node.id,
         type: 'scenarioEdit',
         position: node.position,
         data: {
           label: t(`router.${node.scenario}`),
-          primaryLabel: route.primary === null ? '' : modelLabel(route.primary),
+          agentPrimaryLabel: agent.primary === null ? '' : modelLabel(agent.primary),
+          agentFallbackCount: agent.fallbacks.length,
+          subagentPrimaryLabel: subagent.primary === null ? '' : modelLabel(subagent.primary),
+          subagentFallbackCount: subagent.fallbacks.length,
           emptyLabel: t('routingMap.editNoPrimary'),
-          fallbackCount: route.fallbacks.length,
           fallbackLabel: t('routingMap.editFallbacks'),
+          agentRouteLabel: t('router.agentRoute'),
+          subagentRouteLabel: t('router.subagentRoute'),
           selected: selected === node.scenario
         }
       }
@@ -116,19 +143,19 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     return [...scenarioNodes, ...modelNodes]
   }, [graph, router, selected, modelLabel, usedBy, t])
 
-  const deleteEdge = useCallback((scenario: EditScenario, modelKey: string) => {
-    setRouter((r) => disconnectModel(r, scenario, modelKey))
+  const deleteEdge = useCallback((scenario: EditScenario, modelKey: string, kind: RouteKind) => {
+    setRouter((r) => disconnectModel(r, scenario, modelKey, kind))
   }, [])
 
   // Right-click an edge to delete it (alongside the Delete key and the
-  // reconnect-to-empty gesture).
+  // reconnect-to-empty gesture). The edge's kind decides which route loses it.
   const onEdgeContextMenu = useCallback(
     (event: MouseEvent, edge: Edge) => {
       event.preventDefault()
       const scenario = scenarioFromNodeId(edge.source)
       const modelKey = modelKeyFromNodeId(edge.target)
       if (scenario !== null && modelKey !== null && isEditScenario(scenario)) {
-        deleteEdge(scenario, modelKey)
+        deleteEdge(scenario, modelKey, kindFromEdge(edge))
       }
     },
     [deleteEdge]
@@ -137,16 +164,17 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   const edges = useMemo<Edge[]>(
     () =>
       graph.edges.map((edge) => {
-        // A forced scenario's primary edge is amber — it overrides the
-        // client's model, so the wiring is stronger than a normal primary.
-        const forced = edge.kind === 'primary' && router[edge.scenario].force
-        const color = forced ? AMBER : strokeFor(edge.kind)
+        const color = strokeColorFor(edge.role)
         return {
           id: edge.id,
           source: edge.source,
           target: edge.target,
-          label: edge.kind === 'fallback' ? String(edge.order) : undefined,
-          labelShowBg: edge.kind === 'fallback',
+          // Pin the edge to its originating handle and stash the kind so
+          // delete/reconnect can route the mutation to the right route.
+          sourceHandle: edge.kind,
+          data: { kind: edge.kind },
+          label: edge.role === 'fallback' ? String(edge.order) : undefined,
+          labelShowBg: edge.role === 'fallback',
           labelBgPadding: [4, 2],
           labelBgBorderRadius: 4,
           labelStyle: { fill: 'var(--foreground)', fontSize: 10 },
@@ -154,19 +182,20 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
           markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
           style: {
             stroke: color,
-            strokeWidth: edge.kind === 'primary' ? 2 : 1.25,
-            strokeDasharray: edge.kind === 'fallback' ? '6 4' : undefined
+            strokeWidth: edge.role === 'primary' ? 2 : 1.25,
+            strokeDasharray: strokeDashFor(edge.role, edge.kind)
           }
         }
       }),
-    [graph, router]
+    [graph]
   )
 
   const onConnect = useCallback((c: Connection) => {
     const scenario = scenarioFromNodeId(c.source)
     const modelKey = modelKeyFromNodeId(c.target)
+    const kind = kindFromHandle(c.sourceHandle)
     if (scenario !== null && modelKey !== null && isEditScenario(scenario)) {
-      setRouter((r) => connectModel(r, scenario, modelKey))
+      setRouter((r) => connectModel(r, scenario, modelKey, kind))
     }
   }, [])
 
@@ -183,8 +212,10 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     edgeReconnectSuccessful.current = true
     const oldScenario = scenarioFromNodeId(oldEdge.source)
     const oldModel = modelKeyFromNodeId(oldEdge.target)
+    const oldKind = kindFromEdge(oldEdge)
     const newScenario = scenarioFromNodeId(newConnection.source)
     const newModel = modelKeyFromNodeId(newConnection.target)
+    const newKind = kindFromHandle(newConnection.sourceHandle)
     if (
       oldScenario !== null &&
       oldModel !== null &&
@@ -193,7 +224,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
       isEditScenario(oldScenario) &&
       isEditScenario(newScenario)
     ) {
-      setRouter((r) => connectModel(disconnectModel(r, oldScenario, oldModel), newScenario, newModel))
+      setRouter((r) => connectModel(disconnectModel(r, oldScenario, oldModel, oldKind), newScenario, newModel, newKind))
     }
   }, [])
   const onReconnectEnd = useCallback((_: unknown, edge: Edge) => {
@@ -201,7 +232,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
       const scenario = scenarioFromNodeId(edge.source)
       const modelKey = modelKeyFromNodeId(edge.target)
       if (scenario !== null && modelKey !== null && isEditScenario(scenario)) {
-        setRouter((r) => disconnectModel(r, scenario, modelKey))
+        setRouter((r) => disconnectModel(r, scenario, modelKey, kindFromEdge(edge)))
       }
     }
     edgeReconnectSuccessful.current = true
@@ -213,7 +244,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         const scenario = scenarioFromNodeId(edge.source)
         const modelKey = modelKeyFromNodeId(edge.target)
         return scenario !== null && modelKey !== null && isEditScenario(scenario)
-          ? disconnectModel(acc, scenario, modelKey)
+          ? disconnectModel(acc, scenario, modelKey, kindFromEdge(edge))
           : acc
       }, r)
     )

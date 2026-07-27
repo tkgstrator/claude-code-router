@@ -296,8 +296,16 @@
     "longContextThreshold": "コンテキストしきい値",
     "webSearch": "Web 検索",
     "image": "画像",
-    "force": "強制",
-    "forceHint": "このシナリオに該当したら、クライアント指定のモデルを無視してこのスロットを常に使う",
+    "trigger": {
+      "default": "フォールバック（他レーンに該当しない全て）",
+      "background": "Claude Haiku 系の軽量サブタスク",
+      "think": "thinking 付きリクエスト（拡張思考／Plan）",
+      "longContext": "トークン数が閾値超え（または opus級／high effort）",
+      "webSearch": "web_search ツールを含むリクエスト",
+      "image": "画像入力を含むリクエスト"
+    },
+    "agentRoute": "エージェント",
+    "subagentRoute": "サブエージェント",
     "selectModel": "モデルを選択...",
     "searchModel": "モデルを検索...",
     "noModelFound": "モデルが見つかりません。",

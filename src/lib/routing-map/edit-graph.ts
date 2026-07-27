@@ -15,6 +15,12 @@ import type { RouterConfig } from '@/schemas'
 export const EDIT_SCENARIOS = ['default', 'background', 'think', 'longContext', 'webSearch', 'image'] as const
 export type EditScenario = (typeof EDIT_SCENARIOS)[number]
 
+// The two caller kinds each scenario routes independently: `agent` for
+// normal traffic, `subagent` for a request carrying a <CCR-SUBAGENT-MODEL>
+// tag. Both are first-class exits on a scenario node.
+export const ROUTE_KINDS = ['agent', 'subagent'] as const
+export type RouteKind = (typeof ROUTE_KINDS)[number]
+
 // Column x + row spacing for the two-tier layout.
 const SCENARIO_X = 0
 const MODEL_X = 440
@@ -41,7 +47,10 @@ export interface EditGraphEdge {
   target: string
   scenario: EditScenario
   modelKey: string
-  kind: 'primary' | 'fallback'
+  // Which route (source handle) this edge leaves the scenario from.
+  kind: RouteKind
+  // Whether this edge is the route's primary or a fallback chain entry.
+  role: 'primary' | 'fallback'
   // Fallback position in the chain (1-based); 0 for the primary edge.
   order: number
 }
@@ -73,9 +82,11 @@ function splitModelKey(modelKey: string): { provider: string; model: string } {
 export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly string[]): EditGraph {
   const keys = new Set<string>(enabledModelKeys)
   for (const scenario of EDIT_SCENARIOS) {
-    const route = router[scenario]
-    if (route.primary !== null) keys.add(route.primary)
-    for (const fallback of route.fallbacks) keys.add(fallback)
+    for (const kind of ROUTE_KINDS) {
+      const route = router[scenario][kind]
+      if (route.primary !== null) keys.add(route.primary)
+      for (const fallback of route.fallbacks) keys.add(fallback)
+    }
   }
   const orderedKeys = [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 
@@ -92,29 +103,33 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
 
   const edges: EditGraphEdge[] = []
   for (const scenario of EDIT_SCENARIOS) {
-    const route = router[scenario]
-    if (route.primary !== null) {
-      edges.push({
-        id: `${editScenarioNodeId(scenario)}__${editModelNodeId(route.primary)}__primary`,
-        source: editScenarioNodeId(scenario),
-        target: editModelNodeId(route.primary),
-        scenario,
-        modelKey: route.primary,
-        kind: 'primary',
-        order: 0
+    for (const kind of ROUTE_KINDS) {
+      const route = router[scenario][kind]
+      if (route.primary !== null) {
+        edges.push({
+          id: `${editScenarioNodeId(scenario)}__${editModelNodeId(route.primary)}__${kind}__primary`,
+          source: editScenarioNodeId(scenario),
+          target: editModelNodeId(route.primary),
+          scenario,
+          modelKey: route.primary,
+          kind,
+          role: 'primary',
+          order: 0
+        })
+      }
+      route.fallbacks.forEach((fallback, index) => {
+        edges.push({
+          id: `${editScenarioNodeId(scenario)}__${editModelNodeId(fallback)}__${kind}__fb${index}`,
+          source: editScenarioNodeId(scenario),
+          target: editModelNodeId(fallback),
+          scenario,
+          modelKey: fallback,
+          kind,
+          role: 'fallback',
+          order: index + 1
+        })
       })
     }
-    route.fallbacks.forEach((fallback, index) => {
-      edges.push({
-        id: `${editScenarioNodeId(scenario)}__${editModelNodeId(fallback)}__fb${index}`,
-        source: editScenarioNodeId(scenario),
-        target: editModelNodeId(fallback),
-        scenario,
-        modelKey: fallback,
-        kind: 'fallback',
-        order: index + 1
-      })
-    })
   }
 
   return { scenarioNodes, modelNodes, edges }
