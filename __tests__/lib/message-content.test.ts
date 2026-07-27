@@ -63,6 +63,17 @@ describe('normaliseContent', () => {
     expect(blocks[0]?.kind).toBe('system_text')
   })
 
+  test('classifies "CRITICAL: Respond with TEXT ONLY..." compaction request as system_text', () => {
+    const injected = [
+      'CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.',
+      '',
+      'Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.',
+      'Your task is to create a detailed summary of the conversation so far.'
+    ].join('\n')
+    const blocks = normaliseContent([{ type: 'text', text: injected }])
+    expect(blocks[0]?.kind).toBe('system_text')
+  })
+
   test('still classifies existing tagless dumps (Available agent types) as system_text', () => {
     const blocks = normaliseContent([{ type: 'text', text: 'Available agent types:\n- foo\n- bar' }])
     expect(blocks[0]?.kind).toBe('system_text')

@@ -40,7 +40,11 @@ const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
   // Recap-on-return directive Claude Code prepends when the user steps
   // away and comes back ("The user stepped away and is coming back.
   // Recap in under 40 words, ..."). No sentinel — matched by opener.
-  /^The user stepped away and is coming back\b/
+  /^The user stepped away and is coming back\b/,
+  // Context-compaction request Claude Code emits when it wants a
+  // conversation summary ("CRITICAL: Respond with TEXT ONLY. Do NOT call
+  // any tools. ... create a detailed summary of the conversation ...").
+  /^CRITICAL: Respond with TEXT ONLY\. Do NOT call any tools\b/
 ]
 
 // Detect the permission-gate boilerplate Claude Code prepends before it
