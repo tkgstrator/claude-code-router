@@ -5,7 +5,7 @@ rules:
   header-max-length:
     - 2
     - always
-    - 96
+    - 128
   body-max-line-length:
     - 2
     - always
