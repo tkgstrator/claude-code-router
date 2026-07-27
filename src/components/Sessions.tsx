@@ -20,9 +20,10 @@ function CacheBar({ pct }: { pct: number }) {
   )
 }
 
-// KPI-style stat cell: muted label on top, prominent value below. Values that
-// need a different scale (long time ranges, embedded bars) override via
-// `valueClassName`.
+// KPI-style stat cell: muted label on top, prominent value below. Flat by
+// default (no card frame) — the grid gap + label/value hierarchy carries
+// the visual separation. Values that need a different scale (long time
+// ranges, embedded bars) override via `valueClassName`.
 function StatTile({
   label,
   value,
@@ -33,11 +34,21 @@ function StatTile({
   valueClassName?: string
 }) {
   return (
-    <div className='rounded-md border bg-card px-4 py-3'>
+    <div>
       <p className='text-xs text-muted-foreground'>{label}</p>
       <div className={`mt-1 font-semibold text-foreground tabular-nums ${valueClassName}`}>{value}</div>
     </div>
   )
+}
+
+// Compact date-range label. Same-day sessions collapse to `HH:mm – HH:mm`
+// (fits inside a narrow stat tile without wrapping); cross-day sessions
+// keep the start date so the range stays unambiguous.
+function fmtSessionRange(firstAt: string, lastAt: string): string {
+  const start = dayjs(firstAt)
+  const end = dayjs(lastAt)
+  if (start.isSame(end, 'day')) return `${start.format('HH:mm')} – ${end.format('HH:mm')}`
+  return `${start.format('MM/DD HH:mm')} – ${end.format('MM/DD HH:mm')}`
 }
 
 export function SessionsPage() {
@@ -263,8 +274,8 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
   const overviewTiles = [
     {
       label: t('sessions.detail.time'),
-      value: `${dayjs(session.firstAt).format('YYYY/MM/DD HH:mm')} – ${dayjs(session.lastAt).format('HH:mm')}`,
-      valueClassName: 'text-sm leading-7'
+      value: fmtSessionRange(session.firstAt, session.lastAt),
+      valueClassName: 'text-base whitespace-nowrap'
     },
     { label: t('sessions.detail.duration'), value: fmtMs(session.totalDurationMs) },
     { label: t('sessions.detail.requests'), value: String(session.requestCount) },
@@ -321,9 +332,9 @@ function SessionDetail({ session, refreshTrigger }: { session: SessionSummary; r
           <h3 className='border-b pb-2 text-base font-semibold text-foreground'>
             {t('sessions.detail.model_breakdown')}
           </h3>
-          <div className='divide-y rounded-md border'>
+          <div className='divide-y'>
             {modelBreakdown.map((entry) => (
-              <div key={entry.model} className='flex items-center gap-3 px-3 py-2 text-xs'>
+              <div key={entry.model} className='flex items-center gap-3 py-2 text-xs'>
                 <span className='min-w-0 flex-1 truncate font-mono text-foreground'>{entry.model}</span>
                 <span className='w-14 shrink-0 whitespace-nowrap text-right text-muted-foreground tabular-nums'>
                   {entry.requests} req
