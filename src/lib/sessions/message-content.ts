@@ -36,7 +36,11 @@ const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
   /^Contents of\s/,
   /^Codebase and user instructions\b/,
   /^Tool loaded\.\s*$/,
-  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m
+  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m,
+  // Recap-on-return directive Claude Code prepends when the user steps
+  // away and comes back ("The user stepped away and is coming back.
+  // Recap in under 40 words, ..."). No sentinel — matched by opener.
+  /^The user stepped away and is coming back\b/
 ]
 
 // Detect the permission-gate directive Claude Code prepends before it

@@ -47,6 +47,16 @@ describe('normaliseContent', () => {
     expect(blocks[0]?.kind).toBe('text')
   })
 
+  test('classifies "The user stepped away and is coming back..." recap directive as system_text', () => {
+    const injected = [
+      'The user stepped away and is coming back. Recap in under 40 words,',
+      '1-2 plain sentences, no markdown. Lead with the overall goal and',
+      'current task, then the one next action. Skip root-cause narrative.'
+    ].join(' ')
+    const blocks = normaliseContent([{ type: 'text', text: injected }])
+    expect(blocks[0]?.kind).toBe('system_text')
+  })
+
   test('still classifies existing tagless dumps (Available agent types) as system_text', () => {
     const blocks = normaliseContent([{ type: 'text', text: 'Available agent types:\n- foo\n- bar' }])
     expect(blocks[0]?.kind).toBe('system_text')
