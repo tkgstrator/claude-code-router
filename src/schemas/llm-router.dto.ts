@@ -54,11 +54,6 @@ export const ScenarioRouterConfigSchema = z.object({
   /** Token threshold above which a request gets routed to longContext. */
   longContextThreshold: z.number().optional(),
   /**
-   * Extra margin (percentage points) allowed over the weekly drain target
-   * before the proactive failover guard trips. Router-wide policy knob.
-   */
-  weeklyDrainMarginPct: z.number().optional(),
-  /**
    * Name of the active persona for this router (looked up in the
    * top-level Personas library). Optional so an existing per-project /
    * session override file without a persona still parses; absent / empty

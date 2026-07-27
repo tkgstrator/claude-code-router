@@ -60,8 +60,7 @@
     "editMode": "Edit",
     "editNoPrimary": "No primary model",
     "editFallbacks": "fallback(s)",
-    "editPrimary": "Primary model",
-    "editMargin": "Drain margin (%)"
+    "editPrimary": "Primary model"
   },
   "usage": {
     "title": "Usage",
@@ -298,9 +297,9 @@
     "image": "Image",
     "trigger": {
       "default": "Fallback — requests no other lane claims",
-      "background": "Claude Haiku-tier requests (lightweight subtasks)",
-      "think": "Requests with a thinking field (extended thinking / Plan)",
-      "longContext": "Token count over the threshold (or opus-tier / high effort)",
+      "background": "Claude Haiku-tier requests",
+      "think": "Requests with a thinking field",
+      "longContext": "Token count over the threshold",
       "webSearch": "Requests carrying a web_search tool",
       "image": "Requests with image input"
     },

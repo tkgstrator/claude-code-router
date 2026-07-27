@@ -42,24 +42,12 @@ const scenarioBase = {
 // A scenario with no scenario-specific parameters.
 export const ScenarioRouteSchema = z.object({ ...scenarioBase }).openapi('ScenarioRoute')
 
-// `default` additionally carries the Router-wide weeklyDrainMarginPct
-// policy knob: extra margin (percentage points) allowed over the weekly
-// drain target before the proactive failover guard trips. It rides on
-// `default` because the policy applies globally and the default slot is
-// always present. 0 means the guard trips exactly at the linear target.
-export const DefaultScenarioRouteSchema = z
-  .object({
-    ...scenarioBase,
-    weeklyDrainMarginPct: z.number().int().min(0).max(100).default(0)
-  })
-  .openapi('DefaultScenarioRoute')
-
 // `longContext` additionally carries the token threshold above which a
 // request is classified into the longContext lane.
 export const LongContextScenarioRouteSchema = z
   .object({
     ...scenarioBase,
-    threshold: z.number().int().positive().default(60000)
+    threshold: z.number().int().positive().default(128000)
   })
   .openapi('LongContextScenarioRoute')
 
@@ -67,16 +55,16 @@ export const LongContextScenarioRouteSchema = z
 
 // API wire shape returned by /api/config. One nested object per scenario,
 // each holding its `agent` and `subagent` routes (primary + fallback
-// chain). Scenario-scoped parameters live on the scenario that owns them:
-// `threshold` on longContext, `weeklyDrainMarginPct` on default — so the
-// type makes it impossible to set them on the wrong scenario. `persona` is
-// a scenario-independent global folded in from the disk envelope's
-// ActivePersona key by composeUiConfig. `image` routes are accepted for UI
-// parity but are a runtime no-op (image traffic is handled by the image
-// agent, not selectModel).
+// chain). Scenario-scoped parameters live on the scenario that owns them
+// (currently only `threshold` on longContext) so the type makes it
+// impossible to set them on the wrong scenario. `persona` is a
+// scenario-independent global folded in from the disk envelope's
+// ActivePersona key by composeUiConfig. `image` routes are accepted for
+// UI parity but are a runtime no-op (image traffic is handled by the
+// image agent, not selectModel).
 export const RouterSchema = z
   .object({
-    default: DefaultScenarioRouteSchema,
+    default: ScenarioRouteSchema,
     background: ScenarioRouteSchema,
     think: ScenarioRouteSchema,
     longContext: LongContextScenarioRouteSchema,
@@ -95,7 +83,7 @@ export type Router = z.infer<typeof RouterSchema>
 // same scenario sub-schemas as RouterSchema, but is not registered with
 // the OpenAPI document — it's internal to the UI.
 export const RouterConfigSchema = z.object({
-  default: DefaultScenarioRouteSchema,
+  default: ScenarioRouteSchema,
   background: ScenarioRouteSchema,
   think: ScenarioRouteSchema,
   longContext: LongContextScenarioRouteSchema,
@@ -125,18 +113,17 @@ export type FlatFallbackMap = Record<ScenarioKey, string[]>
 // The flat Router shape the scenario-router pipeline reads at runtime
 // (failover.ts, model-selection.ts, invocation.ts). Each caller kind
 // (agent / subagent) gets its own primary + fallback map keyed by
-// scenario, plus the two scalar knobs and the persona. composeUiConfig
-// emits the nested RouterSchema for the UI/API; context.ts flattens it
-// here before handing it to the runtime ConfigStore, so the runtime
-// read-sites stay flat and per-project override files (already flat) need
-// no adapter.
+// scenario, plus the longContext threshold and the persona.
+// composeUiConfig emits the nested RouterSchema for the UI/API;
+// context.ts flattens it here before handing it to the runtime
+// ConfigStore, so the runtime read-sites stay flat and per-project
+// override files (already flat) need no adapter.
 export interface FlatRouter {
   agent: FlatRouteMap
   subagent: FlatRouteMap
   agentFallbacks: FlatFallbackMap
   subagentFallbacks: FlatFallbackMap
   longContextThreshold: number
-  weeklyDrainMarginPct: number
   persona: string | null
 }
 
@@ -178,7 +165,6 @@ export function flattenNestedRouter(router: Router): FlatRouter {
       image: router.image.subagent.fallbacks
     },
     longContextThreshold: router.longContext.threshold,
-    weeklyDrainMarginPct: router.default.weeklyDrainMarginPct,
     persona
   }
 }

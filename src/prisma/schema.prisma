@@ -247,8 +247,8 @@ model RouterSlot {
   subagentModelId String?
   subagentModel   Model?  @relation("RouterSlotSubagentModel", fields: [subagentModelId], references: [id], onDelete: Restrict)
   // Scenario-scoped params: `fallbacks` (agent chain), `subagentFallbacks`
-  // (subagent chain), `threshold` (longContext), `weeklyDrainMarginPct`
-  // (default). JSONB keeps us from migrating every time a new knob lands.
+  // (subagent chain), `threshold` (longContext). JSONB keeps us from
+  // migrating every time a new knob lands.
   params    Json?
   updatedAt DateTime    @updatedAt
 }

@@ -69,24 +69,19 @@ function numberOr(raw: unknown, fallback: number): number {
 
 // Build the nested Config['Router'] from the raw wire object. Each
 // scenario nests its agent + subagent routes (primary + fallback chain);
-// the two scenario-scoped knobs (threshold on longContext,
-// weeklyDrainMarginPct on default) ride on their owning scenario.
+// the sole scenario-scoped knob (threshold on longContext) rides on its
+// owning scenario.
 function normalizeRouter(raw: unknown): Config['Router'] {
   const obj = raw !== null && typeof raw === 'object' ? raw : {}
   const get = (k: string): unknown => Reflect.get(obj, k)
-  const defaultRaw = get('default')
   const longContextRaw = get('longContext')
-  const defObj = defaultRaw !== null && typeof defaultRaw === 'object' ? defaultRaw : {}
   const lcObj = longContextRaw !== null && typeof longContextRaw === 'object' ? longContextRaw : {}
   const persona = get('persona')
   return {
-    default: {
-      ...normalizeScenario(defaultRaw),
-      weeklyDrainMarginPct: numberOr(Reflect.get(defObj, 'weeklyDrainMarginPct'), 0)
-    },
+    default: normalizeScenario(get('default')),
     background: normalizeScenario(get('background')),
     think: normalizeScenario(get('think')),
-    longContext: { ...normalizeScenario(longContextRaw), threshold: numberOr(Reflect.get(lcObj, 'threshold'), 60000) },
+    longContext: { ...normalizeScenario(longContextRaw), threshold: numberOr(Reflect.get(lcObj, 'threshold'), 128000) },
     webSearch: normalizeScenario(get('webSearch')),
     image: normalizeScenario(get('image')),
     persona: typeof persona === 'string' && persona !== '' ? persona : undefined
@@ -165,10 +160,10 @@ const emptyConfig = (): Config => ({
   Providers: [],
   StatusLine: undefined,
   Router: {
-    default: { agent: emptyRouteTarget(), subagent: emptyRouteTarget(), weeklyDrainMarginPct: 0 },
+    default: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     background: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     think: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
-    longContext: { agent: emptyRouteTarget(), subagent: emptyRouteTarget(), threshold: 60000 },
+    longContext: { agent: emptyRouteTarget(), subagent: emptyRouteTarget(), threshold: 128000 },
     webSearch: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     image: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     persona: undefined

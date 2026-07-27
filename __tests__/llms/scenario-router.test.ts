@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, setSystemTime, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Logger } from 'pino'
 import { ConfigStore } from '../../src/llms/registry/config'
 import {
@@ -8,21 +8,7 @@ import {
   type RouterRequest,
   selectModel
 } from '../../src/llms/scenario-router'
-import { clearProviderExhaustion } from '../../src/services/failover-state'
-import {
-  __clearUsageCachesForTest,
-  __seedClaudeCacheForTest,
-  __seedCodexCacheForTest
-} from '../../src/services/usage-service'
-import type { ClaudeUsage, CodexUsage } from '../../src/schemas/usage.dto'
-
-// A fixed clock: `now` sits exactly halfway through a window whose reset
-// is half a window further out, so the linear drain target is 50%. Usage
-// above 50 is over target; below 50 is under.
-const SEVEN_DAY_MS = 7 * 86_400_000
-const NOW = 1_000_000_000_000
-const HALFWAY_RESET = NOW + SEVEN_DAY_MS / 2
-const RESET_ISO = new Date(HALFWAY_RESET).toISOString()
+import { clearProviderExhaustion, markProviderExhausted } from '../../src/services/failover-state'
 
 // A no-op logger stub — the router only calls log.info, and the test does
 // not assert on log output. Index 5 is the `log` param of the new
@@ -33,29 +19,6 @@ const noopLog = {
   warn() {},
   error() {}
 } as unknown as Parameters<typeof applyProactiveFailover>[5]
-
-// A Claude snapshot with every weekly window driven explicitly so each
-// test can place usage above/below the 50% drain target per window.
-const makeClaude = (opts: { fiveHour: number; sevenDay: number; sevenDayOpus: number }): ClaudeUsage => ({
-  accountLabel: 'acct',
-  fiveHour: { utilization: opts.fiveHour, resetsAt: RESET_ISO },
-  sevenDay: { utilization: opts.sevenDay, resetsAt: RESET_ISO },
-  sevenDaySonnet: { utilization: 10, resetsAt: RESET_ISO },
-  sevenDayOpus: { utilization: opts.sevenDayOpus, resetsAt: RESET_ISO },
-  extraUsageEnabled: false,
-  capturedAt: RESET_ISO
-})
-
-// A Codex snapshot with primary (short, soft) and secondary (weekly, hard)
-// windows driven explicitly. windowSeconds matches each window's nominal
-// length so the drain target lands at 50% at NOW.
-const makeCodex = (opts: { primary: number; secondary: number }): CodexUsage => ({
-  accountLabel: 'acct',
-  planType: 'pro',
-  primary: { usedPercent: opts.primary, resetAt: RESET_ISO, windowSeconds: 5 * 3600 },
-  secondary: { usedPercent: opts.secondary, resetAt: RESET_ISO, windowSeconds: 7 * 86_400 },
-  capturedAt: RESET_ISO
-})
 
 const claudeProvider = {
   name: 'anthropic',
@@ -71,72 +34,34 @@ const codexProvider = {
 }
 
 beforeEach(() => {
-  setSystemTime(new Date(NOW))
-  __clearUsageCachesForTest()
   clearProviderExhaustion('anthropic')
   clearProviderExhaustion('codex')
 })
 
 afterEach(() => {
-  setSystemTime()
-  __clearUsageCachesForTest()
   clearProviderExhaustion('anthropic')
   clearProviderExhaustion('codex')
 })
 
-// ---- candidateUsable: weekly-window guard (S2) ---------------------
+// ---- candidateUsable: exhaustion mark ------------------------------
 
-test('candidateUsable: a hot 5h window NEVER triggers failover (5h is soft)', () => {
-  // 5h pegged at 100, but both weekly windows well under their 50% target.
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 100, sevenDay: 20, sevenDayOpus: 20 }), NOW)
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(true)
+test('candidateUsable: an unmarked provider is usable', () => {
+  expect(candidateUsable('anthropic')).toBe(true)
+  expect(candidateUsable('codex')).toBe(true)
 })
 
-test('candidateUsable: claude is over limit when 7d-Opus is over its drain target', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(false)
+test('candidateUsable: a provider marked exhausted by the reactive 429 path is unusable', () => {
+  markProviderExhausted('anthropic')
+  expect(candidateUsable('anthropic')).toBe(false)
 })
 
-test('candidateUsable: claude is over limit when overall 7d is over its drain target', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 80, sevenDayOpus: 20 }), NOW)
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(false)
+test('candidateUsable: clearing the mark restores usability', () => {
+  markProviderExhausted('anthropic')
+  clearProviderExhaustion('anthropic')
+  expect(candidateUsable('anthropic')).toBe(true)
 })
 
-test('candidateUsable: claude stays usable when both weekly windows are under target', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 90, sevenDay: 40, sevenDayOpus: 40 }), NOW)
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(true)
-})
-
-test('candidateUsable: over-limit claude is marked exhausted with the weekly reset', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(false)
-  setSystemTime(new Date(HALFWAY_RESET - 1000))
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(false)
-  setSystemTime(new Date(HALFWAY_RESET + 1000))
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(true)
-})
-
-test('candidateUsable: codex primary may burst; only secondary (weekly) triggers failover', () => {
-  __seedCodexCacheForTest('c1', makeCodex({ primary: 100, secondary: 20 }), NOW)
-  expect(candidateUsable('codex', [codexProvider])).toBe(true)
-})
-
-test('candidateUsable: codex is over limit when secondary is over its drain target', () => {
-  __seedCodexCacheForTest('c1', makeCodex({ primary: 10, secondary: 80 }), NOW)
-  expect(candidateUsable('codex', [codexProvider])).toBe(false)
-})
-
-test('candidateUsable: empty cache reads as usable (proactive only acts on real data)', () => {
-  expect(candidateUsable('anthropic', [claudeProvider])).toBe(true)
-  expect(candidateUsable('codex', [codexProvider])).toBe(true)
-})
-
-test('candidateUsable: non-subscription providers are always usable', () => {
-  const apiKeyProvider = { name: 'openai', auth_mode: 'api_key', models: ['gpt-4'] }
-  expect(candidateUsable('openai', [apiKeyProvider])).toBe(true)
-})
-
-// ---- applyProactiveFailover: weekly guard + capability gate --------
+// ---- applyProactiveFailover: chain walk on exhaustion --------------
 
 // Build a ConfigStore whose flat Router carries an agent default primary
 // plus the given agent fallback chain for the default scenario.
@@ -149,51 +74,56 @@ const routerWith = (fallbacks: string[]): ConfigStore =>
     providers: [claudeProvider, codexProvider]
   })
 
-test('applyProactiveFailover: fails over to codex when claude weekly guard trips', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
-  __seedCodexCacheForTest('c1', makeCodex({ primary: 100, secondary: 20 }), NOW)
-  const config = routerWith(['codex,gpt-5'])
-  const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 1000, config, noopLog)
-  expect(out).toBe('codex,gpt-5')
-})
-
-test('applyProactiveFailover: keeps the primary when it still has weekly headroom', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 100, sevenDay: 30, sevenDayOpus: 30 }), NOW)
+test('applyProactiveFailover: keeps the primary when nothing is exhausted', () => {
   const config = routerWith(['codex,gpt-5'])
   const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 1000, config, noopLog)
   expect(out).toBe('anthropic,claude-opus')
 })
 
+test('applyProactiveFailover: falls over to the next candidate when the primary is exhausted', () => {
+  markProviderExhausted('anthropic')
+  const config = routerWith(['codex,gpt-5'])
+  const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 1000, config, noopLog)
+  expect(out).toBe('codex,gpt-5')
+})
+
 // ---- capability gate (contextWindow) -------------------------------
 
 test('applyProactiveFailover: skips a candidate whose model cannot fit the request', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
   const config = new ConfigStore({
     Router: {
-      agent: { default: 'anthropic,claude-opus' },
-      agentFallbacks: { default: ['codex,gpt-5', 'codex,gpt-5-big'] }
+      agent: { default: 'codex,gpt-5' },
+      agentFallbacks: { default: ['codex,gpt-5-big'] }
     },
     providers: [
-      claudeProvider,
-      { ...codexProvider, models: ['gpt-5', 'gpt-5-big'], modelContextWindows: { 'gpt-5': 8000, 'gpt-5-big': 200000 } }
+      {
+        ...codexProvider,
+        models: ['gpt-5', 'gpt-5-big'],
+        modelContextWindows: { 'gpt-5': 8000, 'gpt-5-big': 200000 }
+      }
     ]
   })
-  const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 9000, config, noopLog)
+  const out = applyProactiveFailover('codex,gpt-5', 'default', false, 9000, config, noopLog)
   expect(out).toBe('codex,gpt-5-big')
 })
 
 test('applyProactiveFailover: a candidate fits when the request is within its declared window', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
   const config = new ConfigStore({
-    Router: { agent: { default: 'anthropic,claude-opus' }, agentFallbacks: { default: ['codex,gpt-5'] } },
-    providers: [claudeProvider, { ...codexProvider, modelContextWindows: { 'gpt-5': 8000 } }]
+    Router: { agent: { default: 'codex,gpt-5' }, agentFallbacks: { default: ['codex,gpt-5-big'] } },
+    providers: [
+      {
+        ...codexProvider,
+        models: ['gpt-5', 'gpt-5-big'],
+        modelContextWindows: { 'gpt-5': 8000, 'gpt-5-big': 200000 }
+      }
+    ]
   })
-  const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 7000, config, noopLog)
+  const out = applyProactiveFailover('codex,gpt-5', 'default', false, 7000, config, noopLog)
   expect(out).toBe('codex,gpt-5')
 })
 
 test('applyProactiveFailover: a model with no declared window is allowed (unknown = allow)', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
+  markProviderExhausted('anthropic')
   const config = routerWith(['codex,gpt-5'])
   const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 5_000_000, config, noopLog)
   expect(out).toBe('codex,gpt-5')
@@ -396,7 +326,7 @@ test('selectModel: falls back to the request model when the chosen subagent rout
 // ---- applyProactiveFailover: chosen route's fallback chain ----------
 
 test('applyProactiveFailover: an agent request walks the agent fallback chain', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
+  markProviderExhausted('anthropic')
   const config = new ConfigStore({
     Router: {
       agent: { default: 'anthropic,claude-opus' },
@@ -410,7 +340,7 @@ test('applyProactiveFailover: an agent request walks the agent fallback chain', 
 })
 
 test('applyProactiveFailover: a subagent request walks the subagent fallback chain', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
+  markProviderExhausted('anthropic')
   const config = new ConfigStore({
     Router: {
       agent: { default: 'anthropic,claude-opus' },
@@ -423,47 +353,11 @@ test('applyProactiveFailover: a subagent request walks the subagent fallback cha
   expect(out).toBe('codex,gpt-5-sub')
 })
 
-// ---- weeklyDrainMarginPct (S5) -------------------------------------
+// ---- regression / chain decision -----------------------------------
 
-test('candidateUsable: a positive marginPct lets usage run hot before the guard trips', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 60 }), NOW)
-  expect(candidateUsable('anthropic', [claudeProvider], 20)).toBe(true)
-})
-
-test('candidateUsable: a positive marginPct still trips once usage clears target+margin', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
-  expect(candidateUsable('anthropic', [claudeProvider], 20)).toBe(false)
-})
-
-test('applyProactiveFailover: reads Router.weeklyDrainMarginPct and applies it to the guard', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 60 }), NOW)
-  const config = new ConfigStore({
-    Router: {
-      agent: { default: 'anthropic,claude-opus' },
-      agentFallbacks: { default: ['codex,gpt-5'] },
-      weeklyDrainMarginPct: 20
-    },
-    providers: [claudeProvider, codexProvider]
-  })
-  const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 1000, config, noopLog)
-  expect(out).toBe('anthropic,claude-opus')
-})
-
-test('applyProactiveFailover: margin in config is ignored at 0 (back-compat with pre-S5)', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 60 }), NOW)
-  const config = new ConfigStore({
-    Router: { agent: { default: 'anthropic,claude-opus' }, agentFallbacks: { default: ['codex,gpt-5'] } },
-    providers: [claudeProvider, codexProvider]
-  })
-  const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 1000, config, noopLog)
-  expect(out).toBe('codex,gpt-5')
-})
-
-// ---- regression / chain decision (S6) ------------------------------
-
-test('applyProactiveFailover: keeps the primary when every candidate is rejected', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
-  __seedCodexCacheForTest('c1', makeCodex({ primary: 10, secondary: 80 }), NOW)
+test('applyProactiveFailover: keeps the primary when every candidate is exhausted', () => {
+  markProviderExhausted('anthropic')
+  markProviderExhausted('codex')
   const captured: { msg: string; obj: Record<string, unknown> }[] = []
   const log = {
     info: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
@@ -479,29 +373,13 @@ test('applyProactiveFailover: keeps the primary when every candidate is rejected
   expect(warn).toBeDefined()
   const trace = warn?.obj.trace as { candidate: string; reason: string }[]
   expect(trace).toEqual([
-    { candidate: 'anthropic,claude-opus', reason: 'rate-limited' },
-    { candidate: 'codex,gpt-5', reason: 'rate-limited' }
+    { candidate: 'anthropic,claude-opus', reason: 'exhausted' },
+    { candidate: 'codex,gpt-5', reason: 'exhausted' }
   ])
 })
 
-test('applyProactiveFailover: a hot 5h window does NOT trigger the dead-chain warn (5h is soft)', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 95, sevenDay: 20, sevenDayOpus: 20 }), NOW)
-  const captured: string[] = []
-  const log = {
-    info: (_: unknown, msg: string) => captured.push(msg),
-    warn: (_: unknown, msg: string) => captured.push(msg),
-    error: () => {}
-  } as unknown as Parameters<typeof applyProactiveFailover>[5]
-
-  const config = routerWith(['codex,gpt-5'])
-  const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 1000, config, log)
-  expect(out).toBe('anthropic,claude-opus')
-  expect(captured.some((m) => m.includes('all candidates rejected'))).toBe(false)
-  expect(captured.some((m) => m.includes('proactive failover'))).toBe(false)
-})
-
 test('applyProactiveFailover: trace records the chain walk on a successful fail-over', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 80 }), NOW)
+  markProviderExhausted('anthropic')
   const captured: { msg: string; obj: Record<string, unknown> }[] = []
   const log = {
     info: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
@@ -512,16 +390,15 @@ test('applyProactiveFailover: trace records the chain walk on a successful fail-
   const config = routerWith(['codex,gpt-5'])
   const out = applyProactiveFailover('anthropic,claude-opus', 'default', false, 1000, config, log)
   expect(out).toBe('codex,gpt-5')
-  const info = captured.find((c) => c.msg.includes('primary near rate limit'))
+  const info = captured.find((c) => c.msg.includes('primary exhausted'))
   const trace = info?.obj.trace as { candidate: string; reason: string }[]
   expect(trace).toEqual([
-    { candidate: 'anthropic,claude-opus', reason: 'rate-limited' },
+    { candidate: 'anthropic,claude-opus', reason: 'exhausted' },
     { candidate: 'codex,gpt-5', reason: 'kept' }
   ])
 })
 
 test('applyProactiveFailover: capability-gate skips are recorded in the trace', () => {
-  __seedClaudeCacheForTest('a1', makeClaude({ fiveHour: 10, sevenDay: 20, sevenDayOpus: 20 }), NOW)
   const captured: { msg: string; obj: Record<string, unknown> }[] = []
   const log = {
     info: (obj: Record<string, unknown>, msg: string) => captured.push({ msg, obj }),
@@ -535,7 +412,7 @@ test('applyProactiveFailover: capability-gate skips are recorded in the trace', 
   })
   const out = applyProactiveFailover('codex,small', 'default', false, 5_000, config, log)
   expect(out).toBe('codex,big')
-  const info = captured.find((c) => c.msg.includes('primary near rate limit'))
+  const info = captured.find((c) => c.msg.includes('primary exhausted'))
   const trace = info?.obj.trace as { candidate: string; reason: string }[]
   expect(trace).toEqual([
     { candidate: 'codex,small', reason: 'capability' },

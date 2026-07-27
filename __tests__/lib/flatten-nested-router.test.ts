@@ -13,8 +13,7 @@ const route = (primary: string, fallback: string) => ({ primary, fallbacks: [fal
 const nested: Router = {
   default: {
     agent: route('p,agent-default', 'p,agent-default-fb'),
-    subagent: route('p,sub-default', 'p,sub-default-fb'),
-    weeklyDrainMarginPct: 17
+    subagent: route('p,sub-default', 'p,sub-default-fb')
   },
   background: {
     agent: route('p,agent-background', 'p,agent-background-fb'),
@@ -75,7 +74,6 @@ test('flattenNestedRouter maps every route/scenario to the right flat slot', () 
       image: ['p,sub-image-fb']
     },
     longContextThreshold: 123_456,
-    weeklyDrainMarginPct: 17,
     persona: 'pirate'
   })
 })

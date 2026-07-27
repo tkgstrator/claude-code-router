@@ -60,8 +60,7 @@
     "editMode": "编辑",
     "editNoPrimary": "未设置主模型",
     "editFallbacks": "回退",
-    "editPrimary": "主模型",
-    "editMargin": "配额余量 (%)"
+    "editPrimary": "主模型"
   },
   "usage": {
     "title": "用量",
@@ -297,10 +296,10 @@
     "webSearch": "网络搜索",
     "image": "图像",
     "trigger": {
-      "default": "兜底（其他车道未命中的全部）",
+      "default": "其他车道未命中的兜底",
       "background": "Claude Haiku 级轻量子任务",
-      "think": "带 thinking 字段的请求（扩展思考／Plan）",
-      "longContext": "token 数超过阈值（或 opus 级／high effort）",
+      "think": "带 thinking 字段的请求",
+      "longContext": "token 数超过阈值",
       "webSearch": "包含 web_search 工具的请求",
       "image": "包含图像输入的请求"
     },

@@ -28,12 +28,7 @@ import type { TokenizeRequest } from './tokenizers/base'
 
 export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas'
 export type { SubscriptionKindProvider } from './scenario-router/failover'
-export {
-  applyProactiveFailover,
-  candidateUsable,
-  subscriptionKindOf,
-  WEEKLY_DRAIN_MARGIN_PCT_DEFAULT
-} from './scenario-router/failover'
+export { applyProactiveFailover, candidateUsable, subscriptionKindOf } from './scenario-router/failover'
 export type { EffortLevel, ModelTier } from './scenario-router/model-selection'
 export { isHeavyRequest, selectModel } from './scenario-router/model-selection'
 export type { RouterContext, RouterRequest, RouterRequestBody } from './scenario-router/types'

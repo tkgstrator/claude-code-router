@@ -60,8 +60,7 @@
     "editMode": "編集",
     "editNoPrimary": "プライマリ未設定",
     "editFallbacks": "フォールバック",
-    "editPrimary": "プライマリモデル",
-    "editMargin": "ドレイン余裕 (%)"
+    "editPrimary": "プライマリモデル"
   },
   "usage": {
     "title": "使用状況",
@@ -297,10 +296,10 @@
     "webSearch": "Web 検索",
     "image": "画像",
     "trigger": {
-      "default": "フォールバック（他レーンに該当しない全て）",
+      "default": "他レーンに該当しないフォールバック",
       "background": "Claude Haiku 系の軽量サブタスク",
-      "think": "thinking 付きリクエスト（拡張思考／Plan）",
-      "longContext": "トークン数が閾値超え（または opus級／high effort）",
+      "think": "thinking 付きリクエスト",
+      "longContext": "トークン数が閾値超え",
       "webSearch": "web_search ツールを含むリクエスト",
       "image": "画像入力を含むリクエスト"
     },
