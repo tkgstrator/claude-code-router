@@ -104,8 +104,9 @@
     "routing": "模型路由",
     "routingHint": "Claude Code 请求的模型与 CCR 实际发往上游的模型对照。",
     "routingEmpty": "尚无路由数据。",
-    "routingUntracked": "（未记录）",
-    "routingRerouted": "已改路",
+    "routingLaneAgent": "代理",
+    "routingLaneSubagent": "子",
+    "routingOriginal": "org",
     "authInvalid": "需重新认证",
     "authLive": "有效",
     "authUnknown": "未检查",
@@ -531,11 +532,11 @@
   "personas": {
     "title": "人设",
     "description": "保存命名人设。在路由页面选择要追加的当前人设。",
-    "add": "添加人设",
-    "add_title": "添加人设",
-    "edit": "编辑人设",
-    "edit_title": "编辑人设",
-    "delete": "删除人设",
+    "add": "添加",
+    "add_title": "添加",
+    "edit": "编辑",
+    "edit_title": "编辑",
+    "delete": "删除",
     "delete_confirm": "该人设将从人设库中移除，此操作无法撤销。",
     "name_label": "名称",
     "name_placeholder": "例如：礼貌",
@@ -548,6 +549,6 @@
     "save_failed": "保存人设失败",
     "name_required": "每个人设都需要名称",
     "not_found": "该人设已不存在。",
-    "back_to_list": "返回人设列表"
+    "back_to_list": "返回"
   }
 }

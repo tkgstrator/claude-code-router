@@ -1,65 +1,95 @@
 /**
  * Model-routing report section for the Usage page.
  *
- * Grouped by scenario lane (default, think, …): for each lane it lists every
- * "requested model → model CCR actually sent upstream" pair, so the operator
- * can read, per lane, which model the request came in as and where CCR routed
- * it — with a "rerouted" flag whenever the upstream model differs from what
- * was asked for. Data comes from GET /api/request-logs/model-routing.
+ * Two-level breakdown by scenario lane (default, think, …):
+ *   Scenario
+ *     Target Model (agent / subagent badge)
+ *       Requested Model N req · pct
+ *       Requested Model N req · pct
+ * The rows come from GET /api/request-logs/model-routing. Untracked
+ * pre-capture rows are dropped upstream, so every row here carries a
+ * requestedModel and a definite agent/subagent lane.
  */
 
-import { ArrowRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, type ModelRoutingResponse, type ModelRoutingRow } from '@/lib/api'
 
-// Traffic whose scenario wasn't captured buckets under this synthetic lane.
-const UNTRACKED = '__untracked__'
 // Fixed lane order (default first), matching the Router page.
 const SCENARIO_ORDER = ['default', 'background', 'think', 'longContext', 'webSearch', 'image']
 
-// One "requested → actual" routing outcome within a lane.
-interface Pair {
-  requested: string | null
-  provider: string
-  model: string
+// One "requested model → count" leaf inside a target group.
+interface RequestedLeaf {
+  requested: string
   count: number
 }
+
+// One target model within a scenario, with all requested models that
+// were routed to it and the per-scenario share the target holds.
+interface TargetGroup {
+  provider: string
+  model: string
+  isSubagent: boolean
+  total: number
+  requested: RequestedLeaf[]
+}
+
 interface ScenarioGroup {
   scenario: string
   total: number
-  pairs: Pair[]
+  targets: TargetGroup[]
 }
 
 function orderIndex(scenario: string): number {
-  if (scenario === UNTRACKED) return SCENARIO_ORDER.length + 1
   const idx = SCENARIO_ORDER.indexOf(scenario)
   return idx === -1 ? SCENARIO_ORDER.length : idx
 }
 
-// Re-pivot the requested-model-keyed API rows into scenario-keyed groups, each
-// carrying its requested→actual pairs (busiest first) and lane total.
-function groupByScenario(rows: ModelRoutingRow[]): ScenarioGroup[] {
-  const map = new Map<string, { total: number; pairs: Pair[] }>()
+// Stable key for a target group. Two targets differ if provider/model
+// differ OR the agent/subagent lane differs (same model on both lanes
+// is a valid state and must not collapse).
+function targetKey(provider: string, model: string, isSubagent: boolean): string {
+  return `${provider}/${model}/${isSubagent ? 'sub' : 'agent'}`
+}
+
+// Re-pivot requested-keyed API rows into the two-level shape the UI
+// renders. Pre-capture rows (requested === null or scenario === null)
+// are dropped at the API but guarded here for defence in depth.
+function groupByScenarioAndTarget(rows: ModelRoutingRow[]): ScenarioGroup[] {
+  const map = new Map<string, { total: number; targets: Map<string, TargetGroup> }>()
   for (const row of rows) {
+    if (row.requestedModel === null) continue
     for (const target of row.targets) {
-      const scenario = target.scenario === null ? UNTRACKED : target.scenario
-      const existing = map.get(scenario)
-      const group = existing === undefined ? { total: 0, pairs: [] } : existing
-      group.total += target.count
-      group.pairs.push({
-        requested: row.requestedModel,
-        provider: target.provider,
-        model: target.model,
-        count: target.count
-      })
-      map.set(scenario, group)
+      if (target.scenario === null) continue
+      const scenario = target.scenario
+      const existingScenario = map.get(scenario)
+      const scenarioBucket =
+        existingScenario !== undefined ? existingScenario : { total: 0, targets: new Map<string, TargetGroup>() }
+      scenarioBucket.total += target.count
+      const key = targetKey(target.provider, target.model, target.isSubagent)
+      const existingTarget = scenarioBucket.targets.get(key)
+      const targetBucket: TargetGroup =
+        existingTarget !== undefined
+          ? existingTarget
+          : {
+              provider: target.provider,
+              model: target.model,
+              isSubagent: target.isSubagent,
+              total: 0,
+              requested: []
+            }
+      targetBucket.total += target.count
+      targetBucket.requested.push({ requested: row.requestedModel, count: target.count })
+      scenarioBucket.targets.set(key, targetBucket)
+      map.set(scenario, scenarioBucket)
     }
   }
-  const groups = [...map.entries()].map(([scenario, group]) => ({
+  const groups = [...map.entries()].map(([scenario, bucket]) => ({
     scenario,
-    total: group.total,
-    pairs: [...group.pairs].sort((a, b) => b.count - a.count)
+    total: bucket.total,
+    targets: [...bucket.targets.values()]
+      .map((t) => ({ ...t, requested: [...t.requested].sort((a, b) => b.count - a.count) }))
+      .sort((a, b) => b.total - a.total)
   }))
   return groups.sort((a, b) => orderIndex(a.scenario) - orderIndex(b.scenario))
 }
@@ -78,22 +108,18 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
       .catch(() => setData({ rows: [], total: 0 }))
   }, [reloadToken])
 
-  const groups = useMemo(() => (data === null ? [] : groupByScenario(data.rows)), [data])
+  const groups = useMemo(() => (data === null ? [] : groupByScenarioAndTarget(data.rows)), [data])
 
-  // Body only — the enclosing Card on the Usage page provides the title
-  // and hint header.
   if (data === null) {
     return <p className='text-sm text-muted-foreground'>…</p>
   }
   if (groups.length === 0) {
     return <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
   }
-  // Auto-fill grid: each "requested → actual" row spans one ~22rem column
-  // instead of stretching edge-to-edge (the gap between the model names and
-  // the percentage would otherwise read as too wide). The column count grows
-  // with the viewport since the section is allowed to use the full width.
-  // `items-start` keeps groups top-aligned rather than stretching to the
-  // tallest cell in their row.
+  // Auto-fill grid: each scenario column spans ~22rem so the two-level
+  // hierarchy stays readable and multiple lanes tile side-by-side on a
+  // wide viewport. `items-start` keeps lanes top-aligned rather than
+  // stretching to the tallest cell in their row.
   return (
     <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-8 gap-y-6'>
       {groups.map((group) => (
@@ -105,9 +131,8 @@ export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
 
 function ScenarioGroupCard({ group }: { group: ScenarioGroup }) {
   const { t } = useTranslation()
-  const known = group.scenario !== UNTRACKED && SCENARIO_ORDER.includes(group.scenario)
-  const label =
-    group.scenario === UNTRACKED ? t('usage.routingUntracked') : known ? t(`router.${group.scenario}`) : group.scenario
+  const known = SCENARIO_ORDER.includes(group.scenario)
+  const label = known ? t(`router.${group.scenario}`) : group.scenario
   // What kind of request lands in this lane (the router's trigger condition),
   // so the panel reads as "this sort of request → here" rather than just
   // observed counts.
@@ -124,48 +149,60 @@ function ScenarioGroupCard({ group }: { group: ScenarioGroup }) {
           {group.total.toLocaleString()} {t('usage.apiCostRequests')}
         </span>
       </div>
-      <div className='space-y-3'>
-        {group.pairs.map((pair) => (
-          <PairRow key={`${pair.requested}/${pair.provider}/${pair.model}`} pair={pair} total={group.total} />
+      <div className='space-y-4'>
+        {group.targets.map((target) => (
+          <TargetGroupRow key={targetKey(target.provider, target.model, target.isSubagent)} target={target} />
         ))}
       </div>
     </div>
   )
 }
 
-function PairRow({ pair, total }: { pair: Pair; total: number }) {
+function TargetGroupRow({ target }: { target: TargetGroup }) {
   const { t } = useTranslation()
-  const pct = total > 0 ? Math.round((pair.count / total) * 100) : 0
-  const requestedLabel = pair.requested === null ? t('usage.routingUntracked') : pair.requested
-  // "Rerouted" = CCR sent upstream a different model than the request asked
-  // for. A different provider with the same model name still counts as honored
-  // (same model, just a different account/lane).
-  const rerouted = pair.requested !== null && pair.model !== pair.requested
+  const laneLabel = target.isSubagent ? t('usage.routingLaneSubagent') : t('usage.routingLaneAgent')
+  const laneClass = target.isSubagent
+    ? 'border border-muted-foreground/40 text-muted-foreground'
+    : 'bg-primary/15 text-primary'
 
   return (
-    <div className='space-y-1.5'>
-      <div className='flex items-center justify-between gap-3'>
-        <div className='flex min-w-0 items-center gap-1.5 font-mono text-xs'>
-          <span className='min-w-0 truncate text-muted-foreground'>{requestedLabel}</span>
-          <ArrowRight className={`h-3 w-3 shrink-0 ${rerouted ? 'text-amber-500' : 'text-muted-foreground/50'}`} />
-          <span className='min-w-0 truncate text-foreground'>{pair.model}</span>
-          {rerouted && (
-            <span className='shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-400'>
-              {t('usage.routingRerouted')}
-            </span>
-          )}
+    <div className='space-y-2'>
+      <div className='flex items-center gap-1.5 text-xs'>
+        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${laneClass}`}>
+          {laneLabel}
+        </span>
+        <span className='min-w-0 truncate font-mono text-foreground'>{target.model}</span>
+        <span className='shrink-0 tabular-nums text-muted-foreground'>{target.total.toLocaleString()}</span>
+      </div>
+      <ul className='space-y-1 pl-3'>
+        {target.requested.map((leaf) => (
+          <RequestedLeafRow key={leaf.requested} leaf={leaf} total={target.total} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function RequestedLeafRow({ leaf, total }: { leaf: RequestedLeaf; total: number }) {
+  const { t } = useTranslation()
+  const pct = total > 0 ? Math.round((leaf.count / total) * 100) : 0
+  return (
+    <li className='space-y-1'>
+      <div className='flex items-center justify-between gap-3 text-xs'>
+        <div className='flex min-w-0 items-center gap-1.5'>
+          <span className='shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'>
+            {t('usage.routingOriginal')}
+          </span>
+          <span className='min-w-0 truncate font-mono text-muted-foreground'>{leaf.requested}</span>
         </div>
         <span className='shrink-0 tabular-nums'>
-          <span className='text-xs text-muted-foreground'>{pair.count.toLocaleString()}</span>
-          <span className='ml-1.5 text-sm font-semibold text-foreground'>{pct}%</span>
+          <span className='text-muted-foreground'>{leaf.count.toLocaleString()}</span>
+          <span className='ml-1.5 font-semibold text-foreground'>{pct}%</span>
         </span>
       </div>
-      <div className='h-2 w-full overflow-hidden rounded-full bg-muted'>
-        <div
-          className={`h-full rounded-full ${rerouted ? 'bg-amber-500' : 'bg-primary'}`}
-          style={{ width: `${pct}%` }}
-        />
+      <div className='h-1.5 w-full overflow-hidden rounded-full bg-muted'>
+        <div className='h-full rounded-full bg-primary' style={{ width: `${pct}%` }} />
       </div>
-    </div>
+    </li>
   )
 }

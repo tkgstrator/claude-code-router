@@ -113,6 +113,10 @@ export const ModelRoutingTargetSchema = z.object({
   // Routing lane (default/background/think/longContext/webSearch). Null on
   // rows written before scenario capture landed.
   scenario: z.string().nullable(),
+  // Whether the target was reached via the subagent lane. The API drops
+  // pre-tracking rows (isSubagent IS NULL) so the response always carries
+  // a boolean here.
+  isSubagent: z.boolean(),
   count: z.number().int().nonnegative()
 })
 

@@ -65,11 +65,16 @@ export function Personas() {
                 <button
                   key={row.id}
                   type='button'
-                  className='flex w-full items-start gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none'
+                  // Flat row: no card bg on hover. A left border accent
+                  // provides the affordance (also picked up on
+                  // focus-visible), the name goes underline on hover, and
+                  // the chevron darkens — the row stays visually flat like
+                  // the rest of the page.
+                  className='group flex w-full items-start gap-3 border-l-2 border-transparent px-3 py-3 text-left transition-colors hover:border-primary focus-visible:border-primary focus-visible:outline-none'
                   onClick={() => navigate(`/personas/view/${encodeURIComponent(row.id)}`)}
                 >
                   <div className='min-w-0 flex-1 space-y-1'>
-                    <p className='text-sm font-semibold text-foreground'>{row.name}</p>
+                    <p className='text-sm font-semibold text-foreground group-hover:underline'>{row.name}</p>
                     {row.prompt.trim() === '' ? (
                       <p className='text-sm italic text-muted-foreground'>{t('personas.prompt_empty')}</p>
                     ) : (
@@ -79,7 +84,7 @@ export function Personas() {
                       {t('personas.prompt_chars', { count: row.prompt.length })}
                     </p>
                   </div>
-                  <ChevronRight className='mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground' />
+                  <ChevronRight className='mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground transition-colors group-hover:text-foreground' />
                 </button>
               ))}
             </div>
