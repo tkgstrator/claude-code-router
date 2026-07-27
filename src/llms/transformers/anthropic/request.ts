@@ -9,6 +9,7 @@
 import { HTTPException } from 'hono/http-exception'
 import type {
   AnthropicContentBlock,
+  AnthropicCustomToolDef,
   AnthropicIncomingMessage,
   AnthropicIncomingRequest,
   AnthropicToolDef,
@@ -201,18 +202,36 @@ export function buildToolChoice(
 
 export function convertAnthropicToolsToUnified(tools: AnthropicToolDef[]): UnifiedTool[] {
   return tools.map((tool) => {
-    // The unified schema requires a non-empty description; the
-    // Anthropic wire format allows it to be omitted. Fall back to the
-    // tool name so the schema stays satisfied without inventing data.
-    const description = tool.description === undefined ? tool.name : tool.description
+    // Server-side tools (`web_search_*`, `computer_*`, `bash_*`,
+    // `text_editor_*`, `code_execution_*`) carry only `type` + `name` on
+    // the wire — no description / input_schema. Represent them as a
+    // unified function tool keyed by `name` so downstream provider
+    // transformers (e.g. openai-responses/remapTools) can detect and
+    // remap them; fall back to `name` for description and empty object
+    // params to satisfy the unified schema.
+    if (!isCustomTool(tool)) {
+      return {
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.name,
+          parameters: { type: 'object', properties: {} }
+        },
+        cache_control: tool.cache_control
+      }
+    }
     return {
       type: 'function',
       function: {
         name: tool.name,
-        description,
+        description: tool.description,
         parameters: tool.input_schema
       },
       cache_control: tool.cache_control
     }
   })
+}
+
+function isCustomTool(tool: AnthropicToolDef): tool is AnthropicCustomToolDef {
+  return 'input_schema' in tool
 }

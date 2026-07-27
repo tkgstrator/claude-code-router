@@ -212,14 +212,46 @@ export const AnthropicIncomingMessageSchema = z.object({
 })
 export type AnthropicIncomingMessage = z.input<typeof AnthropicIncomingMessageSchema>
 
-export const AnthropicToolDefSchema = z.object({
+// Anthropic ships two families of tool blocks on `/v1/messages` request:
+//
+//   1. Custom tools — the model calls user-defined functions. Requires
+//      `name`, `description`, `input_schema`. `type` may be absent
+//      (Anthropic defaults it to "custom") or explicitly "custom".
+//   2. Server-side tools — Anthropic hosts the tool. Identified by a
+//      versioned `type` (e.g. `web_search_20250305`, `computer_20250124`,
+//      `bash_20250124`, `text_editor_20250124`, `code_execution_20250522`).
+//      They only carry `type` and `name`, no description / input_schema,
+//      and may carry tool-specific extras (`max_uses`, `display_width_px`,
+//      …) which we let through untouched.
+//
+// Prior to this split the schema was a single object with description /
+// input_schema required, which rejected every server-tool payload — see
+// scenario-router/model-selection.ts which already recognised the
+// `{ type: 'web_search_*' }` shape at the routing layer.
+const AnthropicServerToolTypeSchema = z.string().regex(/^(web_search|computer|bash|text_editor|code_execution)_/)
+
+export const AnthropicCustomToolDefSchema = z.object({
+  type: z.literal('custom').optional(),
   name: z.string().nonempty(),
-  // Anthropic API requires `description` on every tool definition —
-  // the docs treat it as load-bearing for model tool selection.
+  // Anthropic API requires `description` on every custom tool
+  // definition — the docs treat it as load-bearing for model tool
+  // selection.
   description: z.string().nonempty(),
   input_schema: UnifiedToolSchema.shape.function.shape.parameters,
   cache_control: AnthropicCacheControlSchema.optional()
 })
+export type AnthropicCustomToolDef = z.input<typeof AnthropicCustomToolDefSchema>
+
+export const AnthropicServerToolDefSchema = z
+  .object({
+    type: AnthropicServerToolTypeSchema,
+    name: z.string().nonempty(),
+    cache_control: AnthropicCacheControlSchema.optional()
+  })
+  .catchall(z.unknown())
+export type AnthropicServerToolDef = z.input<typeof AnthropicServerToolDefSchema>
+
+export const AnthropicToolDefSchema = z.union([AnthropicServerToolDefSchema, AnthropicCustomToolDefSchema])
 export type AnthropicToolDef = z.input<typeof AnthropicToolDefSchema>
 
 // Anthropic tool_choice is one of: `auto` / `any` / `none` (no extra
