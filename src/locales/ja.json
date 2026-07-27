@@ -72,6 +72,7 @@
     "sevenDay": "7日ウィンドウ",
     "sevenDaySonnet": "7日（Sonnet）",
     "sevenDayOpus": "7日（Opus）",
+    "sevenDayScoped": "7日（{{model}}）",
     "codex": "Codex",
     "codexNotRegistered": "Codexは未登録です。",
     "codexNotRegisteredHint": "Settings → Providers → Connect から Codex アカウントを接続してください。",

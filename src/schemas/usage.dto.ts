@@ -7,6 +7,15 @@ export const ClaudeUsageWindowValueSchema = z.object({
 
 export const ClaudeUsageWindowSchema = ClaudeUsageWindowValueSchema.nullable()
 
+// One per-model scoped 7-day window (e.g. Fable, Sonnet, Opus) surfaced
+// by the Anthropic OAuth usage API in its `limits[]` array. `modelName`
+// is the vendor's display name verbatim so it can render as-is.
+export const ClaudeScopedWindowSchema = z.object({
+  modelName: z.string().nonempty(),
+  utilization: z.number(),
+  resetsAt: z.string().nonempty().nullable()
+})
+
 export const CodexUsageWindowValueSchema = z.object({
   usedPercent: z.number(),
   resetAt: z.string().nonempty().nullable(),
@@ -26,6 +35,11 @@ export const ClaudeUsageSchema = z.object({
   sevenDay: ClaudeUsageWindowSchema,
   sevenDaySonnet: ClaudeUsageWindowSchema,
   sevenDayOpus: ClaudeUsageWindowSchema,
+  // Per-model weekly windows (Fable, Mythos, ...). Anthropic no longer
+  // populates the flat `seven_day_sonnet`/`seven_day_opus` fields for most
+  // plans and puts every scoped window in a `limits[]` array instead. This
+  // list carries whatever the API returned, in order.
+  weeklyScoped: z.array(ClaudeScopedWindowSchema),
   extraUsageEnabled: z.boolean(),
   capturedAt: z.string().nonempty()
 })
@@ -78,7 +92,12 @@ export const ClaudeUsageWireSchema = z.object({
   seven_day: z.unknown().optional(),
   seven_day_sonnet: z.unknown().optional(),
   seven_day_opus: z.unknown().optional(),
-  extra_usage: z.unknown().optional()
+  extra_usage: z.unknown().optional(),
+  // Per-limit rows the API now emits alongside the flat windows. Contains
+  // session / weekly_all / weekly_scoped entries; the weekly_scoped ones
+  // carry a per-model breakdown (via `scope.model.display_name`) that the
+  // deprecated flat fields no longer surface.
+  limits: z.unknown().optional()
 })
 
 export const CodexUsageWireSchema = z.object({
@@ -90,6 +109,7 @@ export const CodexUsageWireSchema = z.object({
 
 export type ClaudeUsageWindow = z.infer<typeof ClaudeUsageWindowSchema>
 export type ClaudeUsageWindowValue = z.infer<typeof ClaudeUsageWindowValueSchema>
+export type ClaudeScopedWindow = z.infer<typeof ClaudeScopedWindowSchema>
 export type CodexUsageWindow = z.infer<typeof CodexUsageWindowSchema>
 export type CodexUsageWindowValue = z.infer<typeof CodexUsageWindowValueSchema>
 export type ClaudeUsage = z.infer<typeof ClaudeUsageSchema>

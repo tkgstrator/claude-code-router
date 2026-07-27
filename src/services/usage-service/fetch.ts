@@ -7,6 +7,7 @@
 import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
 import {
+  type ClaudeScopedWindow,
   type ClaudeUsage,
   ClaudeUsageWireSchema,
   type CodexUsage,
@@ -24,6 +25,31 @@ const windowOf = (v: unknown): { utilization: number; resetsAt: string | null } 
   if (!('utilization' in v) || typeof v.utilization !== 'number') return null
   const resetsAt = 'resets_at' in v && typeof v.resets_at === 'string' && v.resets_at.length > 0 ? v.resets_at : null
   return { utilization: v.utilization, resetsAt }
+}
+
+// Pull `weekly_scoped` limit rows from the response's `limits[]` array —
+// each carries a `scope.model.display_name` (e.g. "Fable") and a `percent`.
+// Every other kind (`session`, `weekly_all`) is ignored here; they mirror
+// the flat `five_hour` / `seven_day` fields the top-level schema already
+// covers.
+const scopedWindowsOf = (v: unknown): ClaudeScopedWindow[] => {
+  if (!Array.isArray(v)) return []
+  const out: ClaudeScopedWindow[] = []
+  for (const item of v) {
+    if (item === null || typeof item !== 'object') continue
+    if (!('kind' in item) || item.kind !== 'weekly_scoped') continue
+    if (!('percent' in item) || typeof item.percent !== 'number') continue
+    if (!('scope' in item) || item.scope === null || typeof item.scope !== 'object') continue
+    const scope = item.scope
+    if (!('model' in scope) || scope.model === null || typeof scope.model !== 'object') continue
+    const model = scope.model
+    if (!('display_name' in model) || typeof model.display_name !== 'string' || model.display_name.length === 0)
+      continue
+    const resetsAt =
+      'resets_at' in item && typeof item.resets_at === 'string' && item.resets_at.length > 0 ? item.resets_at : null
+    out.push({ modelName: model.display_name, utilization: item.percent, resetsAt })
+  }
+  return out
 }
 
 const codexWindowOf = (v: unknown): CodexUsageWindowValue | null => {
@@ -58,6 +84,7 @@ const requestClaudeUsage = async (info: SubAccountTokenInfo): Promise<ClaudeUsag
       sevenDay: windowOf(j.seven_day),
       sevenDaySonnet: windowOf(j.seven_day_sonnet),
       sevenDayOpus: windowOf(j.seven_day_opus),
+      weeklyScoped: scopedWindowsOf(j.limits),
       extraUsageEnabled,
       capturedAt: dayjs().toISOString()
     }

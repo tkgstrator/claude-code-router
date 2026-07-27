@@ -72,6 +72,7 @@
     "sevenDay": "7-day window",
     "sevenDaySonnet": "7-day (Sonnet)",
     "sevenDayOpus": "7-day (Opus)",
+    "sevenDayScoped": "7-day ({{model}})",
     "codex": "Codex",
     "codexNotRegistered": "No Codex subscription connected yet.",
     "codexNotRegisteredHint": "Connect a Codex account via Settings → Providers → Connect.",

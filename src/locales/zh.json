@@ -72,6 +72,7 @@
     "sevenDay": "7 天窗口",
     "sevenDaySonnet": "7 天（Sonnet）",
     "sevenDayOpus": "7 天（Opus）",
+    "sevenDayScoped": "7 天（{{model}}）",
     "codex": "Codex",
     "codexNotRegistered": "尚未连接 Codex订阅。",
     "codexNotRegisteredHint": "通过 Settings → Providers → Connect 连接 Codex 账户。",
