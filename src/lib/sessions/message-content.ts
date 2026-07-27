@@ -36,13 +36,20 @@ const CLAUDE_CODE_TAGLESS_PREFIXES: RegExp[] = [
   /^Contents of\s/,
   /^Codebase and user instructions\b/,
   /^Tool loaded\.\s*$/,
-  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m,
-  // Permission-gate directive block Claude Code prepends before evaluating
-  // a tool call. Characteristic openers: "Err on the side of blocking",
-  // followed by "Stage 1" / "Stage 2" wording and terminated with a
-  // `<block>` / `<allow>` sentinel.
-  /^Err on the side of blocking\b/
+  /^#\s+(claudeMd|gitStatus|environment|userEmail|currentDate)\b/m
 ]
+
+// Detect the permission-gate directive Claude Code prepends before it
+// evaluates certain tool calls. Openers vary (seen: "Err on the side of
+// blocking. Stage 1 ..." / "Stage 1 does NOT apply user intent ...") so a
+// prefix regex misses fragments, and the block reliably terminates with a
+// `<block>` / `<allow>` sentinel plus stage-1/2 wording. Requiring BOTH
+// the sentinel AND stage wording keeps the false-positive risk low
+// against genuine chat that happens to say "block" or "stage".
+function looksLikePermissionGate(text: string): boolean {
+  if (!/<(block|allow)>/i.test(text)) return false
+  return /\bstage\s+[12]\b/i.test(text)
+}
 
 export function normaliseContent(content: unknown): NormalisedBlock[] {
   if (typeof content === 'string') return [{ kind: 'text', text: content }]
@@ -88,7 +95,7 @@ function classifyTextBlock(text: string): NormalisedBlock {
   }
   // Tagless system dump — Claude Code appends these verbatim before the
   // user's turn, and they surface here as plain text.
-  if (CLAUDE_CODE_TAGLESS_PREFIXES.some((re) => re.test(cleaned))) {
+  if (CLAUDE_CODE_TAGLESS_PREFIXES.some((re) => re.test(cleaned)) || looksLikePermissionGate(cleaned)) {
     return { kind: 'system_text', text, preview: makePreview(cleaned) }
   }
   const head = cleaned.charAt(0)

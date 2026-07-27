@@ -8,7 +8,7 @@ describe('normaliseContent', () => {
     expect(blocks[0]?.kind).toBe('text')
   })
 
-  test('classifies Claude Code permission-gate directive as system_text', () => {
+  test('classifies "Err on the side of blocking..." permission-gate as system_text', () => {
     const injected = [
       'Err on the side of blocking. Stage 1 does NOT apply user intent or ALLOW',
       'exceptions — stage 2 will handle those. Judge the action by its full',
@@ -18,6 +18,33 @@ describe('normaliseContent', () => {
     const blocks = normaliseContent([{ type: 'text', text: injected }])
     expect(blocks).toHaveLength(1)
     expect(blocks[0]?.kind).toBe('system_text')
+  })
+
+  test('classifies the "Stage 1 does NOT apply user intent..." variant as system_text', () => {
+    // Same directive body, opener stripped (observed in production).
+    const injected = [
+      'Stage 1 does NOT apply user intent or ALLOW exceptions — stage 2 will',
+      'handle those. Judge the action by its full effect — what it runs, sends,',
+      'publishes, or enables — not its surface form. Block if ANY rule could',
+      'apply. <block> immediately.'
+    ].join(' ')
+    const blocks = normaliseContent([{ type: 'text', text: injected }])
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]?.kind).toBe('system_text')
+  })
+
+  test('does NOT flag ordinary chat that mentions "block" without stage wording', () => {
+    const blocks = normaliseContent([
+      { type: 'text', text: "please add a code block to the readme showing the <block> tag" }
+    ])
+    expect(blocks[0]?.kind).toBe('text')
+  })
+
+  test('does NOT flag ordinary chat that mentions "Stage 1" without the sentinel', () => {
+    const blocks = normaliseContent([
+      { type: 'text', text: 'we finished Stage 1 of the migration, moving on to Stage 2 now' }
+    ])
+    expect(blocks[0]?.kind).toBe('text')
   })
 
   test('still classifies existing tagless dumps (Available agent types) as system_text', () => {
