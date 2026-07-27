@@ -104,8 +104,9 @@
     "routing": "モデル振り分け",
     "routingHint": "Claude Codeが要求したモデルと、CCRが実際に上流へ送ったモデルの対応。",
     "routingEmpty": "振り分けデータはまだありません。",
-    "routingUntracked": "（記録前）",
-    "routingRerouted": "振り替え",
+    "routingLaneAgent": "エージェント",
+    "routingLaneSubagent": "サブ",
+    "routingOriginal": "org",
     "authInvalid": "要再認証",
     "authLive": "有効",
     "authUnknown": "未確認",
@@ -531,11 +532,11 @@
   "personas": {
     "title": "ペルソナ",
     "description": "名前付きのペルソナを保存します。付与する有効なペルソナはルーターページで選びます。",
-    "add": "ペルソナを追加",
-    "add_title": "ペルソナを追加",
-    "edit": "ペルソナを編集",
-    "edit_title": "ペルソナを編集",
-    "delete": "ペルソナを削除",
+    "add": "追加",
+    "add_title": "追加",
+    "edit": "編集",
+    "edit_title": "編集",
+    "delete": "削除",
     "delete_confirm": "このペルソナをライブラリから削除します。この操作は取り消せません。",
     "name_label": "名前",
     "name_placeholder": "例: 丁寧",
@@ -548,6 +549,6 @@
     "save_failed": "ペルソナの保存に失敗しました",
     "name_required": "すべてのペルソナに名前が必要です",
     "not_found": "このペルソナは存在しません。",
-    "back_to_list": "ペルソナ一覧へ戻る"
+    "back_to_list": "戻る"
   }
 }

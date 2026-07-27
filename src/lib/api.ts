@@ -57,6 +57,7 @@ export interface ModelRoutingTarget {
   provider: string
   model: string
   scenario: string | null
+  isSubagent: boolean
   count: number
 }
 

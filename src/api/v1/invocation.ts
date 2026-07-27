@@ -255,7 +255,8 @@ export function resolveInvocationForModel(
     provider: providerName,
     model,
     scenarioType: plan.scenarioType,
-    requestedModel: plan.requestedModel
+    requestedModel: plan.requestedModel,
+    isSubagent: plan.isSubagent
   }
 
   return { body, headers, request, provider, transformer }
