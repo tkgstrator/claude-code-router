@@ -1,6 +1,6 @@
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
-import { recordPerAccountUsage } from './subaccount-usage-store'
+import { recordPerAccountUsage, scopedMetricKey } from './subaccount-usage-store'
 import { fetchUsageSnapshotWithAccountIds, type getUsage } from './usage-service'
 
 // Keep a bit more than the week the UI charts so the edges look full.
@@ -51,6 +51,9 @@ const flatten = (u: Awaited<ReturnType<typeof getUsage>>): SnapshotRow[] => {
       add('claude', 'claude.seven_day_sonnet', c.sevenDaySonnet.utilization, toDate(c.sevenDaySonnet.resetsAt))
     if (c.sevenDayOpus)
       add('claude', 'claude.seven_day_opus', c.sevenDayOpus.utilization, toDate(c.sevenDayOpus.resetsAt))
+    for (const scoped of c.weeklyScoped) {
+      add('claude', scopedMetricKey(scoped.modelName), scoped.utilization, toDate(scoped.resetsAt))
+    }
   }
   for (const x of u.codex) {
     if (x.primary) add('codex', 'codex.primary', x.primary.usedPercent, toDate(x.primary.resetAt))

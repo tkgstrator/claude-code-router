@@ -18,5 +18,9 @@ const getUsageRoute = createRoute({
 
 usageRoute.openapi(getUsageRoute, async (c) => {
   const { usage } = await fetchUsageSnapshot()
-  return c.json(usage, 200)
+  // Run the response through the schema so cached ClaudeUsage entries
+  // that predate the `weeklyScoped` field (still resident in the in-memory
+  // cache after a code reload) pick up its default `[]`, instead of the
+  // frontend seeing `undefined` and crashing on `.map`.
+  return c.json(UsageResponseSchema.parse(usage), 200)
 })
