@@ -10,7 +10,7 @@ function emptyRoute(): { primary: string | null; fallbacks: string[] } {
 }
 function baseRouter(): RouterConfig {
   return {
-    default: { agent: emptyRoute(), subagent: emptyRoute(), weeklyDrainMarginPct: 0 },
+    default: { agent: emptyRoute(), subagent: emptyRoute() },
     background: { agent: emptyRoute(), subagent: emptyRoute() },
     think: { agent: emptyRoute(), subagent: emptyRoute() },
     longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: 60000 },

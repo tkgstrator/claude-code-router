@@ -60,8 +60,7 @@
     "editMode": "Edit",
     "editNoPrimary": "No primary model",
     "editFallbacks": "fallback(s)",
-    "editPrimary": "Primary model",
-    "editMargin": "Drain margin (%)"
+    "editPrimary": "Primary model"
   },
   "usage": {
     "title": "Usage",
@@ -73,6 +72,7 @@
     "sevenDay": "7-day window",
     "sevenDaySonnet": "7-day (Sonnet)",
     "sevenDayOpus": "7-day (Opus)",
+    "sevenDayScoped": "7-day ({{model}})",
     "codex": "Codex",
     "codexNotRegistered": "No Codex subscription connected yet.",
     "codexNotRegisteredHint": "Connect a Codex account via Settings → Providers → Connect.",
@@ -105,8 +105,9 @@
     "routing": "Model routing",
     "routingHint": "What Claude Code requested vs. the model CCR actually sent upstream.",
     "routingEmpty": "No routing data recorded yet.",
-    "routingUntracked": "(untracked)",
-    "routingRerouted": "rerouted",
+    "routingLaneAgent": "Agent",
+    "routingLaneSubagent": "Sub",
+    "routingOriginal": "org",
     "authInvalid": "Re-authenticate",
     "authLive": "Authenticated",
     "authUnknown": "Not checked",
@@ -298,9 +299,9 @@
     "image": "Image",
     "trigger": {
       "default": "Fallback — requests no other lane claims",
-      "background": "Claude Haiku-tier requests (lightweight subtasks)",
-      "think": "Requests with a thinking field (extended thinking / Plan)",
-      "longContext": "Token count over the threshold (or opus-tier / high effort)",
+      "background": "Claude Haiku-tier requests",
+      "think": "Requests with a thinking field",
+      "longContext": "Token count over the threshold",
       "webSearch": "Requests carrying a web_search tool",
       "image": "Requests with image input"
     },
@@ -532,11 +533,11 @@
   "personas": {
     "title": "Personas",
     "description": "Save named personas. Pick the active one to append on the Router page.",
-    "add": "Add persona",
-    "add_title": "Add persona",
-    "edit": "Edit persona",
-    "edit_title": "Edit persona",
-    "delete": "Delete persona",
+    "add": "Add",
+    "add_title": "Add",
+    "edit": "Edit",
+    "edit_title": "Edit",
+    "delete": "Delete",
     "delete_confirm": "This persona will be removed from the library. This cannot be undone.",
     "name_label": "Name",
     "name_placeholder": "e.g. Polite",
@@ -549,6 +550,6 @@
     "save_failed": "Failed to save personas",
     "name_required": "Every persona needs a name",
     "not_found": "This persona no longer exists.",
-    "back_to_list": "Back to personas"
+    "back_to_list": "Back"
   }
 }

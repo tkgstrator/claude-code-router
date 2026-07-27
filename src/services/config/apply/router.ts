@@ -56,8 +56,7 @@ export async function resolveFallbackTargets(
 }
 
 // Assemble the scenario-scoped params JSON for a RouterSlot row:
-// longContext keeps its threshold; default keeps the Router-wide
-// weeklyDrainMarginPct policy knob; any slot may carry the two fallback
+// longContext keeps its threshold; any slot may carry the two fallback
 // chains (`fallbacks` for the agent route, `subagentFallbacks` for the
 // subagent route). An empty object collapses to DbNull so a slot with no
 // knobs stores NULL.
@@ -66,12 +65,10 @@ function buildSlotParams(args: {
   fallbacks: string[]
   subagentFallbacks: string[]
   longContextThreshold: number | null
-  incomingMargin: number | null
 }): Prisma.InputJsonValue | typeof Prisma.DbNull {
-  const { scenario, fallbacks, subagentFallbacks, longContextThreshold, incomingMargin } = args
+  const { scenario, fallbacks, subagentFallbacks, longContextThreshold } = args
   const paramsObj: Prisma.InputJsonObject = {
     ...(scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : {}),
-    ...(scenario === 'default' && incomingMargin !== null ? { weeklyDrainMarginPct: incomingMargin } : {}),
     ...(fallbacks.length > 0 ? { fallbacks } : {}),
     ...(subagentFallbacks.length > 0 ? { subagentFallbacks } : {})
   }
@@ -103,14 +100,6 @@ async function resolvePrimaryModelId(
 export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: string[]): Promise<void> {
   const longContextThreshold =
     typeof incoming.longContext?.threshold === 'number' ? incoming.longContext.threshold : null
-  // weeklyDrainMarginPct rides on the default slot's params. 0 means
-  // "policy at its default" and is treated as "drop the key" so we don't
-  // store noise. Negative / out-of-range / non-integer values are
-  // ignored — applyUiConfig already round-trips the RouterSchema which
-  // clamps to int 0..100, but this is the defence-in-depth path.
-  const rawMargin = incoming.default?.weeklyDrainMarginPct
-  const incomingMargin =
-    typeof rawMargin === 'number' && Number.isInteger(rawMargin) && rawMargin > 0 && rawMargin <= 100 ? rawMargin : null
 
   for (const scenario of SCENARIO_KEYS) {
     const route = incoming[scenario]
@@ -142,8 +131,7 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
       scenario,
       fallbacks,
       subagentFallbacks,
-      longContextThreshold,
-      incomingMargin
+      longContextThreshold
     })
 
     await tx.routerSlot.upsert({

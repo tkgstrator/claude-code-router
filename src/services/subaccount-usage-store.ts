@@ -28,6 +28,15 @@ export const CLAUDE_METRICS = {
   seven_day_opus: 'claude.seven_day_opus'
 } as const
 
+// Per-model scoped 7-day windows come back with a display_name (e.g.
+// "Fable"). The metric key uses a lowercased slug of that name so a new
+// model surfacing on the API is stored / charted without a code change.
+const SCOPED_METRIC_PREFIX = 'claude.seven_day_scoped.' as const
+type ScopedMetric = `${typeof SCOPED_METRIC_PREFIX}${string}`
+export const scopedMetricKey = (modelName: string): ScopedMetric =>
+  `${SCOPED_METRIC_PREFIX}${modelName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
+export const isScopedMetric = (metric: string): boolean => metric.startsWith(SCOPED_METRIC_PREFIX)
+
 export const CODEX_METRICS = {
   primary: 'codex.primary',
   secondary: 'codex.secondary'
@@ -35,7 +44,11 @@ export const CODEX_METRICS = {
 
 export type ClaudeMetric = (typeof CLAUDE_METRICS)[keyof typeof CLAUDE_METRICS]
 export type CodexMetric = (typeof CODEX_METRICS)[keyof typeof CODEX_METRICS]
-export type Metric = ClaudeMetric | CodexMetric
+// Scoped-model metric keys (e.g. `claude.seven_day_scoped.fable`) are
+// generated at runtime from the API's `display_name`, so the wider
+// `Metric` union has to admit any string that starts with the scoped
+// prefix in addition to the fixed enums.
+export type Metric = ClaudeMetric | CodexMetric | ScopedMetric
 
 const toDate = (iso: string | null): Date | null => {
   if (!iso) return null
@@ -82,6 +95,14 @@ const claudeRowsFor = (subAccountId: string, u: ClaudeUsage): PerAccountRow[] =>
       metric: CLAUDE_METRICS.seven_day_opus,
       percent: u.sevenDayOpus.utilization,
       resetAt: toDate(u.sevenDayOpus.resetsAt)
+    })
+  }
+  for (const scoped of u.weeklyScoped) {
+    rows.push({
+      subAccountId,
+      metric: scopedMetricKey(scoped.modelName),
+      percent: scoped.utilization,
+      resetAt: toDate(scoped.resetsAt)
     })
   }
   return rows

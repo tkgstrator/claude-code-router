@@ -55,6 +55,14 @@ export function ClaudeAccountSection({
               reset={`${t('usage.resets')}: ${fmtReset(usage.sevenDayOpus.resetsAt)}`}
             />
           )}
+          {usage.weeklyScoped.map((scoped) => (
+            <UsageBar
+              key={scoped.modelName}
+              label={t('usage.sevenDayScoped', { model: scoped.modelName })}
+              percent={scoped.utilization}
+              reset={`${t('usage.resets')}: ${fmtReset(scoped.resetsAt)}`}
+            />
+          ))}
           <div className='text-xs text-muted-foreground'>
             {t('usage.capturedAt')}: {fmtReset(usage.capturedAt)}
           </div>

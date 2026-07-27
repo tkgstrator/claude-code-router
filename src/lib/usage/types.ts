@@ -19,6 +19,14 @@ export interface CodexWindow {
   resetAt: string | null
   windowSeconds: number | null
 }
+// One per-model 7-day window surfaced under `limits[].weekly_scoped` on
+// the Anthropic OAuth usage API. `modelName` is the vendor's display
+// name verbatim (e.g. "Fable").
+export interface ClaudeScopedWindow {
+  modelName: string
+  utilization: number
+  resetsAt: string | null
+}
 export interface ClaudeAccountUsage {
   subAccountId: string
   accountLabel: string
@@ -26,6 +34,7 @@ export interface ClaudeAccountUsage {
   sevenDay: ClaudeWindow | null
   sevenDaySonnet: ClaudeWindow | null
   sevenDayOpus: ClaudeWindow | null
+  weeklyScoped: ClaudeScopedWindow[]
   extraUsageEnabled: boolean
   capturedAt: string
 }

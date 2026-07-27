@@ -14,8 +14,42 @@ export const METRIC_META: Record<string, MetricMeta> = {
   'codex.secondary': { label: 'Codex 7d', color: '#0a6f57', windowHours: 168 }
 }
 
+// Scoped-model 7-day metric keys are dynamic (`claude.seven_day_scoped.fable`,
+// `.mythos`, ...) — Anthropic emits one per model in the account's plan.
+// Rather than list them explicitly they get a derived label / palette color
+// so a new model on the API renders without a code change.
+const SCOPED_METRIC_PREFIX = 'claude.seven_day_scoped.'
+const SCOPED_PALETTE = ['#8c3d28', '#e6a08c', '#a56b3f', '#c47a55', '#5d2818', '#f0b090']
+
+// Stable palette index for a scoped model slug so the same model keeps the
+// same color across renders (naive djb2-ish hash — small, deterministic).
+const scopedPaletteIndex = (slug: string): number => {
+  let h = 5381
+  for (let i = 0; i < slug.length; i++) h = ((h << 5) + h + slug.charCodeAt(i)) | 0
+  return Math.abs(h) % SCOPED_PALETTE.length
+}
+
+// Title-case a slug like "fable" or "iguana_necktie" so the chart legend
+// reads "Fable" / "Iguana Necktie" rather than the raw metric key.
+const titleCaseSlug = (slug: string): string =>
+  slug
+    .split('_')
+    .filter((s) => s.length > 0)
+    .map((s) => s[0].toUpperCase() + s.slice(1))
+    .join(' ')
+
 export function metaFor(metric: string): MetricMeta {
-  return METRIC_META[metric] ?? { label: metric, color: '#888888', windowHours: 0 }
+  const known = METRIC_META[metric]
+  if (known) return known
+  if (metric.startsWith(SCOPED_METRIC_PREFIX)) {
+    const slug = metric.slice(SCOPED_METRIC_PREFIX.length)
+    return {
+      label: `Claude 7d ${titleCaseSlug(slug)}`,
+      color: SCOPED_PALETTE[scopedPaletteIndex(slug)],
+      windowHours: 168
+    }
+  }
+  return { label: metric, color: '#888888', windowHours: 0 }
 }
 
 // A window "reset" is detected either from a sudden percent drop (vs. the

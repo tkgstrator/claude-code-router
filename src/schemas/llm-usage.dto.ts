@@ -79,6 +79,10 @@ export const UsageRecordSchema = z.object({
   // for the same reason.
   requestedModel: z.string().nonempty().nullable(),
   scenario: z.string().nonempty().nullable(),
+  // Whether the request took the subagent lane (a <CCR-SUBAGENT-MODEL>
+  // tag was present). Always known at write — the route builder stamps
+  // it before the pipeline runs, so this stays a plain boolean.
+  isSubagent: z.boolean(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   cacheReadTokens: z.number().int().nonnegative(),

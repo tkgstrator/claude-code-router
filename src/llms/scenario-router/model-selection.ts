@@ -17,7 +17,7 @@ import type { ScenarioType } from '@/schemas'
 import type { ConfigStore } from '../registry/config'
 import type { RouterConfig, RouterRequest, RouterRequestBody } from './types'
 
-const DEFAULT_LONG_CONTEXT_THRESHOLD = 60_000
+const DEFAULT_LONG_CONTEXT_THRESHOLD = 128_000
 
 // Which route within a scenario a request uses: `agent` for normal /
 // main-agent traffic, `subagent` when a <CCR-SUBAGENT-MODEL> tag is present.

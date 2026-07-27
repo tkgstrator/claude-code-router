@@ -247,8 +247,8 @@ model RouterSlot {
   subagentModelId String?
   subagentModel   Model?  @relation("RouterSlotSubagentModel", fields: [subagentModelId], references: [id], onDelete: Restrict)
   // Scenario-scoped params: `fallbacks` (agent chain), `subagentFallbacks`
-  // (subagent chain), `threshold` (longContext), `weeklyDrainMarginPct`
-  // (default). JSONB keeps us from migrating every time a new knob lands.
+  // (subagent chain), `threshold` (longContext). JSONB keeps us from
+  // migrating every time a new knob lands.
   params    Json?
   updatedAt DateTime    @updatedAt
 }
@@ -302,6 +302,11 @@ model RequestLog {
   // "untracked". `model`/`provider` above stay the actual upstream target.
   requestedModel   String?
   scenario         String?
+  // Whether the request carried a <CCR-SUBAGENT-MODEL> tag and was routed
+  // through the subagent lane. Null for rows written before this column
+  // landed (untracked); true / false thereafter. Kept nullable so the
+  // model-routing report can distinguish "no data" from "data says agent".
+  isSubagent       Boolean?
   inputTokens      Int      @default(0)
   outputTokens     Int      @default(0)
   cacheReadTokens  Int      @default(0)

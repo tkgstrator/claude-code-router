@@ -23,6 +23,11 @@ const SUBAGENT_COLOR = 'var(--muted-foreground)'
 
 export interface ScenarioEditNodeData extends Record<string, unknown> {
   label: string
+  // Scenario-scoped knob shown as a small caption under the label. Currently
+  // used to surface the longContext token threshold ("≥ 128k tok") so the
+  // node communicates *when* the lane fires without opening the side panel.
+  // Undefined for scenarios without a knob (background/think/webSearch/image).
+  note?: string
   // Agent route summary: primary model label ('' when unset) + fallback count.
   agentPrimaryLabel: string
   agentFallbackCount: number
@@ -96,7 +101,12 @@ function RouteSummary({
 function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
   return (
     <div className={cn(nodeCardClass, 'min-w-[210px] space-y-1', data.selected && 'border-2 border-primary')}>
-      <div className='text-sm font-medium leading-tight'>{data.label}</div>
+      <div className='flex items-baseline justify-between gap-2'>
+        <span className='text-sm font-medium leading-tight'>{data.label}</span>
+        {data.note !== undefined && (
+          <span className='shrink-0 text-[10px] tabular-nums text-muted-foreground'>{data.note}</span>
+        )}
+      </div>
       <RouteSummary
         chip='A'
         chipClass='bg-primary text-primary-foreground'

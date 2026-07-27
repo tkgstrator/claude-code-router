@@ -29,6 +29,7 @@ import { Transformer } from './base'
 import {
   collectSystemMessages,
   processNonSystemMessage,
+  remapToolChoice,
   remapTools,
   rewriteReasoning
 } from './openai-responses/request'
@@ -70,6 +71,11 @@ export class OpenAIResponsesTransformer extends Transformer {
       const remapped = remapTools(responsesReq.tools)
       // biome-ignore plugin: the Responses API uses a flat `type/name/parameters` tool shape (no nested `function`); the unified UnifiedTool shape is reshaped here on the way out.
       ;(responsesReq as unknown as { tools: unknown }).tools = remapped
+    }
+
+    if (responsesReq.tool_choice !== undefined) {
+      // biome-ignore plugin: same shape mismatch as `tools` — Responses expects `{type,name}` flat while unified nests the function name; the unified type cannot model the flat shape without breaking the Chat-Completions transformer.
+      ;(responsesReq as unknown as { tool_choice: unknown }).tool_choice = remapToolChoice(responsesReq.tool_choice)
     }
 
     responsesReq.parallel_tool_calls = false

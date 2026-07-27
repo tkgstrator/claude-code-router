@@ -37,11 +37,15 @@ export async function captureUsage(
   const tokens = computeTokenStats(usage)
   const view = viewPipelineBody(body)
 
-  // The client's original model and the routing lane ride on context.req
-  // (stamped in resolveInvocationForModel). Fall back to null so a request
-  // that never went through scenario routing still records a valid row.
+  // The client's original model, the routing lane, and the subagent flag
+  // all ride on context.req (stamped in resolveInvocationForModel).
+  // requestedModel / scenario fall back to null so a request that never
+  // went through scenario routing still records a valid row; isSubagent
+  // is always known (defaults false at the route builder), so it stays a
+  // plain boolean here.
   const requestedModel = context.req?.requestedModel
   const scenario = context.req?.scenarioType
+  const isSubagent = context.req?.isSubagent === true
 
   await deps.recordUsage?.({
     sessionId,
@@ -49,6 +53,7 @@ export async function captureUsage(
     model: view.model !== undefined ? view.model : 'unknown',
     requestedModel: requestedModel !== undefined ? requestedModel : null,
     scenario: scenario !== undefined ? scenario : null,
+    isSubagent,
     inputTokens: tokens.rawInput,
     outputTokens: tokens.outputTokens,
     cacheReadTokens: tokens.cachedTokens,
