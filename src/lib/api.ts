@@ -223,8 +223,17 @@ class ApiClient {
     return this.get<{ items: RequestLogItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}`)
   }
 
-  async getSessionMessages(sessionId: string): Promise<{ items: SessionMessageItem[] }> {
-    return this.get<{ items: SessionMessageItem[] }>(`/request-logs/sessions/${encodeURIComponent(sessionId)}/messages`)
+  async getSessionMessages(
+    sessionId: string,
+    params?: { limit?: number; before?: string }
+  ): Promise<{ items: SessionMessageItem[]; nextCursor: string | null }> {
+    const q = new URLSearchParams()
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    if (params?.before != null) q.set('before', params.before)
+    const qs = q.toString()
+    return this.get<{ items: SessionMessageItem[]; nextCursor: string | null }>(
+      `/request-logs/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`
+    )
   }
 
   async getRequestLogSessions(params?: { limit?: number; offset?: number; sinceHours?: number }): Promise<{
