@@ -116,7 +116,7 @@ function RouteSummary({
 
 function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
   return (
-    <div className={cn(nodeCardClass, 'min-w-[210px] space-y-1', data.selected && 'border-2 border-primary')}>
+    <div className={cn(nodeCardClass, 'w-[260px] space-y-1', data.selected && 'border-2 border-primary')}>
       <div className='flex items-baseline justify-between gap-2'>
         <span className='text-sm font-medium leading-tight'>{data.label}</span>
         {data.note !== undefined && (
@@ -165,7 +165,7 @@ function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
 
 function ModelEditNode({ data }: NodeProps<ModelEditNodeType>) {
   return (
-    <div className={cn(nodeCardClass, 'max-w-[320px] min-w-[190px] space-y-0.5', data.usedBy === 0 && 'opacity-60')}>
+    <div className={cn(nodeCardClass, 'w-[240px] space-y-0.5', data.usedBy === 0 && 'opacity-60')}>
       <Handle type='target' position={Position.Left} />
       <div className='truncate font-mono text-xs font-medium'>{data.model}</div>
       <div className='truncate text-[11px] text-muted-foreground'>{data.provider}</div>
