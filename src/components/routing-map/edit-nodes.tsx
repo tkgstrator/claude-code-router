@@ -31,13 +31,19 @@ export interface ScenarioEditNodeData extends Record<string, unknown> {
   // Agent route summary: primary model label ('' when unset) + fallback count.
   agentPrimaryLabel: string
   agentFallbackCount: number
+  // Number of predicated rules on the agent route. Rendered as a compact
+  // "N rules" chip so the node signals rule presence at a glance.
+  agentRuleCount: number
   // Subagent route summary: primary model label ('' when unset) + fallback count.
   subagentPrimaryLabel: string
   subagentFallbackCount: number
+  subagentRuleCount: number
   // Localized "no primary" placeholder shown when a primary label is empty.
   emptyLabel: string
   // Localized "fallback(s)" suffix for the +n counters.
   fallbackLabel: string
+  // Localized "rule(s)" suffix for the rule count chip.
+  ruleLabel: string
   // Localized route names, used as the handle aria-labels.
   agentRouteLabel: string
   subagentRouteLabel: string
@@ -55,14 +61,17 @@ export type ScenarioEditNodeType = Node<ScenarioEditNodeData, 'scenarioEdit'>
 export type ModelEditNodeType = Node<ModelEditNodeData, 'modelEdit'>
 
 // One compact route summary row: a chip marker (A / S), the primary model
-// label (or the localized empty placeholder), and a +n fallback counter.
+// label (or the localized empty placeholder), a +n fallback counter, and
+// a rule count chip when the route carries any predicated rules.
 function RouteSummary({
   chip,
   chipClass,
   primaryLabel,
   emptyLabel,
   fallbackCount,
-  fallbackLabel
+  fallbackLabel,
+  ruleCount,
+  ruleLabel
 }: {
   chip: string
   chipClass: string
@@ -70,6 +79,8 @@ function RouteSummary({
   emptyLabel: string
   fallbackCount: number
   fallbackLabel: string
+  ruleCount: number
+  ruleLabel: string
 }) {
   return (
     <div className='flex items-center gap-1.5'>
@@ -89,6 +100,11 @@ function RouteSummary({
       >
         {primaryLabel === '' ? emptyLabel : primaryLabel}
       </span>
+      {ruleCount > 0 && (
+        <span className='shrink-0 rounded bg-accent px-1 text-[10px] tabular-nums text-accent-foreground'>
+          {ruleCount} {ruleLabel}
+        </span>
+      )}
       {fallbackCount > 0 && (
         <span className='shrink-0 text-[10px] tabular-nums text-muted-foreground'>
           +{fallbackCount} {fallbackLabel}
@@ -100,7 +116,7 @@ function RouteSummary({
 
 function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
   return (
-    <div className={cn(nodeCardClass, 'min-w-[210px] space-y-1', data.selected && 'border-2 border-primary')}>
+    <div className={cn(nodeCardClass, 'w-[260px] space-y-1', data.selected && 'border-2 border-primary')}>
       <div className='flex items-baseline justify-between gap-2'>
         <span className='text-sm font-medium leading-tight'>{data.label}</span>
         {data.note !== undefined && (
@@ -114,6 +130,8 @@ function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
         emptyLabel={data.emptyLabel}
         fallbackCount={data.agentFallbackCount}
         fallbackLabel={data.fallbackLabel}
+        ruleCount={data.agentRuleCount}
+        ruleLabel={data.ruleLabel}
       />
       <RouteSummary
         chip='S'
@@ -122,6 +140,8 @@ function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
         emptyLabel={data.emptyLabel}
         fallbackCount={data.subagentFallbackCount}
         fallbackLabel={data.fallbackLabel}
+        ruleCount={data.subagentRuleCount}
+        ruleLabel={data.ruleLabel}
       />
       <Handle
         type='source'
@@ -145,10 +165,14 @@ function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
 
 function ModelEditNode({ data }: NodeProps<ModelEditNodeType>) {
   return (
-    <div className={cn(nodeCardClass, 'max-w-[320px] min-w-[190px] space-y-0.5', data.usedBy === 0 && 'opacity-60')}>
+    <div className={cn(nodeCardClass, 'w-[280px] space-y-0.5', data.usedBy === 0 && 'opacity-60')}>
       <Handle type='target' position={Position.Left} />
-      <div className='truncate font-mono text-xs font-medium'>{data.model}</div>
-      <div className='truncate text-[11px] text-muted-foreground'>{data.provider}</div>
+      <div className='truncate font-mono text-xs font-medium' title={data.model}>
+        {data.model}
+      </div>
+      <div className='truncate text-[11px] text-muted-foreground' title={data.provider}>
+        {data.provider}
+      </div>
     </div>
   )
 }

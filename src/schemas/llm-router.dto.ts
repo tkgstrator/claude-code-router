@@ -17,14 +17,16 @@
 
 import { z } from '@hono/zod-openapi'
 
-export const ScenarioTypeSchema = z.enum(['default', 'background', 'think', 'longContext', 'webSearch'])
+// `background` was folded into a rule on `default` (predicate:
+// requestedModel matches haiku) and no longer classifies as its own
+// scenario at runtime.
+export const ScenarioTypeSchema = z.enum(['default', 'think', 'longContext', 'webSearch'])
 export type ScenarioType = z.infer<typeof ScenarioTypeSchema>
 
 // Per-kind primary map: scenario -> "provider,model". Every scenario is
 // optional so a partial override file is tolerated.
 const RouteMapSchema = z.object({
   default: z.string().nonempty().optional(),
-  background: z.string().nonempty().optional(),
   think: z.string().nonempty().optional(),
   longContext: z.string().nonempty().optional(),
   webSearch: z.string().nonempty().optional(),
@@ -35,11 +37,23 @@ const RouteMapSchema = z.object({
 // missing scenario is an empty chain, so each field defaults to [].
 const FallbackMapSchema = z.object({
   default: z.array(z.string().nonempty()).default([]),
-  background: z.array(z.string().nonempty()).default([]),
   think: z.array(z.string().nonempty()).default([]),
   longContext: z.array(z.string().nonempty()).default([]),
   webSearch: z.array(z.string().nonempty()).default([]),
   image: z.array(z.string().nonempty()).default([])
+})
+
+// Per-kind rule stack: scenario -> ordered rule list. Every scenario is
+// optional so a partial override file is tolerated; the runtime
+// evaluator treats absent as an empty list. Rule shape is opaque here
+// (JSON) — the runtime pipes it through RouteRuleSchema.parse before
+// use so a malformed entry is dropped rather than crashing routing.
+const RulesMapSchema = z.object({
+  default: z.array(z.unknown()).default([]),
+  think: z.array(z.unknown()).default([]),
+  longContext: z.array(z.unknown()).default([]),
+  webSearch: z.array(z.unknown()).default([]),
+  image: z.array(z.unknown()).default([])
 })
 
 export const ScenarioRouterConfigSchema = z.object({
@@ -51,6 +65,10 @@ export const ScenarioRouterConfigSchema = z.object({
   agentFallbacks: FallbackMapSchema.optional(),
   /** Subagent-route fallback chains keyed by scenario. */
   subagentFallbacks: FallbackMapSchema.optional(),
+  /** Agent-route predicated rule stacks keyed by scenario. */
+  agentRules: RulesMapSchema.optional(),
+  /** Subagent-route predicated rule stacks keyed by scenario. */
+  subagentRules: RulesMapSchema.optional(),
   /** Token threshold above which a request gets routed to longContext. */
   longContextThreshold: z.number().optional(),
   /**

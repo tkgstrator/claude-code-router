@@ -16,13 +16,15 @@ import { useTheme } from 'next-themes'
 import { type MouseEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
+import { type ConnectionChoice, ConnectionChoiceDialog } from '@/components/routing-map/ConnectionChoiceDialog'
 import { editNodeTypes, type ModelEditNodeType, type ScenarioEditNodeType } from '@/components/routing-map/edit-nodes'
 import { RoutingEditorPanel } from '@/components/routing-map/RoutingEditorPanel'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
-import { connectModel, disconnectModel, setPersona } from '@/lib/routing-map/edit-actions'
+import { modelNameOf } from '@/lib/router/fallback-slots'
+import { addRule, connectModel, disconnectModel, emptyRule, setPersona } from '@/lib/routing-map/edit-actions'
 import {
   buildEditGraph,
   EDIT_SCENARIOS,
@@ -43,11 +45,16 @@ const isEditScenario = (s: string): s is EditScenario => EDIT_SCENARIOS.some((x)
 // Radix Select needs a non-empty value; this sentinel maps to "no persona".
 const PERSONA_NONE = '__none__'
 
-// Edge color encodes the ROLE (primary vs fallback); the dash pattern
-// encodes the KIND (agent solid, subagent dotted) so a scenario's two
-// exits stay distinguishable regardless of role.
-const strokeColorFor = (role: 'primary' | 'fallback'): string =>
-  role === 'primary' ? 'var(--primary)' : 'var(--muted-foreground)'
+// Edge color encodes the ORIGIN (catch-all vs rule) and the ROLE
+// (primary vs fallback). Rule-owned edges get a distinctive blue so
+// the map advertises "this target only fires when a rule matches"
+// without overloading the catch-all wiring. Within each origin, the
+// primary is fully saturated and the fallbacks fade into muted.
+// Dash pattern still encodes the KIND (agent solid, subagent dotted).
+const strokeColorFor = (origin: 'catch-all' | 'rule', role: 'primary' | 'fallback'): string => {
+  if (origin === 'rule') return role === 'primary' ? 'var(--color-blue-500)' : 'var(--color-blue-400)'
+  return role === 'primary' ? 'var(--primary)' : 'var(--muted-foreground)'
+}
 const strokeDashFor = (role: 'primary' | 'fallback', kind: RouteKind): string | undefined =>
   role === 'fallback' ? '6 4' : kind === 'subagent' ? '2 4' : undefined
 
@@ -101,6 +108,10 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   const modelOptions = useEnabledModelOptions()
 
   const [router, setRouter] = useState<RouterConfig>(config.Router)
+  // Pending connection: set when the user drags an edge onto a
+  // scenario that already has a primary, so the dialog can ask
+  // whether the drag should become a fallback or a new rule.
+  const [pending, setPending] = useState<{ scenario: EditScenario; modelKey: string; kind: RouteKind } | null>(null)
   const [selected, setSelected] = useState<EditScenario | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -132,6 +143,9 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     const scenarioNodes: AppEditNode[] = graph.scenarioNodes.map((node) => {
       const agent = router[node.scenario].agent
       const subagent = router[node.scenario].subagent
+      // Provider prefix is dropped from the scenario summary — the map
+      // itself makes the provider obvious (each model node lives on
+      // its provider's row), so repeating it here just eats width.
       return {
         id: node.id,
         type: 'scenarioEdit',
@@ -139,12 +153,15 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         data: {
           label: t(`router.${node.scenario}`),
           note: scenarioNote(node.scenario, router),
-          agentPrimaryLabel: agent.primary === null ? '' : modelLabel(agent.primary),
+          agentPrimaryLabel: modelNameOf(agent.primary),
           agentFallbackCount: agent.fallbacks.length,
-          subagentPrimaryLabel: subagent.primary === null ? '' : modelLabel(subagent.primary),
+          agentRuleCount: agent.rules.length,
+          subagentPrimaryLabel: modelNameOf(subagent.primary),
           subagentFallbackCount: subagent.fallbacks.length,
+          subagentRuleCount: subagent.rules.length,
           emptyLabel: t('routingMap.editNoPrimary'),
           fallbackLabel: t('routingMap.editFallbacks'),
+          ruleLabel: t('router.rules.title'),
           agentRouteLabel: t('router.agentRoute'),
           subagentRouteLabel: t('router.subagentRoute'),
           selected: selected === node.scenario
@@ -178,43 +195,96 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     [deleteEdge]
   )
 
-  const edges = useMemo<Edge[]>(
-    () =>
-      graph.edges.map((edge) => {
-        const color = strokeColorFor(edge.role)
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          // Pin the edge to its originating handle and stash the kind so
-          // delete/reconnect can route the mutation to the right route.
-          sourceHandle: edge.kind,
-          data: { kind: edge.kind },
-          label: edge.role === 'fallback' ? String(edge.order) : undefined,
-          labelShowBg: edge.role === 'fallback',
-          labelBgPadding: [4, 2],
-          labelBgBorderRadius: 4,
-          labelStyle: { fill: 'var(--foreground)', fontSize: 10 },
-          labelBgStyle: { fill: 'var(--background)', opacity: 0.85 },
-          markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
-          style: {
-            stroke: color,
-            strokeWidth: edge.role === 'primary' ? 2 : 1.25,
-            strokeDasharray: strokeDashFor(edge.role, edge.kind)
-          }
+  const edges = useMemo<Edge[]>(() => {
+    const list: Edge[] = graph.edges.map((edge) => {
+      const color = strokeColorFor(edge.origin, edge.role)
+      // Label encodes the priority the runtime evaluates in:
+      //   - catch-all fallback → `1`, `2`, ... (failover chain index)
+      //   - rule primary       → `R1`, `R2`, ... (rule stack index)
+      // Catch-all primary stays unlabelled — the map's default arrow
+      // already reads as "this scenario's primary" without extra
+      // chrome. Rules don't emit fallback edges, so there's no
+      // rule-fallback label form.
+      const label = ((): string | undefined => {
+        if (edge.origin === 'catch-all') {
+          return edge.role === 'fallback' ? String(edge.order) : undefined
         }
-      }),
-    [graph]
+        const rank = edge.ruleIndex !== null ? edge.ruleIndex + 1 : 0
+        return `R${rank}`
+      })()
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        // Pin the edge to its originating handle and stash the kind so
+        // delete/reconnect can route the mutation to the right route.
+        sourceHandle: edge.kind,
+        data: { kind: edge.kind, origin: edge.origin },
+        label,
+        labelShowBg: label !== undefined,
+        labelBgPadding: [6, 3],
+        labelBgBorderRadius: 6,
+        // Bigger + opaque background + stroke ring so the badge sits
+        // legibly on top of the edge line instead of blending in.
+        // Text color follows the edge color so rule badges pick up
+        // the blue and catch-all badges stay neutral.
+        labelStyle: { fill: color, fontSize: 11, fontWeight: 600 },
+        labelBgStyle: { fill: 'var(--background)', opacity: 1, stroke: color, strokeWidth: 1 },
+        markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
+        // Rule-owned edges are managed via the side panel — the map
+        // shows them for orientation only. Blocking delete /
+        // reconnect / focus keeps a stray right-click from silently
+        // orphaning a rule.
+        deletable: edge.origin === 'catch-all',
+        focusable: edge.origin === 'catch-all',
+        reconnectable: edge.origin === 'catch-all',
+        style: {
+          stroke: color,
+          strokeWidth: edge.role === 'primary' ? 2 : 1.25,
+          strokeDasharray: strokeDashFor(edge.role, edge.kind)
+        }
+      }
+    })
+    return list
+  }, [graph])
+
+  const onConnect = useCallback(
+    (c: Connection) => {
+      const scenario = scenarioFromNodeId(c.source)
+      const modelKey = modelKeyFromNodeId(c.target)
+      const kind = kindFromHandle(c.sourceHandle)
+      if (scenario === null || modelKey === null || !isEditScenario(scenario)) return
+      // First drag on an empty route becomes the primary automatically.
+      // Once the primary exists, ask the user whether this drag is a
+      // fallback or a new predicated rule — the map has no other way to
+      // tell those apart.
+      const route = router[scenario][kind]
+      if (route.primary === null || route.primary === modelKey) {
+        setRouter((r) => connectModel(r, scenario, modelKey, kind))
+        return
+      }
+      setPending({ scenario, modelKey, kind })
+    },
+    [router]
   )
 
-  const onConnect = useCallback((c: Connection) => {
-    const scenario = scenarioFromNodeId(c.source)
-    const modelKey = modelKeyFromNodeId(c.target)
-    const kind = kindFromHandle(c.sourceHandle)
-    if (scenario !== null && modelKey !== null && isEditScenario(scenario)) {
-      setRouter((r) => connectModel(r, scenario, modelKey, kind))
-    }
-  }, [])
+  const applyPending = useCallback(
+    (choice: ConnectionChoice) => {
+      if (pending === null) return
+      const { scenario, modelKey, kind } = pending
+      if (choice === 'fallback') {
+        setRouter((r) => connectModel(r, scenario, modelKey, kind))
+      } else {
+        // Seed the rule with the dragged model as its primary so the
+        // panel opens showing the target the user meant; predicate
+        // fields are left blank for them to fill in.
+        setRouter((r) => addRule(r, scenario, kind, { ...emptyRule(), primary: modelKey }))
+        setSelected(scenario)
+      }
+      setPending(null)
+    },
+    [pending]
+  )
 
   // Edge reconnection: drag either end of an edge onto a different handle
   // to rewire it (move the source scenario or the target model), or drop it
@@ -347,12 +417,23 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
             scenario={selected}
             router={router}
             onChange={setRouter}
+            modelKeys={modelKeys}
             modelLabel={modelLabel}
             onClose={() => setSelected(null)}
             readOnly={!editable}
           />
         )}
       </div>
+      <ConnectionChoiceDialog
+        open={pending !== null}
+        onOpenChange={(o) => {
+          if (!o) setPending(null)
+        }}
+        scenarioLabel={pending === null ? '' : t(`router.${pending.scenario}`)}
+        kindLabel={pending === null ? '' : t(pending.kind === 'agent' ? 'router.agentRoute' : 'router.subagentRoute')}
+        modelLabel={pending === null ? '' : modelLabel(pending.modelKey)}
+        onChoose={applyPending}
+      />
     </div>
   )
 }

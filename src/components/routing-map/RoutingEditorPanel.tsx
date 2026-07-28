@@ -8,17 +8,20 @@
  */
 
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { disconnectModel, moveFallback, setLongContextThreshold } from '@/lib/routing-map/edit-actions'
+import { connectModel, disconnectModel, moveFallback, setLongContextThreshold } from '@/lib/routing-map/edit-actions'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
 import type { RouterConfig } from '@/schemas'
+import { PopoverSingle, RuleEditor } from './RuleEditor'
 
 interface RoutingEditorPanelProps {
   scenario: EditScenario
   router: RouterConfig
   onChange: (next: RouterConfig) => void
+  modelKeys: readonly string[]
   modelLabel: (key: string) => string
   onClose: () => void
   // View-only mode: hides remove/reorder buttons and renders scenario knobs
@@ -38,6 +41,7 @@ function RouteSection({
   kind,
   router,
   onChange,
+  modelKeys,
   modelLabel,
   readOnly
 }: {
@@ -46,12 +50,24 @@ function RouteSection({
   kind: RouteKind
   router: RouterConfig
   onChange: (next: RouterConfig) => void
+  modelKeys: readonly string[]
   modelLabel: (key: string) => string
   readOnly: boolean
 }) {
   const { t } = useTranslation()
   const route = router[scenario][kind]
   const primary = route.primary
+  const modelOptions = useMemo(
+    () => modelKeys.map((k) => ({ value: k, label: modelLabel(k) })),
+    [modelKeys, modelLabel]
+  )
+  // Add-fallback picker filters out models that are already wired here
+  // (primary or an existing fallback) so the same model can't be added
+  // twice — mirrors connectModel's own guard.
+  const fallbackOptions = useMemo(
+    () => modelOptions.filter((o) => o.value !== primary && !route.fallbacks.includes(o.value)),
+    [modelOptions, primary, route.fallbacks]
+  )
 
   return (
     <div className='space-y-2'>
@@ -60,7 +76,19 @@ function RouteSection({
       <div className='space-y-1'>
         <div className='text-xs text-muted-foreground'>{t('routingMap.editPrimary')}</div>
         {primary === null ? (
-          <div className='text-xs text-muted-foreground italic'>{t('routingMap.editNoPrimary')}</div>
+          !readOnly ? (
+            <PopoverSingle
+              value={undefined}
+              options={modelOptions}
+              placeholder={t('router.selectModel')}
+              searchable
+              onChange={(v) => {
+                if (v !== undefined) onChange(connectModel(router, scenario, v, kind))
+              }}
+            />
+          ) : (
+            <div className='text-xs text-muted-foreground italic'>{t('routingMap.editNoPrimary')}</div>
+          )
         ) : (
           <div className='flex items-center justify-between gap-2'>
             <span className='min-w-0 truncate font-mono text-xs'>{modelLabel(primary)}</span>
@@ -81,7 +109,10 @@ function RouteSection({
       </div>
 
       <div className='space-y-1'>
-        <div className='text-xs text-muted-foreground'>{t('router.fallbacks')}</div>
+        <div className='text-xs text-muted-foreground'>
+          {t('router.fallbacks')}{' '}
+          <span className='text-[10px] font-normal'>({t('router.rules.fallbacksCatchAll')})</span>
+        </div>
         {route.fallbacks.length === 0 ? (
           <div className='text-xs text-muted-foreground italic'>—</div>
         ) : (
@@ -130,7 +161,28 @@ function RouteSection({
             ))}
           </ul>
         )}
+        {!readOnly && fallbackOptions.length > 0 && (
+          <PopoverSingle
+            value={undefined}
+            options={fallbackOptions}
+            placeholder={t('router.rules.field.fallbacksPlaceholder')}
+            searchable
+            onChange={(v) => {
+              if (v !== undefined) onChange(connectModel(router, scenario, v, kind))
+            }}
+          />
+        )}
       </div>
+
+      <RuleEditor
+        scenario={scenario}
+        kind={kind}
+        router={router}
+        onChange={onChange}
+        modelKeys={modelKeys}
+        modelLabel={modelLabel}
+        readOnly={readOnly}
+      />
     </div>
   )
 }
@@ -139,6 +191,7 @@ export function RoutingEditorPanel({
   scenario,
   router,
   onChange,
+  modelKeys,
   modelLabel,
   onClose,
   readOnly = false
@@ -146,7 +199,7 @@ export function RoutingEditorPanel({
   const { t } = useTranslation()
 
   return (
-    <div className='absolute inset-y-0 right-0 w-96 space-y-3 overflow-y-auto border-l bg-background p-3 text-sm'>
+    <div className='absolute inset-y-0 right-0 w-[28rem] space-y-3 overflow-y-auto border-l bg-background p-3 text-sm'>
       <div className='flex items-start justify-between gap-2 border-b pb-2'>
         <div className='min-w-0 space-y-0.5'>
           <div className='font-medium'>{t(`router.${scenario}`)}</div>
@@ -163,6 +216,7 @@ export function RoutingEditorPanel({
         kind='agent'
         router={router}
         onChange={onChange}
+        modelKeys={modelKeys}
         modelLabel={modelLabel}
         readOnly={readOnly}
       />
@@ -172,6 +226,7 @@ export function RoutingEditorPanel({
         kind='subagent'
         router={router}
         onChange={onChange}
+        modelKeys={modelKeys}
         modelLabel={modelLabel}
         readOnly={readOnly}
       />

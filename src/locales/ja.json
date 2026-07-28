@@ -60,7 +60,17 @@
     "editMode": "編集",
     "editNoPrimary": "プライマリ未設定",
     "editFallbacks": "フォールバック",
-    "editPrimary": "プライマリモデル"
+    "editPrimary": "プライマリモデル",
+    "connect": {
+      "title": "接続の追加",
+      "description": "このルートはすでにプライマリが設定されています。この接続をどう追加しますか?",
+      "from": "接続元",
+      "to": "接続先",
+      "asFallback": "フォールバックとして追加",
+      "asFallbackHelp": "プライマリが上限に達したときに使用。フェイルオーバーチェーンの末尾に追加されます。",
+      "asRule": "新規ルールとして追加",
+      "asRuleHelp": "述語が一致したときにこのモデルへルーティング。詳細はサイドパネルで編集します。"
+    }
   },
   "usage": {
     "title": "使用状況",
@@ -314,7 +324,40 @@
     "fallbacksDescription": "本命が上限に達したとき（使用率が高いときの事前回避、または 429 受信時）に上から順に使用します。上限がリセットされると本命へ自動的に戻ります。",
     "persona": "有効なペルソナ",
     "personaNone": "なし / オフ",
-    "personaHelper": "このルーターのユーザー向けルート（バックグラウンドを除く）に付与されます。ペルソナはペルソナページで定義します。"
+    "personaHelper": "このルーターのユーザー向けルート（バックグラウンドを除く）に付与されます。ペルソナはペルソナページで定義します。",
+    "rules": {
+      "title": "ルール",
+      "add": "ルールを追加",
+      "empty": "ルールなし — キャッチオールのプライマリで全リクエストを処理します。",
+      "matchesAll": "全てに一致",
+      "unnamed": "(名称未設定のルール)",
+      "expand": "ルールを展開",
+      "collapse": "ルールを折りたたむ",
+      "moveUp": "ルールを上へ",
+      "moveDown": "ルールを下へ",
+      "remove": "ルールを削除",
+      "predicate": "条件",
+      "target": "ルーティング先",
+      "fallbacksCatchAll": "キャッチオール",
+      "field": {
+        "name": "名前",
+        "namePlaceholder": "例: haiku → 軽量レーン",
+        "requestedTier": "要求モデル tier",
+        "effort": "Effort",
+        "thinking": "Thinking",
+        "thinkingAny": "任意 (制約なし)",
+        "thinkingRequired": "必須",
+        "thinkingForbidden": "禁止",
+        "tokens": "トークン範囲",
+        "minTokens": "最小",
+        "maxTokens": "最大",
+        "hasTool": "ツール (glob)",
+        "requestedModel": "要求モデル (glob)",
+        "primary": "プライマリ",
+        "fallbacks": "フォールバック",
+        "fallbacksPlaceholder": "フォールバックモデルを追加…"
+      }
+    }
   },
   "json_editor": {
     "title": "JSON エディタ",

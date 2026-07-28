@@ -16,6 +16,10 @@ import { useTranslation } from 'react-i18next'
 import { api, type ModelRoutingResponse, type ModelRoutingRow } from '@/lib/api'
 
 // Fixed lane order (default first), matching the Router page.
+// Historical `RequestLog.scenario = 'background'` rows still surface
+// under this lane label so pre-migration traffic remains grouped
+// consistently — the DB enum no longer accepts new writes, but old rows
+// keep their string value.
 const SCENARIO_ORDER = ['default', 'background', 'think', 'longContext', 'webSearch', 'image']
 
 // One "requested model → count" leaf inside a target group.

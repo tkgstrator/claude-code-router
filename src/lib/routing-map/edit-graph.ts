@@ -11,8 +11,10 @@
 import type { RouterConfig } from '@/schemas'
 
 // The fixed scenario lanes, top-to-bottom. Mirrors SCENARIO_KEYS; kept
-// local so the editor graph never depends on traffic-side ordering.
-export const EDIT_SCENARIOS = ['default', 'background', 'think', 'longContext', 'webSearch', 'image'] as const
+// local so the editor graph never depends on traffic-side ordering. The
+// former `background` lane is gone — it is now a predicated rule on the
+// `default` lane (see migration `20260728_router_rules_drop_background`).
+export const EDIT_SCENARIOS = ['default', 'think', 'longContext', 'webSearch', 'image'] as const
 export type EditScenario = (typeof EDIT_SCENARIOS)[number]
 
 // The two caller kinds each scenario routes independently: `agent` for
@@ -21,9 +23,13 @@ export type EditScenario = (typeof EDIT_SCENARIOS)[number]
 export const ROUTE_KINDS = ['agent', 'subagent'] as const
 export type RouteKind = (typeof ROUTE_KINDS)[number]
 
-// Column x + row spacing for the two-tier layout.
+// Column x + row spacing for the two-tier layout. Scenario nodes are
+// 260px wide and model nodes 280px, so a MODEL_X of 640 leaves ~380px
+// of empty canvas between the columns — enough room that catch-all
+// and rule edges don't visually collide at the mid-point when a
+// scenario fans out to several models.
 const SCENARIO_X = 0
-const MODEL_X = 440
+const MODEL_X = 640
 const ROW_GAP = 96
 
 export interface EditScenarioNode {
@@ -40,6 +46,12 @@ export interface EditModelNode {
   position: { x: number; y: number }
 }
 
+// An edge on the editor graph. `source: 'catch-all'` covers the
+// scenario's top-level primary + fallback list — the wiring the map
+// has always drawn. `source: 'rule'` covers a predicated rule's own
+// primary + fallbacks; those get a distinct visual style (blue) so
+// the map can advertise "this target only fires when a rule matches"
+// without overloading the primary/fallback edges.
 export interface EditGraphEdge {
   id: string
   // scenario node id → model node id
@@ -49,10 +61,20 @@ export interface EditGraphEdge {
   modelKey: string
   // Which route (source handle) this edge leaves the scenario from.
   kind: RouteKind
+  // Whether the edge participates in the catch-all list or a rule.
+  origin: 'catch-all' | 'rule'
   // Whether this edge is the route's primary or a fallback chain entry.
   role: 'primary' | 'fallback'
   // Fallback position in the chain (1-based); 0 for the primary edge.
+  // For rule edges this is the rule's own chain index, not the
+  // scenario-level index.
   order: number
+  // Index of the owning rule in `route.rules`, or null for a
+  // catch-all edge. Kept so the UI can label / group rule edges.
+  ruleIndex: number | null
+  // The rule's `name` when `origin === 'rule'` — used as the edge
+  // label so the map surfaces which rule pinned this target.
+  ruleName: string | null
 }
 
 export interface EditGraph {
@@ -86,6 +108,13 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
       const route = router[scenario][kind]
       if (route.primary !== null) keys.add(route.primary)
       for (const fallback of route.fallbacks) keys.add(fallback)
+      // Rule targets participate in the model universe too, so a rule
+      // pointing at a model that's not otherwise referenced still gets
+      // a node instead of an "unknown target" gap.
+      for (const rule of route.rules) {
+        if (rule.primary !== null && rule.primary.length > 0) keys.add(rule.primary)
+        for (const fallback of rule.fallbacks) keys.add(fallback)
+      }
     }
   }
   const orderedKeys = [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
@@ -105,6 +134,9 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
   for (const scenario of EDIT_SCENARIOS) {
     for (const kind of ROUTE_KINDS) {
       const route = router[scenario][kind]
+      // Catch-all primary + fallback edges — the same wiring users
+      // drag onto the canvas. Fallbacks stay visible so the drag
+      // gesture that appended them shows its result.
       if (route.primary !== null) {
         edges.push({
           id: `${editScenarioNodeId(scenario)}__${editModelNodeId(route.primary)}__${kind}__primary`,
@@ -113,8 +145,11 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
           scenario,
           modelKey: route.primary,
           kind,
+          origin: 'catch-all',
           role: 'primary',
-          order: 0
+          order: 0,
+          ruleIndex: null,
+          ruleName: null
         })
       }
       route.fallbacks.forEach((fallback, index) => {
@@ -125,9 +160,34 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
           scenario,
           modelKey: fallback,
           kind,
+          origin: 'catch-all',
           role: 'fallback',
-          order: index + 1
+          order: index + 1,
+          ruleIndex: null,
+          ruleName: null
         })
+      })
+      // Rule edges — one per rule primary. Rules don't have their
+      // own fallback chain (the scenario's catch-all handles
+      // failover for both catch-all and rule-matched requests), so
+      // no rule-fallback edges are drawn.
+      route.rules.forEach((rule, ruleIndex) => {
+        const ruleName = rule.name !== undefined && rule.name.length > 0 ? rule.name : null
+        if (rule.primary !== null && rule.primary.length > 0) {
+          edges.push({
+            id: `${editScenarioNodeId(scenario)}__${editModelNodeId(rule.primary)}__${kind}__r${ruleIndex}__primary`,
+            source: editScenarioNodeId(scenario),
+            target: editModelNodeId(rule.primary),
+            scenario,
+            modelKey: rule.primary,
+            kind,
+            origin: 'rule',
+            role: 'primary',
+            order: 0,
+            ruleIndex,
+            ruleName
+          })
+        }
       })
     }
   }

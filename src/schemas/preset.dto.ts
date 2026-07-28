@@ -130,7 +130,9 @@ export type PresetProvider = z.infer<typeof PresetProviderSchema>
 export const PresetRouterConfigSchema = z
   .object({
     default: z.string().nonempty().optional(),
-    background: z.string().nonempty().optional(),
+    // `background` was removed as a first-class scenario; presets may
+    // still carry it in the catchall bucket for backward compatibility,
+    // but the installer maps it into a haiku-predicated rule on default.
     think: z.string().nonempty().optional(),
     longContext: z.string().nonempty().optional(),
     longContextThreshold: z.number().optional(),

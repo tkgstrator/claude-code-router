@@ -60,7 +60,17 @@
     "editMode": "Edit",
     "editNoPrimary": "No primary model",
     "editFallbacks": "fallback(s)",
-    "editPrimary": "Primary model"
+    "editPrimary": "Primary model",
+    "connect": {
+      "title": "Add connection",
+      "description": "The route already has a primary. How should this connection be added?",
+      "from": "From",
+      "to": "To",
+      "asFallback": "Add as fallback",
+      "asFallbackHelp": "Tried when the primary is rate-limited. Appended to the failover chain.",
+      "asRule": "Add as new rule",
+      "asRuleHelp": "Routes to this model when a predicate matches. Edit the predicate in the side panel."
+    }
   },
   "usage": {
     "title": "Usage",
@@ -314,7 +324,40 @@
     "fallbacksDescription": "Tried in order when the primary slot is rate-limited (proactively on high usage, or on a 429). Returns to the primary once the limit resets.",
     "persona": "Active persona",
     "personaNone": "None / Off",
-    "personaHelper": "Appended to user-facing routes (not background) for this router. Define personas on the Personas page."
+    "personaHelper": "Appended to user-facing routes (not background) for this router. Define personas on the Personas page.",
+    "rules": {
+      "title": "Rules",
+      "add": "Add rule",
+      "empty": "No rules — the catch-all primary handles every request.",
+      "matchesAll": "matches everything",
+      "unnamed": "(unnamed rule)",
+      "expand": "Expand rule",
+      "collapse": "Collapse rule",
+      "moveUp": "Move rule up",
+      "moveDown": "Move rule down",
+      "remove": "Remove rule",
+      "predicate": "When",
+      "target": "Then route to",
+      "fallbacksCatchAll": "catch-all",
+      "field": {
+        "name": "Name",
+        "namePlaceholder": "e.g. haiku → cheap lane",
+        "requestedTier": "Requested tier",
+        "effort": "Effort",
+        "thinking": "Thinking",
+        "thinkingAny": "Any (unconstrained)",
+        "thinkingRequired": "Required",
+        "thinkingForbidden": "Forbidden",
+        "tokens": "Token range",
+        "minTokens": "Min",
+        "maxTokens": "Max",
+        "hasTool": "Has tool (glob)",
+        "requestedModel": "Requested model (glob)",
+        "primary": "Primary",
+        "fallbacks": "Fallbacks",
+        "fallbacksPlaceholder": "Add fallback models…"
+      }
+    }
   },
   "json_editor": {
     "title": "JSON Editor",

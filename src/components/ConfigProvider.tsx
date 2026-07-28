@@ -1,6 +1,8 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import type { RouteRule } from '@/schemas'
+import { RouteRuleSchema } from '@/schemas'
 import type { Config } from '@/types'
 
 interface ConfigContextType {
@@ -37,15 +39,31 @@ function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
 }
 
-// Coerce one route target's raw wire object into the { primary, fallbacks }
-// shape the form binds to. Defensive against a partial / stale wire object
-// (missing keys default to unset).
-function normalizeRouteTarget(raw: unknown): { primary: string | null; fallbacks: string[] } {
+// The UI-facing shape of one route target: catch-all primary + fallback
+// chain, plus any predicated rules that survived a round-trip through
+// the server. Rules are opaque to the current UI (Phase 4 will surface
+// them); we preserve them verbatim so saving doesn't nuke a rule the
+// migration or a future rule editor wrote.
+type RouteTargetForm = { primary: string | null; fallbacks: string[]; rules: RouteRule[] }
+
+// Coerce one route target's raw wire object into the shape the form
+// binds to. Defensive against a partial / stale wire object. Rules pass
+// through the same Zod schema the server writes so malformed entries
+// are dropped rather than crashing the form binding.
+function normalizeRouteTarget(raw: unknown): RouteTargetForm {
   const obj = raw !== null && typeof raw === 'object' ? raw : {}
   const primary = Reflect.get(obj, 'primary')
+  const rawRules = Reflect.get(obj, 'rules')
+  const rules: RouteRule[] = Array.isArray(rawRules)
+    ? rawRules.flatMap((r) => {
+        const parsed = RouteRuleSchema.safeParse(r)
+        return parsed.success ? [parsed.data] : []
+      })
+    : []
   return {
     primary: typeof primary === 'string' && primary !== '' ? primary : null,
-    fallbacks: asStringArray(Reflect.get(obj, 'fallbacks'))
+    fallbacks: asStringArray(Reflect.get(obj, 'fallbacks')),
+    rules
   }
 }
 
@@ -53,8 +71,8 @@ function normalizeRouteTarget(raw: unknown): { primary: string | null; fallbacks
 // shape (two route targets per scenario). Defensive against a partial /
 // stale wire object — a missing agent/subagent route defaults to unset.
 function normalizeScenario(raw: unknown): {
-  agent: { primary: string | null; fallbacks: string[] }
-  subagent: { primary: string | null; fallbacks: string[] }
+  agent: RouteTargetForm
+  subagent: RouteTargetForm
 } {
   const obj = raw !== null && typeof raw === 'object' ? raw : {}
   return {
@@ -79,7 +97,6 @@ function normalizeRouter(raw: unknown): Config['Router'] {
   const persona = get('persona')
   return {
     default: normalizeScenario(get('default')),
-    background: normalizeScenario(get('background')),
     think: normalizeScenario(get('think')),
     longContext: { ...normalizeScenario(longContextRaw), threshold: numberOr(Reflect.get(lcObj, 'threshold'), 128000) },
     webSearch: normalizeScenario(get('webSearch')),
@@ -145,7 +162,7 @@ function normalizeConfig(data: Config): Config {
 }
 
 // A fresh, unassigned route target for the empty-config literal.
-const emptyRouteTarget = (): { primary: string | null; fallbacks: string[] } => ({ primary: null, fallbacks: [] })
+const emptyRouteTarget = (): RouteTargetForm => ({ primary: null, fallbacks: [], rules: [] })
 
 const emptyConfig = (): Config => ({
   LOG: false,
@@ -161,7 +178,6 @@ const emptyConfig = (): Config => ({
   StatusLine: undefined,
   Router: {
     default: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
-    background: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     think: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     longContext: { agent: emptyRouteTarget(), subagent: emptyRouteTarget(), threshold: 128000 },
     webSearch: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },

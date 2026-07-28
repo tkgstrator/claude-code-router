@@ -2,11 +2,11 @@
  * Scenario-based model routing.
  *
  * Reads the inbound request and the configured `Router` map (default /
- * background / think / longContext / webSearch) and rewrites
- * `body.model` to the model the request should actually hit. The
- * scenario the router landed on is stamped onto the request so the
- * pipeline can shape its log lines (and, historically, pick a fallback
- * model — fallback was removed when we cut handleFallback).
+ * think / longContext / webSearch / image) and rewrites `body.model` to
+ * the model the request should actually hit. The scenario the router
+ * landed on is stamped onto the request so the pipeline can shape its
+ * log lines. Per-scenario `rules[]` predicated overrides run inside
+ * selectModel and produce the fallback chain the failover paths walk.
  *
  * Port of vendor utils/router.ts, tightened to strict types: the
  * request body is now `RouterRequestBody` and the router config is
@@ -57,18 +57,17 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // when no per-project file applies.
     const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
 
-    const { model, scenarioType, isSubagent } = selectModel(req, tokenCount, router, ctx.config)
-    req.body.model = applyProactiveFailover(model, scenarioType, isSubagent, tokenCount, ctx.config, req.log)
+    const { model, scenarioType, isSubagent, fallbacks } = selectModel(req, tokenCount, router, ctx.config)
+    req.body.model = applyProactiveFailover(model, scenarioType, fallbacks, tokenCount, ctx.config, req.log)
     req.scenarioType = scenarioType
     req.isSubagent = isSubagent
+    req.resolvedFallbacks = fallbacks
 
-    // Append the active persona's prompt to user-facing routes only,
-    // AFTER subagent-tag handling (done inside selectModel) so it
-    // composes with — rather than clobbers — any per-call system content.
-    // The `background` route runs lightweight internal tasks (e.g. title
-    // generation) where a persona voice would corrupt the output, so it is
-    // excluded. Empty is a no-op, keeping the cached prefix byte-stable.
-    const personaPrompt = scenarioType === 'background' ? '' : resolveActivePersonaPrompt(router, ctx.config)
+    // Append the active persona's prompt to user-facing routes. AFTER
+    // subagent-tag handling (done inside selectModel) so it composes
+    // with — rather than clobbers — any per-call system content. Empty
+    // is a no-op, keeping the cached prefix byte-stable.
+    const personaPrompt = resolveActivePersonaPrompt(router, ctx.config)
     req.body.system = applyGlobalSystemPrompt(req.body.system, personaPrompt)
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')

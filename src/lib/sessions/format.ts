@@ -17,9 +17,3 @@ export function fmtMs(ms: number): string {
   if (ms >= 1_000) return `${(ms / 1000).toFixed(1)}s`
   return `${ms}ms`
 }
-
-export function fmtChars(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M chars`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k chars`
-  return `${n} chars`
-}
