@@ -33,10 +33,10 @@ test('connectModel appends a fallback when the primary is set (different provide
   expect(r1.default.agent.fallbacks).toEqual(['anthropic,claude'])
 })
 
-test('connectModel rejects a fallback on the primary provider', () => {
+test('connectModel accepts a fallback on the primary provider (intra-account rescue)', () => {
   const r0 = connectModel(baseRouter(), 'default', 'openai,gpt-5', 'agent')
   const r1 = connectModel(r0, 'default', 'openai,gpt-5-nano', 'agent')
-  expect(r1.default.agent.fallbacks).toEqual([])
+  expect(r1.default.agent.fallbacks).toEqual(['openai,gpt-5-nano'])
 })
 
 test('connectModel rejects a duplicate fallback and the primary itself', () => {
@@ -47,7 +47,11 @@ test('connectModel rejects a duplicate fallback and the primary itself', () => {
   expect(r3.default.agent.fallbacks).toEqual(['anthropic,claude'])
 })
 
-test('setting a new primary drops fallbacks that share its provider', () => {
+test('promoting a fallback to primary keeps sibling fallbacks intact', () => {
+  // The old rule "setting a new primary drops fallbacks that share
+  // its provider" no longer applies — same-provider is allowed.
+  // Verify that the empty→primary transition just sets primary and
+  // leaves the fallback chain unchanged.
   const r0 = connectModel(baseRouter(), 'default', 'anthropic,claude', 'agent')
   const r1 = connectModel(r0, 'default', 'openai,gpt-5', 'agent')
   expect(r1.default.agent.fallbacks).toEqual(['openai,gpt-5'])
@@ -55,7 +59,7 @@ test('setting a new primary drops fallbacks that share its provider', () => {
   expect(r2.default.agent.primary).toBeNull()
   const r3 = connectModel(r2, 'default', 'openai,gpt-5-nano', 'agent')
   expect(r3.default.agent.primary).toBe('openai,gpt-5-nano')
-  expect(r3.default.agent.fallbacks).toEqual([])
+  expect(r3.default.agent.fallbacks).toEqual(['openai,gpt-5'])
 })
 
 test('disconnectModel clears the primary or drops the fallback', () => {

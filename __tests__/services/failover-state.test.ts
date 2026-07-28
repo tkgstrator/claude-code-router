@@ -1,21 +1,27 @@
 import { afterEach, expect, setSystemTime, test } from 'bun:test'
 import {
   clearAccountExhaustion,
+  clearModelExhaustion,
   clearProviderExhaustion,
   isAccountExhausted,
+  isModelExhausted,
   isProviderExhausted,
   markAccountExhausted,
+  markModelExhausted,
   markProviderExhausted
 } from '../../src/services/failover-state'
 
 // failover-state holds a process-global map; reset the clock and drop the
-// providers / accounts each test touches so cases stay independent.
+// providers / accounts / models each test touches so cases stay independent.
 afterEach(() => {
   setSystemTime()
   clearProviderExhaustion('codex')
   clearProviderExhaustion('anthropic')
   clearAccountExhaustion('acct-a')
   clearAccountExhaustion('acct-b')
+  clearModelExhaustion('anthropic', 'claude-fable')
+  clearModelExhaustion('anthropic', 'claude-opus')
+  clearModelExhaustion('anthropic', 'claude-haiku')
 })
 
 test('a provider stays exhausted until its reset time, then auto-clears', () => {
@@ -129,4 +135,52 @@ test('clearAccountExhaustion drops the mark immediately', () => {
 
   clearAccountExhaustion('acct-a')
   expect(isAccountExhausted('acct-a')).toBe(false)
+})
+
+// ---- model-scoped exhaustion (Fable-vs-Opus intra-account rescue) --
+
+test('model-scoped mark blocks only that (provider, model), leaves siblings free', () => {
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markModelExhausted('anthropic', 'claude-fable', t0 + 60_000)
+  expect(isModelExhausted('anthropic', 'claude-fable')).toBe(true)
+  expect(isModelExhausted('anthropic', 'claude-opus')).toBe(false)
+  expect(isModelExhausted('anthropic', 'claude-haiku')).toBe(false)
+})
+
+test('provider-scoped mark shorts every model on that provider (isModelExhausted ORs)', () => {
+  // When something upstream marks the whole provider as out (rare
+  // but possible), the per-model check must also fire — otherwise a
+  // sibling would look usable and get an immediate 429 too.
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markProviderExhausted('anthropic', t0 + 60_000)
+  expect(isModelExhausted('anthropic', 'claude-fable')).toBe(true)
+  expect(isModelExhausted('anthropic', 'claude-opus')).toBe(true)
+})
+
+test('clearModelExhaustion drops only the model mark, leaves provider mark intact', () => {
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markProviderExhausted('anthropic', t0 + 60_000)
+  markModelExhausted('anthropic', 'claude-fable', t0 + 60_000)
+  clearModelExhaustion('anthropic', 'claude-fable')
+  // Model-specific mark is gone, but the enclosing provider mark still
+  // suppresses everything on the provider.
+  expect(isModelExhausted('anthropic', 'claude-fable')).toBe(true)
+  expect(isProviderExhausted('anthropic')).toBe(true)
+})
+
+test('model mark auto-clears when its window elapses', () => {
+  const t0 = 1_700_000_000_000
+  setSystemTime(new Date(t0))
+
+  markModelExhausted('anthropic', 'claude-fable', t0 + 60_000)
+  expect(isModelExhausted('anthropic', 'claude-fable')).toBe(true)
+
+  setSystemTime(new Date(t0 + 61_000))
+  expect(isModelExhausted('anthropic', 'claude-fable')).toBe(false)
 })

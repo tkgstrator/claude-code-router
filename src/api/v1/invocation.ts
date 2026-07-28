@@ -22,7 +22,7 @@ import {
   type ScenarioType,
   type Transformer
 } from '../../llms'
-import { isProviderExhausted } from '../../services/failover-state'
+import { isModelExhausted } from '../../services/failover-state'
 
 // ─── Reasoning-effort normalisation ────────────────────────────────────
 
@@ -273,31 +273,27 @@ export function resolveInvocationForModel(
 }
 
 const providerNameOf = (modelString: string): string => modelString.split(',')[0]
+const modelNameOf = (modelString: string): string => modelString.split(',').slice(1).join(',')
 
 // Ordered list of "provider,model" candidates for this request: the
-// scenario's primary first, then its configured fallback chain. Skips
-// providers currently known to be rate-limited, but never returns empty
-// — if every candidate is exhausted we still try them (the window may
-// have reset since we last marked it).
+// resolved primary first, then the pre-computed fallback chain. Skips
+// candidates currently known to be rate-limited (by model or by
+// provider), but never returns empty — if every candidate is exhausted
+// we still try them (the window may have reset since we marked it).
 //
-// Two gates filter the configured fallbacks:
+// One filter gate remains on the fallback list:
 //
-//   1. auth_mode gate: when the primary is a subscription provider,
-//      fallbacks are constrained to other subscription providers — a
-//      429 on the user's "free seat" must not silently roll onto an
-//      api_key provider that costs per-token.
-//   2. same-provider gate: fallbacks on the SAME provider as the primary
-//      are dropped — the 5h/weekly quota windows are per-account, so a
-//      different model on the same provider would 429 against the same
-//      exhausted accounts. Real redundancy lives on a DIFFERENT provider.
+//   auth_mode gate: when the primary is a subscription provider,
+//   fallbacks are constrained to other subscription providers — a 429
+//   on the user's "free seat" must not silently roll onto an api_key
+//   provider that costs per-token.
 //
-// applyUiConfig already drops same-provider fallbacks at save time; this
-// is the defence-in-depth for configs persisted before the validation
-// landed.
+// The same-provider gate that used to sit here has been removed: quota
+// exhaustion is now tracked per (provider, model), so a different
+// model on the same provider (Fable → Opus on the same Anthropic
+// account, whose 5h/weekly windows are per-model) is a legitimate
+// fallback target.
 export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] {
-  // Use the fallbacks selectModel pre-resolved (rule-owned when a route
-  // rule matched, catch-all scenario chain otherwise). The reactive
-  // path stays symmetric with the proactive path.
   const fallbacks = plan.fallbacks
 
   const providers = ctx.config.get<Provider[]>('providers', [])
@@ -311,9 +307,6 @@ export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] 
     seen.add(m)
     if (m === plan.primaryModel) return true
     const name = providerNameOf(m)
-    // Same-provider fallbacks share the failing provider's exhaust state
-    // — they cannot recover from a quota 429. Drop unconditionally.
-    if (name === primaryName) return false
     // Same-mode fallbacks only when primary auth_mode is known.
     // Unknown-auth providers (e.g. typo'd fallback entries) pass through
     // and surface their own "provider not found" warn downstream.
@@ -322,6 +315,6 @@ export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] 
     return true
   })
 
-  const live = ordered.filter((m) => !isProviderExhausted(providerNameOf(m)))
+  const live = ordered.filter((m) => !isModelExhausted(providerNameOf(m), modelNameOf(m)))
   return live.length > 0 ? live : ordered
 }

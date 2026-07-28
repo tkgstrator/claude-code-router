@@ -62,6 +62,14 @@ const createExhaustionMap = (): {
 
 const providerMap = createExhaustionMap()
 const accountMap = createExhaustionMap()
+const modelMap = createExhaustionMap()
+
+// Model-scoped keys pair a provider with a specific model so two
+// different models on the same provider can be exhausted independently.
+// The subscription providers Anthropic and OpenAI track their 5-hour /
+// weekly windows per-model, so a Fable 429 leaves Opus (on the same
+// account) free to serve traffic.
+const modelKey = (providerName: string, modelName: string): string => `${providerName}||${modelName}`
 
 // Mark a provider as rate-limited until `until` (epoch millis). When
 // `until` is absent or already in the past, fall back to a short
@@ -92,3 +100,24 @@ export const isAccountExhausted = (subAccountId: string): boolean => accountMap.
 // Drop an account's exhaustion mark (e.g. after a successful response
 // proves the window has reset, or to clear test state).
 export const clearAccountExhaustion = (subAccountId: string): void => accountMap.clear(subAccountId)
+
+// Mark a specific `(provider, model)` pair as rate-limited. Model-level
+// is one step finer than provider-level: on subscription providers
+// whose 5-hour / weekly windows are per-model (Anthropic Fable vs
+// Opus, OpenAI GPT-5.5 vs GPT-5.3-codex), a 429 on one model leaves
+// the peer models on the same account free to run.
+export const markModelExhausted = (providerName: string, modelName: string, until?: number): void =>
+  modelMap.mark(modelKey(providerName, modelName), until)
+
+// True when either the model itself OR its enclosing provider is
+// currently within an exhaustion window. The two states OR together so
+// a provider-level mark (a coarse "everything on this provider is
+// out") still short-circuits every model on it.
+export const isModelExhausted = (providerName: string, modelName: string): boolean =>
+  modelMap.is(modelKey(providerName, modelName)) || providerMap.is(providerName)
+
+// Drop a model's exhaustion mark. Does not clear the enclosing
+// provider's mark — that's a separate concern via
+// clearProviderExhaustion.
+export const clearModelExhaustion = (providerName: string, modelName: string): void =>
+  modelMap.clear(modelKey(providerName, modelName))

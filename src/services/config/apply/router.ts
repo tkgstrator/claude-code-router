@@ -16,18 +16,16 @@ import { parseSlot } from './fields'
 // drop the rest with a warning. Mirrors the primary-slot validation so
 // the stored chain only ever points at models that actually exist.
 //
-// `primaryProviderName` is the provider name on the scenario's primary
-// slot; fallback entries on the SAME provider are dropped, because
-// same-provider fallbacks cannot help with per-account quota 429s — the
-// 5h/weekly windows apply across all models of an account. The user
-// should reach for a different provider (another subscription org, or
-// an api_key provider in another scenario slot) instead.
+// Same-provider fallbacks USED to be dropped here — the reasoning was
+// that per-account 5h/weekly quotas were shared across every model on
+// the provider. That is no longer true: exhaustion is now tracked per
+// (provider, model), so a Fable 429 leaves Opus on the same account
+// free. Same-provider fallbacks are legitimate now and pass through.
 export async function resolveFallbackTargets(
   tx: Tx,
   scenario: string,
   raw: readonly string[] | undefined,
-  warnings: string[],
-  primaryProviderName: string | null
+  warnings: string[]
 ): Promise<string[]> {
   if (raw === undefined || raw.length === 0) return []
   const out: string[] = []
@@ -35,12 +33,6 @@ export async function resolveFallbackTargets(
     const { providerName, modelName } = parseSlot(entry)
     if (!providerName || !modelName) {
       warnings.push(`Router fallback for "${scenario}" is malformed ("${entry}"); dropped.`)
-      continue
-    }
-    if (primaryProviderName !== null && providerName === primaryProviderName) {
-      warnings.push(
-        `Router fallback "${providerName},${modelName}" for "${scenario}" is on the same provider as the primary; dropped (use a different provider).`
-      )
       continue
     }
     const model = await tx.model.findFirst({
@@ -147,24 +139,13 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
     const modelId = await resolvePrimaryModelId(tx, scenario, route?.agent?.primary, 'agent', warnings)
     const subagentModelId = await resolvePrimaryModelId(tx, scenario, route?.subagent?.primary, 'subagent', warnings)
 
-    // Validate each route's fallback chain against ITS OWN primary — the
-    // same-provider-as-primary drop rule applies per route.
-    const agentPrimaryProvider = parseSlot(route?.agent?.primary).providerName
-    const subagentPrimaryProvider = parseSlot(route?.subagent?.primary).providerName
-    const fallbacks = await resolveFallbackTargets(
-      tx,
-      scenario,
-      route?.agent?.fallbacks,
-      warnings,
-      agentPrimaryProvider
-    )
-    const subagentFallbacks = await resolveFallbackTargets(
-      tx,
-      scenario,
-      route?.subagent?.fallbacks,
-      warnings,
-      subagentPrimaryProvider
-    )
+    // Validate each route's fallback chain. Since exhaustion is now
+    // tracked per (provider, model), same-provider fallbacks are
+    // legitimate — the drop rule that used to apply here has been
+    // removed. Malformed / unknown-model entries are still dropped
+    // with a warning.
+    const fallbacks = await resolveFallbackTargets(tx, scenario, route?.agent?.fallbacks, warnings)
+    const subagentFallbacks = await resolveFallbackTargets(tx, scenario, route?.subagent?.fallbacks, warnings)
 
     const agentRules = validateRules(scenario, 'agent', route?.agent?.rules, warnings)
     const subagentRules = validateRules(scenario, 'subagent', route?.subagent?.rules, warnings)

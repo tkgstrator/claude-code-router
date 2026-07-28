@@ -11,7 +11,7 @@
 
 import type { Logger } from 'pino'
 import type { ScenarioType } from '@/schemas'
-import { isProviderExhausted } from '../../services/failover-state'
+import { isModelExhausted, isProviderExhausted } from '../../services/failover-state'
 import type { ConfigStore } from '../registry/config'
 import type { ConfigProvider } from './types'
 
@@ -35,13 +35,20 @@ export function subscriptionKindOf(providerName: string, providers: ConfigProvid
   return null
 }
 
-// Whether a single chain candidate is usable right now. Providers already
-// marked exhausted by the reactive 429 path are skipped; everything else
-// is allowed through — subscription usage is run to the upstream limit
-// and rotated reactively on 429 rather than being pre-empted by a local
-// drain guard. Exported for unit tests.
-export function candidateUsable(providerName: string): boolean {
-  return !isProviderExhausted(providerName)
+// Whether a single "provider,model" chain candidate is usable right
+// now. Providers or specific models already marked exhausted by the
+// reactive 429 path are skipped; everything else is allowed through —
+// subscription usage is run to the upstream limit and rotated
+// reactively on 429 rather than being pre-empted by a local drain
+// guard. Exported for unit tests.
+//
+// Two overloads live behind the same name: `candidateUsable('anthropic')`
+// checks provider-level only (legacy), while
+// `candidateUsable('anthropic', 'claude-fable')` also honours a
+// per-model mark so an intra-provider fallback (Fable → Opus on the
+// same account) can still reach the peer model.
+export function candidateUsable(providerName: string, modelName?: string): boolean {
+  return modelName === undefined ? !isProviderExhausted(providerName) : !isModelExhausted(providerName, modelName)
 }
 
 // Capability gate: whether a "provider,model" candidate's model can hold
@@ -94,12 +101,18 @@ export function applyProactiveFailover(
   // the common path and would spam the log otherwise.
   const trace: { candidate: string; reason: 'kept' | 'malformed' | 'exhausted' | 'capability' }[] = []
   for (const candidate of [primaryModel, ...fallbacks]) {
-    const providerName = candidate.split(',')[0]
-    if (!providerName) {
+    const [providerName, ...rest] = candidate.split(',')
+    const modelName = rest.join(',')
+    if (!providerName || modelName.length === 0) {
       trace.push({ candidate, reason: 'malformed' })
       continue
     }
-    if (!candidateUsable(providerName)) {
+    // Per-model check: a Fable 429 only blocks Fable, so an Opus-on-
+    // the-same-provider fallback stays reachable. The check ORs in the
+    // coarser provider-level mark so a provider that was blanket-
+    // exhausted (rare, but the reactive path used to do this) still
+    // shorts every model on it.
+    if (!candidateUsable(providerName, modelName)) {
       trace.push({ candidate, reason: 'exhausted' })
       continue
     }

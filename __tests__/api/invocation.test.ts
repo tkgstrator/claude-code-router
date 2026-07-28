@@ -46,9 +46,13 @@ test('buildFailoverChain: a subagent request walks whatever chain selectModel re
   expect(chain).toEqual(['codex,gpt-5.6-luna', 'claude-code,claude-haiku'])
 })
 
-test('buildFailoverChain: a fallback on the same provider as the primary is dropped', () => {
+test('buildFailoverChain: same-provider fallbacks pass through (intra-account rescue)', () => {
+  // Different models on the same provider used to be dropped
+  // unconditionally. Now that exhaustion is tracked per (provider,
+  // model), a Fable→Opus-style fallback on the same provider is a
+  // legitimate configuration and stays in the chain.
   const chain = buildFailoverChain(plan({ fallbacks: ['codex,gpt-5.6-sol'] }), ctx)
-  expect(chain).toEqual(['codex,gpt-5.6-luna'])
+  expect(chain).toEqual(['codex,gpt-5.6-luna', 'codex,gpt-5.6-sol'])
 })
 
 test('buildFailoverChain: an empty fallback chain leaves just the primary', () => {

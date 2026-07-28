@@ -11,7 +11,6 @@
  * route untouched.
  */
 
-import { providerOf } from '@/lib/router/fallback-slots'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
 import type { RouterConfig } from '@/schemas'
 
@@ -30,10 +29,12 @@ function withRoute<S extends { agent: RouteTarget; subagent: RouteTarget }>(
   return kind === 'agent' ? { ...slot, agent: route } : { ...slot, subagent: route }
 }
 
-// Connect a model to a scenario's route for `kind`: becomes the primary
-// when the slot is empty (dropping any fallback that now shares the
-// primary's provider), otherwise appended to the fallback chain (unless it
-// is already the primary, already present, or on the primary's provider).
+// Connect a model to a scenario's route for `kind`: becomes the
+// primary when the slot is empty, otherwise appended to the fallback
+// chain (unless it is already the primary or already in the chain).
+// Same-provider fallbacks are allowed now that exhaustion is tracked
+// per (provider, model) — a Fable → Opus intra-account rescue is a
+// legitimate configuration.
 export function connectModel(
   router: RouterConfig,
   scenario: EditScenario,
@@ -42,12 +43,9 @@ export function connectModel(
 ): RouterConfig {
   const route = router[scenario][kind]
   if (route.primary === null) {
-    const provider = providerOf(modelKey)
-    const fallbacks = route.fallbacks.filter((fallback) => providerOf(fallback) !== provider)
-    return { ...router, [scenario]: withRoute(router[scenario], kind, { ...route, primary: modelKey, fallbacks }) }
+    return { ...router, [scenario]: withRoute(router[scenario], kind, { ...route, primary: modelKey }) }
   }
   if (modelKey === route.primary || route.fallbacks.includes(modelKey)) return router
-  if (providerOf(modelKey) === providerOf(route.primary)) return router
   return {
     ...router,
     [scenario]: withRoute(router[scenario], kind, { ...route, fallbacks: [...route.fallbacks, modelKey] })

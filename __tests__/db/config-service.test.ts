@@ -172,9 +172,10 @@ describe.skipIf(!HAS_DB)('configService', () => {
         }
       ],
       Router: {
-        // The valid fallback is on a DIFFERENT provider — the same-provider
-        // gate (see resolveFallbackTargets) drops same-provider fallbacks
-        // because per-account quota windows are shared across models.
+        // Same-provider fallbacks are allowed now (per-model exhaustion
+        // tracking makes them useful for intra-account rescue). The
+        // fallback list here includes one cross-provider entry and one
+        // unknown-model entry so only the unknown one gets dropped.
         default: {
           agent: { primary: 'openai,gpt-5', fallbacks: ['anthropic,claude-sonnet-4-6', 'anthropic,does-not-exist'] },
           subagent: {}
