@@ -411,8 +411,9 @@ function TokensInput({
 // selection; the trigger shows `placeholder` in that state. When
 // `searchable=false` the CommandInput is dropped so short 3-item
 // enums (like the thinking tri-state) don't get an incongruous
-// search box.
-function PopoverSingle({
+// search box. Exported so the routing-map panel can reuse it for its
+// own primary / add-fallback pickers.
+export function PopoverSingle({
   value,
   options,
   placeholder,

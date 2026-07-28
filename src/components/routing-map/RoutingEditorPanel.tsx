@@ -8,13 +8,14 @@
  */
 
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { disconnectModel, moveFallback, setLongContextThreshold } from '@/lib/routing-map/edit-actions'
+import { connectModel, disconnectModel, moveFallback, setLongContextThreshold } from '@/lib/routing-map/edit-actions'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
 import type { RouterConfig } from '@/schemas'
-import { RuleEditor } from './RuleEditor'
+import { PopoverSingle, RuleEditor } from './RuleEditor'
 
 interface RoutingEditorPanelProps {
   scenario: EditScenario
@@ -56,6 +57,17 @@ function RouteSection({
   const { t } = useTranslation()
   const route = router[scenario][kind]
   const primary = route.primary
+  const modelOptions = useMemo(
+    () => modelKeys.map((k) => ({ value: k, label: modelLabel(k) })),
+    [modelKeys, modelLabel]
+  )
+  // Add-fallback picker filters out models that are already wired here
+  // (primary or an existing fallback) so the same model can't be added
+  // twice — mirrors connectModel's own guard.
+  const fallbackOptions = useMemo(
+    () => modelOptions.filter((o) => o.value !== primary && !route.fallbacks.includes(o.value)),
+    [modelOptions, primary, route.fallbacks]
+  )
 
   return (
     <div className='space-y-2'>
@@ -64,7 +76,19 @@ function RouteSection({
       <div className='space-y-1'>
         <div className='text-xs text-muted-foreground'>{t('routingMap.editPrimary')}</div>
         {primary === null ? (
-          <div className='text-xs text-muted-foreground italic'>{t('routingMap.editNoPrimary')}</div>
+          !readOnly ? (
+            <PopoverSingle
+              value={undefined}
+              options={modelOptions}
+              placeholder={t('router.selectModel')}
+              searchable
+              onChange={(v) => {
+                if (v !== undefined) onChange(connectModel(router, scenario, v, kind))
+              }}
+            />
+          ) : (
+            <div className='text-xs text-muted-foreground italic'>{t('routingMap.editNoPrimary')}</div>
+          )
         ) : (
           <div className='flex items-center justify-between gap-2'>
             <span className='min-w-0 truncate font-mono text-xs'>{modelLabel(primary)}</span>
@@ -136,6 +160,17 @@ function RouteSection({
               </li>
             ))}
           </ul>
+        )}
+        {!readOnly && fallbackOptions.length > 0 && (
+          <PopoverSingle
+            value={undefined}
+            options={fallbackOptions}
+            placeholder={t('router.rules.field.fallbacksPlaceholder')}
+            searchable
+            onChange={(v) => {
+              if (v !== undefined) onChange(connectModel(router, scenario, v, kind))
+            }}
+          />
         )}
       </div>
 
