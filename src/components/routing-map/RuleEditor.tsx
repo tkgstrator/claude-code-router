@@ -101,13 +101,11 @@ export function RuleEditor({ scenario, kind, router, onChange, modelKeys, modelL
                       <ChevronRight className='h-3 w-3' aria-hidden='true' />
                     )}
                   </Button>
-                  <span className='min-w-0 flex-1 truncate text-xs'>
-                    {rule.name !== undefined && rule.name.length > 0 ? (
-                      rule.name
-                    ) : (
-                      <span className='italic text-muted-foreground'>{t('router.rules.unnamed')}</span>
-                    )}
-                    <span className='ml-2 text-[10px] text-muted-foreground'>{summarisePredicate(rule, t)}</span>
+                  {/* 1-based priority — rules evaluate in list order,
+                      first match wins, so the number IS the priority. */}
+                  <span className='w-4 shrink-0 text-[11px] tabular-nums text-muted-foreground'>{index + 1}</span>
+                  <span className='min-w-0 flex-1 truncate text-xs text-muted-foreground'>
+                    {summarisePredicate(rule, t)}
                   </span>
                   {!readOnly && (
                     <>
@@ -211,16 +209,6 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
 
   return (
     <div className='space-y-3 text-xs'>
-      <Field label={t('router.rules.field.name')}>
-        <Input
-          className='h-7 text-xs md:text-xs'
-          value={rule.name ?? ''}
-          onChange={(e) => patch({ name: e.target.value })}
-          disabled={readOnly}
-          placeholder={t('router.rules.field.namePlaceholder')}
-        />
-      </Field>
-
       <FieldGroup title={t('router.rules.predicate')}>
         <Field label={t('router.rules.field.requestedTier')}>
           <div className='flex flex-wrap gap-x-3 gap-y-1'>
