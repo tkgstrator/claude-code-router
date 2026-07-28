@@ -32,17 +32,31 @@ function extractPreview(content: unknown): string | null {
   return text.length > PREVIEW_MAX_CHARS ? `${text.slice(0, PREVIEW_MAX_CHARS).trimEnd()}…` : text
 }
 
+// Per-session cap on user messages we scan for a preview. extractPreview
+// returns null when the message is all framework-injected noise
+// (<system-reminder> wrappers, tagless system dumps, tool_result-only
+// turns) so we fall through to the next user message; this cap bounds
+// that fallthrough. A session with 5000 turns must not stream 5000 JSONB
+// payloads over the wire to yield one 160-char string.
+const PREVIEW_SCAN_LIMIT = 5
+
 // Fetch preview text for a batch of sessions in a single query. Grouped by
 // sessionId → the earliest user Message row is returned per session.
 export async function loadPreviews(sessionIds: string[]): Promise<Map<string, string | null>> {
   const previews = new Map<string, string | null>()
   if (sessionIds.length === 0) return previews
   const prisma = getPrismaClient()
-  const rows = await prisma.message.findMany({
-    where: { sessionId: { in: sessionIds }, role: 'user' },
-    orderBy: { createdAt: 'asc' },
-    select: { sessionId: true, content: true }
-  })
+  // ROW_NUMBER window function caps the fetch at PREVIEW_SCAN_LIMIT user
+  // messages per session inside Postgres — Prisma has no per-group LIMIT.
+  const rows = await prisma.$queryRaw<Array<{ sessionId: string; content: unknown }>>`
+    SELECT "sessionId", content FROM (
+      SELECT "sessionId", content,
+        ROW_NUMBER() OVER (PARTITION BY "sessionId" ORDER BY "createdAt" ASC) AS rn
+      FROM "Message"
+      WHERE "sessionId" = ANY(${sessionIds}) AND role = 'user'
+    ) t
+    WHERE rn <= ${PREVIEW_SCAN_LIMIT}
+    ORDER BY "sessionId", rn`
   for (const row of rows) {
     if (previews.has(row.sessionId)) continue
     const preview = extractPreview(row.content)
