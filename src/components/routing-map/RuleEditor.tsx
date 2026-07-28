@@ -282,7 +282,7 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
             }}
             disabled={readOnly}
           >
-            <SelectTrigger className='h-7 text-xs'>
+            <SelectTrigger className='w-full text-xs data-[size=default]:h-7 py-1! h-7!'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -353,7 +353,7 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
             onValueChange={(v) => patch({ primary: v === '' ? null : v })}
             disabled={readOnly}
           >
-            <SelectTrigger className='h-7 text-xs'>
+            <SelectTrigger className='w-full text-xs data-[size=default]:h-7 py-1! h-7!'>
               <SelectValue placeholder={t('router.selectModel')} />
             </SelectTrigger>
             <SelectContent>
@@ -367,11 +367,11 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
         </Field>
 
         <Field label={t('router.rules.field.fallbacks')}>
-          {/* MultiCombobox ships with default h-9 shadcn Button sizing;
-              override to the h-7/text-xs the rest of this panel uses so
-              controls line up. Reaches the inner Button via arbitrary
-              variant so we don't have to fork the ui/ primitive. */}
-          <div className='[&_button]:h-7 [&_button]:text-xs [&_.font-normal]:text-xs'>
+          {/* MultiCombobox ships with default h-9 Button sizing; scope
+              the override to the trigger button via [role=combobox]
+              so the little "×" badge-remove buttons aren't blown up
+              to full-size, and keep the badges' text at 11px. */}
+          <div className='[&_[role=combobox]]:h-7 [&_[role=combobox]]:text-xs [&_[data-slot=badge]]:text-[11px]'>
             <MultiCombobox
               options={modelOptions}
               value={rule.fallbacks}
