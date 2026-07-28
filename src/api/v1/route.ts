@@ -13,6 +13,7 @@ import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } fro
 import { requestLogEmitter } from '../request-logs/events'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
 import { buildFailoverChain, buildRoutePlan, type ResolvedInvocation } from './invocation'
+import { aggregateAnthropicSseToJson, isSseContentType } from './sse-to-json'
 import { bestSupportedLevel, deepReplaceValue, forwardUpstreamError } from './upstream-error'
 
 export const v1Route = new Hono()
@@ -57,6 +58,16 @@ async function recordMessages(entries: MessageRecord[]): Promise<void> {
 
 async function formatResponse(c: Context, response: Response, stream: boolean): Promise<Response> {
   if (!stream) {
+    // A few provider paths (codex-oauth notably) force stream=true
+    // upstream even when the client asked for blocking JSON. Detect
+    // SSE by content-type and aggregate the events back into the
+    // Anthropic non-stream envelope; only fall through to JSON.parse
+    // when the upstream really is JSON. Without this the parse throws
+    // on "event: message_start\ndata: ..." and the client sees a 500.
+    if (isSseContentType(response.headers.get('content-type'))) {
+      const message = await aggregateAnthropicSseToJson(response)
+      return c.json(message, (response.status || 200) as 200)
+    }
     const text = await response.text()
     const json = text.length > 0 ? JSON.parse(text) : {}
     return c.json(json, (response.status || 200) as 200)
