@@ -339,6 +339,10 @@
       "remove": "ルールを削除",
       "predicate": "条件",
       "target": "ルーティング先",
+      "passthrough": "パススルー",
+      "passthroughPlaceholder": "パススルー",
+      "passthroughHint": "未設定にするとモデルを書き換えず、リクエストをそのままパススルーします。",
+      "passthroughActive": "パススルー — マッチしたリクエストは書き換えずに送ります。",
       "fallbacksCatchAll": "キャッチオール",
       "field": {
         "name": "名前",
