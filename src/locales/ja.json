@@ -68,6 +68,7 @@
       "to": "接続先",
       "asFallback": "フォールバックとして追加",
       "asFallbackHelp": "プライマリが上限に達したときに使用。フェイルオーバーチェーンの末尾に追加されます。",
+      "asFallbackAlreadyWired": "このモデルはすでにプライマリまたはフォールバックに含まれています。",
       "asRule": "新規ルールとして追加",
       "asRuleHelp": "述語が一致したときにこのモデルへルーティング。詳細はサイドパネルで編集します。"
     }
@@ -345,7 +346,7 @@
         "requestedTier": "要求モデル tier",
         "effort": "Effort",
         "thinking": "Thinking",
-        "thinkingAny": "任意 (制約なし)",
+        "thinkingAny": "任意",
         "thinkingRequired": "必須",
         "thinkingForbidden": "禁止",
         "tokens": "トークン範囲",

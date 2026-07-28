@@ -34,6 +34,7 @@ export function ConnectionChoiceDialog({
   scenarioLabel,
   kindLabel,
   modelLabel,
+  canFallback = true,
   onChoose
 }: {
   open: boolean
@@ -41,6 +42,10 @@ export function ConnectionChoiceDialog({
   scenarioLabel: string
   kindLabel: string
   modelLabel: string
+  // False when the target is already wired as the primary or an
+  // existing fallback — appending as a fallback would be a silent
+  // no-op, so the button is disabled with a small hint instead.
+  canFallback?: boolean
   onChoose: (choice: ConnectionChoice) => void
 }) {
   const { t } = useTranslation()
@@ -75,11 +80,14 @@ export function ConnectionChoiceDialog({
             type='button'
             variant='outline'
             className='justify-start text-left h-auto py-3'
+            disabled={!canFallback}
             onClick={() => onChoose('fallback')}
           >
             <div className='space-y-0.5'>
               <div className='text-sm font-medium'>{t('routingMap.connect.asFallback')}</div>
-              <div className='text-xs text-muted-foreground'>{t('routingMap.connect.asFallbackHelp')}</div>
+              <div className='text-xs text-muted-foreground'>
+                {canFallback ? t('routingMap.connect.asFallbackHelp') : t('routingMap.connect.asFallbackAlreadyWired')}
+              </div>
             </div>
           </Button>
           <Button
