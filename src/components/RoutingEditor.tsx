@@ -198,12 +198,19 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   const edges = useMemo<Edge[]>(() => {
     const list: Edge[] = graph.edges.map((edge) => {
       const color = strokeColorFor(edge.origin, edge.role)
-      // Fallback edges keep their chain-index label so the failover
-      // order stays readable at a glance ("1" → tried first, "2" →
-      // next, ...). Rule edges (primary + fallback) get no name
-      // label — the blue color already signals "rule-owned", and
-      // the rule body is edited in the side panel.
-      const label: string | undefined = edge.role === 'fallback' ? String(edge.order) : undefined
+      // Label encodes the priority the runtime evaluates in:
+      //   - catch-all fallback → `1`, `2`, ... (failover chain index)
+      //   - rule primary       → `R1`, `R2`, ... (rule stack index)
+      //   - rule fallback      → `R1.1`, `R1.2`, ... (rule + its chain)
+      // Catch-all primary stays unlabelled — the map's default arrow
+      // already reads as "this scenario's primary" without extra chrome.
+      const label = ((): string | undefined => {
+        if (edge.origin === 'catch-all') {
+          return edge.role === 'fallback' ? String(edge.order) : undefined
+        }
+        const rank = edge.ruleIndex !== null ? edge.ruleIndex + 1 : 0
+        return edge.role === 'primary' ? `R${rank}` : `R${rank}.${edge.order}`
+      })()
       return {
         id: edge.id,
         source: edge.source,
