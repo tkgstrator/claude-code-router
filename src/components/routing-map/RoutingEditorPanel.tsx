@@ -12,7 +12,13 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { connectModel, disconnectModel, moveFallback, setLongContextThreshold } from '@/lib/routing-map/edit-actions'
+import {
+  connectModel,
+  disconnectModel,
+  moveFallback,
+  setLongContextThreshold,
+  setPrimary
+} from '@/lib/routing-map/edit-actions'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
 import type { RouterConfig } from '@/schemas'
 import { PopoverSingle, RuleEditor } from './RuleEditor'
@@ -75,31 +81,37 @@ function RouteSection({
 
       <div className='space-y-1'>
         <div className='text-xs text-muted-foreground'>{t('routingMap.editPrimary')}</div>
-        {primary === null ? (
-          !readOnly ? (
+        {readOnly ? (
+          primary === null ? (
+            <div className='text-xs text-muted-foreground italic'>{t('routingMap.editNoPrimary')}</div>
+          ) : (
+            <div className='min-w-0 truncate font-mono text-xs'>{modelLabel(primary)}</div>
+          )
+        ) : (
+          // Always a picker so the user can swap primaries in one gesture
+          // (opening the popover and picking a different model) — the old
+          // set/unset split forced an X-then-add roundtrip. setPrimary
+          // replaces the current primary and yanks the new model out of
+          // fallbacks if it was there, so the same model never lives in
+          // two slots. Clearing the picker (selecting the current value
+          // again in the popover) sets primary back to null → the route
+          // enters the same passthrough state as an empty rule.
+          <div className='flex items-center gap-2'>
             <PopoverSingle
-              value={undefined}
+              value={primary ?? undefined}
               options={modelOptions}
               placeholder={t('router.selectModel')}
               searchable
-              onChange={(v) => {
-                if (v !== undefined) onChange(connectModel(router, scenario, v, kind))
-              }}
+              onChange={(v) => onChange(setPrimary(router, scenario, kind, v ?? null))}
             />
-          ) : (
-            <div className='text-xs text-muted-foreground italic'>{t('routingMap.editNoPrimary')}</div>
-          )
-        ) : (
-          <div className='flex items-center justify-between gap-2'>
-            <span className='min-w-0 truncate font-mono text-xs'>{modelLabel(primary)}</span>
-            {!readOnly && (
+            {primary !== null && (
               <Button
                 type='button'
                 size='icon'
                 variant='ghost'
                 className='h-6 w-6 shrink-0'
                 aria-label={`${title}: ${t('app.remove')} ${modelLabel(primary)}`}
-                onClick={() => onChange(disconnectModel(router, scenario, primary, kind))}
+                onClick={() => onChange(setPrimary(router, scenario, kind, null))}
               >
                 <X className='h-3.5 w-3.5' aria-hidden='true' />
               </Button>

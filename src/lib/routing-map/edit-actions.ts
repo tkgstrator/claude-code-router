@@ -52,6 +52,24 @@ export function connectModel(
   }
 }
 
+// Set the primary target of a scenario's route directly to `modelKey`
+// (or `null` to unset). Unlike connectModel — which is a no-op when the
+// primary is already set — this replaces any existing primary, so the
+// side panel's PopoverSingle can swap primaries without an X-then-add
+// intermediate step. If the new primary was previously in the fallback
+// list it's pulled out to avoid holding the same model in two slots.
+export function setPrimary(
+  router: RouterConfig,
+  scenario: EditScenario,
+  kind: RouteKind,
+  modelKey: string | null
+): RouterConfig {
+  const route = router[scenario][kind]
+  if (route.primary === modelKey) return router
+  const fallbacks = modelKey === null ? route.fallbacks : route.fallbacks.filter((f) => f !== modelKey)
+  return { ...router, [scenario]: withRoute(router[scenario], kind, { ...route, primary: modelKey, fallbacks }) }
+}
+
 // Disconnect a model from a scenario's route for `kind` — clears the
 // primary if it matches, otherwise drops it from the fallback chain.
 export function disconnectModel(
