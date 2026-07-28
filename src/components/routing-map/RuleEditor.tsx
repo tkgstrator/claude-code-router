@@ -107,15 +107,25 @@ export function RuleEditor({ scenario, kind, router, onChange, modelKeys, modelL
                   <span className='min-w-0 flex-1 truncate text-xs text-muted-foreground'>
                     {summarisePredicate(rule, t)}
                   </span>
-                  {/* Target model at a glance — provider stripped so the
-                      short name fits alongside the predicate summary
-                      without pushing the reorder / remove buttons out. */}
-                  {rule.primary !== null && rule.primary.length > 0 && (
+                  {/* Target at a glance. Model: short name (provider
+                      stripped) so it fits without pushing the reorder /
+                      remove buttons out. No target (primary === null): a
+                      "pass-through" pill so the rule doesn't look
+                      unfinished — it's a legit config (matched requests
+                      hit req.body.model verbatim, no rewrite). */}
+                  {rule.primary !== null && rule.primary.length > 0 ? (
                     <span
                       className='max-w-[9rem] shrink-0 truncate font-mono text-[11px] text-foreground'
                       title={modelLabel(rule.primary)}
                     >
                       → {modelNameOf(rule.primary)}
+                    </span>
+                  ) : (
+                    <span
+                      className='shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] italic text-muted-foreground'
+                      title={t('router.rules.passthroughHint')}
+                    >
+                      → {t('router.rules.passthrough')}
                     </span>
                   )}
                   {!readOnly && (
@@ -325,11 +335,19 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
           <PopoverSingle
             value={rule.primary ?? undefined}
             options={modelOptions}
-            placeholder={t('router.selectModel')}
+            placeholder={t('router.rules.passthroughPlaceholder')}
             searchable
             disabled={readOnly}
             onChange={(v) => patch({ primary: v === undefined ? null : v })}
           />
+          {/* Surface the passthrough behaviour so an empty picker doesn't
+              look like an unfinished config — it's a legitimate choice
+              (matched requests skip the rewrite and go out as-is). */}
+          <p className='text-[10px] italic text-muted-foreground'>
+            {rule.primary === null || rule.primary.length === 0
+              ? t('router.rules.passthroughActive')
+              : t('router.rules.passthroughHint')}
+          </p>
         </Field>
         {/* Rules don't carry their own failover chain — a matched
             rule's primary falls over to the scenario's catch-all
