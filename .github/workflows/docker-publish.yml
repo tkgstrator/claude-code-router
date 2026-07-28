@@ -8,6 +8,7 @@ on:
 
 env:
   DOCKER_IMAGE: tkgling/claude-code-router
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -30,11 +31,24 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.DOCKER_IMAGE }}
+          # Publish the same tag set to both Docker Hub and GHCR so
+          # downstream users can pull from whichever registry they
+          # prefer. metadata-action expands each `type=` rule against
+          # every image in the list.
+          images: |
+            ${{ env.DOCKER_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
