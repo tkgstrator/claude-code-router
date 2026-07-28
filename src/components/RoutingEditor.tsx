@@ -221,10 +221,14 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         data: { kind: edge.kind, origin: edge.origin },
         label,
         labelShowBg: label !== undefined,
-        labelBgPadding: [4, 2],
-        labelBgBorderRadius: 4,
-        labelStyle: { fill: 'var(--foreground)', fontSize: 10 },
-        labelBgStyle: { fill: 'var(--background)', opacity: 0.85 },
+        labelBgPadding: [6, 3],
+        labelBgBorderRadius: 6,
+        // Bigger + opaque background + stroke ring so the badge sits
+        // legibly on top of the edge line instead of blending in.
+        // Text color follows the edge color so rule badges pick up
+        // the blue and catch-all badges stay neutral.
+        labelStyle: { fill: color, fontSize: 11, fontWeight: 600 },
+        labelBgStyle: { fill: 'var(--background)', opacity: 1, stroke: color, strokeWidth: 1 },
         markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
         // Rule-owned edges are managed via the side panel — the map
         // shows them for orientation only. Blocking delete /
