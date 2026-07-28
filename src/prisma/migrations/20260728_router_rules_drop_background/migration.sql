@@ -46,7 +46,7 @@ BEGIN
             jsonb_build_array(
               jsonb_build_object(
                 'name', 'haiku (migrated from background)',
-                'when', jsonb_build_object('requestedModel', '*haiku*'),
+                'when', jsonb_build_object('requestedTier', jsonb_build_array('haiku')),
                 'primary', bg_agent_primary,
                 'fallbacks', bg_agent_fallbacks
               )
@@ -58,7 +58,7 @@ BEGIN
             jsonb_build_array(
               jsonb_build_object(
                 'name', 'haiku (migrated from background)',
-                'when', jsonb_build_object('requestedModel', '*haiku*'),
+                'when', jsonb_build_object('requestedTier', jsonb_build_array('haiku')),
                 'primary', bg_subagent_primary,
                 'fallbacks', bg_subagent_fallbacks
               )
