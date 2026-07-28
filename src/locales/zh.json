@@ -68,6 +68,7 @@
       "to": "终点",
       "asFallback": "作为 fallback 添加",
       "asFallbackHelp": "当主模型限流时使用。追加到 failover 链尾。",
+      "asFallbackAlreadyWired": "该模型已经是主模型或已在 fallback 链中。",
       "asRule": "作为新规则添加",
       "asRuleHelp": "谓词匹配时路由到该模型。在侧边栏编辑详情。"
     }
@@ -345,7 +346,7 @@
         "requestedTier": "请求 tier",
         "effort": "Effort",
         "thinking": "Thinking",
-        "thinkingAny": "任意 (无约束)",
+        "thinkingAny": "任意",
         "thinkingRequired": "必须",
         "thinkingForbidden": "禁止",
         "tokens": "Token 范围",

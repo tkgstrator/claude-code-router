@@ -255,11 +255,13 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
       const kind = kindFromHandle(c.sourceHandle)
       if (scenario === null || modelKey === null || !isEditScenario(scenario)) return
       // First drag on an empty route becomes the primary automatically.
-      // Once the primary exists, ask the user whether this drag is a
-      // fallback or a new predicated rule — the map has no other way to
-      // tell those apart.
+      // Any subsequent drag opens the choice dialog — even when the
+      // target is the same model as the current primary, because the
+      // user may legitimately want a Rule that fires on a predicate
+      // and lands on the primary model (e.g. "for haiku requests,
+      // ALSO route to the primary opus" as a Rule form for docs).
       const route = router[scenario][kind]
-      if (route.primary === null || route.primary === modelKey) {
+      if (route.primary === null) {
         setRouter((r) => connectModel(r, scenario, modelKey, kind))
         return
       }
@@ -432,6 +434,17 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         scenarioLabel={pending === null ? '' : t(`router.${pending.scenario}`)}
         kindLabel={pending === null ? '' : t(pending.kind === 'agent' ? 'router.agentRoute' : 'router.subagentRoute')}
         modelLabel={pending === null ? '' : modelLabel(pending.modelKey)}
+        // Fallback is a no-op when the target is already wired as the
+        // primary or an existing fallback (connectModel dedups). Disable
+        // the button in those cases so the dialog doesn't offer a
+        // silently-inert action; Rule is still available.
+        canFallback={((): boolean => {
+          if (pending === null) return true
+          const route = router[pending.scenario][pending.kind]
+          if (route.primary === pending.modelKey) return false
+          if (route.fallbacks.includes(pending.modelKey)) return false
+          return true
+        })()}
         onChoose={applyPending}
       />
     </div>
