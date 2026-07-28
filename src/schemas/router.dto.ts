@@ -21,6 +21,13 @@ const FallbackEntrySchema = z.string().nonempty()
 export const REQUESTED_MODEL_TIERS = ['fable', 'opus', 'sonnet', 'haiku'] as const
 export type RequestedModelTier = (typeof REQUESTED_MODEL_TIERS)[number]
 
+// The five effort levels Claude Code sends on `output_config.effort`.
+// The router already reads this internally to grade "heavy" work
+// (`isHeavyRequest`); the rule predicate lets a rule fire on the same
+// signal explicitly (e.g. "route xhigh/max effort to Fable").
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+export type RuleEffortLevel = (typeof EFFORT_LEVELS)[number]
+
 // Predicate for a routing rule. Empty object = always match (the
 // "catch-all" rule at the bottom of a rule stack); any populated field
 // narrows the match. All fields AND together — a rule with both
@@ -47,6 +54,10 @@ export type RequestedModelTier = (typeof REQUESTED_MODEL_TIERS)[number]
 // - `hasTool`: shell-style glob against any tool's `type` field in
 //   `body.tools`. Useful for "if this request carries a
 //   web_search_* tool → route here".
+// - `effort`: matches when `body.output_config.effort` is one of the
+//   listed levels. Multi-select IN — ticking `['high','xhigh','max']`
+//   catches "heavy work" without having to add three rules. Requests
+//   without an effort field (older CC traffic) never match.
 export const RulePredicateSchema = z
   .object({
     requestedTier: z.array(z.enum(REQUESTED_MODEL_TIERS)).nonempty().optional(),
@@ -54,7 +65,8 @@ export const RulePredicateSchema = z
     thinking: z.boolean().optional(),
     minTokens: z.number().int().nonnegative().optional(),
     maxTokens: z.number().int().nonnegative().optional(),
-    hasTool: z.string().nonempty().optional()
+    hasTool: z.string().nonempty().optional(),
+    effort: z.array(z.enum(EFFORT_LEVELS)).nonempty().optional()
   })
   .openapi('RulePredicate')
 

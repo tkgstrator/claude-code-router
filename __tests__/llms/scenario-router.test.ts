@@ -329,6 +329,36 @@ test('selectModel: `requestedTier` on an untierable model (gpt-*) falls through'
   expect(selectModel(makeReq({ model: 'gpt-5' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
 })
 
+test('selectModel: `effort` predicate matches when output_config.effort is in the list', () => {
+  // Multi-select IN over the five effort levels. Ticking
+  // ['high','xhigh','max'] catches every "heavy" grading in one rule.
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet' },
+    agentRules: {
+      default: [
+        {
+          name: 'heavy-effort',
+          when: { effort: ['high', 'xhigh', 'max'] as const },
+          primary: 'anthropic,claude-opus',
+          fallbacks: []
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  expect(
+    selectModel(makeReq({ model: 'x', output_config: { effort: 'high' } }), 1000, router, config).model
+  ).toBe('anthropic,claude-opus')
+  expect(
+    selectModel(makeReq({ model: 'x', output_config: { effort: 'max' } }), 1000, router, config).model
+  ).toBe('anthropic,claude-opus')
+  expect(
+    selectModel(makeReq({ model: 'x', output_config: { effort: 'low' } }), 1000, router, config).model
+  ).toBe('anthropic,claude-sonnet')
+  // A request without any output_config.effort field never matches.
+  expect(selectModel(makeReq({ model: 'x' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
+})
+
 test('selectModel: `thinking: true` predicate matches only when body.thinking is set', () => {
   const router = {
     agent: { default: 'anthropic,claude-sonnet' },

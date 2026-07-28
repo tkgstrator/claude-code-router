@@ -184,6 +184,10 @@ function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
   if (when.minTokens !== undefined && tokenCount < when.minTokens) return false
   if (when.maxTokens !== undefined && tokenCount > when.maxTokens) return false
   if (when.hasTool !== undefined && !hasMatchingTool(req.body.tools, when.hasTool)) return false
+  if (when.effort !== undefined) {
+    const effort = readEffort(req.body)
+    if (effort === undefined || !when.effort.includes(effort)) return false
+  }
   return true
 }
 
