@@ -339,6 +339,10 @@
       "remove": "ルールを削除",
       "predicate": "条件",
       "target": "ルーティング先",
+      "passthrough": "そのまま送信",
+      "passthroughPlaceholder": "そのまま送信（書き換えなし）",
+      "passthroughHint": "未設定にするとモデルを書き換えず、クライアントが指定したモデルでそのまま送信します。",
+      "passthroughActive": "そのまま送信 — マッチしたリクエストは書き換えずに送ります。",
       "fallbacksCatchAll": "キャッチオール",
       "field": {
         "name": "名前",
