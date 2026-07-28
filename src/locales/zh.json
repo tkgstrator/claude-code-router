@@ -63,7 +63,9 @@
     "editPrimary": "主模型",
     "connect": {
       "title": "添加连接",
-      "description": "「{{scenario}}」已配置主模型。{{model}} 应该如何添加?",
+      "description": "该路由已配置主模型。这个连接应该如何添加?",
+      "from": "起点",
+      "to": "终点",
       "asFallback": "作为 fallback 添加",
       "asFallbackHelp": "当主模型限流时使用。追加到 failover 链尾。",
       "asRule": "作为新规则添加",

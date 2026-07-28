@@ -63,7 +63,9 @@
     "editPrimary": "Primary model",
     "connect": {
       "title": "Add connection",
-      "description": "Route “{{scenario}}” already has a primary. How should {{model}} be added?",
+      "description": "The route already has a primary. How should this connection be added?",
+      "from": "From",
+      "to": "To",
       "asFallback": "Add as fallback",
       "asFallbackHelp": "Tried when the primary is rate-limited. Appended to the failover chain.",
       "asRule": "Add as new rule",

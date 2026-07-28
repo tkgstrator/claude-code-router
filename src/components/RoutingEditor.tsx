@@ -29,8 +29,6 @@ import {
   buildEditGraph,
   EDIT_SCENARIOS,
   type EditScenario,
-  editModelNodeId,
-  editScenarioNodeId,
   modelKeyFromNodeId,
   type RouteKind,
   scenarioFromNodeId
@@ -235,32 +233,8 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         }
       }
     })
-    // Preview edge for the pending connection — shown while the
-    // fallback-vs-rule dialog is open so the user can see which
-    // scenario handle and which target model the choice will wire
-    // together. Rendered in a distinct amber / dashed style and
-    // non-interactive so a stray right-click can't try to delete it.
-    if (pending !== null) {
-      const previewColor = 'var(--color-amber-500)'
-      list.push({
-        id: `__pending__${pending.scenario}__${pending.kind}__${pending.modelKey}`,
-        source: editScenarioNodeId(pending.scenario),
-        target: editModelNodeId(pending.modelKey),
-        sourceHandle: pending.kind,
-        markerEnd: { type: MarkerType.ArrowClosed, color: previewColor, width: 12, height: 12 },
-        deletable: false,
-        focusable: false,
-        reconnectable: false,
-        selectable: false,
-        style: {
-          stroke: previewColor,
-          strokeWidth: 2.5,
-          strokeDasharray: '4 4'
-        }
-      })
-    }
     return list
-  }, [graph, pending])
+  }, [graph])
 
   const onConnect = useCallback(
     (c: Connection) => {
@@ -444,6 +418,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
           if (!o) setPending(null)
         }}
         scenarioLabel={pending === null ? '' : t(`router.${pending.scenario}`)}
+        kindLabel={pending === null ? '' : t(pending.kind === 'agent' ? 'router.agentRoute' : 'router.subagentRoute')}
         modelLabel={pending === null ? '' : modelLabel(pending.modelKey)}
         onChoose={applyPending}
       />

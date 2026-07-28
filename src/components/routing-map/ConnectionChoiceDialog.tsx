@@ -9,11 +9,12 @@
  *   - create a new predicated rule that routes to the dragged model
  *     under a condition the user then edits in the side panel.
  *
- * Rather than guessing, the drag pauses and this dialog surfaces
- * both choices explicitly. The chosen mutation is applied by the
- * caller so this component stays purely presentational.
+ * The FROM → TO summary at the top confirms which pair the choice
+ * will wire together, so the user doesn't have to remember what
+ * they dragged from and to across the dialog blocking the canvas.
  */
 
+import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,12 +32,14 @@ export function ConnectionChoiceDialog({
   open,
   onOpenChange,
   scenarioLabel,
+  kindLabel,
   modelLabel,
   onChoose
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   scenarioLabel: string
+  kindLabel: string
   modelLabel: string
   onChoose: (choice: ConnectionChoice) => void
 }) {
@@ -46,10 +49,27 @@ export function ConnectionChoiceDialog({
       <DialogContent className='sm:w-fit sm:max-w-[calc(100vw-4rem)]'>
         <DialogHeader>
           <DialogTitle>{t('routingMap.connect.title')}</DialogTitle>
-          <DialogDescription>
-            {t('routingMap.connect.description', { scenario: scenarioLabel, model: modelLabel })}
-          </DialogDescription>
+          <DialogDescription>{t('routingMap.connect.description')}</DialogDescription>
         </DialogHeader>
+        {/* FROM → TO summary so the choice below reads with a clear
+            subject even though the dialog covers the canvas. */}
+        <div className='flex items-center gap-3 rounded border bg-muted/40 px-3 py-2 text-xs'>
+          <div className='min-w-0 flex-1 space-y-0.5'>
+            <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
+              {t('routingMap.connect.from')}
+            </div>
+            <div className='truncate font-medium'>
+              {scenarioLabel} <span className='text-muted-foreground'>· {kindLabel}</span>
+            </div>
+          </div>
+          <ArrowRight className='h-4 w-4 shrink-0 text-muted-foreground' aria-hidden='true' />
+          <div className='min-w-0 flex-1 space-y-0.5'>
+            <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
+              {t('routingMap.connect.to')}
+            </div>
+            <div className='truncate font-mono font-medium'>{modelLabel}</div>
+          </div>
+        </div>
         <div className='flex flex-col gap-2'>
           <Button
             type='button'
