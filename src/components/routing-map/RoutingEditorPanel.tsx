@@ -164,7 +164,7 @@ export function RoutingEditorPanel({
   const { t } = useTranslation()
 
   return (
-    <div className='absolute inset-y-0 right-0 w-[32rem] space-y-3 overflow-y-auto border-l bg-background p-3 text-sm'>
+    <div className='absolute inset-y-0 right-0 w-[28rem] space-y-3 overflow-y-auto border-l bg-background p-3 text-sm'>
       <div className='flex items-start justify-between gap-2 border-b pb-2'>
         <div className='min-w-0 space-y-0.5'>
           <div className='font-medium'>{t(`router.${scenario}`)}</div>

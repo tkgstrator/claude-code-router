@@ -367,26 +367,31 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
         </Field>
 
         <Field label={t('router.rules.field.fallbacks')}>
-          <MultiCombobox
-            options={modelOptions}
-            value={rule.fallbacks}
-            onChange={(next) => patch({ fallbacks: next })}
-            placeholder={t('router.rules.field.fallbacksPlaceholder')}
-          />
+          {/* MultiCombobox ships with default h-9 shadcn Button sizing;
+              override to the h-7/text-xs the rest of this panel uses so
+              controls line up. Reaches the inner Button via arbitrary
+              variant so we don't have to fork the ui/ primitive. */}
+          <div className='[&_button]:h-7 [&_button]:text-xs [&_.font-normal]:text-xs'>
+            <MultiCombobox
+              options={modelOptions}
+              value={rule.fallbacks}
+              onChange={(next) => patch({ fallbacks: next })}
+              placeholder={t('router.rules.field.fallbacksPlaceholder')}
+            />
+          </div>
         </Field>
       </FieldGroup>
     </div>
   )
 }
 
-// Vertical label-above-input layout — the panel is narrow and inputs
-// need the whole width to breathe (Select triggers, MultiCombobox
-// badges, wrapped checkbox rows all fight for space). Two-column
-// (label | input) grids kept squeezing controls into unreadable widths.
+// Vertical label-above-input layout. All fields share the same label
+// typography (11px muted) and the same 28px control height so the
+// form matches the surrounding panel density.
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className='space-y-1'>
-      <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>{label}</div>
+    <div className='space-y-0.5'>
+      <div className='text-[11px] text-muted-foreground'>{label}</div>
       <div className='min-w-0'>{children}</div>
     </div>
   )
