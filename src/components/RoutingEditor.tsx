@@ -24,7 +24,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
 import { modelNameOf } from '@/lib/router/fallback-slots'
-import { addRule, connectModel, disconnectModel, emptyRule, setPersona } from '@/lib/routing-map/edit-actions'
+import {
+  addRule,
+  connectModel,
+  disconnectModel,
+  emptyRule,
+  removeRule,
+  setPersona
+} from '@/lib/routing-map/edit-actions'
 import {
   buildEditGraph,
   EDIT_SCENARIOS,
@@ -73,6 +80,21 @@ function kindFromEdge(edge: Edge): RouteKind {
     if (raw === 'subagent' || raw === 'agent') return raw
   }
   return edge.id.split('__').at(-2) === 'subagent' ? 'subagent' : 'agent'
+}
+
+// Pull the (origin, ruleIndex) an edge was built with so a context-menu
+// handler can distinguish "delete a catch-all wiring" from "delete a rule
+// row". Everything of interest lives on edge.data — the id is only used
+// as a last-ditch fallback for edges predating the data payload.
+function ruleContextFromEdge(edge: Edge): { origin: 'catch-all' | 'rule'; ruleIndex: number | null } {
+  const data = edge.data
+  if (data !== undefined && data !== null && typeof data === 'object') {
+    const origin = 'origin' in data ? data.origin : undefined
+    const ruleIndex = 'ruleIndex' in data ? data.ruleIndex : undefined
+    if (origin === 'rule' && typeof ruleIndex === 'number') return { origin, ruleIndex }
+    if (origin === 'catch-all') return { origin, ruleIndex: null }
+  }
+  return { origin: 'catch-all', ruleIndex: null }
 }
 
 // Human-friendly token count for the longContext threshold caption. Rounds
@@ -181,18 +203,29 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     setRouter((r) => disconnectModel(r, scenario, modelKey, kind))
   }, [])
 
+  const deleteRule = useCallback((scenario: EditScenario, kind: RouteKind, ruleIndex: number) => {
+    setRouter((r) => removeRule(r, scenario, kind, ruleIndex))
+  }, [])
+
   // Right-click an edge to delete it (alongside the Delete key and the
-  // reconnect-to-empty gesture). The edge's kind decides which route loses it.
+  // reconnect-to-empty gesture). Catch-all edges drop the model from the
+  // route's primary / fallback slot; rule edges drop the whole rule row
+  // from route.rules (the side panel's × button does the same thing).
   const onEdgeContextMenu = useCallback(
     (event: MouseEvent, edge: Edge) => {
       event.preventDefault()
       const scenario = scenarioFromNodeId(edge.source)
       const modelKey = modelKeyFromNodeId(edge.target)
-      if (scenario !== null && modelKey !== null && isEditScenario(scenario)) {
-        deleteEdge(scenario, modelKey, kindFromEdge(edge))
+      if (scenario === null || modelKey === null || !isEditScenario(scenario)) return
+      const kind = kindFromEdge(edge)
+      const { origin, ruleIndex } = ruleContextFromEdge(edge)
+      if (origin === 'rule' && ruleIndex !== null) {
+        deleteRule(scenario, kind, ruleIndex)
+      } else {
+        deleteEdge(scenario, modelKey, kind)
       }
     },
-    [deleteEdge]
+    [deleteEdge, deleteRule]
   )
 
   const edges = useMemo<Edge[]>(() => {
@@ -216,10 +249,11 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        // Pin the edge to its originating handle and stash the kind so
-        // delete/reconnect can route the mutation to the right route.
+        // Pin the edge to its originating handle and stash the kind /
+        // origin / ruleIndex so delete/reconnect can route the mutation
+        // to the right route (or the right rule row).
         sourceHandle: edge.kind,
-        data: { kind: edge.kind, origin: edge.origin },
+        data: { kind: edge.kind, origin: edge.origin, ruleIndex: edge.ruleIndex },
         label,
         labelShowBg: label !== undefined,
         labelBgPadding: [6, 3],
@@ -231,10 +265,11 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         labelStyle: { fill: color, fontSize: 11, fontWeight: 600 },
         labelBgStyle: { fill: 'var(--background)', opacity: 1, stroke: color, strokeWidth: 1 },
         markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
-        // Rule-owned edges are managed via the side panel — the map
-        // shows them for orientation only. Blocking delete /
-        // reconnect / focus keeps a stray right-click from silently
-        // orphaning a rule.
+        // Delete-key removal + drag-to-reconnect only apply to catch-all
+        // wiring; a rule edge is not a wire the user can rewire, it
+        // stands in for a whole rule row. Right-click still fires
+        // onEdgeContextMenu for both — that's how rule rows are dropped
+        // from the map (equivalent to the side panel's × button).
         deletable: edge.origin === 'catch-all',
         focusable: edge.origin === 'catch-all',
         reconnectable: edge.origin === 'catch-all',
