@@ -29,6 +29,8 @@ import {
   buildEditGraph,
   EDIT_SCENARIOS,
   type EditScenario,
+  editModelNodeId,
+  editScenarioNodeId,
   modelKeyFromNodeId,
   type RouteKind,
   scenarioFromNodeId
@@ -195,47 +197,70 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     [deleteEdge]
   )
 
-  const edges = useMemo<Edge[]>(
-    () =>
-      graph.edges.map((edge) => {
-        const color = strokeColorFor(edge.origin, edge.role)
-        // Fallback edges keep their chain-index label so the failover
-        // order stays readable at a glance ("1" → tried first, "2" →
-        // next, ...). Rule edges (primary + fallback) get no name
-        // label — the blue color already signals "rule-owned", and
-        // the rule body is edited in the side panel.
-        const label: string | undefined = edge.role === 'fallback' ? String(edge.order) : undefined
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          // Pin the edge to its originating handle and stash the kind so
-          // delete/reconnect can route the mutation to the right route.
-          sourceHandle: edge.kind,
-          data: { kind: edge.kind, origin: edge.origin },
-          label,
-          labelShowBg: label !== undefined,
-          labelBgPadding: [4, 2],
-          labelBgBorderRadius: 4,
-          labelStyle: { fill: 'var(--foreground)', fontSize: 10 },
-          labelBgStyle: { fill: 'var(--background)', opacity: 0.85 },
-          markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
-          // Rule-owned edges are managed via the side panel — the map
-          // shows them for orientation only. Blocking delete /
-          // reconnect / focus keeps a stray right-click from silently
-          // orphaning a rule.
-          deletable: edge.origin === 'catch-all',
-          focusable: edge.origin === 'catch-all',
-          reconnectable: edge.origin === 'catch-all',
-          style: {
-            stroke: color,
-            strokeWidth: edge.role === 'primary' ? 2 : 1.25,
-            strokeDasharray: strokeDashFor(edge.role, edge.kind)
-          }
+  const edges = useMemo<Edge[]>(() => {
+    const list: Edge[] = graph.edges.map((edge) => {
+      const color = strokeColorFor(edge.origin, edge.role)
+      // Fallback edges keep their chain-index label so the failover
+      // order stays readable at a glance ("1" → tried first, "2" →
+      // next, ...). Rule edges (primary + fallback) get no name
+      // label — the blue color already signals "rule-owned", and
+      // the rule body is edited in the side panel.
+      const label: string | undefined = edge.role === 'fallback' ? String(edge.order) : undefined
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        // Pin the edge to its originating handle and stash the kind so
+        // delete/reconnect can route the mutation to the right route.
+        sourceHandle: edge.kind,
+        data: { kind: edge.kind, origin: edge.origin },
+        label,
+        labelShowBg: label !== undefined,
+        labelBgPadding: [4, 2],
+        labelBgBorderRadius: 4,
+        labelStyle: { fill: 'var(--foreground)', fontSize: 10 },
+        labelBgStyle: { fill: 'var(--background)', opacity: 0.85 },
+        markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
+        // Rule-owned edges are managed via the side panel — the map
+        // shows them for orientation only. Blocking delete /
+        // reconnect / focus keeps a stray right-click from silently
+        // orphaning a rule.
+        deletable: edge.origin === 'catch-all',
+        focusable: edge.origin === 'catch-all',
+        reconnectable: edge.origin === 'catch-all',
+        style: {
+          stroke: color,
+          strokeWidth: edge.role === 'primary' ? 2 : 1.25,
+          strokeDasharray: strokeDashFor(edge.role, edge.kind)
         }
-      }),
-    [graph]
-  )
+      }
+    })
+    // Preview edge for the pending connection — shown while the
+    // fallback-vs-rule dialog is open so the user can see which
+    // scenario handle and which target model the choice will wire
+    // together. Rendered in a distinct amber / dashed style and
+    // non-interactive so a stray right-click can't try to delete it.
+    if (pending !== null) {
+      const previewColor = 'var(--color-amber-500)'
+      list.push({
+        id: `__pending__${pending.scenario}__${pending.kind}__${pending.modelKey}`,
+        source: editScenarioNodeId(pending.scenario),
+        target: editModelNodeId(pending.modelKey),
+        sourceHandle: pending.kind,
+        markerEnd: { type: MarkerType.ArrowClosed, color: previewColor, width: 12, height: 12 },
+        deletable: false,
+        focusable: false,
+        reconnectable: false,
+        selectable: false,
+        style: {
+          stroke: previewColor,
+          strokeWidth: 2.5,
+          strokeDasharray: '4 4'
+        }
+      })
+    }
+    return list
+  }, [graph, pending])
 
   const onConnect = useCallback(
     (c: Connection) => {
