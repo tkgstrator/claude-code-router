@@ -130,11 +130,9 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
   for (const scenario of EDIT_SCENARIOS) {
     for (const kind of ROUTE_KINDS) {
       const route = router[scenario][kind]
-      // Catch-all primary edge — the fallback catch-all is intentionally
-      // NOT drawn: fallbacks are a runtime failover chain, not a routing
-      // decision, so keeping them off the map matches the router's
-      // effective priority (scenario → rule → primary → passthrough,
-      // with fallback as an out-of-band 429 recovery mechanism).
+      // Catch-all primary + fallback edges — the same wiring users
+      // drag onto the canvas. Fallbacks stay visible so the drag
+      // gesture that appended them shows its result.
       if (route.primary !== null) {
         edges.push({
           id: `${editScenarioNodeId(scenario)}__${editModelNodeId(route.primary)}__${kind}__primary`,
@@ -150,9 +148,24 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
           ruleName: null
         })
       }
-      // Rule primary edges — one per rule that has a target. Rule
-      // fallback chains stay in the panel only for the same reason
-      // catch-all fallbacks don't get an edge.
+      route.fallbacks.forEach((fallback, index) => {
+        edges.push({
+          id: `${editScenarioNodeId(scenario)}__${editModelNodeId(fallback)}__${kind}__fb${index}`,
+          source: editScenarioNodeId(scenario),
+          target: editModelNodeId(fallback),
+          scenario,
+          modelKey: fallback,
+          kind,
+          origin: 'catch-all',
+          role: 'fallback',
+          order: index + 1,
+          ruleIndex: null,
+          ruleName: null
+        })
+      })
+      // Rule edges — primaries first, then each rule's own fallback
+      // chain. Ids include the rule index so React Flow treats
+      // sibling rule edges as distinct lines.
       route.rules.forEach((rule, ruleIndex) => {
         const ruleName = rule.name !== undefined && rule.name.length > 0 ? rule.name : null
         if (rule.primary !== null && rule.primary.length > 0) {
@@ -170,6 +183,21 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
             ruleName
           })
         }
+        rule.fallbacks.forEach((fallback, fbIndex) => {
+          edges.push({
+            id: `${editScenarioNodeId(scenario)}__${editModelNodeId(fallback)}__${kind}__r${ruleIndex}__fb${fbIndex}`,
+            source: editScenarioNodeId(scenario),
+            target: editModelNodeId(fallback),
+            scenario,
+            modelKey: fallback,
+            kind,
+            origin: 'rule',
+            role: 'fallback',
+            order: fbIndex + 1,
+            ruleIndex,
+            ruleName
+          })
+        })
       })
     }
   }
