@@ -13,24 +13,19 @@
  * primary/fallback controls use.
  */
 
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { MultiCombobox } from '@/components/ui/multi-combobox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { addRule, emptyRule, moveRule, removeRule, updateRule } from '@/lib/routing-map/edit-actions'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
+import { cn } from '@/lib/utils'
 import { EFFORT_LEVELS, REQUESTED_MODEL_TIERS, type RouteRule, type RouterConfig } from '@/schemas'
-
-// The three states the `thinking` predicate can be in from the UI's
-// perspective: unconstrained (undefined), required (true), forbidden
-// (false). Bound to a Select so the tri-state stays discoverable.
-const THINKING_UNSET = '__unset__'
-const THINKING_TRUE = 'true'
-const THINKING_FALSE = 'false'
 
 interface RuleEditorProps {
   scenario: EditScenario
@@ -212,9 +207,6 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
     patchWhen({ effort: next.length > 0 ? (next as [typeof level, ...(typeof level)[]]) : undefined })
   }
 
-  const thinkingValue: string =
-    rule.when.thinking === undefined ? THINKING_UNSET : rule.when.thinking ? THINKING_TRUE : THINKING_FALSE
-
   const modelOptions = modelKeys.map((k) => ({ value: k, label: modelLabel(k) }))
 
   return (
@@ -273,24 +265,21 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
         </Field>
 
         <Field label={t('router.rules.field.thinking')}>
-          <Select
-            value={thinkingValue}
-            onValueChange={(v) => {
-              if (v === THINKING_UNSET) patchWhen({ thinking: undefined })
-              else if (v === THINKING_TRUE) patchWhen({ thinking: true })
-              else patchWhen({ thinking: false })
-            }}
+          <PopoverSingle
+            value={rule.when.thinking === undefined ? undefined : rule.when.thinking ? 'true' : 'false'}
+            options={[
+              { value: '__unset__', label: t('router.rules.field.thinkingAny') },
+              { value: 'true', label: t('router.rules.field.thinkingRequired') },
+              { value: 'false', label: t('router.rules.field.thinkingForbidden') }
+            ]}
+            placeholder={t('router.rules.field.thinkingAny')}
+            searchable={false}
             disabled={readOnly}
-          >
-            <SelectTrigger className='w-full text-xs data-[size=default]:h-7 py-1! h-7!'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={THINKING_UNSET}>{t('router.rules.field.thinkingAny')}</SelectItem>
-              <SelectItem value={THINKING_TRUE}>{t('router.rules.field.thinkingRequired')}</SelectItem>
-              <SelectItem value={THINKING_FALSE}>{t('router.rules.field.thinkingForbidden')}</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={(v) => {
+              if (v === undefined || v === '__unset__') patchWhen({ thinking: undefined })
+              else patchWhen({ thinking: v === 'true' })
+            }}
+          />
         </Field>
 
         {/* Min / max tokens live on one row — they always describe a
@@ -325,45 +314,23 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
           </div>
         </Field>
 
-        <Field label={t('router.rules.field.hasTool')}>
-          <Input
-            className='h-7 text-xs font-mono'
-            value={rule.when.hasTool ?? ''}
-            onChange={(e) => patchWhen({ hasTool: e.target.value === '' ? undefined : e.target.value })}
-            disabled={readOnly}
-            placeholder='web_search_*'
-          />
-        </Field>
-
-        <Field label={t('router.rules.field.requestedModel')}>
-          <Input
-            className='h-7 text-xs font-mono'
-            value={rule.when.requestedModel ?? ''}
-            onChange={(e) => patchWhen({ requestedModel: e.target.value === '' ? undefined : e.target.value })}
-            disabled={readOnly}
-            placeholder='*haiku*'
-          />
-        </Field>
+        {/* `hasTool` and `requestedModel` (glob) predicates are still
+            supported in the wire schema — they just don't get a UI
+            surface. Advanced users edit them via the JSON editor or
+            API; the four cases above cover every predicate the map's
+            rule editor targets. */}
       </FieldGroup>
 
       <FieldGroup title={t('router.rules.target')}>
         <Field label={t('router.rules.field.primary')}>
-          <Select
-            value={rule.primary ?? ''}
-            onValueChange={(v) => patch({ primary: v === '' ? null : v })}
+          <PopoverSingle
+            value={rule.primary ?? undefined}
+            options={modelOptions}
+            placeholder={t('router.selectModel')}
+            searchable
             disabled={readOnly}
-          >
-            <SelectTrigger className='w-full text-xs data-[size=default]:h-7 py-1! h-7!'>
-              <SelectValue placeholder={t('router.selectModel')} />
-            </SelectTrigger>
-            <SelectContent>
-              {modelOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(v) => patch({ primary: v === undefined ? null : v })}
+          />
         </Field>
 
         <Field label={t('router.rules.field.fallbacks')}>
@@ -406,5 +373,72 @@ function FieldGroup({ title, children }: { title: string; children: React.ReactN
       <div className='text-[11px] font-semibold text-foreground'>{title}</div>
       {children}
     </div>
+  )
+}
+
+// Single-value picker built on Popover + Command, mirroring the
+// MultiCombobox pattern the fallback list uses. `undefined` means no
+// selection; the trigger shows `placeholder` in that state. When
+// `searchable=false` the CommandInput is dropped so short 3-item
+// enums (like the thinking tri-state) don't get an incongruous
+// search box.
+function PopoverSingle({
+  value,
+  options,
+  placeholder,
+  searchable,
+  disabled,
+  onChange
+}: {
+  value: string | undefined
+  options: readonly { value: string; label: string }[]
+  placeholder: string
+  searchable: boolean
+  disabled?: boolean
+  onChange: (next: string | undefined) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = value === undefined ? undefined : options.find((o) => o.value === value)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild disabled={disabled}>
+        <Button
+          type='button'
+          variant='outline'
+          role='combobox'
+          aria-expanded={open}
+          className='h-7 w-full justify-between px-2 text-xs font-normal'
+        >
+          <span className={cn('truncate', selected === undefined && 'text-muted-foreground')}>
+            {selected === undefined ? placeholder : selected.label}
+          </span>
+          <ChevronDown className='h-3 w-3 shrink-0 opacity-50' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className='w-[--radix-popover-trigger-width] p-0' align='start'>
+        <Command>
+          {searchable && <CommandInput placeholder='Search…' className='h-7 text-xs' />}
+          <CommandList>
+            <CommandEmpty>—</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  className='text-xs'
+                  onSelect={() => {
+                    onChange(option.value === value ? undefined : option.value)
+                    setOpen(false)
+                  }}
+                >
+                  <Check className={cn('mr-1.5 h-3 w-3', option.value === value ? 'opacity-100' : 'opacity-0')} />
+                  <span className='truncate'>{option.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
