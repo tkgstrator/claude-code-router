@@ -284,32 +284,23 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
 
         {/* Min / max tokens live on one row — they always describe a
             single interval, so aligning them side-by-side reads faster
-            than two separate labels stacked. */}
+            than two separate labels stacked. Values are edited in k
+            (thousands of tokens) so users type "60" instead of
+            "60000"; the wire schema still stores raw token counts, so
+            the display divides by 1000 on read and multiplies on save. */}
         <Field label={t('router.rules.field.tokens')}>
           <div className='grid grid-cols-2 gap-2'>
-            <Input
-              className='h-7 text-xs md:text-xs'
-              type='number'
-              min={0}
-              value={rule.when.minTokens ?? ''}
+            <TokensInput
+              value={rule.when.minTokens}
               placeholder={t('router.rules.field.minTokens')}
-              onChange={(e) => {
-                const v = e.target.valueAsNumber
-                patchWhen({ minTokens: Number.isFinite(v) ? v : undefined })
-              }}
               disabled={readOnly}
+              onChange={(v) => patchWhen({ minTokens: v })}
             />
-            <Input
-              className='h-7 text-xs md:text-xs'
-              type='number'
-              min={0}
-              value={rule.when.maxTokens ?? ''}
+            <TokensInput
+              value={rule.when.maxTokens}
               placeholder={t('router.rules.field.maxTokens')}
-              onChange={(e) => {
-                const v = e.target.valueAsNumber
-                patchWhen({ maxTokens: Number.isFinite(v) ? v : undefined })
-              }}
               disabled={readOnly}
+              onChange={(v) => patchWhen({ maxTokens: v })}
             />
           </div>
         </Field>
@@ -372,6 +363,45 @@ function FieldGroup({ title, children }: { title: string; children: React.ReactN
     <div className='space-y-2 border-t pt-2'>
       <div className='text-[11px] font-semibold text-foreground'>{title}</div>
       {children}
+    </div>
+  )
+}
+
+// Token-count input in "k" units. Stored values are raw token counts
+// (60000) but the visible number is thousands (60), which matches how
+// users think about context sizes. A small "k" hint sits inside the
+// input on the right so the unit is obvious without adding another
+// label. Empty input = undefined (no constraint).
+function TokensInput({
+  value,
+  placeholder,
+  disabled,
+  onChange
+}: {
+  value: number | undefined
+  placeholder: string
+  disabled?: boolean
+  onChange: (next: number | undefined) => void
+}) {
+  const displayed = value === undefined ? '' : value / 1000
+  return (
+    <div className='relative'>
+      <Input
+        className='h-7 pr-6 text-xs md:text-xs'
+        type='number'
+        min={0}
+        step={1}
+        value={displayed}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(e) => {
+          const v = e.target.valueAsNumber
+          onChange(Number.isFinite(v) ? Math.round(v * 1000) : undefined)
+        }}
+      />
+      <span className='pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground'>
+        k
+      </span>
     </div>
   )
 }
