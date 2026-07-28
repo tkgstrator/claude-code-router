@@ -13,13 +13,31 @@ const FallbackEntrySchema = z.string().nonempty()
 
 // Predicate for a routing rule. Empty object = always match (the
 // "catch-all" rule at the bottom of a rule stack); any populated field
-// narrows the match. `requestedModel` is a glob (`*` matches any run of
-// chars). Additional predicates (thinking / minTokens / hasTool /
-// subagent) will land as rule authoring gains UI surface — extending the
-// object is backward-compatible because omitted fields don't constrain.
+// narrows the match. All fields AND together — a rule with both
+// `requestedModel` and `thinking` set matches only when both hold.
+// Extending this object stays backward-compatible because omitted
+// fields simply don't constrain.
+//
+// - `requestedModel`: shell-style glob against the client's
+//   body.model. Anchored on both ends — `*haiku*` matches
+//   "claude-haiku-4-5", plain `haiku` does not.
+// - `thinking`: matches when `body.thinking` is truthy (true) or
+//   absent/falsy (false). Anthropic's thinking field is either
+//   `undefined` or an object; the check normalises to boolean.
+// - `minTokens` / `maxTokens`: inclusive bounds against the
+//   pre-classification token count (the same count the size-based
+//   longContext branch uses). Combines with `thinking` to hit
+//   "thinking-in-long-context" without adding a scenario.
+// - `hasTool`: shell-style glob against any tool's `type` field in
+//   `body.tools`. Useful for "if this request carries a
+//   web_search_* tool → route here".
 export const RulePredicateSchema = z
   .object({
-    requestedModel: z.string().nonempty().optional()
+    requestedModel: z.string().nonempty().optional(),
+    thinking: z.boolean().optional(),
+    minTokens: z.number().int().nonnegative().optional(),
+    maxTokens: z.number().int().nonnegative().optional(),
+    hasTool: z.string().nonempty().optional()
   })
   .openapi('RulePredicate')
 

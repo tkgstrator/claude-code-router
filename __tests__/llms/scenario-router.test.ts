@@ -258,6 +258,121 @@ test('selectModel: heavy escalation no-ops when the agent longContext route is u
   expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default', isSubagent: false, fallbacks: [] })
 })
 
+// ---- selectModel: rule predicates -----------------------------------
+
+test('selectModel: `thinking: true` predicate matches only when body.thinking is set', () => {
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet' },
+    agentRules: {
+      default: [
+        {
+          name: 'thinking-only',
+          when: { thinking: true },
+          primary: 'anthropic,claude-think',
+          fallbacks: []
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const withThinking = selectModel(
+    makeReq({ model: 'x', thinking: { type: 'enabled', budget_tokens: 1000 } }),
+    1000,
+    router,
+    config
+  )
+  expect(withThinking.model).toBe('anthropic,claude-think')
+  const withoutThinking = selectModel(makeReq({ model: 'x' }), 1000, router, config)
+  expect(withoutThinking.model).toBe('anthropic,claude-sonnet')
+})
+
+test('selectModel: minTokens/maxTokens predicates bracket the request size', () => {
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet' },
+    agentRules: {
+      default: [
+        {
+          name: 'mid-size',
+          when: { minTokens: 10_000, maxTokens: 100_000 },
+          primary: 'anthropic,claude-mid',
+          fallbacks: []
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  expect(selectModel(makeReq({ model: 'x' }), 5_000, router, config).model).toBe('anthropic,claude-sonnet')
+  expect(selectModel(makeReq({ model: 'x' }), 50_000, router, config).model).toBe('anthropic,claude-mid')
+  expect(selectModel(makeReq({ model: 'x' }), 200_000, router, config).model).toBe('anthropic,claude-sonnet')
+})
+
+test('selectModel: hasTool matches a web_search tool via glob', () => {
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet' },
+    agentRules: {
+      default: [
+        {
+          name: 'web-search',
+          when: { hasTool: 'web_search_*' },
+          primary: 'anthropic,claude-web',
+          fallbacks: []
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const withTool = selectModel(
+    makeReq({ model: 'x', tools: [{ type: 'web_search_20250305' }, { type: 'bash' }] }),
+    1000,
+    router,
+    config
+  )
+  expect(withTool.model).toBe('anthropic,claude-web')
+  const withoutTool = selectModel(makeReq({ model: 'x', tools: [{ type: 'bash' }] }), 1000, router, config)
+  expect(withoutTool.model).toBe('anthropic,claude-sonnet')
+})
+
+test('selectModel: multiple predicates AND together (thinking + minTokens = long-thinking)', () => {
+  // Classic "think + long context" ask: fire only when the request
+  // has thinking AND is above the long-context threshold. Rule sits
+  // on the longContext lane because the classifier picks it once the
+  // request crosses the size threshold.
+  const router = {
+    agent: {
+      default: 'anthropic,claude-sonnet',
+      longContext: 'anthropic,claude-opus'
+    },
+    agentRules: {
+      longContext: [
+        {
+          name: 'long-thinking',
+          when: { thinking: true, minTokens: 60_000 },
+          primary: 'anthropic,claude-fable',
+          fallbacks: []
+        }
+      ]
+    },
+    longContextThreshold: 60_000
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  // Above threshold + thinking → hits the rule
+  const hit = selectModel(
+    makeReq({ model: 'x', thinking: { type: 'enabled', budget_tokens: 1000 } }),
+    100_000,
+    router,
+    config
+  )
+  expect(hit).toEqual({
+    model: 'anthropic,claude-fable',
+    scenarioType: 'longContext',
+    isSubagent: false,
+    fallbacks: []
+  })
+  // Above threshold WITHOUT thinking → longContext catch-all
+  const miss = selectModel(makeReq({ model: 'x' }), 100_000, router, config)
+  expect(miss.model).toBe('anthropic,claude-opus')
+})
+
 // ---- selectModel: subagent route (tag presence, not value) ---------
 
 test('selectModel: a <CCR-SUBAGENT-MODEL> tag selects the subagent route (value ignored, tag stripped)', () => {

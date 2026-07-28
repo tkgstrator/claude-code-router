@@ -97,7 +97,7 @@ export function selectModel(
   // A matched rule overrides the catch-all primary AND supplies its own
   // fallback chain. Falls back to the request's own model when nothing
   // is configured.
-  const resolved = resolveTarget(router, kind, scenario, req)
+  const resolved = resolveTarget(router, kind, scenario, { req, tokenCount })
   const model = resolved?.primary ?? req.body.model
   const fallbacks = resolved?.fallbacks ?? []
   return { model, scenarioType: scenario, isSubagent, fallbacks }
@@ -129,6 +129,14 @@ function rulesFor(router: RouterConfig | undefined, kind: RouteKind, scenario: S
   return out
 }
 
+// Context available to predicate evaluation. All rule predicates read
+// through this shape so adding a new predicate never has to thread a
+// new argument through selectModel's call sites.
+interface RuleEvalContext {
+  req: RouterRequest
+  tokenCount: number
+}
+
 // Resolve the primary target for (scenario, kind, request): walk the
 // scenario's rule stack; the first rule whose predicate matches wins
 // and returns its `{primary, fallbacks}` pair. When no rule matches,
@@ -140,12 +148,12 @@ function resolveTarget(
   router: RouterConfig | undefined,
   kind: RouteKind,
   scenario: ScenarioType,
-  req: RouterRequest
+  ctx: RuleEvalContext
 ): { primary: string; fallbacks: string[] } | undefined {
   for (const rule of rulesFor(router, kind, scenario)) {
-    if (!matchesRule(rule, req)) continue
+    if (!matchesRule(rule, ctx)) continue
     if (typeof rule.primary === 'string' && rule.primary.length > 0) {
-      req.log.info({ rule: rule.name ?? '(unnamed)', scenario, kind }, 'Matched routing rule')
+      ctx.req.log.info({ rule: rule.name ?? '(unnamed)', scenario, kind }, 'Matched routing rule')
       return { primary: rule.primary, fallbacks: rule.fallbacks }
     }
     // Rule matched but has no primary — a legitimate "block escalation"
@@ -160,14 +168,29 @@ function resolveTarget(
   return { primary, fallbacks: Array.isArray(fallbacks) ? fallbacks : [] }
 }
 
-// Evaluate a rule's predicate against a request. An empty predicate
-// matches everything (catch-all rule). Missing fields on the predicate
-// are unconstrained; each populated field is an AND with the others.
-function matchesRule(rule: RouteRule, req: RouterRequest): boolean {
+// Evaluate a rule's predicate against the request context. An empty
+// predicate matches everything (catch-all rule). Missing fields on
+// the predicate are unconstrained; each populated field is an AND
+// with the others.
+function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
   const when = rule.when
-  const model = req.body.model
-  if (when.requestedModel !== undefined && !globMatch(when.requestedModel, model)) return false
+  const { req, tokenCount } = ctx
+  if (when.requestedModel !== undefined && !globMatch(when.requestedModel, req.body.model)) return false
+  if (when.thinking !== undefined && Boolean(req.body.thinking) !== when.thinking) return false
+  if (when.minTokens !== undefined && tokenCount < when.minTokens) return false
+  if (when.maxTokens !== undefined && tokenCount > when.maxTokens) return false
+  if (when.hasTool !== undefined && !hasMatchingTool(req.body.tools, when.hasTool)) return false
   return true
+}
+
+function hasMatchingTool(tools: unknown, pattern: string): boolean {
+  if (!Array.isArray(tools)) return false
+  for (const tool of tools) {
+    if (tool === null || typeof tool !== 'object') continue
+    const type: unknown = Reflect.get(tool, 'type')
+    if (typeof type === 'string' && globMatch(pattern, type)) return true
+  }
+  return false
 }
 
 // Match a shell-style glob against a string. `*` = any run of chars
