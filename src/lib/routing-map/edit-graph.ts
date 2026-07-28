@@ -42,6 +42,12 @@ export interface EditModelNode {
   position: { x: number; y: number }
 }
 
+// An edge on the editor graph. `source: 'catch-all'` covers the
+// scenario's top-level primary + fallback list — the wiring the map
+// has always drawn. `source: 'rule'` covers a predicated rule's own
+// primary + fallbacks; those get a distinct visual style (blue) so
+// the map can advertise "this target only fires when a rule matches"
+// without overloading the primary/fallback edges.
 export interface EditGraphEdge {
   id: string
   // scenario node id → model node id
@@ -51,10 +57,20 @@ export interface EditGraphEdge {
   modelKey: string
   // Which route (source handle) this edge leaves the scenario from.
   kind: RouteKind
+  // Whether the edge participates in the catch-all list or a rule.
+  origin: 'catch-all' | 'rule'
   // Whether this edge is the route's primary or a fallback chain entry.
   role: 'primary' | 'fallback'
   // Fallback position in the chain (1-based); 0 for the primary edge.
+  // For rule edges this is the rule's own chain index, not the
+  // scenario-level index.
   order: number
+  // Index of the owning rule in `route.rules`, or null for a
+  // catch-all edge. Kept so the UI can label / group rule edges.
+  ruleIndex: number | null
+  // The rule's `name` when `origin === 'rule'` — used as the edge
+  // label so the map surfaces which rule pinned this target.
+  ruleName: string | null
 }
 
 export interface EditGraph {
@@ -88,6 +104,13 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
       const route = router[scenario][kind]
       if (route.primary !== null) keys.add(route.primary)
       for (const fallback of route.fallbacks) keys.add(fallback)
+      // Rule targets participate in the model universe too, so a rule
+      // pointing at a model that's not otherwise referenced still gets
+      // a node instead of an "unknown target" gap.
+      for (const rule of route.rules) {
+        if (rule.primary !== null && rule.primary.length > 0) keys.add(rule.primary)
+        for (const fallback of rule.fallbacks) keys.add(fallback)
+      }
     }
   }
   const orderedKeys = [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
@@ -107,6 +130,11 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
   for (const scenario of EDIT_SCENARIOS) {
     for (const kind of ROUTE_KINDS) {
       const route = router[scenario][kind]
+      // Catch-all primary edge — the fallback catch-all is intentionally
+      // NOT drawn: fallbacks are a runtime failover chain, not a routing
+      // decision, so keeping them off the map matches the router's
+      // effective priority (scenario → rule → primary → passthrough,
+      // with fallback as an out-of-band 429 recovery mechanism).
       if (route.primary !== null) {
         edges.push({
           id: `${editScenarioNodeId(scenario)}__${editModelNodeId(route.primary)}__${kind}__primary`,
@@ -115,21 +143,33 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
           scenario,
           modelKey: route.primary,
           kind,
+          origin: 'catch-all',
           role: 'primary',
-          order: 0
+          order: 0,
+          ruleIndex: null,
+          ruleName: null
         })
       }
-      route.fallbacks.forEach((fallback, index) => {
-        edges.push({
-          id: `${editScenarioNodeId(scenario)}__${editModelNodeId(fallback)}__${kind}__fb${index}`,
-          source: editScenarioNodeId(scenario),
-          target: editModelNodeId(fallback),
-          scenario,
-          modelKey: fallback,
-          kind,
-          role: 'fallback',
-          order: index + 1
-        })
+      // Rule primary edges — one per rule that has a target. Rule
+      // fallback chains stay in the panel only for the same reason
+      // catch-all fallbacks don't get an edge.
+      route.rules.forEach((rule, ruleIndex) => {
+        const ruleName = rule.name !== undefined && rule.name.length > 0 ? rule.name : null
+        if (rule.primary !== null && rule.primary.length > 0) {
+          edges.push({
+            id: `${editScenarioNodeId(scenario)}__${editModelNodeId(rule.primary)}__${kind}__r${ruleIndex}__primary`,
+            source: editScenarioNodeId(scenario),
+            target: editModelNodeId(rule.primary),
+            scenario,
+            modelKey: rule.primary,
+            kind,
+            origin: 'rule',
+            role: 'primary',
+            order: 0,
+            ruleIndex,
+            ruleName
+          })
+        }
       })
     }
   }

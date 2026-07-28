@@ -44,11 +44,16 @@ const isEditScenario = (s: string): s is EditScenario => EDIT_SCENARIOS.some((x)
 // Radix Select needs a non-empty value; this sentinel maps to "no persona".
 const PERSONA_NONE = '__none__'
 
-// Edge color encodes the ROLE (primary vs fallback); the dash pattern
-// encodes the KIND (agent solid, subagent dotted) so a scenario's two
-// exits stay distinguishable regardless of role.
-const strokeColorFor = (role: 'primary' | 'fallback'): string =>
-  role === 'primary' ? 'var(--primary)' : 'var(--muted-foreground)'
+// Edge color encodes the ORIGIN (catch-all vs rule) and the ROLE
+// (primary vs fallback). Rule-owned edges get a distinctive blue so
+// the map advertises "this target only fires when a rule matches"
+// without overloading the catch-all wiring. Within each origin, the
+// primary is fully saturated and the fallbacks fade into muted.
+// Dash pattern still encodes the KIND (agent solid, subagent dotted).
+const strokeColorFor = (origin: 'catch-all' | 'rule', role: 'primary' | 'fallback'): string => {
+  if (origin === 'rule') return role === 'primary' ? 'var(--color-blue-500)' : 'var(--color-blue-400)'
+  return role === 'primary' ? 'var(--primary)' : 'var(--muted-foreground)'
+}
 const strokeDashFor = (role: 'primary' | 'fallback', kind: RouteKind): string | undefined =>
   role === 'fallback' ? '6 4' : kind === 'subagent' ? '2 4' : undefined
 
@@ -188,7 +193,17 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   const edges = useMemo<Edge[]>(
     () =>
       graph.edges.map((edge) => {
-        const color = strokeColorFor(edge.role)
+        const color = strokeColorFor(edge.origin, edge.role)
+        // Rule edges label with the rule name (or R# fallback so an
+        // unnamed rule still stands out from its siblings). Catch-all
+        // primary edges stay unlabelled — the map already reads
+        // "scenario → its model" without extra chrome.
+        const label =
+          edge.origin === 'rule'
+            ? edge.ruleName !== null
+              ? edge.ruleName
+              : `R${edge.ruleIndex !== null ? edge.ruleIndex + 1 : ''}`
+            : undefined
         return {
           id: edge.id,
           source: edge.source,
@@ -196,14 +211,21 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
           // Pin the edge to its originating handle and stash the kind so
           // delete/reconnect can route the mutation to the right route.
           sourceHandle: edge.kind,
-          data: { kind: edge.kind },
-          label: edge.role === 'fallback' ? String(edge.order) : undefined,
-          labelShowBg: edge.role === 'fallback',
+          data: { kind: edge.kind, origin: edge.origin },
+          label,
+          labelShowBg: label !== undefined,
           labelBgPadding: [4, 2],
           labelBgBorderRadius: 4,
           labelStyle: { fill: 'var(--foreground)', fontSize: 10 },
           labelBgStyle: { fill: 'var(--background)', opacity: 0.85 },
           markerEnd: { type: MarkerType.ArrowClosed, color, width: 11, height: 11 },
+          // Rule-owned edges are managed via the side panel — the map
+          // shows them for orientation only. Blocking delete /
+          // reconnect / focus keeps a stray right-click from silently
+          // orphaning a rule.
+          deletable: edge.origin === 'catch-all',
+          focusable: edge.origin === 'catch-all',
+          reconnectable: edge.origin === 'catch-all',
           style: {
             stroke: color,
             strokeWidth: edge.role === 'primary' ? 2 : 1.25,
