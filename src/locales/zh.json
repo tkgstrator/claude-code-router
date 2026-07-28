@@ -339,6 +339,10 @@
       "remove": "删除规则",
       "predicate": "条件",
       "target": "路由到",
+      "passthrough": "透传",
+      "passthroughPlaceholder": "透传",
+      "passthroughHint": "留空则不改写模型，请求按客户端指定的模型原样发送。",
+      "passthroughActive": "透传 — 命中的请求不做模型改写，直接发送。",
       "fallbacksCatchAll": "catch-all",
       "field": {
         "name": "名称",

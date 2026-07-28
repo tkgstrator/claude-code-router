@@ -1,6 +1,6 @@
 {
   "name": "@musistudio/claude-code-router",
-  "version": "2.39.3",
+  "version": "2.40.0",
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
     "dev": "vite --host --port 16175",
@@ -22,6 +22,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
+    "db:seed:demo": "bun run scripts/seed-demo-sessions.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "knip": "knip"
