@@ -139,22 +139,28 @@ interface RuleEvalContext {
 
 // Resolve the primary target for (scenario, kind, request): walk the
 // scenario's rule stack; the first rule whose predicate matches wins
-// and returns its `{primary, fallbacks}` pair. When no rule matches,
-// fall through to the scenario's catch-all `primary` (the FK-backed
-// column) + catch-all fallback chain. Returns undefined when neither a
-// matching rule nor a catch-all is configured, so selectModel can fall
-// back to `req.body.model` with an empty fallback chain.
+// and its `primary` becomes the target. The scenario's catch-all
+// fallback chain serves the failover on both rule-matched and
+// catch-all-matched requests — rules don't carry their own failover
+// list because users only need to manage one chain per scenario.
+// Returns undefined when neither a matching rule nor a catch-all is
+// configured, so selectModel can fall back to `req.body.model` with
+// an empty fallback chain.
 function resolveTarget(
   router: RouterConfig | undefined,
   kind: RouteKind,
   scenario: ScenarioType,
   ctx: RuleEvalContext
 ): { primary: string; fallbacks: string[] } | undefined {
+  const fallbacksMap = kind === 'subagent' ? router?.subagentFallbacks : router?.agentFallbacks
+  const scenarioFallbacks = fallbacksMap?.[scenario]
+  const catchAllFallbacks = Array.isArray(scenarioFallbacks) ? scenarioFallbacks : []
+
   for (const rule of rulesFor(router, kind, scenario)) {
     if (!matchesRule(rule, ctx)) continue
     if (typeof rule.primary === 'string' && rule.primary.length > 0) {
       ctx.req.log.info({ rule: rule.name ?? '(unnamed)', scenario, kind }, 'Matched routing rule')
-      return { primary: rule.primary, fallbacks: rule.fallbacks }
+      return { primary: rule.primary, fallbacks: catchAllFallbacks }
     }
     // Rule matched but has no primary — a legitimate "block escalation"
     // pattern (e.g. "for these requests, do NOT reroute"). Return
@@ -163,9 +169,7 @@ function resolveTarget(
   }
   const primary = primaryFor(router, kind, scenario)
   if (primary === undefined) return undefined
-  const fallbacksMap = kind === 'subagent' ? router?.subagentFallbacks : router?.agentFallbacks
-  const fallbacks = fallbacksMap?.[scenario]
-  return { primary, fallbacks: Array.isArray(fallbacks) ? fallbacks : [] }
+  return { primary, fallbacks: catchAllFallbacks }
 }
 
 // Evaluate a rule's predicate against the request context. An empty

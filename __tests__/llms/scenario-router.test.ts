@@ -225,18 +225,21 @@ test('selectModel: size-based longContext still wins when the request exceeds th
 test('selectModel: a rule matching a haiku glob overrides the default primary (was: haiku → background)', () => {
   // The former haiku→background lane is now a predicated rule on the
   // `default` scenario. A rule whose `when.requestedModel` glob matches
-  // "claude-haiku-4-5" wins over the catch-all default primary AND
-  // supplies its own fallback chain.
+  // "claude-haiku-4-5" wins over the catch-all default primary. The
+  // rule doesn't carry its own failover chain — the scenario's catch-
+  // all `agentFallbacks[default]` serves both catch-all and rule-
+  // matched requests.
   const provider = { ...claudeProvider, models: ['claude-haiku-4-5'] }
   const router = {
     agent: { default: 'anthropic,claude-sonnet' },
+    agentFallbacks: { default: ['codex,gpt-5'] },
     agentRules: {
       default: [
         {
           name: 'haiku',
           when: { requestedModel: '*haiku*' },
           primary: 'anthropic,claude-bg',
-          fallbacks: ['codex,gpt-5']
+          fallbacks: []
         }
       ]
     }

@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
-import { MultiCombobox } from '@/components/ui/multi-combobox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { addRule, emptyRule, moveRule, removeRule, updateRule } from '@/lib/routing-map/edit-actions'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
@@ -311,21 +310,11 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
             onChange={(v) => patch({ primary: v === undefined ? null : v })}
           />
         </Field>
-
-        <Field label={t('router.rules.field.fallbacks')}>
-          {/* MultiCombobox ships with default h-9 Button sizing; scope
-              the override to the trigger button via [role=combobox]
-              so the little "×" badge-remove buttons aren't blown up
-              to full-size, and keep the badges' text at 11px. */}
-          <div className='[&_[role=combobox]]:h-7 [&_[role=combobox]]:text-xs [&_[data-slot=badge]]:text-[11px]'>
-            <MultiCombobox
-              options={modelOptions}
-              value={rule.fallbacks}
-              onChange={(next) => patch({ fallbacks: next })}
-              placeholder={t('router.rules.field.fallbacksPlaceholder')}
-            />
-          </div>
-        </Field>
+        {/* Rules don't carry their own failover chain — a matched
+            rule's primary falls over to the scenario's catch-all
+            fallbacks (managed in the panel section above). Keeping
+            rules single-target keeps the priority order flat:
+            scenario → rule → primary → passthrough → fallback. */}
       </FieldGroup>
     </div>
   )

@@ -167,9 +167,10 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
           ruleName: null
         })
       })
-      // Rule edges — primaries first, then each rule's own fallback
-      // chain. Ids include the rule index so React Flow treats
-      // sibling rule edges as distinct lines.
+      // Rule edges — one per rule primary. Rules don't have their
+      // own fallback chain (the scenario's catch-all handles
+      // failover for both catch-all and rule-matched requests), so
+      // no rule-fallback edges are drawn.
       route.rules.forEach((rule, ruleIndex) => {
         const ruleName = rule.name !== undefined && rule.name.length > 0 ? rule.name : null
         if (rule.primary !== null && rule.primary.length > 0) {
@@ -187,21 +188,6 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
             ruleName
           })
         }
-        rule.fallbacks.forEach((fallback, fbIndex) => {
-          edges.push({
-            id: `${editScenarioNodeId(scenario)}__${editModelNodeId(fallback)}__${kind}__r${ruleIndex}__fb${fbIndex}`,
-            source: editScenarioNodeId(scenario),
-            target: editModelNodeId(fallback),
-            scenario,
-            modelKey: fallback,
-            kind,
-            origin: 'rule',
-            role: 'fallback',
-            order: fbIndex + 1,
-            ruleIndex,
-            ruleName
-          })
-        })
       })
     }
   }

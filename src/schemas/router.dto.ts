@@ -70,12 +70,20 @@ export const RulePredicateSchema = z
   })
   .openapi('RulePredicate')
 
-// A single routing rule: a predicate over the incoming request plus the
-// primary+fallbacks to route to when the predicate matches. `name` is a
-// UI-only label. Rules are evaluated in the order they appear in the
-// enclosing route target; first match wins. If no rule matches (or a
-// route target carries no rules), the target's top-level `primary` +
-// `fallbacks` act as the catch-all.
+// A single routing rule: a predicate over the incoming request plus
+// the primary to route to when the predicate matches. `name` is a
+// UI-only label (dropped from the editor but preserved in the schema
+// so the boot migration + existing configs round-trip unchanged).
+// Rules are evaluated in the order they appear in the enclosing route
+// target; first match wins. If no rule matches (or a route target
+// carries no rules), the target's top-level `primary` + `fallbacks`
+// act as the catch-all. When a rule DOES match, its `primary` is the
+// new target and the scenario's catch-all `fallbacks` still serve as
+// the failover chain — rules deliberately don't carry their own
+// fallback list so users only manage a single failover chain per
+// scenario. `fallbacks` remains on the object for schema
+// backward-compatibility with configs the pre-drop editor wrote; the
+// runtime evaluator ignores it.
 export const RouteRuleSchema = z
   .object({
     name: z.string().optional(),

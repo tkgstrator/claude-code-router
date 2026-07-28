@@ -201,15 +201,16 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
       // Label encodes the priority the runtime evaluates in:
       //   - catch-all fallback → `1`, `2`, ... (failover chain index)
       //   - rule primary       → `R1`, `R2`, ... (rule stack index)
-      //   - rule fallback      → `R1.1`, `R1.2`, ... (rule + its chain)
       // Catch-all primary stays unlabelled — the map's default arrow
-      // already reads as "this scenario's primary" without extra chrome.
+      // already reads as "this scenario's primary" without extra
+      // chrome. Rules don't emit fallback edges, so there's no
+      // rule-fallback label form.
       const label = ((): string | undefined => {
         if (edge.origin === 'catch-all') {
           return edge.role === 'fallback' ? String(edge.order) : undefined
         }
         const rank = edge.ruleIndex !== null ? edge.ruleIndex + 1 : 0
-        return edge.role === 'primary' ? `R${rank}` : `R${rank}.${edge.order}`
+        return `R${rank}`
       })()
       return {
         id: edge.id,
