@@ -260,6 +260,75 @@ test('selectModel: heavy escalation no-ops when the agent longContext route is u
 
 // ---- selectModel: rule predicates -----------------------------------
 
+test('selectModel: `requestedTier` matches the family the request model tiers into', () => {
+  // requestedTier is what the UI exposes as a 4-choice checkbox
+  // (fable / opus / sonnet / haiku). Internally it tiers the request
+  // model with a substring match, so any Haiku version matches
+  // regardless of the -N-N suffix.
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet' },
+    agentRules: {
+      default: [
+        {
+          name: 'haiku-only',
+          when: { requestedTier: ['haiku'] as const },
+          primary: 'anthropic,claude-bg',
+          fallbacks: []
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  expect(selectModel(makeReq({ model: 'claude-haiku-4-5' }), 1000, router, config).model).toBe('anthropic,claude-bg')
+  expect(selectModel(makeReq({ model: 'claude-haiku-3-5' }), 1000, router, config).model).toBe('anthropic,claude-bg')
+  expect(selectModel(makeReq({ model: 'claude-sonnet-4-6' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
+  expect(selectModel(makeReq({ model: 'claude-opus-4-7' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
+})
+
+test('selectModel: `requestedTier` accepts multiple tiers (IN semantics)', () => {
+  // Ticking three tiers is a NOT-IN of the remaining one. Here
+  // "fable / opus / sonnet" catches everything except haiku so a
+  // haiku request stays on the catch-all.
+  const router = {
+    agent: { default: 'anthropic,claude-haiku' },
+    agentRules: {
+      default: [
+        {
+          name: 'anything-but-haiku',
+          when: { requestedTier: ['fable', 'opus', 'sonnet'] as const },
+          primary: 'anthropic,claude-heavy',
+          fallbacks: []
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  expect(selectModel(makeReq({ model: 'claude-sonnet-4-6' }), 1000, router, config).model).toBe('anthropic,claude-heavy')
+  expect(selectModel(makeReq({ model: 'claude-opus-4-7' }), 1000, router, config).model).toBe('anthropic,claude-heavy')
+  expect(selectModel(makeReq({ model: 'claude-fable-x' }), 1000, router, config).model).toBe('anthropic,claude-heavy')
+  expect(selectModel(makeReq({ model: 'claude-haiku-4-5' }), 1000, router, config).model).toBe('anthropic,claude-haiku')
+})
+
+test('selectModel: `requestedTier` on an untierable model (gpt-*) falls through', () => {
+  // A model name that doesn't include any of the four tier keywords
+  // extracts to undefined, so a requestedTier predicate can never
+  // match it — the request falls through to the catch-all.
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet' },
+    agentRules: {
+      default: [
+        {
+          when: { requestedTier: ['sonnet'] as const },
+          primary: 'anthropic,claude-alt',
+          fallbacks: []
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  expect(selectModel(makeReq({ model: 'gpt-5' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
+})
+
 test('selectModel: `thinking: true` predicate matches only when body.thinking is set', () => {
   const router = {
     agent: { default: 'anthropic,claude-sonnet' },

@@ -17,7 +17,7 @@
  *      migration `20260728_router_rules_drop_background`).
  */
 
-import type { RouteRule, ScenarioType } from '@/schemas'
+import type { RequestedModelTier, RouteRule, ScenarioType } from '@/schemas'
 import { RouteRuleSchema } from '@/schemas'
 import type { ConfigStore } from '../registry/config'
 import type { RouterConfig, RouterRequest, RouterRequestBody } from './types'
@@ -175,12 +175,31 @@ function resolveTarget(
 function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
   const when = rule.when
   const { req, tokenCount } = ctx
+  if (when.requestedTier !== undefined) {
+    const tier = tierOf(req.body.model)
+    if (tier === undefined || !when.requestedTier.includes(tier)) return false
+  }
   if (when.requestedModel !== undefined && !globMatch(when.requestedModel, req.body.model)) return false
   if (when.thinking !== undefined && Boolean(req.body.thinking) !== when.thinking) return false
   if (when.minTokens !== undefined && tokenCount < when.minTokens) return false
   if (when.maxTokens !== undefined && tokenCount > when.maxTokens) return false
   if (when.hasTool !== undefined && !hasMatchingTool(req.body.tools, when.hasTool)) return false
   return true
+}
+
+// Bucket a model string into one of the four CC families. Case-
+// insensitive substring match: `claude-opus-4-7` → 'opus', `gpt-5` →
+// undefined. Order matters — `fable` is checked before `opus` because
+// a hypothetical `claude-fable-opus-mix` string should still tier to
+// fable (the family the user explicitly asked for).
+function tierOf(model: string): RequestedModelTier | undefined {
+  if (typeof model !== 'string') return undefined
+  const lower = model.toLowerCase()
+  if (lower.includes('fable')) return 'fable'
+  if (lower.includes('opus')) return 'opus'
+  if (lower.includes('sonnet')) return 'sonnet'
+  if (lower.includes('haiku')) return 'haiku'
+  return undefined
 }
 
 function hasMatchingTool(tools: unknown, pattern: string): boolean {

@@ -11,16 +11,32 @@ import { EmptyStringToNullSchema } from './common.dto'
 // downstream (applyRouter / the UI option filter), not here.
 const FallbackEntrySchema = z.string().nonempty()
 
+// The four families of Claude models CC (and everything upstream of
+// CCR that speaks the Anthropic wire format) actually sends: fable,
+// opus, sonnet, haiku. The tier is derived from the requested model
+// name with case-insensitive substring matching, so `claude-opus-4-7`
+// tiers to `opus` regardless of version suffix. This is the vocabulary
+// the UI's rule editor should expose — the underlying string match
+// is an implementation detail.
+export const REQUESTED_MODEL_TIERS = ['fable', 'opus', 'sonnet', 'haiku'] as const
+export type RequestedModelTier = (typeof REQUESTED_MODEL_TIERS)[number]
+
 // Predicate for a routing rule. Empty object = always match (the
 // "catch-all" rule at the bottom of a rule stack); any populated field
 // narrows the match. All fields AND together — a rule with both
-// `requestedModel` and `thinking` set matches only when both hold.
+// `requestedTier` and `thinking` set matches only when both hold.
 // Extending this object stays backward-compatible because omitted
 // fields simply don't constrain.
 //
+// - `requestedTier`: matches when the request's model tiers into one
+//   of the listed families (fable / opus / sonnet / haiku). The
+//   4-choice enum is what the UI editor presents; a rule with three
+//   tiers ticked is a NOT-IN of the remaining tier.
 // - `requestedModel`: shell-style glob against the client's
-//   body.model. Anchored on both ends — `*haiku*` matches
-//   "claude-haiku-4-5", plain `haiku` does not.
+//   body.model (advanced / legacy escape hatch). Anchored on both
+//   ends — `*haiku*` matches "claude-haiku-4-5", plain `haiku` does
+//   not. Not surfaced in the UI; kept so the boot migration and
+//   power users can still write exact-match rules.
 // - `thinking`: matches when `body.thinking` is truthy (true) or
 //   absent/falsy (false). Anthropic's thinking field is either
 //   `undefined` or an object; the check normalises to boolean.
@@ -33,6 +49,7 @@ const FallbackEntrySchema = z.string().nonempty()
 //   web_search_* tool → route here".
 export const RulePredicateSchema = z
   .object({
+    requestedTier: z.array(z.enum(REQUESTED_MODEL_TIERS)).nonempty().optional(),
     requestedModel: z.string().nonempty().optional(),
     thinking: z.boolean().optional(),
     minTokens: z.number().int().nonnegative().optional(),
