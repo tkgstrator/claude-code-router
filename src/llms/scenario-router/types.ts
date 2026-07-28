@@ -42,6 +42,14 @@ export type RouterRequest = {
   // <CCR-SUBAGENT-MODEL> tag, so the pipeline routes and fails over on the
   // scenario's `subagent` route instead of the `agent` route.
   isSubagent?: boolean
+  // Set by selectModel: the fallback chain to walk for this request. When
+  // a route rule matched, this holds the rule's own fallbacks; otherwise
+  // it holds the scenario's catch-all chain. Both the proactive
+  // (applyProactiveFailover) and reactive (buildFailoverChain) failover
+  // paths read this rather than re-deriving the chain by scenario, so a
+  // rule-selected primary walks the rule-owned chain instead of the
+  // scenario default.
+  resolvedFallbacks?: string[]
 }
 
 export type RouterContext = {

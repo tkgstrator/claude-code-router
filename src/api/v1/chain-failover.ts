@@ -18,7 +18,7 @@
 
 import type { Context } from 'hono'
 import { type LlmsContext, subscriptionKindOf } from '../../llms'
-import { isAccountExhausted, markAccountExhausted, markProviderExhausted } from '../../services/failover-state'
+import { isAccountExhausted, markAccountExhausted, markModelExhausted } from '../../services/failover-state'
 import { getActiveAccountForSession, releaseAccountForSession } from '../../services/session-account-router'
 import {
   type AccountUsageMap,
@@ -113,8 +113,15 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
     if (await tryRotateAccount(chain, inv, triedAccounts)) continue
 
     // Provider has no rotatable accounts left (or this isn't a
-    // subscription provider): mark the provider exhausted and move on.
-    markProviderExhausted(inv.provider.name)
+    // subscription provider): mark THIS model exhausted (not the whole
+    // provider) so a same-provider fallback on a different model — the
+    // classic Fable→Opus intra-account rescue — is still reachable.
+    // isModelExhausted() consults both the model-scoped mark and the
+    // coarser provider-scoped mark, so an explicit provider mark from
+    // elsewhere still short-circuits every model. `inv.request.model`
+    // is only optional at the type level (Anthropic pipeline can drop
+    // it); when absent we can't mark a specific model, so skip.
+    if (inv.request.model !== undefined) markModelExhausted(inv.provider.name, inv.request.model)
     ctx.log.warn(
       { provider: inv.provider.name, model: inv.request.model, scenario: plan.scenarioType },
       'rate limited; failing over to next fallback model'

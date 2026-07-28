@@ -60,7 +60,17 @@
     "editMode": "编辑",
     "editNoPrimary": "未设置主模型",
     "editFallbacks": "回退",
-    "editPrimary": "主模型"
+    "editPrimary": "主模型",
+    "connect": {
+      "title": "添加连接",
+      "description": "该路由已配置主模型。这个连接应该如何添加?",
+      "from": "起点",
+      "to": "终点",
+      "asFallback": "作为 fallback 添加",
+      "asFallbackHelp": "当主模型限流时使用。追加到 failover 链尾。",
+      "asRule": "作为新规则添加",
+      "asRuleHelp": "谓词匹配时路由到该模型。在侧边栏编辑详情。"
+    }
   },
   "usage": {
     "title": "用量",
@@ -314,7 +324,40 @@
     "fallbacksDescription": "当主模型达到速率限制时（使用率过高时主动切换，或收到 429 时）按顺序尝试。限制重置后自动切回主模型。",
     "persona": "当前人设",
     "personaNone": "无 / 关闭",
-    "personaHelper": "追加到该路由的面向用户的请求（不含后台）。请在人设页面定义人设。"
+    "personaHelper": "追加到该路由的面向用户的请求（不含后台）。请在人设页面定义人设。",
+    "rules": {
+      "title": "规则",
+      "add": "添加规则",
+      "empty": "无规则 — 由 catch-all 主模型处理所有请求。",
+      "matchesAll": "匹配全部",
+      "unnamed": "(未命名规则)",
+      "expand": "展开规则",
+      "collapse": "折叠规则",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "remove": "删除规则",
+      "predicate": "条件",
+      "target": "路由到",
+      "fallbacksCatchAll": "catch-all",
+      "field": {
+        "name": "名称",
+        "namePlaceholder": "例如: haiku → 轻量车道",
+        "requestedTier": "请求 tier",
+        "effort": "Effort",
+        "thinking": "Thinking",
+        "thinkingAny": "任意 (无约束)",
+        "thinkingRequired": "必须",
+        "thinkingForbidden": "禁止",
+        "tokens": "Token 范围",
+        "minTokens": "最小",
+        "maxTokens": "最大",
+        "hasTool": "工具 (glob)",
+        "requestedModel": "请求模型 (glob)",
+        "primary": "主模型",
+        "fallbacks": "降级",
+        "fallbacksPlaceholder": "添加降级模型…"
+      }
+    }
   },
   "json_editor": {
     "title": "JSON 编辑器",

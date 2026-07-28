@@ -5,7 +5,12 @@
 
 import { createRoute } from '@hono/zod-openapi'
 import { getPrismaClient } from '../../db/client'
-import { SessionIdParamSchema, SessionLogsResponseSchema, SessionMessagesResponseSchema } from '../../schemas'
+import {
+  SessionIdParamSchema,
+  SessionLogsResponseSchema,
+  SessionMessagesQuerySchema,
+  SessionMessagesResponseSchema
+} from '../../schemas'
 import { buildPriceMap, computeCosts } from '../../services/cost-service'
 import { requestLogsRoute } from './app'
 
@@ -24,15 +29,18 @@ const getSessionLogsRoute = createRoute({
 })
 
 // ── GET /api/request-logs/sessions/:sessionId/messages ───────────────────────
-// Archived chat messages for a session, oldest-first so the client can render
-// them top-to-bottom like a chat log. Populated by the pipeline hook that
+// Archived chat messages for a session. Cursor-paginated newest-first from
+// the server's view but returned in ascending order so the client can render
+// them top-to-bottom like a chat log. The client fetches the newest window
+// first (no `before`), then requests older windows by passing the id of the
+// oldest message currently in view. Populated by the pipeline hook that
 // captures the last user block on request send and the assembled assistant
 // blocks after the response stream completes.
 
 const getSessionMessagesRoute = createRoute({
   method: 'get',
   path: '/api/request-logs/sessions/:sessionId/messages',
-  request: { params: SessionIdParamSchema },
+  request: { params: SessionIdParamSchema, query: SessionMessagesQuerySchema },
   responses: {
     200: {
       description: 'Archived chat messages for the session, oldest first.',
@@ -61,17 +69,31 @@ requestLogsRoute.openapi(getSessionLogsRoute, async (c) => {
 
 requestLogsRoute.openapi(getSessionMessagesRoute, async (c) => {
   const { sessionId } = c.req.valid('param')
+  const { limit, before } = c.req.valid('query')
   const prisma = getPrismaClient()
+
+  // Descending walk from the newest end so pagination is anchored to the
+  // most recent activity — matches how the client mounts the view (bottom
+  // of the chat) and scrolls upward for history.
+  // Composite (createdAt, id) order makes the cursor stable when two rows
+  // share a timestamp.
   const rows = await prisma.message.findMany({
     where: { sessionId },
-    orderBy: { createdAt: 'asc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    ...(before ? { cursor: { id: before }, skip: 1 } : {}),
+    take: limit + 1,
     select: { id: true, role: true, content: true, createdAt: true }
   })
-  const items = rows.map((r) => ({
+
+  const hasMoreOlder = rows.length > limit
+  const page = hasMoreOlder ? rows.slice(0, limit) : rows
+  // Reverse to ascending so the client can render top-to-bottom.
+  const items = [...page].reverse().map((r) => ({
     id: r.id,
     role: r.role,
     content: r.content,
     createdAt: r.createdAt.toISOString()
   }))
-  return c.json({ items }, 200)
+  const nextCursor = hasMoreOlder && items.length > 0 ? items[0].id : null
+  return c.json({ items, nextCursor }, 200)
 })

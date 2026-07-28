@@ -92,8 +92,21 @@ export const SessionMessageItemSchema = z.object({
   createdAt: z.string()
 })
 
+// Cursor pagination for a session's messages. The client fetches the
+// newest window first (no cursor), then pages older-and-older by passing
+// `before` = the id of the oldest message currently in view.
+export const SessionMessagesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  before: z.string().nonempty().optional()
+})
+
 export const SessionMessagesResponseSchema = z.object({
-  items: z.array(SessionMessageItemSchema)
+  // Ascending by createdAt so the client can render top-to-bottom.
+  items: z.array(SessionMessageItemSchema),
+  // Id of the OLDEST message returned in this page, iff older history
+  // remains. Pass it back as `before` to fetch the next older window.
+  // Null when the page reached the beginning of the session.
+  nextCursor: z.string().nullable()
 })
 
 // ─── Model-routing report ──────────────────────────────────────────────

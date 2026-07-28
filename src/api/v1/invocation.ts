@@ -13,7 +13,7 @@
  */
 
 import type { Context } from 'hono'
-import { type FlatRouter, type PipelineRequest, type Provider, RecordSchema } from '@/schemas'
+import { type PipelineRequest, type Provider, RecordSchema } from '@/schemas'
 import {
   type LlmsContext,
   type ResolvedProvider,
@@ -22,7 +22,7 @@ import {
   type ScenarioType,
   type Transformer
 } from '../../llms'
-import { isProviderExhausted } from '../../services/failover-state'
+import { isModelExhausted } from '../../services/failover-state'
 
 // ─── Reasoning-effort normalisation ────────────────────────────────────
 
@@ -118,6 +118,11 @@ export interface RoutePlan {
   // scenario's subagent route (vs agent) for the reactive failover chain,
   // so it matches the route selectModel used for the primary.
   isSubagent: boolean
+  // Pre-resolved fallback chain: either a rule's own fallbacks (when a
+  // route rule matched inside selectModel) or the scenario's catch-all
+  // chain. buildFailoverChain reads this rather than re-looking-up so
+  // the reactive path walks the same chain the proactive path did.
+  fallbacks: readonly string[]
   path: string
   search: string
 }
@@ -190,6 +195,11 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     primaryModel,
     requestedModel,
     isSubagent: routeReq.isSubagent === true,
+    // The fallback chain selectModel resolved for this request — a rule's
+    // own chain when a route rule fired, otherwise the scenario's
+    // catch-all. buildFailoverChain reads this directly so the reactive
+    // path walks the same chain the proactive path did.
+    fallbacks: Array.isArray(routeReq.resolvedFallbacks) ? routeReq.resolvedFallbacks : [],
     path,
     search: url.search
   }
@@ -263,34 +273,28 @@ export function resolveInvocationForModel(
 }
 
 const providerNameOf = (modelString: string): string => modelString.split(',')[0]
+const modelNameOf = (modelString: string): string => modelString.split(',').slice(1).join(',')
 
 // Ordered list of "provider,model" candidates for this request: the
-// scenario's primary first, then its configured fallback chain. Skips
-// providers currently known to be rate-limited, but never returns empty
-// — if every candidate is exhausted we still try them (the window may
-// have reset since we last marked it).
+// resolved primary first, then the pre-computed fallback chain. Skips
+// candidates currently known to be rate-limited (by model or by
+// provider), but never returns empty — if every candidate is exhausted
+// we still try them (the window may have reset since we marked it).
 //
-// Two gates filter the configured fallbacks:
+// One filter gate remains on the fallback list:
 //
-//   1. auth_mode gate: when the primary is a subscription provider,
-//      fallbacks are constrained to other subscription providers — a
-//      429 on the user's "free seat" must not silently roll onto an
-//      api_key provider that costs per-token.
-//   2. same-provider gate: fallbacks on the SAME provider as the primary
-//      are dropped — the 5h/weekly quota windows are per-account, so a
-//      different model on the same provider would 429 against the same
-//      exhausted accounts. Real redundancy lives on a DIFFERENT provider.
+//   auth_mode gate: when the primary is a subscription provider,
+//   fallbacks are constrained to other subscription providers — a 429
+//   on the user's "free seat" must not silently roll onto an api_key
+//   provider that costs per-token.
 //
-// applyUiConfig already drops same-provider fallbacks at save time; this
-// is the defence-in-depth for configs persisted before the validation
-// landed.
+// The same-provider gate that used to sit here has been removed: quota
+// exhaustion is now tracked per (provider, model), so a different
+// model on the same provider (Fable → Opus on the same Anthropic
+// account, whose 5h/weekly windows are per-model) is a legitimate
+// fallback target.
 export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] {
-  const router = ctx.config.get<FlatRouter>('Router')
-  // Read the fallback chain for the SELECTED route (agent vs subagent) so a
-  // reactive 429 walks the same chain the subagent/agent primary came from.
-  const fallbacksMap = plan.isSubagent ? router?.subagentFallbacks : router?.agentFallbacks
-  const configured = fallbacksMap?.[plan.scenarioType]
-  const fallbacks = Array.isArray(configured) ? configured : []
+  const fallbacks = plan.fallbacks
 
   const providers = ctx.config.get<Provider[]>('providers', [])
   const authModeByName = new Map(providers.map((p) => [p.name, p.auth_mode]))
@@ -303,9 +307,6 @@ export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] 
     seen.add(m)
     if (m === plan.primaryModel) return true
     const name = providerNameOf(m)
-    // Same-provider fallbacks share the failing provider's exhaust state
-    // — they cannot recover from a quota 429. Drop unconditionally.
-    if (name === primaryName) return false
     // Same-mode fallbacks only when primary auth_mode is known.
     // Unknown-auth providers (e.g. typo'd fallback entries) pass through
     // and surface their own "provider not found" warn downstream.
@@ -314,6 +315,6 @@ export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] 
     return true
   })
 
-  const live = ordered.filter((m) => !isProviderExhausted(providerNameOf(m)))
+  const live = ordered.filter((m) => !isModelExhausted(providerNameOf(m), modelNameOf(m)))
   return live.length > 0 ? live : ordered
 }
