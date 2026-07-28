@@ -13,7 +13,7 @@
  */
 
 import type { Context } from 'hono'
-import { type FlatRouter, type PipelineRequest, type Provider, RecordSchema } from '@/schemas'
+import { type PipelineRequest, type Provider, RecordSchema } from '@/schemas'
 import {
   type LlmsContext,
   type ResolvedProvider,
@@ -118,6 +118,11 @@ export interface RoutePlan {
   // scenario's subagent route (vs agent) for the reactive failover chain,
   // so it matches the route selectModel used for the primary.
   isSubagent: boolean
+  // Pre-resolved fallback chain: either a rule's own fallbacks (when a
+  // route rule matched inside selectModel) or the scenario's catch-all
+  // chain. buildFailoverChain reads this rather than re-looking-up so
+  // the reactive path walks the same chain the proactive path did.
+  fallbacks: readonly string[]
   path: string
   search: string
 }
@@ -190,6 +195,11 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     primaryModel,
     requestedModel,
     isSubagent: routeReq.isSubagent === true,
+    // The fallback chain selectModel resolved for this request — a rule's
+    // own chain when a route rule fired, otherwise the scenario's
+    // catch-all. buildFailoverChain reads this directly so the reactive
+    // path walks the same chain the proactive path did.
+    fallbacks: Array.isArray(routeReq.resolvedFallbacks) ? routeReq.resolvedFallbacks : [],
     path,
     search: url.search
   }
@@ -285,12 +295,10 @@ const providerNameOf = (modelString: string): string => modelString.split(',')[0
 // is the defence-in-depth for configs persisted before the validation
 // landed.
 export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] {
-  const router = ctx.config.get<FlatRouter>('Router')
-  // Read the fallback chain for the SELECTED route (agent vs subagent) so a
-  // reactive 429 walks the same chain the subagent/agent primary came from.
-  const fallbacksMap = plan.isSubagent ? router?.subagentFallbacks : router?.agentFallbacks
-  const configured = fallbacksMap?.[plan.scenarioType]
-  const fallbacks = Array.isArray(configured) ? configured : []
+  // Use the fallbacks selectModel pre-resolved (rule-owned when a route
+  // rule matched, catch-all scenario chain otherwise). The reactive
+  // path stays symmetric with the proactive path.
+  const fallbacks = plan.fallbacks
 
   const providers = ctx.config.get<Provider[]>('providers', [])
   const authModeByName = new Map(providers.map((p) => [p.name, p.auth_mode]))

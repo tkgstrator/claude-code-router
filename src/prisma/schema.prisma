@@ -20,11 +20,13 @@ datasource db {
   provider = "postgresql"
 }
 
-// The six built-in routing scenarios consumed by router.ts.
+// The built-in routing scenarios consumed by router.ts.
 // `default` is the catch-all; the rest are scenario-specific overrides.
+// The former `background` scenario was folded into a predicated rule on
+// `default` (requestedModel matches a haiku glob) — see the migration
+// `20260728_router_rules_drop_background`.
 enum ScenarioKey {
   default
-  background
   think
   longContext
   webSearch

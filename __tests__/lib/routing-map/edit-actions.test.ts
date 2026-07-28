@@ -4,14 +4,15 @@ import type { RouterConfig } from '../../../src/schemas'
 
 // A fully-unset nested RouterConfig the tests mutate field by field. Each
 // scenario carries an agent + subagent route; the editor helpers edit the
-// agent route only, so the assertions read `<scenario>.agent.*`.
-function emptyRoute(): { primary: string | null; fallbacks: string[] } {
-  return { primary: null, fallbacks: [] }
+// agent route only, so the assertions read `<scenario>.agent.*`. `rules`
+// is empty in every route — predicated rules are populated by the migration
+// (or a future rule editor) and are opaque to these editor helpers.
+function emptyRoute(): { primary: string | null; fallbacks: string[]; rules: [] } {
+  return { primary: null, fallbacks: [], rules: [] }
 }
 function baseRouter(): RouterConfig {
   return {
     default: { agent: emptyRoute(), subagent: emptyRoute() },
-    background: { agent: emptyRoute(), subagent: emptyRoute() },
     think: { agent: emptyRoute(), subagent: emptyRoute() },
     longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: 60000 },
     webSearch: { agent: emptyRoute(), subagent: emptyRoute() },
@@ -75,7 +76,7 @@ test('moveFallback reorders the chain and no-ops out of range', () => {
 
 test('editing the agent route leaves the subagent route untouched', () => {
   const r = connectModel(baseRouter(), 'default', 'openai,gpt-5', 'agent')
-  expect(r.default.subagent).toEqual({ primary: null, fallbacks: [] })
+  expect(r.default.subagent).toEqual({ primary: null, fallbacks: [], rules: [] })
 })
 
 test('editing the subagent route leaves the agent route untouched', () => {
@@ -83,15 +84,15 @@ test('editing the subagent route leaves the agent route untouched', () => {
   const r1 = connectModel(r0, 'default', 'anthropic,claude', 'subagent')
   expect(r1.default.subagent.primary).toBe('openai,gpt-5')
   expect(r1.default.subagent.fallbacks).toEqual(['anthropic,claude'])
-  expect(r1.default.agent).toEqual({ primary: null, fallbacks: [] })
+  expect(r1.default.agent).toEqual({ primary: null, fallbacks: [], rules: [] })
 })
 
 test('the same model can be wired into both kinds independently', () => {
-  const r0 = connectModel(baseRouter(), 'background', 'openai,gpt-5', 'agent')
-  const r1 = connectModel(r0, 'background', 'openai,gpt-5', 'subagent')
-  expect(r1.background.agent.primary).toBe('openai,gpt-5')
-  expect(r1.background.subagent.primary).toBe('openai,gpt-5')
-  const r2 = disconnectModel(r1, 'background', 'openai,gpt-5', 'agent')
-  expect(r2.background.agent.primary).toBeNull()
-  expect(r2.background.subagent.primary).toBe('openai,gpt-5')
+  const r0 = connectModel(baseRouter(), 'webSearch', 'openai,gpt-5', 'agent')
+  const r1 = connectModel(r0, 'webSearch', 'openai,gpt-5', 'subagent')
+  expect(r1.webSearch.agent.primary).toBe('openai,gpt-5')
+  expect(r1.webSearch.subagent.primary).toBe('openai,gpt-5')
+  const r2 = disconnectModel(r1, 'webSearch', 'openai,gpt-5', 'agent')
+  expect(r2.webSearch.agent.primary).toBeNull()
+  expect(r2.webSearch.subagent.primary).toBe('openai,gpt-5')
 })

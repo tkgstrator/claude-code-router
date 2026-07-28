@@ -10,7 +10,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { FlatRouter, ScenarioType } from '@/schemas'
+import type { ScenarioType } from '@/schemas'
 import { isProviderExhausted } from '../../services/failover-state'
 import type { ConfigStore } from '../registry/config'
 import type { ConfigProvider } from './types'
@@ -63,11 +63,15 @@ function candidateFitsContext(candidate: string, tokenCount: number, providers: 
 }
 
 /**
- * Proactive failover: before sending, walk [primary, ...fallbacks] for
- * the scenario and return the first candidate whose provider is not
- * exhausted AND whose model can hold the request. When every candidate
- * looks unusable (or cannot fit) we keep the primary and let the
- * upstream / reactive 429 path take over.
+ * Proactive failover: before sending, walk [primary, ...fallbacks] and
+ * return the first candidate whose provider is not exhausted AND whose
+ * model can hold the request. When every candidate looks unusable (or
+ * cannot fit) we keep the primary and let the upstream / reactive 429
+ * path take over.
+ *
+ * `fallbacks` is the chain pre-resolved by selectModel (a rule-matched
+ * chain when a route rule fired, otherwise the scenario's catch-all
+ * chain). `scenarioType` is retained for log observability only.
  *
  * Exported for unit tests so the exhaustion mark and capability gate
  * can be exercised directly with a seeded state and ConfigStore.
@@ -75,17 +79,12 @@ function candidateFitsContext(candidate: string, tokenCount: number, providers: 
 export function applyProactiveFailover(
   primaryModel: string,
   scenarioType: ScenarioType,
-  isSubagent: boolean,
+  fallbacks: readonly string[],
   tokenCount: number,
   config: ConfigStore,
   log: Logger
 ): string {
-  const fullRouter = config.get<FlatRouter>('Router')
-  // Walk the fallback chain for the SELECTED route (agent vs subagent) —
-  // a subagent request must not fall over onto the agent route's chain.
-  const fallbacksMap = isSubagent ? fullRouter?.subagentFallbacks : fullRouter?.agentFallbacks
-  const configured = fallbacksMap?.[scenarioType]
-  if (!Array.isArray(configured) || configured.length === 0) return primaryModel
+  if (fallbacks.length === 0) return primaryModel
 
   const providers = config.get<ConfigProvider[]>('providers', [])
 
@@ -94,7 +93,7 @@ export function applyProactiveFailover(
   // Emitted only when the primary is dropped — keeping the primary is
   // the common path and would spam the log otherwise.
   const trace: { candidate: string; reason: 'kept' | 'malformed' | 'exhausted' | 'capability' }[] = []
-  for (const candidate of [primaryModel, ...configured]) {
+  for (const candidate of [primaryModel, ...fallbacks]) {
     const providerName = candidate.split(',')[0]
     if (!providerName) {
       trace.push({ candidate, reason: 'malformed' })

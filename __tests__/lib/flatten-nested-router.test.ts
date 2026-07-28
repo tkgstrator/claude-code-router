@@ -1,23 +1,19 @@
 import { expect, test } from 'bun:test'
 import { flattenNestedRouter, type Router } from '../../src/schemas'
 
-// A nested wire Router where every one of the four flat maps × six
+// A nested wire Router where every one of the six flat maps × five
 // scenarios carries a DISTINGUISHABLE value, so a transposition
 // (subagent primaries landing in agentFallbacks, or the think slot
-// getting the background value) is caught by the exact toEqual below.
+// getting the webSearch value) is caught by the exact toEqual below.
 // flattenNestedRouter is the single boundary between the nested wire
 // config and the flat runtime config; every engine test hand-writes flat
 // objects and bypasses it, so this is the only coverage of that link.
-const route = (primary: string, fallback: string) => ({ primary, fallbacks: [fallback] })
+const route = (primary: string, fallback: string) => ({ primary, fallbacks: [fallback], rules: [] })
 
 const nested: Router = {
   default: {
     agent: route('p,agent-default', 'p,agent-default-fb'),
     subagent: route('p,sub-default', 'p,sub-default-fb')
-  },
-  background: {
-    agent: route('p,agent-background', 'p,agent-background-fb'),
-    subagent: route('p,sub-background', 'p,sub-background-fb')
   },
   think: {
     agent: route('p,agent-think', 'p,agent-think-fb'),
@@ -43,7 +39,6 @@ test('flattenNestedRouter maps every route/scenario to the right flat slot', () 
   expect(flattenNestedRouter(nested)).toEqual({
     agent: {
       default: 'p,agent-default',
-      background: 'p,agent-background',
       think: 'p,agent-think',
       longContext: 'p,agent-longContext',
       webSearch: 'p,agent-webSearch',
@@ -51,7 +46,6 @@ test('flattenNestedRouter maps every route/scenario to the right flat slot', () 
     },
     subagent: {
       default: 'p,sub-default',
-      background: 'p,sub-background',
       think: 'p,sub-think',
       longContext: 'p,sub-longContext',
       webSearch: 'p,sub-webSearch',
@@ -59,7 +53,6 @@ test('flattenNestedRouter maps every route/scenario to the right flat slot', () 
     },
     agentFallbacks: {
       default: ['p,agent-default-fb'],
-      background: ['p,agent-background-fb'],
       think: ['p,agent-think-fb'],
       longContext: ['p,agent-longContext-fb'],
       webSearch: ['p,agent-webSearch-fb'],
@@ -67,13 +60,57 @@ test('flattenNestedRouter maps every route/scenario to the right flat slot', () 
     },
     subagentFallbacks: {
       default: ['p,sub-default-fb'],
-      background: ['p,sub-background-fb'],
       think: ['p,sub-think-fb'],
       longContext: ['p,sub-longContext-fb'],
       webSearch: ['p,sub-webSearch-fb'],
       image: ['p,sub-image-fb']
     },
+    agentRules: {
+      default: [],
+      think: [],
+      longContext: [],
+      webSearch: [],
+      image: []
+    },
+    subagentRules: {
+      default: [],
+      think: [],
+      longContext: [],
+      webSearch: [],
+      image: []
+    },
     longContextThreshold: 123_456,
     persona: 'pirate'
   })
+})
+
+test('flattenNestedRouter preserves per-scenario rules on both kinds', () => {
+  const withRules: Router = {
+    ...nested,
+    default: {
+      agent: {
+        primary: 'p,agent-default',
+        fallbacks: [],
+        rules: [
+          {
+            name: 'haiku',
+            when: { requestedModel: '*haiku*' },
+            primary: 'p,haiku-target',
+            fallbacks: ['p,haiku-fb']
+          }
+        ]
+      },
+      subagent: { primary: null, fallbacks: [], rules: [] }
+    }
+  }
+  const flat = flattenNestedRouter(withRules)
+  expect(flat.agentRules.default).toEqual([
+    {
+      name: 'haiku',
+      when: { requestedModel: '*haiku*' },
+      primary: 'p,haiku-target',
+      fallbacks: ['p,haiku-fb']
+    }
+  ])
+  expect(flat.subagentRules.default).toEqual([])
 })

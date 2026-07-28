@@ -23,8 +23,11 @@ export type { ConfigEnvelope, ScenarioKey }
 // --- Scenario key -----------------------------------------------------------
 
 // Order matters: this is the iteration order used by the JSON-to-DB
-// migration when seeding RouterSlot rows.
-export const SCENARIO_KEYS = ['default', 'background', 'think', 'longContext', 'webSearch', 'image'] as const
+// migration when seeding RouterSlot rows. The `background` scenario was
+// removed in favour of a rules[] predicate on `default` — see
+// `RouteRuleSchema`. Historical `RequestLog.scenario` rows may still
+// carry the string 'background' but the enum no longer accepts it.
+export const SCENARIO_KEYS = ['default', 'think', 'longContext', 'webSearch', 'image'] as const
 
 // --- Config envelope --------------------------------------------------------
 

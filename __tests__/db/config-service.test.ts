@@ -25,7 +25,10 @@ describe.skipIf(!HAS_DB)('configService', () => {
     await teardownPrisma()
   })
 
-  test('apply then compose round-trips Providers and Router', async () => {
+  test('apply then compose round-trips Providers and Router (with a haiku rule on default)', async () => {
+    // The former `background` scenario is now expressed as a predicated
+    // rule on the `default` route's rules[] — this asserts a rule with
+    // a `requestedModel` glob predicate survives the round-trip.
     await applyUiConfig({
       Providers: [
         {
@@ -37,8 +40,21 @@ describe.skipIf(!HAS_DB)('configService', () => {
         }
       ],
       Router: {
-        default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
-        background: { agent: { primary: 'openai,gpt-5-nano' }, subagent: {} },
+        default: {
+          agent: {
+            primary: 'openai,gpt-5',
+            fallbacks: [],
+            rules: [
+              {
+                name: 'haiku (like background)',
+                when: { requestedModel: '*haiku*' },
+                primary: 'openai,gpt-5-nano',
+                fallbacks: []
+              }
+            ]
+          },
+          subagent: {}
+        },
         longContext: { agent: { primary: 'openai,gpt-5' }, subagent: {}, threshold: 60_000 }
       }
     })
@@ -48,7 +64,14 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Providers[0].name).toBe('openai')
     expect(ui.Providers[0].models.sort()).toEqual(['gpt-5', 'gpt-5-nano'])
     expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
-    expect(ui.Router.background.agent.primary).toBe('openai,gpt-5-nano')
+    expect(ui.Router.default.agent.rules).toEqual([
+      {
+        name: 'haiku (like background)',
+        when: { requestedModel: '*haiku*' },
+        primary: 'openai,gpt-5-nano',
+        fallbacks: []
+      }
+    ])
     expect(ui.Router.longContext.agent.primary).toBe('openai,gpt-5')
     expect(ui.Router.longContext.threshold).toBe(60_000)
     expect(ui.Router.think.agent.primary).toBeNull()
@@ -164,7 +187,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
     const ui = await composeUiConfig()
     expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
     expect(ui.Router.default.agent.fallbacks).toEqual(['anthropic,claude-sonnet-4-6'])
-    expect(ui.Router.background.agent.fallbacks).toEqual([])
+    expect(ui.Router.think.agent.fallbacks).toEqual([])
   })
 
   test('removing a model nulls any RouterSlot that referenced it and warns', async () => {
@@ -253,7 +276,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       ],
       Router: {
         default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
-        background: { agent: { primary: 'gemini,gemini-2.5-flash' }, subagent: { primary: 'gemini,gemini-2.5-flash' } }
+        webSearch: { agent: { primary: 'gemini,gemini-2.5-flash' }, subagent: { primary: 'gemini,gemini-2.5-flash' } }
       }
     })
 
@@ -270,7 +293,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       ],
       Router: {
         default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
-        background: { agent: { primary: 'gemini,gemini-2.5-flash' }, subagent: { primary: 'gemini,gemini-2.5-flash' } }
+        webSearch: { agent: { primary: 'gemini,gemini-2.5-flash' }, subagent: { primary: 'gemini,gemini-2.5-flash' } }
       }
     })
 
@@ -278,8 +301,8 @@ describe.skipIf(!HAS_DB)('configService', () => {
     const ui = await composeUiConfig()
     expect(ui.Providers.map((p) => p.name)).toEqual(['openai'])
     expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
-    expect(ui.Router.background.agent.primary).toBeNull()
-    expect(ui.Router.background.subagent.primary).toBeNull()
+    expect(ui.Router.webSearch.agent.primary).toBeNull()
+    expect(ui.Router.webSearch.subagent.primary).toBeNull()
 
     const prisma = getPrismaClient()
     const allModels = await prisma.model.findMany({ include: { provider: true } })
@@ -504,13 +527,13 @@ describe.skipIf(!HAS_DB)('configService', () => {
     await applyUiConfig({
       Router: {
         default: { agent: { primary: 'openai,gpt-5' }, subagent: {} },
-        background: { agent: { primary: 'openai,gpt-5' }, subagent: {} }
+        webSearch: { agent: { primary: 'openai,gpt-5' }, subagent: {} }
       }
     })
     const ui = await composeUiConfig()
     expect(ui.Providers.map((p) => p.name)).toEqual(['openai'])
     expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
-    expect(ui.Router.background.agent.primary).toBe('openai,gpt-5')
+    expect(ui.Router.webSearch.agent.primary).toBe('openai,gpt-5')
   })
 
   test('omitting Router from a partial save preserves existing router slots', async () => {

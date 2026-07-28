@@ -11,8 +11,10 @@
 import type { RouterConfig } from '@/schemas'
 
 // The fixed scenario lanes, top-to-bottom. Mirrors SCENARIO_KEYS; kept
-// local so the editor graph never depends on traffic-side ordering.
-export const EDIT_SCENARIOS = ['default', 'background', 'think', 'longContext', 'webSearch', 'image'] as const
+// local so the editor graph never depends on traffic-side ordering. The
+// former `background` lane is gone — it is now a predicated rule on the
+// `default` lane (see migration `20260728_router_rules_drop_background`).
+export const EDIT_SCENARIOS = ['default', 'think', 'longContext', 'webSearch', 'image'] as const
 export type EditScenario = (typeof EDIT_SCENARIOS)[number]
 
 // The two caller kinds each scenario routes independently: `agent` for

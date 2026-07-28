@@ -1,9 +1,11 @@
 /**
- * Validate and persist the six RouterSlot rows from the UI's incoming
- * Router payload, including per-scenario fallback chains.
+ * Validate and persist the RouterSlot rows from the UI's incoming
+ * Router payload, including per-scenario fallback chains and predicated
+ * rules.
  */
 
-import type { Router } from '@/schemas'
+import type { RouteRule, Router } from '@/schemas'
+import { RouteRuleSchema } from '@/schemas'
 import { SCENARIO_KEYS } from '@/shared'
 import { Prisma } from '../../../generated/prisma/client'
 import type { Tx } from '../apply'
@@ -58,21 +60,58 @@ export async function resolveFallbackTargets(
 // Assemble the scenario-scoped params JSON for a RouterSlot row:
 // longContext keeps its threshold; any slot may carry the two fallback
 // chains (`fallbacks` for the agent route, `subagentFallbacks` for the
-// subagent route). An empty object collapses to DbNull so a slot with no
-// knobs stores NULL.
+// subagent route) and the two predicated rule stacks (`agentRules`,
+// `subagentRules`). An empty object collapses to DbNull so a slot with
+// no knobs stores NULL.
 function buildSlotParams(args: {
   scenario: string
   fallbacks: string[]
   subagentFallbacks: string[]
+  agentRules: RouteRule[]
+  subagentRules: RouteRule[]
   longContextThreshold: number | null
 }): Prisma.InputJsonValue | typeof Prisma.DbNull {
-  const { scenario, fallbacks, subagentFallbacks, longContextThreshold } = args
+  const { scenario, fallbacks, subagentFallbacks, agentRules, subagentRules, longContextThreshold } = args
   const paramsObj: Prisma.InputJsonObject = {
     ...(scenario === 'longContext' && longContextThreshold !== null ? { threshold: longContextThreshold } : {}),
     ...(fallbacks.length > 0 ? { fallbacks } : {}),
-    ...(subagentFallbacks.length > 0 ? { subagentFallbacks } : {})
+    ...(subagentFallbacks.length > 0 ? { subagentFallbacks } : {}),
+    ...(agentRules.length > 0 ? { agentRules: rulesToJson(agentRules) } : {}),
+    ...(subagentRules.length > 0 ? { subagentRules: rulesToJson(subagentRules) } : {})
   }
   return Object.keys(paramsObj).length > 0 ? paramsObj : Prisma.DbNull
+}
+
+// Rules travel across the JSON boundary as plain objects. Convert
+// through the Zod schema so absent optional fields (name, when.*) are
+// filled with defaults before serialisation — the reader
+// (rulesFromParams) applies the same schema on the way back.
+const rulesToJson = (rules: RouteRule[]): Prisma.InputJsonValue =>
+  rules.map((r) => ({
+    ...(r.name !== undefined ? { name: r.name } : {}),
+    when: { ...r.when },
+    primary: r.primary,
+    fallbacks: [...r.fallbacks]
+  })) as unknown as Prisma.InputJsonValue
+
+// Validate an incoming rule list (from the UI wire shape). Malformed
+// entries are dropped with a warning so a bad rule can't take the router
+// offline. Rule primaries and fallbacks are NOT re-checked against the
+// Model table here — a rule may reference a model that only exists in
+// another workspace or is expected to be added later; the runtime
+// evaluator no-ops on an unknown reference.
+function validateRules(scenario: string, kind: 'agent' | 'subagent', raw: unknown, warnings: string[]): RouteRule[] {
+  if (!Array.isArray(raw)) return []
+  const out: RouteRule[] = []
+  for (const entry of raw) {
+    const parsed = RouteRuleSchema.safeParse(entry)
+    if (parsed.success) {
+      out.push(parsed.data)
+    } else {
+      warnings.push(`Router ${kind} rule for "${scenario}" is malformed; dropped.`)
+    }
+  }
+  return out
 }
 
 // Resolve one route's primary "provider,model" string to a Model id, or
@@ -127,10 +166,15 @@ export async function applyRouter(tx: Tx, incoming: Partial<Router>, warnings: s
       subagentPrimaryProvider
     )
 
+    const agentRules = validateRules(scenario, 'agent', route?.agent?.rules, warnings)
+    const subagentRules = validateRules(scenario, 'subagent', route?.subagent?.rules, warnings)
+
     const params = buildSlotParams({
       scenario,
       fallbacks,
       subagentFallbacks,
+      agentRules,
+      subagentRules,
       longContextThreshold
     })
 

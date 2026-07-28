@@ -4,7 +4,8 @@
  * API / UI.
  */
 
-import type { AppConfig, Provider, Router } from '@/schemas'
+import type { AppConfig, Provider, RouteRule, Router } from '@/schemas'
+import { RouteRuleSchema } from '@/schemas'
 import type { ConfigEnvelope, ScenarioKey } from '@/shared'
 import { getPrismaClient } from '../../db/client'
 import {
@@ -16,8 +17,14 @@ import {
 import { readConfigFile } from './envelope'
 import { isJsonObject, providerEnabledFromTransformer } from './transformer'
 
-// A fresh, unassigned route target: no primary, empty fallback chain.
-const emptyRoute = (): { primary: null; fallbacks: [] } => ({ primary: null, fallbacks: [] })
+// A fresh, unassigned route target: no primary, empty fallback chain, no
+// rules. Rules default to [] so a slot with no advanced routing is
+// indistinguishable from the pre-rules shape on the wire.
+const emptyRoute = (): { primary: null; fallbacks: []; rules: [] } => ({
+  primary: null,
+  fallbacks: [],
+  rules: []
+})
 
 // Every scenario starts unassigned: both the agent and subagent routes
 // have a null primary (not '' — "no model bound" reads the same on the
@@ -27,7 +34,6 @@ const emptyRoute = (): { primary: null; fallbacks: [] } => ({ primary: null, fal
 // their policy defaults.
 export const emptyRouter = (): Router => ({
   default: { agent: emptyRoute(), subagent: emptyRoute() },
-  background: { agent: emptyRoute(), subagent: emptyRoute() },
   think: { agent: emptyRoute(), subagent: emptyRoute() },
   longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: 128_000 },
   webSearch: { agent: emptyRoute(), subagent: emptyRoute() },
@@ -64,6 +70,25 @@ export const fallbacksFromParams = (params: unknown): string[] | null => stringL
 // Subagent-route fallback chain (`subagentFallbacks`).
 export const subagentFallbacksFromParams = (params: unknown): string[] | null =>
   stringListFromParams(params, 'subagentFallbacks')
+
+// Read a rules list off a routerSlot.params JSON column. Any entry
+// failing schema validation is skipped rather than aborting the whole
+// slot — a malformed rule shouldn't take the router offline. Returns []
+// when the key is absent or fully invalid.
+const rulesFromParams = (params: unknown, key: 'agentRules' | 'subagentRules'): RouteRule[] => {
+  if (!isJsonObject(params)) return []
+  const raw = params[key]
+  if (!Array.isArray(raw)) return []
+  const out: RouteRule[] = []
+  for (const item of raw) {
+    const parsed = RouteRuleSchema.safeParse(item)
+    if (parsed.success) out.push(parsed.data)
+  }
+  return out
+}
+
+export const agentRulesFromParams = (params: unknown): RouteRule[] => rulesFromParams(params, 'agentRules')
+export const subagentRulesFromParams = (params: unknown): RouteRule[] => rulesFromParams(params, 'subagentRules')
 
 export type ProviderWithModels = DbProvider & {
   models: DbModel[]
@@ -181,6 +206,8 @@ export async function composeUiConfig(): Promise<AppConfig> {
     if (agentFallbacks) route.agent.fallbacks = agentFallbacks
     const subagentFallbacks = subagentFallbacksFromParams(slot.params)
     if (subagentFallbacks) route.subagent.fallbacks = subagentFallbacks
+    route.agent.rules = agentRulesFromParams(slot.params)
+    route.subagent.rules = subagentRulesFromParams(slot.params)
     if (key === 'longContext') {
       const threshold = thresholdFromParams(slot.params)
       if (threshold !== null) router.longContext.threshold = threshold

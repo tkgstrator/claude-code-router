@@ -7,13 +7,18 @@
  *      scenario's `subagent` route; otherwise the `agent` route. The tag's
  *      model value is not used to route; the tag is stripped either way so
  *      the marker never leaks upstream.
- *   2. Scenario classification — size-based longContext, haiku→background,
- *      web-search, thinking→think, effort/tier escalation, else default.
- *   3. Route lookup — the chosen route's primary, or the request's own
- *      model when that route has no primary configured.
+ *   2. Scenario classification — size-based longContext, web-search,
+ *      thinking→think, effort/tier escalation, else default.
+ *   3. Route lookup — walk the scenario's rule stack (first predicate
+ *      match wins); when no rule matches, use the scenario's catch-all
+ *      primary; when that's also unset, fall back to the request's own
+ *      model. The former haiku→background branch is now expressed as a
+ *      predicated rule on the `default` scenario (populated by the
+ *      migration `20260728_router_rules_drop_background`).
  */
 
-import type { ScenarioType } from '@/schemas'
+import type { RouteRule, ScenarioType } from '@/schemas'
+import { RouteRuleSchema } from '@/schemas'
 import type { ConfigStore } from '../registry/config'
 import type { RouterConfig, RouterRequest, RouterRequestBody } from './types'
 
@@ -77,7 +82,7 @@ export function selectModel(
   // Kept for call-site compatibility; model selection no longer resolves
   // by the request's bare model name, so the provider registry isn't read.
   _config: ConfigStore
-): { model: string; scenarioType: ScenarioType; isSubagent: boolean } {
+): { model: string; scenarioType: ScenarioType; isSubagent: boolean; fallbacks: string[] } {
   // Stage 1 — caller kind. A <CCR-SUBAGENT-MODEL> tag's PRESENCE selects
   // the subagent route; its value is ignored. The tag is stripped in place
   // regardless so the CCR-internal marker never reaches upstream.
@@ -88,11 +93,14 @@ export function selectModel(
   // Stage 2 — scenario classification from the request signals.
   const scenario = classifyScenario(req, tokenCount, router, kind)
 
-  // Stage 3 — the chosen route's primary, falling back to the request's
-  // own model when that route has no primary configured.
-  const primary = primaryFor(router, kind, scenario)
-  const model = primary !== undefined ? primary : req.body.model
-  return { model, scenarioType: scenario, isSubagent }
+  // Stage 3 — walk the scenario's rule stack first (first-match wins).
+  // A matched rule overrides the catch-all primary AND supplies its own
+  // fallback chain. Falls back to the request's own model when nothing
+  // is configured.
+  const resolved = resolveTarget(router, kind, scenario, req)
+  const model = resolved?.primary ?? req.body.model
+  const fallbacks = resolved?.fallbacks ?? []
+  return { model, scenarioType: scenario, isSubagent, fallbacks }
 }
 
 // The primary "provider,model" configured for a scenario on the chosen
@@ -102,6 +110,75 @@ function primaryFor(router: RouterConfig | undefined, kind: RouteKind, scenario:
   const map = kind === 'subagent' ? router?.subagent : router?.agent
   const value = map?.[scenario]
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+// Return the ordered rule list for (scenario, kind), or an empty array
+// when the runtime router doesn't carry rules (per-project override
+// files may skip them entirely). The runtime shape stores rules as
+// unknown[] — each entry is parsed through RouteRuleSchema here so a
+// malformed rule is skipped rather than blowing up the walker.
+function rulesFor(router: RouterConfig | undefined, kind: RouteKind, scenario: ScenarioType): RouteRule[] {
+  const map = kind === 'subagent' ? router?.subagentRules : router?.agentRules
+  const list = map?.[scenario]
+  if (!Array.isArray(list)) return []
+  const out: RouteRule[] = []
+  for (const item of list) {
+    const parsed = RouteRuleSchema.safeParse(item)
+    if (parsed.success) out.push(parsed.data)
+  }
+  return out
+}
+
+// Resolve the primary target for (scenario, kind, request): walk the
+// scenario's rule stack; the first rule whose predicate matches wins
+// and returns its `{primary, fallbacks}` pair. When no rule matches,
+// fall through to the scenario's catch-all `primary` (the FK-backed
+// column) + catch-all fallback chain. Returns undefined when neither a
+// matching rule nor a catch-all is configured, so selectModel can fall
+// back to `req.body.model` with an empty fallback chain.
+function resolveTarget(
+  router: RouterConfig | undefined,
+  kind: RouteKind,
+  scenario: ScenarioType,
+  req: RouterRequest
+): { primary: string; fallbacks: string[] } | undefined {
+  for (const rule of rulesFor(router, kind, scenario)) {
+    if (!matchesRule(rule, req)) continue
+    if (typeof rule.primary === 'string' && rule.primary.length > 0) {
+      req.log.info({ rule: rule.name ?? '(unnamed)', scenario, kind }, 'Matched routing rule')
+      return { primary: rule.primary, fallbacks: rule.fallbacks }
+    }
+    // Rule matched but has no primary — a legitimate "block escalation"
+    // pattern (e.g. "for these requests, do NOT reroute"). Return
+    // undefined so selectModel falls back to req.body.model.
+    return undefined
+  }
+  const primary = primaryFor(router, kind, scenario)
+  if (primary === undefined) return undefined
+  const fallbacksMap = kind === 'subagent' ? router?.subagentFallbacks : router?.agentFallbacks
+  const fallbacks = fallbacksMap?.[scenario]
+  return { primary, fallbacks: Array.isArray(fallbacks) ? fallbacks : [] }
+}
+
+// Evaluate a rule's predicate against a request. An empty predicate
+// matches everything (catch-all rule). Missing fields on the predicate
+// are unconstrained; each populated field is an AND with the others.
+function matchesRule(rule: RouteRule, req: RouterRequest): boolean {
+  const when = rule.when
+  const model = req.body.model
+  if (when.requestedModel !== undefined && !globMatch(when.requestedModel, model)) return false
+  return true
+}
+
+// Match a shell-style glob against a string. `*` = any run of chars
+// (including empty); every other char is literal. Anchored to the full
+// input on both ends (so `*haiku*` matches "claude-haiku-4-5" but
+// `haiku` does not — matching a raw substring would require the user
+// to write `*haiku*`).
+function globMatch(pattern: string, value: string): boolean {
+  if (typeof value !== 'string') return false
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+  return new RegExp(`^${escaped}$`).test(value)
 }
 
 // Classify the request into a scenario. A scenario only wins when the
@@ -123,11 +200,10 @@ function classifyScenario(
     return 'longContext'
   }
 
-  // Any Claude Haiku variant → background.
-  if (isHaiku(req.body.model) && primaryFor(router, kind, 'background') !== undefined) {
-    req.log.info(`Using background model for ${req.body.model}`)
-    return 'background'
-  }
+  // NOTE: the pre-rules haiku→background branch is gone; the same
+  // behaviour is now expressed as a predicated rule on the `default`
+  // scenario (see the `20260728_router_rules_drop_background` migration).
+  // Rule evaluation happens in resolveTarget after this classifier runs.
 
   // Web search tools — higher priority than `thinking`. body.tools may
   // carry vendor-specific shapes (Anthropic's `{ type: 'web_search_*' }`
@@ -155,10 +231,6 @@ function classifyScenario(
   }
 
   return 'default'
-}
-
-function isHaiku(model: string): boolean {
-  return typeof model === 'string' && model.includes('claude') && model.includes('haiku')
 }
 
 function isWebSearchTool(tool: unknown): tool is { type: string } {
