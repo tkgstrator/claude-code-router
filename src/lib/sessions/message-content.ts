@@ -71,19 +71,6 @@ export function normaliseContent(content: unknown): NormalisedBlock[] {
   return content.map(normaliseBlock)
 }
 
-// Stable per-block React key. Blocks never shuffle within a message once
-// the row is persisted, but the noArrayIndexKey rule wants a content-derived
-// key; kind + a short content prefix collides only if two identical text /
-// tool_use blocks appear in the same message, which is fine for React's
-// reconciliation.
-export function blockKey(messageId: string, block: NormalisedBlock): string {
-  if (block.kind === 'text') return `${messageId}:t:${block.text.slice(0, 32)}`
-  if (block.kind === 'system_text') return `${messageId}:s:${block.text.slice(0, 32)}`
-  if (block.kind === 'tool_use') return `${messageId}:u:${block.name}:${block.input.slice(0, 32)}`
-  if (block.kind === 'tool_result') return `${messageId}:r:${block.text.slice(0, 32)}`
-  return `${messageId}:x:${block.text.slice(0, 32)}`
-}
-
 function normaliseBlock(raw: unknown): NormalisedBlock {
   if (raw === null || typeof raw !== 'object') return { kind: 'raw', text: String(raw) }
   const type = Reflect.get(raw, 'type')
