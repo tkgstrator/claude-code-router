@@ -5,6 +5,7 @@ import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { SubscriptionAuthBadge } from '@/components/usage/AuthBadge'
 import { api } from '@/lib/api'
+import { fmtCost } from '@/lib/usage/format'
 import type { SubscriptionAccount, SubscriptionProvider, SubscriptionsResponse } from '@/lib/usage/types'
 
 const REFRESH_MS = 5 * 60_000
@@ -18,13 +19,6 @@ interface ProviderCost {
 interface UsageCostResponse {
   providers: ProviderCost[]
   days: number
-}
-
-const fmtCost = (usd: number | null, noPricingLabel: string): string => {
-  if (usd === null) return noPricingLabel
-  if (usd === 0) return '$0.00'
-  if (usd < 0.01) return '<$0.01'
-  return `$${usd.toFixed(2)}`
 }
 
 type Translator = (k: string, opts?: Record<string, unknown>) => string
