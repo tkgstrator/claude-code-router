@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
+import { modelNameOf } from '@/lib/router/fallback-slots'
 import { connectModel, disconnectModel, setPersona } from '@/lib/routing-map/edit-actions'
 import {
   buildEditGraph,
@@ -132,6 +133,9 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     const scenarioNodes: AppEditNode[] = graph.scenarioNodes.map((node) => {
       const agent = router[node.scenario].agent
       const subagent = router[node.scenario].subagent
+      // Provider prefix is dropped from the scenario summary — the map
+      // itself makes the provider obvious (each model node lives on
+      // its provider's row), so repeating it here just eats width.
       return {
         id: node.id,
         type: 'scenarioEdit',
@@ -139,10 +143,10 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
         data: {
           label: t(`router.${node.scenario}`),
           note: scenarioNote(node.scenario, router),
-          agentPrimaryLabel: agent.primary === null ? '' : modelLabel(agent.primary),
+          agentPrimaryLabel: modelNameOf(agent.primary),
           agentFallbackCount: agent.fallbacks.length,
           agentRuleCount: agent.rules.length,
-          subagentPrimaryLabel: subagent.primary === null ? '' : modelLabel(subagent.primary),
+          subagentPrimaryLabel: modelNameOf(subagent.primary),
           subagentFallbackCount: subagent.fallbacks.length,
           subagentRuleCount: subagent.rules.length,
           emptyLabel: t('routingMap.editNoPrimary'),

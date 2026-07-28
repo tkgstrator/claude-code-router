@@ -219,7 +219,7 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
 
   return (
     <div className='space-y-3 text-xs'>
-      <FieldRow label={t('router.rules.field.name')}>
+      <Field label={t('router.rules.field.name')}>
         <Input
           className='h-7 text-xs'
           value={rule.name ?? ''}
@@ -227,50 +227,52 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
           disabled={readOnly}
           placeholder={t('router.rules.field.namePlaceholder')}
         />
-      </FieldRow>
+      </Field>
 
-      <div className='space-y-1'>
-        <div className='text-[11px] font-medium text-muted-foreground'>{t('router.rules.predicate')}</div>
-
-        <FieldRow label={t('router.rules.field.requestedTier')}>
-          <div className='flex flex-wrap gap-2'>
+      <FieldGroup title={t('router.rules.predicate')}>
+        <Field label={t('router.rules.field.requestedTier')}>
+          <div className='flex flex-wrap gap-x-3 gap-y-1'>
             {REQUESTED_MODEL_TIERS.map((tier) => {
               const id = `${uid}-tier-${tier}`
               return (
-                <div key={tier} className='flex items-center gap-1 text-[11px]'>
+                <div key={tier} className='flex items-center gap-1'>
                   <Checkbox
                     id={id}
                     checked={rule.when.requestedTier?.includes(tier) ?? false}
                     onCheckedChange={() => toggleTier(tier)}
                     disabled={readOnly}
                   />
-                  <label htmlFor={id}>{tier}</label>
+                  <label htmlFor={id} className='text-[11px]'>
+                    {tier}
+                  </label>
                 </div>
               )
             })}
           </div>
-        </FieldRow>
+        </Field>
 
-        <FieldRow label={t('router.rules.field.effort')}>
-          <div className='flex flex-wrap gap-2'>
+        <Field label={t('router.rules.field.effort')}>
+          <div className='flex flex-wrap gap-x-3 gap-y-1'>
             {EFFORT_LEVELS.map((level) => {
               const id = `${uid}-effort-${level}`
               return (
-                <div key={level} className='flex items-center gap-1 text-[11px]'>
+                <div key={level} className='flex items-center gap-1'>
                   <Checkbox
                     id={id}
                     checked={rule.when.effort?.includes(level) ?? false}
                     onCheckedChange={() => toggleEffort(level)}
                     disabled={readOnly}
                   />
-                  <label htmlFor={id}>{level}</label>
+                  <label htmlFor={id} className='text-[11px]'>
+                    {level}
+                  </label>
                 </div>
               )
             })}
           </div>
-        </FieldRow>
+        </Field>
 
-        <FieldRow label={t('router.rules.field.thinking')}>
+        <Field label={t('router.rules.field.thinking')}>
           <Select
             value={thinkingValue}
             onValueChange={(v) => {
@@ -289,37 +291,41 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
               <SelectItem value={THINKING_FALSE}>{t('router.rules.field.thinkingForbidden')}</SelectItem>
             </SelectContent>
           </Select>
-        </FieldRow>
+        </Field>
 
-        <FieldRow label={t('router.rules.field.minTokens')}>
-          <Input
-            className='h-7 text-xs'
-            type='number'
-            min={0}
-            value={rule.when.minTokens ?? ''}
-            onChange={(e) => {
-              const v = e.target.valueAsNumber
-              patchWhen({ minTokens: Number.isFinite(v) ? v : undefined })
-            }}
-            disabled={readOnly}
-          />
-        </FieldRow>
+        {/* Min / max tokens live on one row — they always describe a
+            single interval, so aligning them side-by-side reads faster
+            than two separate labels stacked. */}
+        <Field label={t('router.rules.field.tokens')}>
+          <div className='grid grid-cols-2 gap-2'>
+            <Input
+              className='h-7 text-xs'
+              type='number'
+              min={0}
+              value={rule.when.minTokens ?? ''}
+              placeholder={t('router.rules.field.minTokens')}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber
+                patchWhen({ minTokens: Number.isFinite(v) ? v : undefined })
+              }}
+              disabled={readOnly}
+            />
+            <Input
+              className='h-7 text-xs'
+              type='number'
+              min={0}
+              value={rule.when.maxTokens ?? ''}
+              placeholder={t('router.rules.field.maxTokens')}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber
+                patchWhen({ maxTokens: Number.isFinite(v) ? v : undefined })
+              }}
+              disabled={readOnly}
+            />
+          </div>
+        </Field>
 
-        <FieldRow label={t('router.rules.field.maxTokens')}>
-          <Input
-            className='h-7 text-xs'
-            type='number'
-            min={0}
-            value={rule.when.maxTokens ?? ''}
-            onChange={(e) => {
-              const v = e.target.valueAsNumber
-              patchWhen({ maxTokens: Number.isFinite(v) ? v : undefined })
-            }}
-            disabled={readOnly}
-          />
-        </FieldRow>
-
-        <FieldRow label={t('router.rules.field.hasTool')}>
+        <Field label={t('router.rules.field.hasTool')}>
           <Input
             className='h-7 text-xs font-mono'
             value={rule.when.hasTool ?? ''}
@@ -327,9 +333,9 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
             disabled={readOnly}
             placeholder='web_search_*'
           />
-        </FieldRow>
+        </Field>
 
-        <FieldRow label={t('router.rules.field.requestedModel')}>
+        <Field label={t('router.rules.field.requestedModel')}>
           <Input
             className='h-7 text-xs font-mono'
             value={rule.when.requestedModel ?? ''}
@@ -337,13 +343,11 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
             disabled={readOnly}
             placeholder='*haiku*'
           />
-        </FieldRow>
-      </div>
+        </Field>
+      </FieldGroup>
 
-      <div className='space-y-1'>
-        <div className='text-[11px] font-medium text-muted-foreground'>{t('router.rules.target')}</div>
-
-        <FieldRow label={t('router.rules.field.primary')}>
+      <FieldGroup title={t('router.rules.target')}>
+        <Field label={t('router.rules.field.primary')}>
           <Select
             value={rule.primary ?? ''}
             onValueChange={(v) => patch({ primary: v === '' ? null : v })}
@@ -360,26 +364,42 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
               ))}
             </SelectContent>
           </Select>
-        </FieldRow>
+        </Field>
 
-        <FieldRow label={t('router.rules.field.fallbacks')}>
+        <Field label={t('router.rules.field.fallbacks')}>
           <MultiCombobox
             options={modelOptions}
             value={rule.fallbacks}
             onChange={(next) => patch({ fallbacks: next })}
             placeholder={t('router.rules.field.fallbacksPlaceholder')}
           />
-        </FieldRow>
-      </div>
+        </Field>
+      </FieldGroup>
     </div>
   )
 }
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+// Vertical label-above-input layout — the panel is narrow and inputs
+// need the whole width to breathe (Select triggers, MultiCombobox
+// badges, wrapped checkbox rows all fight for space). Two-column
+// (label | input) grids kept squeezing controls into unreadable widths.
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className='grid grid-cols-[6.5rem_1fr] items-start gap-2'>
-      <div className='pt-1 text-[11px] text-muted-foreground'>{label}</div>
+    <div className='space-y-1'>
+      <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>{label}</div>
       <div className='min-w-0'>{children}</div>
+    </div>
+  )
+}
+
+// A titled group of related fields — a subtle top border + small
+// heading, so `When (predicate)` and `Then route to` read as
+// distinct sections without adding heavy visual chrome.
+function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className='space-y-2 border-t pt-2'>
+      <div className='text-[11px] font-semibold text-foreground'>{title}</div>
+      {children}
     </div>
   )
 }

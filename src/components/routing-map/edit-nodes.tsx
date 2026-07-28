@@ -165,10 +165,14 @@ function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
 
 function ModelEditNode({ data }: NodeProps<ModelEditNodeType>) {
   return (
-    <div className={cn(nodeCardClass, 'w-[240px] space-y-0.5', data.usedBy === 0 && 'opacity-60')}>
+    <div className={cn(nodeCardClass, 'w-[280px] space-y-0.5', data.usedBy === 0 && 'opacity-60')}>
       <Handle type='target' position={Position.Left} />
-      <div className='truncate font-mono text-xs font-medium'>{data.model}</div>
-      <div className='truncate text-[11px] text-muted-foreground'>{data.provider}</div>
+      <div className='truncate font-mono text-xs font-medium' title={data.model}>
+        {data.model}
+      </div>
+      <div className='truncate text-[11px] text-muted-foreground' title={data.provider}>
+        {data.provider}
+      </div>
     </div>
   )
 }
