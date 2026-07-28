@@ -104,11 +104,20 @@ export function fmtTokens(n: number): string {
   return String(n)
 }
 
+// 3 significant digits — small ($0.00549) and large ($1,230) values
+// stay comparable at a glance. Intl handles leading-zero cases + thousand
+// separators cleanly; Number#toPrecision would flip to exponential and
+// drop commas.
+const COST_FMT = new Intl.NumberFormat('en-US', {
+  minimumSignificantDigits: 3,
+  maximumSignificantDigits: 3
+})
+
 export function fmtCost(usd: number | null, noPricingLabel: string): string {
   if (usd === null) return noPricingLabel
-  if (usd === 0) return '$0.00'
-  if (usd < 0.01) return '<$0.01'
-  return `$${usd.toFixed(2)}`
+  if (usd === 0) return '$0'
+  if (usd < 0.00001) return '<$0.00001'
+  return `$${COST_FMT.format(usd)}`
 }
 
 export function fmtReset(iso: string | null): string {

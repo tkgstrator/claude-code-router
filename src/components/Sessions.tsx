@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { api, type SessionSummary } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 import { fmtCost, fmtMs, fmtTokens } from '@/lib/sessions/format'
@@ -121,72 +120,70 @@ function SessionCard({ session }: { session: SessionSummary }) {
   const { t } = useTranslation()
   const hasPreview = session.preview !== null && session.preview.length > 0
   return (
-    <Card size='sm' className='gap-3'>
-      <CardContent className='space-y-3'>
-        {/* Header row: date + total cost */}
-        <div className='flex items-start justify-between gap-2'>
-          <div className='min-w-0'>
-            <p className='text-sm font-semibold text-foreground tabular-nums'>
-              {dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}
-            </p>
-            <p className='truncate font-mono text-[10px] text-muted-foreground'>{session.sessionId}</p>
-          </div>
-          {session.totalCostUsd != null && (
-            <p className='shrink-0 text-lg font-bold text-foreground tabular-nums'>{fmtCost(session.totalCostUsd)}</p>
-          )}
+    <div className='group space-y-3 border-l-2 border-transparent px-3 py-3 transition-colors hover:border-primary hover:bg-muted/50'>
+      {/* Header row: date + total cost */}
+      <div className='flex items-start justify-between gap-2'>
+        <div className='min-w-0'>
+          <p className='text-sm font-semibold text-foreground tabular-nums'>
+            {dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}
+          </p>
+          <p className='truncate font-mono text-[10px] text-muted-foreground'>{session.sessionId}</p>
         </div>
-
-        {/* Stats grid — label / value rows keep the eye scanning vertically */}
-        <dl className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t pt-3 text-xs'>
-          <dt className='text-muted-foreground'>{t('sessions.detail.time')}</dt>
-          <dd className='truncate text-right font-mono tabular-nums'>
-            {fmtSessionRange(session.firstAt, session.lastAt)}
-          </dd>
-
-          <dt className='text-muted-foreground'>{t('sessions.detail.duration')}</dt>
-          <dd className='text-right font-mono tabular-nums'>{fmtMs(session.totalDurationMs)}</dd>
-
-          <dt className='text-muted-foreground'>{t('sessions.detail.requests')}</dt>
-          <dd className='flex items-center justify-end gap-1 font-mono tabular-nums'>
-            <Layers className='h-3 w-3 text-muted-foreground' />
-            {session.requestCount.toLocaleString()}
-          </dd>
-
-          <dt className='text-muted-foreground'>{t('sessions.detail.tokens')}</dt>
-          <dd className='text-right font-mono tabular-nums'>
-            {fmtTokens(session.totalInputTokens)}
-            <span className='text-muted-foreground'>↑ </span>
-            {fmtTokens(session.totalOutputTokens)}
-            <span className='text-muted-foreground'>↓</span>
-          </dd>
-
-          <dt className='text-muted-foreground'>{t('sessions.detail.cache_hit_rate')}</dt>
-          <dd className='flex justify-end'>
-            <CacheBar pct={session.avgCacheHitPct} />
-          </dd>
-        </dl>
-
-        {/* Models used in this session, as compact pills */}
-        {session.models.length > 0 && (
-          <div className='flex flex-wrap gap-1 border-t pt-3'>
-            {session.models.map((model) => (
-              <span key={model} className='rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground'>
-                {model}
-              </span>
-            ))}
-          </div>
+        {session.totalCostUsd != null && (
+          <p className='shrink-0 text-lg font-bold text-foreground tabular-nums'>{fmtCost(session.totalCostUsd)}</p>
         )}
+      </div>
 
-        {/* First user turn preview — the only free-form text on the card,
-            clamped so it can't blow the card's vertical rhythm. */}
-        <p
-          className={`line-clamp-2 border-t pt-3 text-xs leading-snug ${
-            hasPreview ? 'text-foreground/80' : 'italic text-muted-foreground'
-          }`}
-        >
-          {hasPreview ? session.preview : t('sessions.preview_empty')}
-        </p>
-      </CardContent>
-    </Card>
+      {/* Stats grid — label / value rows keep the eye scanning vertically */}
+      <dl className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t pt-3 text-xs'>
+        <dt className='text-muted-foreground'>{t('sessions.detail.time')}</dt>
+        <dd className='truncate text-right font-mono tabular-nums'>
+          {fmtSessionRange(session.firstAt, session.lastAt)}
+        </dd>
+
+        <dt className='text-muted-foreground'>{t('sessions.detail.duration')}</dt>
+        <dd className='text-right font-mono tabular-nums'>{fmtMs(session.totalDurationMs)}</dd>
+
+        <dt className='text-muted-foreground'>{t('sessions.detail.requests')}</dt>
+        <dd className='flex items-center justify-end gap-1 font-mono tabular-nums'>
+          <Layers className='h-3 w-3 text-muted-foreground' />
+          {session.requestCount.toLocaleString()}
+        </dd>
+
+        <dt className='text-muted-foreground'>{t('sessions.detail.tokens')}</dt>
+        <dd className='text-right font-mono tabular-nums'>
+          {fmtTokens(session.totalInputTokens)}
+          <span className='text-muted-foreground'>↑ </span>
+          {fmtTokens(session.totalOutputTokens)}
+          <span className='text-muted-foreground'>↓</span>
+        </dd>
+
+        <dt className='text-muted-foreground'>{t('sessions.detail.cache_hit_rate')}</dt>
+        <dd className='flex justify-end'>
+          <CacheBar pct={session.avgCacheHitPct} />
+        </dd>
+      </dl>
+
+      {/* Models used in this session, as compact pills */}
+      {session.models.length > 0 && (
+        <div className='flex flex-wrap gap-1 border-t pt-3'>
+          {session.models.map((model) => (
+            <span key={model} className='rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground'>
+              {model}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* First user turn preview — the only free-form text on the card,
+          clamped so it can't blow the card's vertical rhythm. */}
+      <p
+        className={`line-clamp-2 border-t pt-3 text-xs leading-snug ${
+          hasPreview ? 'text-foreground/80' : 'italic text-muted-foreground'
+        }`}
+      >
+        {hasPreview ? session.preview : t('sessions.preview_empty')}
+      </p>
+    </div>
   )
 }

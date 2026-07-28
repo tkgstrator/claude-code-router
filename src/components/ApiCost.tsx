@@ -145,7 +145,7 @@ export function ApiCost() {
                           ? `${dayjs(String(l)).format('YYYY/M/D')}~`
                           : dayjs(String(l)).format('YYYY/M/D')
                       }
-                      formatter={(value) => `$${Number(value).toFixed(2)}`}
+                      formatter={(value) => fmtCost(Number(value), '—')}
                     />
                   }
                 />
