@@ -213,7 +213,7 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
     <div className='space-y-3 text-xs'>
       <Field label={t('router.rules.field.name')}>
         <Input
-          className='h-7 text-xs'
+          className='h-7 text-xs md:text-xs'
           value={rule.name ?? ''}
           onChange={(e) => patch({ name: e.target.value })}
           disabled={readOnly}
@@ -288,7 +288,7 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
         <Field label={t('router.rules.field.tokens')}>
           <div className='grid grid-cols-2 gap-2'>
             <Input
-              className='h-7 text-xs'
+              className='h-7 text-xs md:text-xs'
               type='number'
               min={0}
               value={rule.when.minTokens ?? ''}
@@ -300,7 +300,7 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
               disabled={readOnly}
             />
             <Input
-              className='h-7 text-xs'
+              className='h-7 text-xs md:text-xs'
               type='number'
               min={0}
               value={rule.when.maxTokens ?? ''}
@@ -417,7 +417,7 @@ function PopoverSingle({
       </PopoverTrigger>
       <PopoverContent className='w-[--radix-popover-trigger-width] p-0' align='start'>
         <Command>
-          {searchable && <CommandInput placeholder='Search…' className='h-7 text-xs' />}
+          {searchable && <CommandInput placeholder='Search…' className='h-7 text-xs md:text-xs' />}
           <CommandList>
             <CommandEmpty>—</CommandEmpty>
             <CommandGroup>
