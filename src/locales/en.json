@@ -340,9 +340,9 @@
       "predicate": "When",
       "target": "Then route to",
       "passthrough": "pass-through",
-      "passthroughPlaceholder": "Pass-through (send unchanged)",
+      "passthroughPlaceholder": "Pass-through",
       "passthroughHint": "Leave empty to skip rewriting the model — the request goes out with whatever the client asked for.",
-      "passthroughActive": "Pass-through — matched requests go out as-is (no model rewrite).",
+      "passthroughActive": "Pass-through — matched requests go out as-is, no model rewrite.",
       "fallbacksCatchAll": "catch-all",
       "field": {
         "name": "Name",
