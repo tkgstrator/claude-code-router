@@ -163,17 +163,26 @@ export function RuleEditor({ scenario, kind, router, onChange, modelKeys, modelL
   )
 }
 
+// Format a raw token count in "k" units, matching how the min/max
+// inputs display them. 60000 → "60k"; 500 → "500".
+function fmtK(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n)
+}
+
 // A compact predicate summary for the collapsed row. Keeps the header
 // readable when the user has many rules; the full form lives inside
-// the expanded body.
+// the expanded body. Skips `minTokens: 0` and `maxTokens: 0` — those
+// are no-ops semantically (≥0 tokens is always true, ≤0 tokens is
+// almost always false) and just create visual noise on rules the
+// user never populated a bound on.
 function summarisePredicate(rule: RouteRule, t: (key: string) => string): string {
   const parts: string[] = []
   const when = rule.when
   if (when.requestedTier !== undefined) parts.push(`tier:${when.requestedTier.join('|')}`)
   if (when.requestedModel !== undefined) parts.push(`model:${when.requestedModel}`)
   if (when.thinking !== undefined) parts.push(when.thinking ? 'thinking' : 'no-thinking')
-  if (when.minTokens !== undefined) parts.push(`≥${when.minTokens}`)
-  if (when.maxTokens !== undefined) parts.push(`≤${when.maxTokens}`)
+  if (when.minTokens !== undefined && when.minTokens > 0) parts.push(`≥${fmtK(when.minTokens)}`)
+  if (when.maxTokens !== undefined && when.maxTokens > 0) parts.push(`≤${fmtK(when.maxTokens)}`)
   if (when.hasTool !== undefined) parts.push(`tool:${when.hasTool}`)
   if (when.effort !== undefined) parts.push(`effort:${when.effort.join('|')}`)
   return parts.length === 0 ? t('router.rules.matchesAll') : parts.join(' · ')
@@ -373,7 +382,9 @@ function TokensInput({
         disabled={disabled}
         onChange={(e) => {
           const v = e.target.valueAsNumber
-          onChange(Number.isFinite(v) ? Math.round(v * 1000) : undefined)
+          // 0 and empty both mean "no bound" — collapse to undefined
+          // so the predicate summary + the saved rule stay clean.
+          onChange(Number.isFinite(v) && v > 0 ? Math.round(v * 1000) : undefined)
         }}
       />
       <span className='pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground'>
