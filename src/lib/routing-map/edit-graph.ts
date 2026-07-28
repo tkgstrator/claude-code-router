@@ -23,9 +23,13 @@ export type EditScenario = (typeof EDIT_SCENARIOS)[number]
 export const ROUTE_KINDS = ['agent', 'subagent'] as const
 export type RouteKind = (typeof ROUTE_KINDS)[number]
 
-// Column x + row spacing for the two-tier layout.
+// Column x + row spacing for the two-tier layout. Scenario nodes are
+// 260px wide and model nodes 280px, so a MODEL_X of 640 leaves ~380px
+// of empty canvas between the columns — enough room that catch-all
+// and rule edges don't visually collide at the mid-point when a
+// scenario fans out to several models.
 const SCENARIO_X = 0
-const MODEL_X = 440
+const MODEL_X = 640
 const ROW_GAP = 96
 
 export interface EditScenarioNode {

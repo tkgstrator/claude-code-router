@@ -43,7 +43,7 @@ export function ConnectionChoiceDialog({
   const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-sm'>
+      <DialogContent className='sm:w-fit sm:max-w-[calc(100vw-4rem)]'>
         <DialogHeader>
           <DialogTitle>{t('routingMap.connect.title')}</DialogTitle>
           <DialogDescription>
