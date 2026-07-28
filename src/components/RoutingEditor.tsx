@@ -16,6 +16,7 @@ import { useTheme } from 'next-themes'
 import { type MouseEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
+import { type ConnectionChoice, ConnectionChoiceDialog } from '@/components/routing-map/ConnectionChoiceDialog'
 import { editNodeTypes, type ModelEditNodeType, type ScenarioEditNodeType } from '@/components/routing-map/edit-nodes'
 import { RoutingEditorPanel } from '@/components/routing-map/RoutingEditorPanel'
 import { Button } from '@/components/ui/button'
@@ -23,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { api } from '@/lib/api'
 import { modelNameOf } from '@/lib/router/fallback-slots'
-import { connectModel, disconnectModel, setPersona } from '@/lib/routing-map/edit-actions'
+import { addRule, connectModel, disconnectModel, emptyRule, setPersona } from '@/lib/routing-map/edit-actions'
 import {
   buildEditGraph,
   EDIT_SCENARIOS,
@@ -107,6 +108,10 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   const modelOptions = useEnabledModelOptions()
 
   const [router, setRouter] = useState<RouterConfig>(config.Router)
+  // Pending connection: set when the user drags an edge onto a
+  // scenario that already has a primary, so the dialog can ask
+  // whether the drag should become a fallback or a new rule.
+  const [pending, setPending] = useState<{ scenario: EditScenario; modelKey: string; kind: RouteKind } | null>(null)
   const [selected, setSelected] = useState<EditScenario | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -194,10 +199,12 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     () =>
       graph.edges.map((edge) => {
         const color = strokeColorFor(edge.origin, edge.role)
-        // No edge labels — the blue color alone tells the reader "this
-        // target is rule-owned"; the rule name / body lives in the
-        // side panel where the user is editing it.
-        const label: string | undefined = undefined
+        // Fallback edges keep their chain-index label so the failover
+        // order stays readable at a glance ("1" → tried first, "2" →
+        // next, ...). Rule edges (primary + fallback) get no name
+        // label — the blue color already signals "rule-owned", and
+        // the rule body is edited in the side panel.
+        const label: string | undefined = edge.role === 'fallback' ? String(edge.order) : undefined
         return {
           id: edge.id,
           source: edge.source,
@@ -230,14 +237,43 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     [graph]
   )
 
-  const onConnect = useCallback((c: Connection) => {
-    const scenario = scenarioFromNodeId(c.source)
-    const modelKey = modelKeyFromNodeId(c.target)
-    const kind = kindFromHandle(c.sourceHandle)
-    if (scenario !== null && modelKey !== null && isEditScenario(scenario)) {
-      setRouter((r) => connectModel(r, scenario, modelKey, kind))
-    }
-  }, [])
+  const onConnect = useCallback(
+    (c: Connection) => {
+      const scenario = scenarioFromNodeId(c.source)
+      const modelKey = modelKeyFromNodeId(c.target)
+      const kind = kindFromHandle(c.sourceHandle)
+      if (scenario === null || modelKey === null || !isEditScenario(scenario)) return
+      // First drag on an empty route becomes the primary automatically.
+      // Once the primary exists, ask the user whether this drag is a
+      // fallback or a new predicated rule — the map has no other way to
+      // tell those apart.
+      const route = router[scenario][kind]
+      if (route.primary === null || route.primary === modelKey) {
+        setRouter((r) => connectModel(r, scenario, modelKey, kind))
+        return
+      }
+      setPending({ scenario, modelKey, kind })
+    },
+    [router]
+  )
+
+  const applyPending = useCallback(
+    (choice: ConnectionChoice) => {
+      if (pending === null) return
+      const { scenario, modelKey, kind } = pending
+      if (choice === 'fallback') {
+        setRouter((r) => connectModel(r, scenario, modelKey, kind))
+      } else {
+        // Seed the rule with the dragged model as its primary so the
+        // panel opens showing the target the user meant; predicate
+        // fields are left blank for them to fill in.
+        setRouter((r) => addRule(r, scenario, kind, { ...emptyRule(), primary: modelKey }))
+        setSelected(scenario)
+      }
+      setPending(null)
+    },
+    [pending]
+  )
 
   // Edge reconnection: drag either end of an edge onto a different handle
   // to rewire it (move the source scenario or the target model), or drop it
@@ -377,6 +413,15 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
           />
         )}
       </div>
+      <ConnectionChoiceDialog
+        open={pending !== null}
+        onOpenChange={(o) => {
+          if (!o) setPending(null)
+        }}
+        scenarioLabel={pending === null ? '' : t(`router.${pending.scenario}`)}
+        modelLabel={pending === null ? '' : modelLabel(pending.modelKey)}
+        onChoose={applyPending}
+      />
     </div>
   )
 }

@@ -60,7 +60,15 @@
     "editMode": "编辑",
     "editNoPrimary": "未设置主模型",
     "editFallbacks": "回退",
-    "editPrimary": "主模型"
+    "editPrimary": "主模型",
+    "connect": {
+      "title": "添加连接",
+      "description": "「{{scenario}}」已配置主模型。{{model}} 应该如何添加?",
+      "asFallback": "作为 fallback 添加",
+      "asFallbackHelp": "当主模型限流时使用。追加到 failover 链尾。",
+      "asRule": "作为新规则添加",
+      "asRuleHelp": "谓词匹配时路由到该模型。在侧边栏编辑详情。"
+    }
   },
   "usage": {
     "title": "用量",

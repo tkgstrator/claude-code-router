@@ -60,7 +60,15 @@
     "editMode": "編集",
     "editNoPrimary": "プライマリ未設定",
     "editFallbacks": "フォールバック",
-    "editPrimary": "プライマリモデル"
+    "editPrimary": "プライマリモデル",
+    "connect": {
+      "title": "接続の追加",
+      "description": "「{{scenario}}」はすでにプライマリが設定されています。{{model}} をどう追加しますか?",
+      "asFallback": "フォールバックとして追加",
+      "asFallbackHelp": "プライマリが上限に達したときに使用。フェイルオーバーチェーンの末尾に追加されます。",
+      "asRule": "新規ルールとして追加",
+      "asRuleHelp": "述語が一致したときにこのモデルへルーティング。詳細はサイドパネルで編集します。"
+    }
   },
   "usage": {
     "title": "使用状況",

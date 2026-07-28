@@ -60,7 +60,15 @@
     "editMode": "Edit",
     "editNoPrimary": "No primary model",
     "editFallbacks": "fallback(s)",
-    "editPrimary": "Primary model"
+    "editPrimary": "Primary model",
+    "connect": {
+      "title": "Add connection",
+      "description": "Route “{{scenario}}” already has a primary. How should {{model}} be added?",
+      "asFallback": "Add as fallback",
+      "asFallbackHelp": "Tried when the primary is rate-limited. Appended to the failover chain.",
+      "asRule": "Add as new rule",
+      "asRuleHelp": "Routes to this model when a predicate matches. Edit the predicate in the side panel."
+    }
   },
   "usage": {
     "title": "Usage",
