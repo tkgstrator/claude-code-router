@@ -194,16 +194,10 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     () =>
       graph.edges.map((edge) => {
         const color = strokeColorFor(edge.origin, edge.role)
-        // Rule edges label with the rule name (or R# fallback so an
-        // unnamed rule still stands out from its siblings). Catch-all
-        // primary edges stay unlabelled — the map already reads
-        // "scenario → its model" without extra chrome.
-        const label =
-          edge.origin === 'rule'
-            ? edge.ruleName !== null
-              ? edge.ruleName
-              : `R${edge.ruleIndex !== null ? edge.ruleIndex + 1 : ''}`
-            : undefined
+        // No edge labels — the blue color alone tells the reader "this
+        // target is rule-owned"; the rule name / body lives in the
+        // side panel where the user is editing it.
+        const label: string | undefined = undefined
         return {
           id: edge.id,
           source: edge.source,
