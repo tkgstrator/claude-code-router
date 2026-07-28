@@ -314,7 +314,39 @@
     "fallbacksDescription": "Tried in order when the primary slot is rate-limited (proactively on high usage, or on a 429). Returns to the primary once the limit resets.",
     "persona": "Active persona",
     "personaNone": "None / Off",
-    "personaHelper": "Appended to user-facing routes (not background) for this router. Define personas on the Personas page."
+    "personaHelper": "Appended to user-facing routes (not background) for this router. Define personas on the Personas page.",
+    "rules": {
+      "title": "Rules",
+      "add": "Add rule",
+      "empty": "No rules — the catch-all primary handles every request.",
+      "matchesAll": "matches everything",
+      "unnamed": "(unnamed rule)",
+      "expand": "Expand rule",
+      "collapse": "Collapse rule",
+      "moveUp": "Move rule up",
+      "moveDown": "Move rule down",
+      "remove": "Remove rule",
+      "predicate": "When",
+      "target": "Then route to",
+      "fallbacksCatchAll": "catch-all",
+      "field": {
+        "name": "Name",
+        "namePlaceholder": "e.g. haiku → cheap lane",
+        "requestedTier": "Requested tier",
+        "effort": "Effort",
+        "thinking": "Thinking",
+        "thinkingAny": "Any (unconstrained)",
+        "thinkingRequired": "Required",
+        "thinkingForbidden": "Forbidden",
+        "minTokens": "Min tokens",
+        "maxTokens": "Max tokens",
+        "hasTool": "Has tool (glob)",
+        "requestedModel": "Requested model (glob)",
+        "primary": "Primary",
+        "fallbacks": "Fallbacks",
+        "fallbacksPlaceholder": "Add fallback models…"
+      }
+    }
   },
   "json_editor": {
     "title": "JSON Editor",

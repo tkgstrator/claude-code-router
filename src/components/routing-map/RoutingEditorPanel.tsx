@@ -14,11 +14,13 @@ import { Input } from '@/components/ui/input'
 import { disconnectModel, moveFallback, setLongContextThreshold } from '@/lib/routing-map/edit-actions'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
 import type { RouterConfig } from '@/schemas'
+import { RuleEditor } from './RuleEditor'
 
 interface RoutingEditorPanelProps {
   scenario: EditScenario
   router: RouterConfig
   onChange: (next: RouterConfig) => void
+  modelKeys: readonly string[]
   modelLabel: (key: string) => string
   onClose: () => void
   // View-only mode: hides remove/reorder buttons and renders scenario knobs
@@ -38,6 +40,7 @@ function RouteSection({
   kind,
   router,
   onChange,
+  modelKeys,
   modelLabel,
   readOnly
 }: {
@@ -46,6 +49,7 @@ function RouteSection({
   kind: RouteKind
   router: RouterConfig
   onChange: (next: RouterConfig) => void
+  modelKeys: readonly string[]
   modelLabel: (key: string) => string
   readOnly: boolean
 }) {
@@ -81,7 +85,10 @@ function RouteSection({
       </div>
 
       <div className='space-y-1'>
-        <div className='text-xs text-muted-foreground'>{t('router.fallbacks')}</div>
+        <div className='text-xs text-muted-foreground'>
+          {t('router.fallbacks')}{' '}
+          <span className='text-[10px] font-normal'>({t('router.rules.fallbacksCatchAll')})</span>
+        </div>
         {route.fallbacks.length === 0 ? (
           <div className='text-xs text-muted-foreground italic'>—</div>
         ) : (
@@ -131,6 +138,16 @@ function RouteSection({
           </ul>
         )}
       </div>
+
+      <RuleEditor
+        scenario={scenario}
+        kind={kind}
+        router={router}
+        onChange={onChange}
+        modelKeys={modelKeys}
+        modelLabel={modelLabel}
+        readOnly={readOnly}
+      />
     </div>
   )
 }
@@ -139,6 +156,7 @@ export function RoutingEditorPanel({
   scenario,
   router,
   onChange,
+  modelKeys,
   modelLabel,
   onClose,
   readOnly = false
@@ -146,7 +164,7 @@ export function RoutingEditorPanel({
   const { t } = useTranslation()
 
   return (
-    <div className='absolute inset-y-0 right-0 w-96 space-y-3 overflow-y-auto border-l bg-background p-3 text-sm'>
+    <div className='absolute inset-y-0 right-0 w-[28rem] space-y-3 overflow-y-auto border-l bg-background p-3 text-sm'>
       <div className='flex items-start justify-between gap-2 border-b pb-2'>
         <div className='min-w-0 space-y-0.5'>
           <div className='font-medium'>{t(`router.${scenario}`)}</div>
@@ -163,6 +181,7 @@ export function RoutingEditorPanel({
         kind='agent'
         router={router}
         onChange={onChange}
+        modelKeys={modelKeys}
         modelLabel={modelLabel}
         readOnly={readOnly}
       />
@@ -172,6 +191,7 @@ export function RoutingEditorPanel({
         kind='subagent'
         router={router}
         onChange={onChange}
+        modelKeys={modelKeys}
         modelLabel={modelLabel}
         readOnly={readOnly}
       />

@@ -141,10 +141,13 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
           note: scenarioNote(node.scenario, router),
           agentPrimaryLabel: agent.primary === null ? '' : modelLabel(agent.primary),
           agentFallbackCount: agent.fallbacks.length,
+          agentRuleCount: agent.rules.length,
           subagentPrimaryLabel: subagent.primary === null ? '' : modelLabel(subagent.primary),
           subagentFallbackCount: subagent.fallbacks.length,
+          subagentRuleCount: subagent.rules.length,
           emptyLabel: t('routingMap.editNoPrimary'),
           fallbackLabel: t('routingMap.editFallbacks'),
+          ruleLabel: t('router.rules.title'),
           agentRouteLabel: t('router.agentRoute'),
           subagentRouteLabel: t('router.subagentRoute'),
           selected: selected === node.scenario
@@ -347,6 +350,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
             scenario={selected}
             router={router}
             onChange={setRouter}
+            modelKeys={modelKeys}
             modelLabel={modelLabel}
             onClose={() => setSelected(null)}
             readOnly={!editable}

@@ -31,13 +31,19 @@ export interface ScenarioEditNodeData extends Record<string, unknown> {
   // Agent route summary: primary model label ('' when unset) + fallback count.
   agentPrimaryLabel: string
   agentFallbackCount: number
+  // Number of predicated rules on the agent route. Rendered as a compact
+  // "N rules" chip so the node signals rule presence at a glance.
+  agentRuleCount: number
   // Subagent route summary: primary model label ('' when unset) + fallback count.
   subagentPrimaryLabel: string
   subagentFallbackCount: number
+  subagentRuleCount: number
   // Localized "no primary" placeholder shown when a primary label is empty.
   emptyLabel: string
   // Localized "fallback(s)" suffix for the +n counters.
   fallbackLabel: string
+  // Localized "rule(s)" suffix for the rule count chip.
+  ruleLabel: string
   // Localized route names, used as the handle aria-labels.
   agentRouteLabel: string
   subagentRouteLabel: string
@@ -55,14 +61,17 @@ export type ScenarioEditNodeType = Node<ScenarioEditNodeData, 'scenarioEdit'>
 export type ModelEditNodeType = Node<ModelEditNodeData, 'modelEdit'>
 
 // One compact route summary row: a chip marker (A / S), the primary model
-// label (or the localized empty placeholder), and a +n fallback counter.
+// label (or the localized empty placeholder), a +n fallback counter, and
+// a rule count chip when the route carries any predicated rules.
 function RouteSummary({
   chip,
   chipClass,
   primaryLabel,
   emptyLabel,
   fallbackCount,
-  fallbackLabel
+  fallbackLabel,
+  ruleCount,
+  ruleLabel
 }: {
   chip: string
   chipClass: string
@@ -70,6 +79,8 @@ function RouteSummary({
   emptyLabel: string
   fallbackCount: number
   fallbackLabel: string
+  ruleCount: number
+  ruleLabel: string
 }) {
   return (
     <div className='flex items-center gap-1.5'>
@@ -89,6 +100,11 @@ function RouteSummary({
       >
         {primaryLabel === '' ? emptyLabel : primaryLabel}
       </span>
+      {ruleCount > 0 && (
+        <span className='shrink-0 rounded bg-accent px-1 text-[10px] tabular-nums text-accent-foreground'>
+          {ruleCount} {ruleLabel}
+        </span>
+      )}
       {fallbackCount > 0 && (
         <span className='shrink-0 text-[10px] tabular-nums text-muted-foreground'>
           +{fallbackCount} {fallbackLabel}
@@ -114,6 +130,8 @@ function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
         emptyLabel={data.emptyLabel}
         fallbackCount={data.agentFallbackCount}
         fallbackLabel={data.fallbackLabel}
+        ruleCount={data.agentRuleCount}
+        ruleLabel={data.ruleLabel}
       />
       <RouteSummary
         chip='S'
@@ -122,6 +140,8 @@ function ScenarioEditNode({ data }: NodeProps<ScenarioEditNodeType>) {
         emptyLabel={data.emptyLabel}
         fallbackCount={data.subagentFallbackCount}
         fallbackLabel={data.fallbackLabel}
+        ruleCount={data.subagentRuleCount}
+        ruleLabel={data.ruleLabel}
       />
       <Handle
         type='source'

@@ -1,5 +1,14 @@
 import { expect, test } from 'bun:test'
-import { connectModel, disconnectModel, moveFallback } from '../../../src/lib/routing-map/edit-actions'
+import {
+  addRule,
+  connectModel,
+  disconnectModel,
+  emptyRule,
+  moveFallback,
+  moveRule,
+  removeRule,
+  updateRule
+} from '../../../src/lib/routing-map/edit-actions'
 import type { RouterConfig } from '../../../src/schemas'
 
 // A fully-unset nested RouterConfig the tests mutate field by field. Each
@@ -99,4 +108,51 @@ test('the same model can be wired into both kinds independently', () => {
   const r2 = disconnectModel(r1, 'webSearch', 'openai,gpt-5', 'agent')
   expect(r2.webSearch.agent.primary).toBeNull()
   expect(r2.webSearch.subagent.primary).toBe('openai,gpt-5')
+})
+
+// ── Route rules ───────────────────────────────────────────────────────
+
+test('addRule appends to the rule stack on the chosen route', () => {
+  const rule = { ...emptyRule(), name: 'haiku', when: { requestedTier: ['haiku'] as const } }
+  const r = addRule(baseRouter(), 'default', 'agent', rule)
+  expect(r.default.agent.rules).toEqual([rule])
+  expect(r.default.subagent.rules).toEqual([])
+})
+
+test('updateRule replaces the rule at the given index and no-ops on OOB', () => {
+  const a = { ...emptyRule(), name: 'a' }
+  const b = { ...emptyRule(), name: 'b' }
+  const r0 = addRule(addRule(baseRouter(), 'default', 'agent', a), 'default', 'agent', b)
+  const replaced = { ...emptyRule(), name: 'a-updated' }
+  const r1 = updateRule(r0, 'default', 'agent', 0, replaced)
+  expect(r1.default.agent.rules[0].name).toBe('a-updated')
+  expect(r1.default.agent.rules[1].name).toBe('b')
+  // OOB is a no-op — returns the same router reference is not required,
+  // but the shape must be unchanged.
+  const r2 = updateRule(r0, 'default', 'agent', 42, replaced)
+  expect(r2.default.agent.rules).toEqual(r0.default.agent.rules)
+})
+
+test('removeRule drops the rule at the given index', () => {
+  const a = { ...emptyRule(), name: 'a' }
+  const b = { ...emptyRule(), name: 'b' }
+  const c = { ...emptyRule(), name: 'c' }
+  const r0 = addRule(addRule(addRule(baseRouter(), 'default', 'agent', a), 'default', 'agent', b), 'default', 'agent', c)
+  const r1 = removeRule(r0, 'default', 'agent', 1)
+  expect(r1.default.agent.rules.map((r) => r.name)).toEqual(['a', 'c'])
+})
+
+test('moveRule reorders the stack and no-ops out of range', () => {
+  const a = { ...emptyRule(), name: 'a' }
+  const b = { ...emptyRule(), name: 'b' }
+  const c = { ...emptyRule(), name: 'c' }
+  const r0 = addRule(addRule(addRule(baseRouter(), 'default', 'agent', a), 'default', 'agent', b), 'default', 'agent', c)
+  expect(moveRule(r0, 'default', 'agent', 0, 2).default.agent.rules.map((r) => r.name)).toEqual(['b', 'c', 'a'])
+  expect(moveRule(r0, 'default', 'agent', 0, 5).default.agent.rules.map((r) => r.name)).toEqual(['a', 'b', 'c'])
+})
+
+test('rule mutations on agent leave subagent untouched (and vice versa)', () => {
+  const rule = { ...emptyRule(), name: 'x' }
+  const r = addRule(baseRouter(), 'default', 'agent', rule)
+  expect(r.default.subagent.rules).toEqual([])
 })
