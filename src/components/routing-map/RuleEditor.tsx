@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { modelNameOf } from '@/lib/router/fallback-slots'
 import { addRule, emptyRule, moveRule, removeRule, updateRule } from '@/lib/routing-map/edit-actions'
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
 import { cn } from '@/lib/utils'
@@ -106,6 +107,17 @@ export function RuleEditor({ scenario, kind, router, onChange, modelKeys, modelL
                   <span className='min-w-0 flex-1 truncate text-xs text-muted-foreground'>
                     {summarisePredicate(rule, t)}
                   </span>
+                  {/* Target model at a glance — provider stripped so the
+                      short name fits alongside the predicate summary
+                      without pushing the reorder / remove buttons out. */}
+                  {rule.primary !== null && rule.primary.length > 0 && (
+                    <span
+                      className='max-w-[9rem] shrink-0 truncate font-mono text-[11px] text-foreground'
+                      title={modelLabel(rule.primary)}
+                    >
+                      → {modelNameOf(rule.primary)}
+                    </span>
+                  )}
                   {!readOnly && (
                     <>
                       <Button
