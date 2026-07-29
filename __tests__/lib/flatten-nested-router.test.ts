@@ -95,8 +95,7 @@ test('flattenNestedRouter preserves per-scenario rules on both kinds', () => {
           {
             name: 'haiku',
             when: { requestedModel: '*haiku*' },
-            primary: 'p,haiku-target',
-            fallbacks: ['p,haiku-fb']
+            target: 'p,haiku-target'
           }
         ]
       },
@@ -108,8 +107,7 @@ test('flattenNestedRouter preserves per-scenario rules on both kinds', () => {
     {
       name: 'haiku',
       when: { requestedModel: '*haiku*' },
-      primary: 'p,haiku-target',
-      fallbacks: ['p,haiku-fb']
+      target: 'p,haiku-target'
     }
   ])
   expect(flat.subagentRules.default).toEqual([])

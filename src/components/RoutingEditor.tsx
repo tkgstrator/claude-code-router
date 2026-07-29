@@ -312,10 +312,10 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
       if (choice === 'fallback') {
         setRouter((r) => connectModel(r, scenario, modelKey, kind))
       } else {
-        // Seed the rule with the dragged model as its primary so the
-        // panel opens showing the target the user meant; predicate
+        // Seed the rule with the dragged model as its target so the
+        // panel opens showing the model the user meant; predicate
         // fields are left blank for them to fill in.
-        setRouter((r) => addRule(r, scenario, kind, { ...emptyRule(), primary: modelKey }))
+        setRouter((r) => addRule(r, scenario, kind, { ...emptyRule(), target: modelKey }))
         setSelected(scenario)
       }
       setPending(null)
