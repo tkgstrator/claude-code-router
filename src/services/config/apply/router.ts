@@ -91,19 +91,24 @@ const rulesToJson = (rules: RouteRule[]): Prisma.InputJsonValue =>
 // — a rule may reference a model that only exists in another workspace
 // or is expected to be added later; the runtime evaluator no-ops on an
 // unknown reference.
-// Accept both the current `{ target }` and the legacy `{ primary,
-// fallbacks }` shape from callers that predate the cascade rename. The
-// legacy shape is rewritten before Zod parsing; the new shape is passed
-// through untouched.
+// Normalize rule rows before Zod parsing:
+//   - accept the legacy `{ primary, fallbacks }` shape from callers that
+//     predate the cascade rename by rewriting `primary` to `target`.
+//   - drop an empty-string `name`. The runtime treats undefined and ''
+//     as "unnamed" alike, and an empty string used to blow up the disk
+//     envelope catchall through JsonPrimitiveSchema.
 const migrateLegacyRule = (raw: unknown): unknown => {
   if (raw === null || typeof raw !== 'object') return raw
-  if ('target' in raw || !('primary' in raw)) return raw
+  const legacy = 'primary' in raw && !('target' in raw)
+  const emptyName = 'name' in raw && Reflect.get(raw, 'name') === ''
+  if (!legacy && !emptyName) return raw
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(raw)) {
-    if (k === 'primary' || k === 'fallbacks') continue
+    if (legacy && (k === 'primary' || k === 'fallbacks')) continue
+    if (k === 'name' && v === '') continue
     out[k] = v
   }
-  out.target = Reflect.get(raw, 'primary')
+  if (legacy) out.target = Reflect.get(raw, 'primary')
   return out
 }
 

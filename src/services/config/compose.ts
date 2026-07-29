@@ -71,20 +71,25 @@ export const fallbacksFromParams = (params: unknown): string[] | null => stringL
 export const subagentFallbacksFromParams = (params: unknown): string[] | null =>
   stringListFromParams(params, 'subagentFallbacks')
 
-// Migrate the legacy `{ primary, fallbacks }` rule shape (pre-cascade
-// design) to the new `{ target }` shape before Zod parsing. Old rows
-// stored inside RouterSlot.params.rules[*] keep working without a
-// destructive DB migration: their `primary` becomes `target` on read,
-// and the next save writes the new shape back through rulesToJson.
+// Normalize rule rows before Zod parsing:
+//   - migrate the legacy `{ primary, fallbacks }` shape to `{ target }`
+//     so pre-cascade DB rows keep parsing; the next save rewrites them
+//     via rulesToJson.
+//   - drop an empty-string `name`. The runtime treats undefined and ''
+//     as "unnamed" alike, and an empty string used to blow up the disk
+//     envelope catchall through JsonPrimitiveSchema.
 const migrateLegacyRule = (raw: unknown): unknown => {
   if (raw === null || typeof raw !== 'object') return raw
-  if ('target' in raw || !('primary' in raw)) return raw
+  const legacy = 'primary' in raw && !('target' in raw)
+  const emptyName = 'name' in raw && Reflect.get(raw, 'name') === ''
+  if (!legacy && !emptyName) return raw
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(raw)) {
-    if (k === 'primary' || k === 'fallbacks') continue
+    if (legacy && (k === 'primary' || k === 'fallbacks')) continue
+    if (k === 'name' && v === '') continue
     out[k] = v
   }
-  out.target = Reflect.get(raw, 'primary')
+  if (legacy) out.target = Reflect.get(raw, 'primary')
   return out
 }
 
