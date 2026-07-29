@@ -358,7 +358,7 @@
         "maxTokens": "最大",
         "hasTool": "工具 (glob)",
         "requestedModel": "请求模型 (glob)",
-        "primary": "主模型",
+        "target": "目标",
         "fallbacks": "降级",
         "fallbacksPlaceholder": "添加降级模型…"
       }

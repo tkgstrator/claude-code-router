@@ -238,8 +238,7 @@ test('selectModel: a rule matching a haiku glob overrides the default primary (w
         {
           name: 'haiku',
           when: { requestedModel: '*haiku*' },
-          primary: 'anthropic,claude-bg',
-          fallbacks: []
+          target: 'anthropic,claude-bg'
         }
       ]
     }
@@ -250,7 +249,10 @@ test('selectModel: a rule matching a haiku glob overrides the default primary (w
     model: 'anthropic,claude-bg',
     scenarioType: 'default',
     isSubagent: false,
-    fallbacks: ['codex,gpt-5']
+    // Cascade: rule target → scenario primary → scenario catch-all
+    // fallbacks. So `claude-sonnet` (scenario primary) precedes the
+    // scenario's `codex,gpt-5` fallback chain.
+    fallbacks: ['anthropic,claude-sonnet', 'codex,gpt-5']
   })
 })
 
@@ -275,8 +277,7 @@ test('selectModel: `requestedTier` matches the family the request model tiers in
         {
           name: 'haiku-only',
           when: { requestedTier: ['haiku'] as const },
-          primary: 'anthropic,claude-bg',
-          fallbacks: []
+          target: 'anthropic,claude-bg'
         }
       ]
     }
@@ -299,8 +300,7 @@ test('selectModel: `requestedTier` accepts multiple tiers (IN semantics)', () =>
         {
           name: 'anything-but-haiku',
           when: { requestedTier: ['fable', 'opus', 'sonnet'] as const },
-          primary: 'anthropic,claude-heavy',
-          fallbacks: []
+          target: 'anthropic,claude-heavy'
         }
       ]
     }
@@ -322,8 +322,7 @@ test('selectModel: `requestedTier` on an untierable model (gpt-*) falls through'
       default: [
         {
           when: { requestedTier: ['sonnet'] as const },
-          primary: 'anthropic,claude-alt',
-          fallbacks: []
+          target: 'anthropic,claude-alt'
         }
       ]
     }
@@ -342,8 +341,7 @@ test('selectModel: `effort` predicate matches when output_config.effort is in th
         {
           name: 'heavy-effort',
           when: { effort: ['high', 'xhigh', 'max'] as const },
-          primary: 'anthropic,claude-opus',
-          fallbacks: []
+          target: 'anthropic,claude-opus'
         }
       ]
     }
@@ -370,8 +368,7 @@ test('selectModel: `thinking: true` predicate matches only when body.thinking is
         {
           name: 'thinking-only',
           when: { thinking: true },
-          primary: 'anthropic,claude-think',
-          fallbacks: []
+          target: 'anthropic,claude-think'
         }
       ]
     }
@@ -396,8 +393,7 @@ test('selectModel: minTokens/maxTokens predicates bracket the request size', () 
         {
           name: 'mid-size',
           when: { minTokens: 10_000, maxTokens: 100_000 },
-          primary: 'anthropic,claude-mid',
-          fallbacks: []
+          target: 'anthropic,claude-mid'
         }
       ]
     }
@@ -416,8 +412,7 @@ test('selectModel: hasTool matches a web_search tool via glob', () => {
         {
           name: 'web-search',
           when: { hasTool: 'web_search_*' },
-          primary: 'anthropic,claude-web',
-          fallbacks: []
+          target: 'anthropic,claude-web'
         }
       ]
     }
@@ -449,8 +444,7 @@ test('selectModel: multiple predicates AND together (thinking + minTokens = long
         {
           name: 'long-thinking',
           when: { thinking: true, minTokens: 60_000 },
-          primary: 'anthropic,claude-fable',
-          fallbacks: []
+          target: 'anthropic,claude-fable'
         }
       ]
     },
@@ -468,11 +462,102 @@ test('selectModel: multiple predicates AND together (thinking + minTokens = long
     model: 'anthropic,claude-fable',
     scenarioType: 'longContext',
     isSubagent: false,
-    fallbacks: []
+    // Cascade puts the scenario primary (`claude-opus`) behind the rule
+    // target so the rule-matched request still gets the catch-all
+    // as its next attempt.
+    fallbacks: ['anthropic,claude-opus']
   })
   // Above threshold WITHOUT thinking → longContext catch-all
   const miss = selectModel(makeReq({ model: 'x' }), 100_000, router, config)
   expect(miss.model).toBe('anthropic,claude-opus')
+})
+
+// ---- selectModel: rule-target cascade -------------------------------
+
+test('selectModel: rule cascade puts scenario primary between rule target and catch-all fallbacks', () => {
+  // Cascade shape (post rename): rule.target wins, then the scenario
+  // primary is tried, then each entry in the scenario catch-all
+  // fallbacks. Motivated by the Opus5 → Fable (rule) → Opus5 → Terra
+  // failover story: a Fable rate limit should still let the request
+  // land on the scenario primary before spilling to Terra.
+  const router = {
+    agent: { longContext: 'claude-code,claude-opus-5' },
+    agentFallbacks: { longContext: ['codex,gpt-5.6-terra'] },
+    agentRules: {
+      longContext: [
+        {
+          name: 'opus|fable → fable',
+          when: { requestedTier: ['fable', 'opus'] as const },
+          target: 'claude-code,claude-fable-5'
+        }
+      ]
+    },
+    longContextThreshold: 60_000
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-opus-4-5' }), 100_000, router, config)
+  expect(out).toEqual({
+    model: 'claude-code,claude-fable-5',
+    scenarioType: 'longContext',
+    isSubagent: false,
+    fallbacks: ['claude-code,claude-opus-5', 'codex,gpt-5.6-terra']
+  })
+})
+
+test('selectModel: rule cascade omits the scenario primary when it equals the rule target', () => {
+  // De-dupe when a rule pins the same model the scenario primary
+  // already targets — the walker shouldn't retry the same entry back
+  // to back. Only the catch-all fallbacks remain behind rule.target.
+  const router = {
+    agent: { longContext: 'claude-code,claude-fable-5' },
+    agentFallbacks: { longContext: ['codex,gpt-5.6-terra'] },
+    agentRules: {
+      longContext: [
+        {
+          name: 'pin fable',
+          when: { requestedTier: ['fable'] as const },
+          target: 'claude-code,claude-fable-5'
+        }
+      ]
+    },
+    longContextThreshold: 60_000
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'claude-fable-x' }), 100_000, router, config)
+  expect(out).toEqual({
+    model: 'claude-code,claude-fable-5',
+    scenarioType: 'longContext',
+    isSubagent: false,
+    fallbacks: ['codex,gpt-5.6-terra']
+  })
+})
+
+test('selectModel: rule cascade skips the scenario primary when the scenario has none configured', () => {
+  // When the scenario has no catch-all primary of its own, the cascade
+  // collapses to `[rule.target, ...catchAllFallbacks]` — nothing to
+  // insert in between, no undefined entries in the chain.
+  const router = {
+    agent: {}, // no scenario primary
+    agentFallbacks: { default: ['codex,gpt-5'] },
+    agentRules: {
+      default: [
+        {
+          name: 'always',
+          when: {},
+          target: 'anthropic,claude-alt'
+        }
+      ]
+    }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(makeReq({ model: 'x' }), 1000, router, config)
+  expect(out).toEqual({
+    model: 'anthropic,claude-alt',
+    scenarioType: 'default',
+    isSubagent: false,
+    // Only the catch-all fallbacks — no scenario primary to insert.
+    fallbacks: ['codex,gpt-5']
+  })
 })
 
 // ---- selectModel: subagent route (tag presence, not value) ---------
@@ -756,8 +841,7 @@ test('selectModel: a haiku rule on the `think` lane wins when thinking is presen
         {
           name: 'haiku on think lane',
           when: { requestedModel: '*haiku*' },
-          primary: 'anthropic,claude-bg',
-          fallbacks: []
+          target: 'anthropic,claude-bg'
         }
       ]
     }
@@ -773,7 +857,9 @@ test('selectModel: a haiku rule on the `think` lane wins when thinking is presen
     model: 'anthropic,claude-bg',
     scenarioType: 'think',
     isSubagent: false,
-    fallbacks: []
+    // Cascade: rule target → scenario primary (`claude-think`) →
+    // scenario fallbacks (none here).
+    fallbacks: ['anthropic,claude-think']
   })
 })
 

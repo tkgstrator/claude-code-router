@@ -109,16 +109,16 @@ export function RuleEditor({ scenario, kind, router, onChange, modelKeys, modelL
                   </span>
                   {/* Target at a glance. Model: short name (provider
                       stripped) so it fits without pushing the reorder /
-                      remove buttons out. No target (primary === null): a
+                      remove buttons out. No target (target === null): a
                       "pass-through" pill so the rule doesn't look
                       unfinished — it's a legit config (matched requests
                       hit req.body.model verbatim, no rewrite). */}
-                  {rule.primary !== null && rule.primary.length > 0 ? (
+                  {rule.target !== null && rule.target.length > 0 ? (
                     <span
                       className='max-w-[9rem] shrink-0 truncate font-mono text-[11px] text-foreground'
-                      title={modelLabel(rule.primary)}
+                      title={modelLabel(rule.target)}
                     >
-                      → {modelNameOf(rule.primary)}
+                      → {modelNameOf(rule.target)}
                     </span>
                   ) : (
                     <span
@@ -331,29 +331,28 @@ function RuleForm({ rule, onChange, modelKeys, modelLabel, readOnly }: RuleFormP
       </FieldGroup>
 
       <FieldGroup title={t('router.rules.target')}>
-        <Field label={t('router.rules.field.primary')}>
+        <Field label={t('router.rules.field.target')}>
           <PopoverSingle
-            value={rule.primary ?? undefined}
+            value={rule.target ?? undefined}
             options={modelOptions}
             placeholder={t('router.rules.passthroughPlaceholder')}
             searchable
             disabled={readOnly}
-            onChange={(v) => patch({ primary: v === undefined ? null : v })}
+            onChange={(v) => patch({ target: v === undefined ? null : v })}
           />
           {/* Surface the passthrough behaviour so an empty picker doesn't
               look like an unfinished config — it's a legitimate choice
               (matched requests skip the rewrite and go out as-is). */}
           <p className='text-[10px] italic text-muted-foreground'>
-            {rule.primary === null || rule.primary.length === 0
+            {rule.target === null || rule.target.length === 0
               ? t('router.rules.passthroughActive')
               : t('router.rules.passthroughHint')}
           </p>
         </Field>
-        {/* Rules don't carry their own failover chain — a matched
-            rule's primary falls over to the scenario's catch-all
-            fallbacks (managed in the panel section above). Keeping
-            rules single-target keeps the priority order flat:
-            scenario → rule → primary → passthrough → fallback. */}
+        {/* Rules don't carry their own failover chain — a matched rule
+            cascades through the scenario catch-all: rule target →
+            scenario primary → scenario fallbacks. Keeping rules
+            single-target keeps the priority order flat. */}
       </FieldGroup>
     </div>
   )

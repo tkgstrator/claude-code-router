@@ -169,6 +169,75 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
   })
 })
 
+describe('readConfigFile — env overlay (12-factor)', () => {
+  beforeEach(deleteConfig)
+  afterEach(deleteConfig)
+
+  test('process.env value overrides the disk envelope APIKEY', async () => {
+    process.env.APIKEY = 'from-env'
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'from-disk' }))
+    const cfg = await readConfigFile()
+    expect(cfg.APIKEY).toBe('from-env')
+    delete process.env.APIKEY
+  })
+
+  test('empty-string env value does NOT override the disk envelope', async () => {
+    // A stray `APIKEY=` in a .env file should not silently disable auth
+    // by overwriting a real disk-stored key.
+    process.env.APIKEY = ''
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'from-disk' }))
+    const cfg = await readConfigFile()
+    expect(cfg.APIKEY).toBe('from-disk')
+    delete process.env.APIKEY
+  })
+
+  test('numeric envelope keys from env are coerced to numbers before schema parse', async () => {
+    process.env.PORT = '9999'
+    process.env.API_TIMEOUT_MS = '15000'
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'k' }))
+    const cfg = await readConfigFile()
+    expect(cfg.PORT).toBe(9999)
+    expect(cfg.API_TIMEOUT_MS).toBe(15000)
+    delete process.env.PORT
+    delete process.env.API_TIMEOUT_MS
+  })
+
+  test('boolean envelope keys accept "true" / "1" from env', async () => {
+    process.env.LOG = 'true'
+    process.env.NON_INTERACTIVE_MODE = '1'
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'k' }))
+    const cfg = await readConfigFile()
+    expect(cfg.LOG).toBe(true)
+    expect(cfg.NON_INTERACTIVE_MODE).toBe(true)
+    delete process.env.LOG
+    delete process.env.NON_INTERACTIVE_MODE
+  })
+
+  test('env APIKEY satisfies the required field when disk config omits it', async () => {
+    // The docker-compose deployment pattern: mount a minimal config
+    // that leaves APIKEY unset and pass it purely via env. Without the
+    // overlay the schema would fail (nonempty required) and the file
+    // would get wiped by the fall-back-to-defaults path.
+    process.env.APIKEY = 'from-env-only'
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info' }))
+    const cfg = await readConfigFile()
+    expect(cfg.APIKEY).toBe('from-env-only')
+    // Config was NOT wiped: the original PORT survived.
+    expect(cfg.PORT).toBe(3456)
+    delete process.env.APIKEY
+  })
+
+  test('env APIKEY wins over the generated random APIKEY on default-config creation', async () => {
+    // No config file on disk (fresh container). The default-config path
+    // usually generates a random APIKEY; env should still override the
+    // returned runtime value.
+    process.env.APIKEY = 'deploy-provided'
+    const cfg = await readConfigFile()
+    expect(cfg.APIKEY).toBe('deploy-provided')
+    delete process.env.APIKEY
+  })
+})
+
 describe('applyEnvelopeToEnv', () => {
   test('mirrors string scalar keys onto process.env', () => {
     applyEnvelopeToEnv({ HOST: '127.0.0.1', APIKEY: 'key123' })

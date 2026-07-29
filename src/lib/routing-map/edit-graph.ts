@@ -112,8 +112,7 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
       // pointing at a model that's not otherwise referenced still gets
       // a node instead of an "unknown target" gap.
       for (const rule of route.rules) {
-        if (rule.primary !== null && rule.primary.length > 0) keys.add(rule.primary)
-        for (const fallback of rule.fallbacks) keys.add(fallback)
+        if (rule.target !== null && rule.target.length > 0) keys.add(rule.target)
       }
     }
   }
@@ -167,19 +166,19 @@ export function buildEditGraph(router: RouterConfig, enabledModelKeys: readonly 
           ruleName: null
         })
       })
-      // Rule edges — one per rule primary. Rules don't have their
-      // own fallback chain (the scenario's catch-all handles
-      // failover for both catch-all and rule-matched requests), so
-      // no rule-fallback edges are drawn.
+      // Rule edges — one per rule target. Rules don't have their own
+      // fallback chain; a matched rule cascades through the scenario
+      // catch-all (rule target → scenario primary → scenario
+      // fallbacks), so no rule-fallback edges are drawn.
       route.rules.forEach((rule, ruleIndex) => {
         const ruleName = rule.name !== undefined && rule.name.length > 0 ? rule.name : null
-        if (rule.primary !== null && rule.primary.length > 0) {
+        if (rule.target !== null && rule.target.length > 0) {
           edges.push({
-            id: `${editScenarioNodeId(scenario)}__${editModelNodeId(rule.primary)}__${kind}__r${ruleIndex}__primary`,
+            id: `${editScenarioNodeId(scenario)}__${editModelNodeId(rule.target)}__${kind}__r${ruleIndex}__target`,
             source: editScenarioNodeId(scenario),
-            target: editModelNodeId(rule.primary),
+            target: editModelNodeId(rule.target),
             scenario,
-            modelKey: rule.primary,
+            modelKey: rule.target,
             kind,
             origin: 'rule',
             role: 'primary',

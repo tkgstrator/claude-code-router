@@ -358,7 +358,7 @@
         "maxTokens": "Max",
         "hasTool": "Has tool (glob)",
         "requestedModel": "Requested model (glob)",
-        "primary": "Primary",
+        "target": "Target",
         "fallbacks": "Fallbacks",
         "fallbacksPlaceholder": "Add fallback models…"
       }
