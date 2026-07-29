@@ -4,7 +4,7 @@ import path from 'node:path'
 import readline from 'node:readline'
 import JSON5 from 'json5'
 import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas'
-import { ENVELOPE_ENV_KEYS } from '@/shared'
+import { ENVELOPE_ENV_KEYS, type EnvelopeEnvKey } from '@/shared'
 import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
 import { SEED_PERSONAS } from '@/shared/data'
 import { logger } from '../../logger'
@@ -27,6 +27,45 @@ const interpolateEnvVars = (obj: any): any => {
     return result
   }
   return obj
+}
+
+// Coerce a string env value into the shape the schema expects for that
+// key. Numeric / boolean fields on the envelope declare their type
+// without `.coerce`, so a raw env string ("3456", "true") would fail
+// schema validation without this pre-step. Unknown / stringy keys pass
+// through unchanged.
+const coerceEnvelopeValue = (key: EnvelopeEnvKey, value: string): unknown => {
+  switch (key) {
+    case 'PORT':
+    case 'API_TIMEOUT_MS': {
+      const n = Number(value)
+      return Number.isFinite(n) ? n : value
+    }
+    case 'LOG':
+    case 'NON_INTERACTIVE_MODE':
+      // Only the strings the operator would reasonably type. Anything
+      // else (unset, empty, arbitrary) leaves the field alone.
+      return value === 'true' || value === '1'
+    default:
+      return value
+  }
+}
+
+// 12-factor overlay: for each envelope scalar the user could reasonably
+// deploy through docker-compose / systemd env, let a set process.env
+// value replace whatever the disk envelope carries. Empty-string env
+// values are ignored so `APIKEY=` in a stray .env line can't lock the
+// server open. Runs BEFORE ConfigEnvelopeSchema parsing so an env value
+// can satisfy a required field the disk file left empty (e.g. APIKEY).
+const overlayEnvOnRaw = (raw: unknown): unknown => {
+  if (raw === null || typeof raw !== 'object') return raw
+  const out: Record<string, unknown> = { ...(raw as Record<string, unknown>) }
+  for (const key of ENVELOPE_ENV_KEYS) {
+    const envValue = process.env[key]
+    if (envValue === undefined || envValue === '') continue
+    out[key] = coerceEnvelopeValue(key, envValue)
+  }
+  return out
 }
 
 const ensureDir = async (dir_path: string) => {
@@ -82,8 +121,10 @@ const createDefaultConfig = async (): Promise<ConfigEnvelope> => {
   logger.info({ path: CONFIG_FILE }, 'Created default configuration file')
   // Parse through the schema so callers receive a fully-defaulted
   // ConfigEnvelope (HOST, LOG, LOG_LEVEL, PROXY_URL, …) instead of just
-  // the four scalars we persist on first run.
-  return ConfigEnvelopeSchema.parse(raw)
+  // the four scalars we persist on first run. Env overlay is applied to
+  // the runtime value (not written to disk) so a deploy setting APIKEY
+  // via env still wins over the generated random default.
+  return ConfigEnvelopeSchema.parse(overlayEnvOnRaw(raw))
 }
 
 export const readConfigFile = async (): Promise<ConfigEnvelope> => {
@@ -98,7 +139,11 @@ export const readConfigFile = async (): Promise<ConfigEnvelope> => {
       return createDefaultConfig()
     }
 
-    const result = ConfigEnvelopeSchema.safeParse(parsed)
+    // Env overlay runs before schema validation so a docker-compose
+    // deploy can satisfy required fields (APIKEY) purely via env, even
+    // when the mounted config.json omits them.
+    const overlaid = overlayEnvOnRaw(parsed)
+    const result = ConfigEnvelopeSchema.safeParse(overlaid)
     if (!result.success) {
       logger.error({ err: result.error }, 'Config file failed schema validation')
       await fs.unlink(CONFIG_FILE)

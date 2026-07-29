@@ -139,13 +139,11 @@ interface RuleEvalContext {
 
 // Resolve the primary target for (scenario, kind, request): walk the
 // scenario's rule stack; the first rule whose predicate matches wins
-// and its `primary` becomes the target. The scenario's catch-all
-// fallback chain serves the failover on both rule-matched and
-// catch-all-matched requests — rules don't carry their own failover
-// list because users only need to manage one chain per scenario.
-// Returns undefined when neither a matching rule nor a catch-all is
-// configured, so selectModel can fall back to `req.body.model` with
-// an empty fallback chain.
+// and its `target` becomes the primary. The failover chain then
+// cascades through the scenario catch-all: rule target → scenario
+// primary → scenario fallbacks, deduped in order. Returns undefined
+// when neither a matching rule nor a catch-all is configured, so
+// selectModel can fall back to `req.body.model` with an empty chain.
 function resolveTarget(
   router: RouterConfig | undefined,
   kind: RouteKind,
@@ -155,21 +153,29 @@ function resolveTarget(
   const fallbacksMap = kind === 'subagent' ? router?.subagentFallbacks : router?.agentFallbacks
   const scenarioFallbacks = fallbacksMap?.[scenario]
   const catchAllFallbacks = Array.isArray(scenarioFallbacks) ? scenarioFallbacks : []
+  const scenarioPrimary = primaryFor(router, kind, scenario)
 
   for (const rule of rulesFor(router, kind, scenario)) {
     if (!matchesRule(rule, ctx)) continue
-    if (typeof rule.primary === 'string' && rule.primary.length > 0) {
+    if (typeof rule.target === 'string' && rule.target.length > 0) {
       ctx.req.log.info({ rule: rule.name ?? '(unnamed)', scenario, kind }, 'Matched routing rule')
-      return { primary: rule.primary, fallbacks: catchAllFallbacks }
+      // Cascade: rule target → scenario primary → catch-all fallbacks.
+      // Drop the scenario primary when it equals the rule target so the
+      // walker doesn't re-attempt the same model twice; buildFailoverChain
+      // dedupes the remaining catch-all entries downstream.
+      const cascade =
+        scenarioPrimary !== undefined && scenarioPrimary !== rule.target
+          ? [scenarioPrimary, ...catchAllFallbacks]
+          : catchAllFallbacks
+      return { primary: rule.target, fallbacks: cascade }
     }
-    // Rule matched but has no primary — a legitimate "block escalation"
+    // Rule matched but has no target — a legitimate "block escalation"
     // pattern (e.g. "for these requests, do NOT reroute"). Return
-    // undefined so selectModel falls back to req.body.model.
+    // undefined so selectModel falls back to `req.body.model`.
     return undefined
   }
-  const primary = primaryFor(router, kind, scenario)
-  if (primary === undefined) return undefined
-  return { primary, fallbacks: catchAllFallbacks }
+  if (scenarioPrimary === undefined) return undefined
+  return { primary: scenarioPrimary, fallbacks: catchAllFallbacks }
 }
 
 // Evaluate a rule's predicate against the request context. An empty

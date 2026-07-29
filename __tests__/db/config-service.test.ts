@@ -48,8 +48,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
               {
                 name: 'haiku (like background)',
                 when: { requestedModel: '*haiku*' },
-                primary: 'openai,gpt-5-nano',
-                fallbacks: []
+                target: 'openai,gpt-5-nano'
               }
             ]
           },
@@ -68,8 +67,7 @@ describe.skipIf(!HAS_DB)('configService', () => {
       {
         name: 'haiku (like background)',
         when: { requestedModel: '*haiku*' },
-        primary: 'openai,gpt-5-nano',
-        fallbacks: []
+        target: 'openai,gpt-5-nano'
       }
     ])
     expect(ui.Router.longContext.agent.primary).toBe('openai,gpt-5')

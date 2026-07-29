@@ -131,7 +131,7 @@ export function setPersona(router: RouterConfig, persona: string | undefined): R
 // Empty predicate (`{}`) means "always matches" — the caller is
 // expected to open the editor immediately after append.
 export function emptyRule(): RouteRule {
-  return { name: '', when: {}, primary: null, fallbacks: [] }
+  return { name: '', when: {}, target: null }
 }
 
 // Append a new rule to a route's rule stack. Idempotent-ish: the same
