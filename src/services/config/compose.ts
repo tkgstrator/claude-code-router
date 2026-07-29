@@ -71,23 +71,6 @@ export const fallbacksFromParams = (params: unknown): string[] | null => stringL
 export const subagentFallbacksFromParams = (params: unknown): string[] | null =>
   stringListFromParams(params, 'subagentFallbacks')
 
-// Migrate the legacy `{ primary, fallbacks }` rule shape (pre-cascade
-// design) to the new `{ target }` shape before Zod parsing. Old rows
-// stored inside RouterSlot.params.rules[*] keep working without a
-// destructive DB migration: their `primary` becomes `target` on read,
-// and the next save writes the new shape back through rulesToJson.
-const migrateLegacyRule = (raw: unknown): unknown => {
-  if (raw === null || typeof raw !== 'object') return raw
-  if ('target' in raw || !('primary' in raw)) return raw
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(raw)) {
-    if (k === 'primary' || k === 'fallbacks') continue
-    out[k] = v
-  }
-  out.target = Reflect.get(raw, 'primary')
-  return out
-}
-
 // Read a rules list off a routerSlot.params JSON column. Any entry
 // failing schema validation is skipped rather than aborting the whole
 // slot — a malformed rule shouldn't take the router offline. Returns []
@@ -98,7 +81,7 @@ const rulesFromParams = (params: unknown, key: 'agentRules' | 'subagentRules'): 
   if (!Array.isArray(raw)) return []
   const out: RouteRule[] = []
   for (const item of raw) {
-    const parsed = RouteRuleSchema.safeParse(migrateLegacyRule(item))
+    const parsed = RouteRuleSchema.safeParse(item)
     if (parsed.success) out.push(parsed.data)
   }
   return out

@@ -129,9 +129,12 @@ export function setPersona(router: RouterConfig, persona: string | undefined): R
 
 // A blank rule the editor can insert and fill in via the drawer.
 // Empty predicate (`{}`) means "always matches" — the caller is
-// expected to open the editor immediately after append.
+// expected to open the editor immediately after append. `name` is
+// omitted rather than set to '' so the persisted JSON stays a valid
+// primitive (empty strings used to trip the envelope catchall) and
+// the runtime "(unnamed)" fallback in model-selection fires cleanly.
 export function emptyRule(): RouteRule {
-  return { name: '', when: {}, target: null }
+  return { when: {}, target: null }
 }
 
 // Append a new rule to a route's rule stack. Idempotent-ish: the same
