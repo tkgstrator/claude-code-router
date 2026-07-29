@@ -71,28 +71,6 @@ export const fallbacksFromParams = (params: unknown): string[] | null => stringL
 export const subagentFallbacksFromParams = (params: unknown): string[] | null =>
   stringListFromParams(params, 'subagentFallbacks')
 
-// Normalize rule rows before Zod parsing:
-//   - migrate the legacy `{ primary, fallbacks }` shape to `{ target }`
-//     so pre-cascade DB rows keep parsing; the next save rewrites them
-//     via rulesToJson.
-//   - drop an empty-string `name`. The runtime treats undefined and ''
-//     as "unnamed" alike, and an empty string used to blow up the disk
-//     envelope catchall through JsonPrimitiveSchema.
-const migrateLegacyRule = (raw: unknown): unknown => {
-  if (raw === null || typeof raw !== 'object') return raw
-  const legacy = 'primary' in raw && !('target' in raw)
-  const emptyName = 'name' in raw && Reflect.get(raw, 'name') === ''
-  if (!legacy && !emptyName) return raw
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(raw)) {
-    if (legacy && (k === 'primary' || k === 'fallbacks')) continue
-    if (k === 'name' && v === '') continue
-    out[k] = v
-  }
-  if (legacy) out.target = Reflect.get(raw, 'primary')
-  return out
-}
-
 // Read a rules list off a routerSlot.params JSON column. Any entry
 // failing schema validation is skipped rather than aborting the whole
 // slot — a malformed rule shouldn't take the router offline. Returns []
@@ -103,7 +81,7 @@ const rulesFromParams = (params: unknown, key: 'agentRules' | 'subagentRules'): 
   if (!Array.isArray(raw)) return []
   const out: RouteRule[] = []
   for (const item of raw) {
-    const parsed = RouteRuleSchema.safeParse(migrateLegacyRule(item))
+    const parsed = RouteRuleSchema.safeParse(item)
     if (parsed.success) out.push(parsed.data)
   }
   return out

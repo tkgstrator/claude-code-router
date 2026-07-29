@@ -91,32 +91,11 @@ const rulesToJson = (rules: RouteRule[]): Prisma.InputJsonValue =>
 // — a rule may reference a model that only exists in another workspace
 // or is expected to be added later; the runtime evaluator no-ops on an
 // unknown reference.
-// Normalize rule rows before Zod parsing:
-//   - accept the legacy `{ primary, fallbacks }` shape from callers that
-//     predate the cascade rename by rewriting `primary` to `target`.
-//   - drop an empty-string `name`. The runtime treats undefined and ''
-//     as "unnamed" alike, and an empty string used to blow up the disk
-//     envelope catchall through JsonPrimitiveSchema.
-const migrateLegacyRule = (raw: unknown): unknown => {
-  if (raw === null || typeof raw !== 'object') return raw
-  const legacy = 'primary' in raw && !('target' in raw)
-  const emptyName = 'name' in raw && Reflect.get(raw, 'name') === ''
-  if (!legacy && !emptyName) return raw
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(raw)) {
-    if (legacy && (k === 'primary' || k === 'fallbacks')) continue
-    if (k === 'name' && v === '') continue
-    out[k] = v
-  }
-  if (legacy) out.target = Reflect.get(raw, 'primary')
-  return out
-}
-
 function validateRules(scenario: string, kind: 'agent' | 'subagent', raw: unknown, warnings: string[]): RouteRule[] {
   if (!Array.isArray(raw)) return []
   const out: RouteRule[] = []
   for (const entry of raw) {
-    const parsed = RouteRuleSchema.safeParse(migrateLegacyRule(entry))
+    const parsed = RouteRuleSchema.safeParse(entry)
     if (parsed.success) {
       out.push(parsed.data)
     } else {
