@@ -39,7 +39,11 @@ export enum MergeStrategy {
 
 // --- JSON value (recursive) -------------------------------------------------
 
-export const JsonPrimitiveSchema = z.union([z.string().nonempty(), z.number(), z.boolean(), z.null()])
+// Empty strings are legal JSON string values — a rule's `name: ""` is a
+// legitimate config, not a schema violation. Object KEYS keep the
+// nonempty guard below (record keys) so we still reject `{"": ...}`
+// entries that could shadow real keys.
+export const JsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
 export type JsonPrimitive = z.infer<typeof JsonPrimitiveSchema>
 
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }

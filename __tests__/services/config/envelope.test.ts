@@ -238,6 +238,39 @@ describe('readConfigFile — env overlay (12-factor)', () => {
   })
 })
 
+describe('readConfigFile — envelope catchall accepts JSON with empty-string values', () => {
+  beforeEach(deleteConfig)
+  afterEach(deleteConfig)
+
+  test('config.json with Router.default.agent.rules[0].name = "" survives schema parse', async () => {
+    // Regression: the disk envelope catchall used JsonPrimitiveSchema
+    // which required strings be nonempty. A rule freshly added via the
+    // UI (emptyRule -> name: '') would blow up the entire config read
+    // and get the file wiped.
+    await writeConfig(
+      JSON.stringify({
+        PORT: 3456,
+        LOG: false,
+        LOG_LEVEL: 'info',
+        APIKEY: 'k',
+        Router: {
+          default: {
+            agent: {
+              primary: 'anthropic,claude-sonnet',
+              fallbacks: [],
+              rules: [{ name: '', when: {}, target: null }]
+            }
+          }
+        }
+      })
+    )
+    const cfg = await readConfigFile()
+    expect(cfg.APIKEY).toBe('k')
+    // Config was NOT wiped: the original PORT survived.
+    expect(cfg.PORT).toBe(3456)
+  })
+})
+
 describe('applyEnvelopeToEnv', () => {
   test('mirrors string scalar keys onto process.env', () => {
     applyEnvelopeToEnv({ HOST: '127.0.0.1', APIKEY: 'key123' })
