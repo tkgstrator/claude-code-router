@@ -127,7 +127,7 @@ export function applyProactiveFailover(
     if (candidate !== primaryModel) {
       log.info(
         { from: primaryModel, to: candidate, scenario: scenarioType, tokenCount, trace },
-        'proactive failover: primary exhausted'
+        'proactive failover: primary dropped, using fallback'
       )
     }
     return candidate
