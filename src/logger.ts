@@ -8,7 +8,7 @@
  * For Hono-side request logging, pino's official pattern is
  * `@hono/structured-logger` + `logger.child({ requestId })` (docs/web.md#hono).
  */
-import { appendFileSync, mkdirSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import pino from 'pino'
 import pinoPretty from 'pino-pretty'
@@ -62,11 +62,48 @@ try {
   /* logging must never throw */
 }
 
+// Size-based rotation on top of the daily cadence. When the active file
+// grows past LOG_MAX_MB, subsequent writes go to `ccr-YYYY-MM-DD-N.log`
+// with an incrementing suffix, so a single busy day produces a series
+// of digestible files instead of one multi-hundred-MB blob. A restart
+// mid-day resumes at the highest existing suffix.
+const LOG_MAX_BYTES = env.LOG_MAX_MB * 1024 * 1024
+
+const rotationState = {
+  date: '',
+  seq: 0,
+  bytes: 0
+}
+
+const rotationPath = (date: string, seq: number): string => {
+  const suffix = seq === 0 ? '' : `-${seq}`
+  return path.join(LOG_DIR, `ccr-${date}${suffix}.log`)
+}
+
+const ensureRotationForDate = (date: string): void => {
+  if (date === rotationState.date) return
+  rotationState.date = date
+  rotationState.seq = 0
+  while (existsSync(rotationPath(date, rotationState.seq + 1))) rotationState.seq++
+  try {
+    rotationState.bytes = statSync(rotationPath(date, rotationState.seq)).size
+  } catch {
+    rotationState.bytes = 0
+  }
+}
+
 const fileStream = {
   write(line: string): void {
     if (!env.LOG) return
+    const date = dayjs().format('YYYY-MM-DD')
+    ensureRotationForDate(date)
+    if (rotationState.bytes + line.length > LOG_MAX_BYTES) {
+      rotationState.seq++
+      rotationState.bytes = 0
+    }
     try {
-      appendFileSync(path.join(LOG_DIR, `ccr-${dayjs().format('YYYY-MM-DD')}.log`), line)
+      appendFileSync(rotationPath(rotationState.date, rotationState.seq), line)
+      rotationState.bytes += line.length
     } catch {
       /* logging must never throw */
     }
@@ -119,7 +156,7 @@ export const syncLevelFromEnv = () => {
   const raw = process.env.LOG_LEVEL ?? ''
   const valid = ['fatal', 'error', 'warn', 'info', 'debug', 'trace']
   if (valid.includes(raw)) logger.level = raw
-  logger.info({ LOG_LEVEL: logger.level, LOG: env.LOG }, 'log config applied')
+  logger.info({ LOG_LEVEL: logger.level, LOG: env.LOG, LOG_MAX_MB: env.LOG_MAX_MB }, 'log config applied')
 }
 
 export { LOG_DIR }
