@@ -74,3 +74,26 @@ export async function setModelEnabled(providerName: string, modelName: string, e
   await syncToConfigFile()
   resetLlmsContext()
 }
+
+// Persist a user-set contextWindow for one model. null clears (fall back
+// to whatever the scrape / seed later writes, or nothing). Called from
+// the same PATCH endpoint as setModelEnabled; the llms context reset is
+// what makes the failover capability gate pick up the new limit on the
+// next request without a server restart.
+export async function setModelContextWindow(
+  providerName: string,
+  modelName: string,
+  contextWindow: number | null
+): Promise<void> {
+  const prisma = getPrismaClient()
+  const model = await prisma.model.findFirst({
+    where: { name: modelName, provider: { name: providerName } }
+  })
+  if (!model) throw new Error(`Model "${modelName}" not found under provider "${providerName}"`)
+  await prisma.model.update({
+    where: { id: model.id },
+    data: { contextWindow }
+  })
+  await syncToConfigFile()
+  resetLlmsContext()
+}

@@ -150,6 +150,10 @@ class ApiClient {
     return this.apiFetch<T>(endpoint, { method: 'POST', body: JSON.stringify(data) })
   }
 
+  async patch<T>(endpoint: string, data: unknown): Promise<T> {
+    return this.apiFetch<T>(endpoint, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
   private async deleteRequest<T>(endpoint: string, body: unknown = {}): Promise<T> {
     return this.apiFetch<T>(endpoint, { method: 'DELETE', body: JSON.stringify(body) })
   }

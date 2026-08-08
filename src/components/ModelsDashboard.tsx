@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useOutletContext } from 'react-router-dom'
+import type { ShellOutletContext } from '@/components/AppShell'
 import { useConfig } from '@/components/ConfigProvider'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Badge } from '@/components/ui/badge'
@@ -16,15 +18,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 import { buildModelRows, sortModelRows } from '@/lib/models/build-rows'
-import { formatContext } from '@/lib/models/format-context'
 import type { ModelRow, Reachability, SortKey } from '@/lib/models/types'
 import { ProviderIcon } from '@/lib/providerIcons'
+import { ContextWindowCell } from './models/ContextWindowCell'
 import { SortHeader } from './models/SortHeader'
 import { StatusIcon } from './models/StatusIcon'
 
 export function ModelsDashboard() {
   const { t } = useTranslation()
-  const { config } = useConfig()
+  const { config, reloadConfig } = useConfig()
+  const { showToast } = useOutletContext<ShellOutletContext>()
   const [status, setStatus] = useState<Record<string, Reachability>>({})
   const [passedAt, setPassedAt] = useState<Record<string, string | null>>({})
   const [isTestingAll, setIsTestingAll] = useState(false)
@@ -318,11 +321,13 @@ export function ModelsDashboard() {
                       </div>
                     </td>
                     <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
-                      {formatContext(row.contextWindow) ? (
-                        <span>{formatContext(row.contextWindow)}</span>
-                      ) : (
-                        <span className='text-muted-foreground/40'>—</span>
-                      )}
+                      <ContextWindowCell
+                        provider={row.provider}
+                        model={row.model}
+                        value={row.contextWindow}
+                        onSaved={reloadConfig}
+                        onError={(msg) => showToast(msg, 'error')}
+                      />
                     </td>
                   </tr>
                 )

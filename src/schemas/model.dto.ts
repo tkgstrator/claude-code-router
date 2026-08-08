@@ -47,9 +47,19 @@ export const ModelTestAllResponseSchema = z
   .openapi('ModelTestAllResponse')
 
 // PATCH /api/providers/:name/models/:model
-export const UpdateModelBodySchema = z.object({
-  enabled: z.boolean()
-})
+// Both fields optional so the endpoint can be used for either the
+// enable/disable toggle or a contextWindow edit (or both in one call).
+// A refine keeps at least one field required, so an empty {} is rejected
+// instead of being a silent no-op — the client asked for a mutation.
+// contextWindow accepts null to clear a previously-set value.
+export const UpdateModelBodySchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    contextWindow: z.number().int().positive().nullable().optional()
+  })
+  .refine((v) => v.enabled !== undefined || v.contextWindow !== undefined, {
+    message: 'at least one of enabled or contextWindow must be present'
+  })
 
 export const UpdateModelSuccessResponseSchema = z
   .object({ success: z.literal(true) })

@@ -9,7 +9,12 @@
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { getPrismaClient } from '../../src/db/client'
-import { applyUiConfig, composeUiConfig, ensureRouterSlots } from '../../src/services/config'
+import {
+  applyUiConfig,
+  composeUiConfig,
+  ensureRouterSlots,
+  setModelContextWindow
+} from '../../src/services/config'
 import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
 
 // HOME and DATABASE_URL are redirected by __tests__/setup.ts (preload),
@@ -563,5 +568,40 @@ describe.skipIf(!HAS_DB)('configService', () => {
     const ui = await composeUiConfig()
     expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
     expect(ui.Providers[0].models.sort()).toEqual(['gpt-5', 'gpt-5-nano'])
+  })
+
+  test('setModelContextWindow persists a number and null clears it', async () => {
+    // Seed one provider + one model, then round-trip the contextWindow
+    // via the same helper the PATCH endpoint calls. Confirms the value
+    // reaches composeUiConfig's modelContextWindows.
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5']
+        }
+      ],
+      Router: {},
+      APIKEY: 'test-key'
+    })
+
+    await setModelContextWindow('openai', 'gpt-5', 400_000)
+    const afterSet = await composeUiConfig()
+    expect(afterSet.Providers[0].modelContextWindows).toEqual({ 'gpt-5': 400_000 })
+
+    await setModelContextWindow('openai', 'gpt-5', null)
+    const afterClear = await composeUiConfig()
+    // Cleared value = key absent (modelContextWindows only carries models
+    // where contextWindow is non-null); the whole map is omitted when
+    // no model has a value.
+    expect(afterClear.Providers[0].modelContextWindows).toBeUndefined()
+  })
+
+  test('setModelContextWindow throws when provider or model is unknown', async () => {
+    // No providers seeded — every lookup must miss.
+    await expect(setModelContextWindow('nope', 'gpt-5', 128_000)).rejects.toThrow(/not found/)
   })
 })
