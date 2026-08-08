@@ -296,7 +296,7 @@ export function Presets() {
   return (
     <PageContainer className='h-screen'>
       <PageHeader
-        title={`${t('presets.title')} (${presets.length})`}
+        title={t('presets.title')}
         leading={
           <Button variant='ghost' size='icon' onClick={handleGoBack}>
             <ArrowLeft className='h-5 w-5' />

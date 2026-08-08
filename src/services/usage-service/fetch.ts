@@ -123,8 +123,21 @@ const requestCodexUsage = async (info: SubAccountTokenInfo): Promise<CodexUsage 
       }
     })
     if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      logger.warn({ status: res.status, body: body.slice(0, 200) }, '[codex] wham/usage non-OK')
+      // Upstream error bodies here are typically JSON (token_expired, quota,
+      // etc.) — parse when possible so the log record carries a structured
+      // object the LogViewer / pino redact can walk, instead of a raw string
+      // that gets chopped mid-key at an arbitrary character. Fall back to raw
+      // text only when the body isn't JSON; cap that at 4KB defensively.
+      const raw = await res.text().catch(() => '')
+      const parsed = ((): unknown => {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return null
+        }
+      })()
+      const body = parsed !== null ? parsed : raw.slice(0, 4096)
+      logger.warn({ status: res.status, body }, '[codex] wham/usage non-OK')
       return null
     }
     const parsed = CodexUsageWireSchema.safeParse(await res.json())

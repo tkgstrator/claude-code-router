@@ -22,8 +22,6 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { toast as sonnerToast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
-import { JsonEditor } from '@/components/JsonEditor'
-import { LogViewer } from '@/components/LogViewer'
 import { MarkdownViewer } from '@/components/MarkdownViewer'
 import { SetupDialog } from '@/components/SetupDialog'
 import { Button } from '@/components/ui/button'
@@ -41,6 +39,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -62,16 +61,38 @@ interface ShellOutletContext {
   showToast: ToastFn
 }
 
-const NAV_ITEMS = [
-  { to: '/models', icon: LayoutDashboard, key: 'nav.models' },
-  { to: '/providers', icon: Server, key: 'nav.providers' },
-  { to: '/subscriptions', icon: CreditCard, key: 'nav.subscriptions' },
-  { to: '/usage', icon: Gauge, key: 'nav.usage' },
-  { to: '/cost', icon: Coins, key: 'nav.cost' },
-  { to: '/sessions', icon: MessagesSquare, key: 'nav.sessions' },
-  { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
-  { to: '/personas', icon: Drama, key: 'nav.personas' },
-  { to: '/settings', icon: Settings, key: 'nav.settings' }
+const NAV_GROUPS = [
+  {
+    labelKey: 'nav.group.connections',
+    items: [
+      { to: '/providers', icon: Server, key: 'nav.providers' },
+      { to: '/subscriptions', icon: CreditCard, key: 'nav.subscriptions' },
+      { to: '/models', icon: LayoutDashboard, key: 'nav.models' }
+    ]
+  },
+  {
+    labelKey: 'nav.group.routing',
+    items: [
+      { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
+      { to: '/personas', icon: Drama, key: 'nav.personas' }
+    ]
+  },
+  {
+    labelKey: 'nav.group.analytics',
+    items: [
+      { to: '/usage', icon: Gauge, key: 'nav.usage' },
+      { to: '/cost', icon: Coins, key: 'nav.cost' },
+      { to: '/sessions', icon: MessagesSquare, key: 'nav.sessions' }
+    ]
+  },
+  {
+    labelKey: 'nav.group.system',
+    items: [
+      { to: '/logs', icon: FileText, key: 'nav.logs' },
+      { to: '/json', icon: FileJson, key: 'nav.jsonEditor' },
+      { to: '/settings', icon: Settings, key: 'nav.settings' }
+    ]
+  }
 ] as const
 
 function AppSidebar() {
@@ -86,20 +107,23 @@ function AppSidebar() {
         </span>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
-            {NAV_ITEMS.map(({ to, icon: Icon, key }) => (
-              <SidebarMenuItem key={to}>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(to)} tooltip={t(key)}>
-                  <NavLink to={to}>
-                    <Icon />
-                    <span>{t(key)}</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+        {NAV_GROUPS.map(({ labelKey, items }) => (
+          <SidebarGroup key={labelKey}>
+            <SidebarGroupLabel>{t(labelKey)}</SidebarGroupLabel>
+            <SidebarMenu>
+              {items.map(({ to, icon: Icon, key }) => (
+                <SidebarMenuItem key={to}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(to)} tooltip={t(key)}>
+                    <NavLink to={to}>
+                      <Icon />
+                      <span>{t(key)}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarFooter className='px-4 py-3 group-data-[collapsible=icon]:hidden'>
         <span className='text-xs text-muted-foreground'>v{pkg.version}</span>
@@ -113,8 +137,6 @@ export function AppShell() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { config, error } = useConfig()
-  const [isJsonEditorOpen, setIsJsonEditorOpen] = useState(false)
-  const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [isNewVersionAvailable, setIsNewVersionAvailable] = useState(false)
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
@@ -278,22 +300,6 @@ export function AppShell() {
           <header className='flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-6'>
             <SidebarTrigger />
             <div className='flex items-center gap-2'>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant='ghost' size='icon' onClick={() => setIsJsonEditorOpen(true)}>
-                    <FileJson className='h-5 w-5' />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('app.json_editor')}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant='ghost' size='icon' onClick={() => setIsLogViewerOpen(true)}>
-                    <FileText className='h-5 w-5' />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('app.log_viewer')}</TooltipContent>
-              </Tooltip>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant='ghost' size='icon'>
@@ -349,8 +355,6 @@ export function AppShell() {
         </SidebarInset>
 
         <SetupDialog open={needsSetup} />
-        <JsonEditor open={isJsonEditorOpen} onOpenChange={setIsJsonEditorOpen} showToast={showToast} />
-        <LogViewer open={isLogViewerOpen} onOpenChange={setIsLogViewerOpen} showToast={showToast} />
         <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
           <DialogContent className='max-w-2xl'>
             <DialogHeader>

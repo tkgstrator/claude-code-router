@@ -45,7 +45,7 @@ export function Personas() {
 
   return (
     <PageContainer>
-      <PageHeader title={`${t('personas.title')} (${rows.length})`}>
+      <PageHeader title={t('personas.title')}>
         <Button onClick={() => navigate('/personas/new')}>
           <Plus className='h-4 w-4' />
           {t('personas.add')}
