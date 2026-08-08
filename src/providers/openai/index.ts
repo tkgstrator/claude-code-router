@@ -107,6 +107,30 @@ const readRow = (row: string[], cols: Columns): ScrapedPriceEntry | null => {
   }
 }
 
+// Per-model docs page URL the "N,NNN,NNN context window" figure lives on.
+const MODEL_DOCS_URL = (id: string): string => `https://developers.openai.com/api/docs/models/${id}`
+
+// Bounded concurrency for per-model fetches — 6 in flight at once keeps
+// a full-catalog refresh (~60 ids) well under a minute without hammering
+// developers.openai.com. Simple worker-pool: N workers pop from a shared
+// mutable list until it's empty.
+const CONTEXT_FETCH_CONCURRENCY = 6
+
+// React SSR emits an HTML comment between adjacent text nodes so
+// hydration can align them — the model docs page ships e.g.
+// `<div>1,050,000<!-- --> context window</div>`, which puts a comment
+// between the number and the label. Strip HTML comments before matching
+// so the plain-text regex catches the pattern regardless.
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g
+const CONTEXT_RE = /([0-9][0-9,]*)\s*context window/i
+
+const parseContextFromHtml = (html: string): number | null => {
+  const m = html.replace(HTML_COMMENT_RE, ' ').match(CONTEXT_RE)
+  if (m === null) return null
+  const n = Number(m[1].replace(/,/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 export class OpenAIProvider extends VendorProvider {
   readonly vendor = 'openai'
   protected readonly modelsEndpoint = 'https://api.openai.com/v1/models'
@@ -134,6 +158,30 @@ export class OpenAIProvider extends VendorProvider {
       seen.add(entry.apiId)
       out.push(entry)
     }
+    return out
+  }
+
+  // The pricing page returns no contextWindow — this walks the per-model
+  // docs pages instead. Each page publishes "N,NNN,NNN context window"
+  // near the header; we grep for that pattern. Called from
+  // refreshOneProvider so every DB row (including Codex subscription
+  // ids like `gpt-5.6-*` that never appear on the pricing table) gets
+  // its context refreshed against the vendor's own docs.
+  async fetchContextWindows(ids: readonly string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>()
+    const queue = [...ids]
+    const worker = async (): Promise<void> => {
+      while (queue.length > 0) {
+        const id = queue.shift()
+        if (id === undefined) return
+        const html = await fetchScrapePage(MODEL_DOCS_URL(id))
+        if (html === null) continue
+        const n = parseContextFromHtml(html)
+        if (n !== null) out.set(id, n)
+      }
+    }
+    const workerCount = Math.min(CONTEXT_FETCH_CONCURRENCY, queue.length)
+    await Promise.all(Array.from({ length: workerCount }, worker))
     return out
   }
 }
