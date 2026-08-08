@@ -317,13 +317,16 @@ const sorted: Record<string, OutEntry> = {}
 for (const id of Object.keys(prices).sort()) sorted[id] = prices[id]
 
 // Context window is not on the pricing page — each model has a detail
-// page at /api/docs/models/<id> whose body shows e.g.
-// "1,050,000 context window". Fetch it for current (non-legacy) models;
-// pages that 404 or omit the figure are skipped (context is optional).
+// page at /api/docs/models/<id> whose body shows e.g. "1,050,000
+// context window". Fetch it for EVERY id the pricing scrape produced,
+// including legacy rows: the legacy detail pages still publish the
+// figure (the pricing table just doesn't repeat it), and CCR's failover
+// capability gate needs the value regardless of whether OpenAI still
+// promotes the model. Pages that 404 or omit the figure are skipped
+// (context is optional).
 const ctxRe = /([0-9][0-9,]*)\s*context window/i
 let ctxHits = 0
 for (const id of Object.keys(sorted)) {
-  if (sorted[id].legacy) continue
   try {
     const resp = await page.goto(`https://developers.openai.com/api/docs/models/${id}`, {
       waitUntil: 'networkidle',
