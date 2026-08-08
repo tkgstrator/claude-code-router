@@ -12,9 +12,10 @@ import { ApplyConfigPayloadSchema, type Provider, type Router } from '@/schemas'
 import { getPrismaClient } from '../../db/client'
 import type { Prisma } from '../../generated/prisma/client'
 import { resetLlmsContext } from '../../llms'
+import { syncLevelFromEnv } from '../../logger'
 import { applyProviders } from './apply/providers'
 import { applyRouter } from './apply/router'
-import { writeConfigFile } from './envelope'
+import { applyEnvelopeToEnv, writeConfigFile } from './envelope'
 import { pruneUnsetEnvelopePaths } from './sync-to-disk'
 
 export { apiKeyForStorage, buildStoredTransformer, parseSlot } from './apply/fields'
@@ -90,11 +91,24 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // Don't persist null / '' for the optional path scalars — drop the
   // key so "unset" stays absent on disk (composeUiConfig re-derives
   // null). A real value is written through unchanged.
+  const envelopeToWrite = pruneUnsetEnvelopePaths(envelope)
   await writeConfigFile({
-    ...pruneUnsetEnvelopePaths(envelope),
+    ...envelopeToWrite,
     ...(incomingProviders !== undefined ? { Providers: incomingProviders } : {}),
     ...(incomingRouter !== undefined ? { Router: incomingRouter } : {})
   })
+
+  // Keep process.env in sync with what we just wrote to disk. The
+  // read-side env overlay in readConfigFile() reasserts process.env
+  // over disk on every read, so a UI-changed scalar (LOG_LEVEL is the
+  // usual culprit) would otherwise be silently clobbered on the next
+  // GET by the value applyEnvelopeToEnv() mirrored at boot. Also
+  // nudges the pino logger so a LOG_LEVEL change takes effect without
+  // a restart. A partial save (e.g. Providers-only) sends an empty
+  // envelope here; applyEnvelopeToEnv skips absent keys, so this is a
+  // no-op in that case.
+  applyEnvelopeToEnv(envelopeToWrite)
+  syncLevelFromEnv()
 
   // Force the llms context to rebuild on the next request so Router /
   // provider changes take effect immediately without a server restart.

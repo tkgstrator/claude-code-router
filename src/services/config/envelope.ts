@@ -186,11 +186,21 @@ export const writeConfigFile = async (config: any) => {
  * to `[object Object]` (and we no longer want those on disk anyway).
  * Whitelisting the keys here lets us tighten the contract without
  * breaking any caller that legitimately reads e.g. process.env.PROXY_URL.
+ *
+ * Present keys are set; keys ABSENT from the envelope (undefined / null)
+ * are DELETED from process.env. Without the delete side, a UI-driven
+ * scalar removal (or a change from any earlier value) would linger on
+ * process.env forever and be silently reasserted over the new disk
+ * state by overlayEnvOnRaw on the next read — the reason LOG_LEVEL
+ * appeared to "always reset to info" after saving from the UI.
  */
 export const applyEnvelopeToEnv = (config: Record<string, unknown>) => {
   for (const key of ENVELOPE_ENV_KEYS) {
     const value = config[key]
-    if (value === undefined || value === null) continue
+    if (value === undefined || value === null) {
+      delete process.env[key]
+      continue
+    }
     if (typeof value === 'string') process.env[key] = value
     else if (typeof value === 'number' || typeof value === 'boolean') process.env[key] = String(value)
     // Anything else (object/array) is silently skipped — those keys
