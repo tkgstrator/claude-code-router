@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { api } from '@/lib/api'
 import { TransformerFormSchema, type TransformerFormValues } from '@/schemas/forms.dto'
 import { useConfig } from './ConfigProvider'
 import { TransformerList } from './TransformerList'
@@ -140,7 +141,13 @@ export function Transformers() {
   const transformers = Array.isArray(config.transformers) ? config.transformers : []
   const editingTransformer = editingIndex !== null ? (transformers[editingIndex] ?? { path: '', options: {} }) : null
 
-  const handleSave = (values: TransformerFormValues) => {
+  const persist = async (nextTransformers: typeof transformers) => {
+    const nextConfig = { ...config, transformers: nextTransformers }
+    setConfig(nextConfig)
+    await api.updateConfig(nextConfig)
+  }
+
+  const handleSave = async (values: TransformerFormValues) => {
     const options = Object.fromEntries(values.options.map(({ key, value }) => [key, value]))
     const updated = [...transformers]
     if (editingIndex !== null && editingIndex < transformers.length) {
@@ -148,15 +155,15 @@ export function Transformers() {
     } else {
       updated.push({ path: values.path, options })
     }
-    setConfig({ ...config, transformers: updated })
     setEditingIndex(null)
+    await persist(updated)
   }
 
-  const handleRemove = (index: number) => {
+  const handleRemove = async (index: number) => {
     const updated = [...transformers]
     updated.splice(index, 1)
-    setConfig({ ...config, transformers: updated })
     setDeletingIndex(null)
+    await persist(updated)
   }
 
   return (
