@@ -79,6 +79,21 @@ export abstract class VendorProvider {
   }
 
   /**
+   * Look up per-model context window from the vendor's per-model docs
+   * pages. Called from refreshOneProvider with the DB's current model
+   * list (existing rows ∪ freshly-added rows) so subscription-only ids
+   * that never surface on the pricing table (`gpt-5.6-*` on Codex, for
+   * example) can still be refreshed against the vendor's own detail
+   * pages. Default: empty Map — vendors without per-model detail pages
+   * skip this path entirely. Missing values (page 404, figure not
+   * present) are omitted rather than reported; the caller only updates
+   * rows the vendor confirmed a value for.
+   */
+  async fetchContextWindows(_ids: readonly string[]): Promise<Map<string, number>> {
+    return new Map()
+  }
+
+  /**
    * Hit the vendor's `/v1/models`-style endpoint and return the flat
    * list of model ids. Returns [] on any failure — network, non-2xx,
    * malformed response — so a bad vendor never blocks the refresh loop.
