@@ -53,7 +53,15 @@
     "cost": "API コスト",
     "sessions": "セッション",
     "personas": "ペルソナ",
-    "settings": "設定"
+    "logs": "ログ",
+    "jsonEditor": "JSON エディタ",
+    "settings": "設定",
+    "group": {
+      "connections": "接続",
+      "routing": "ルーティング",
+      "analytics": "分析",
+      "system": "システム"
+    }
   },
   "routingMap": {
     "title": "ルーティングマップ",

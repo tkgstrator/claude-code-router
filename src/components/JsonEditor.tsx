@@ -1,26 +1,21 @@
 import Editor from '@monaco-editor/react'
-import { Save, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useOutletContext } from 'react-router-dom'
+import type { ShellOutletContext } from '@/components/AppShell'
 import { useConfig } from '@/components/ConfigProvider'
+import { PageContainer, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 
-interface JsonEditorProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  showToast?: (message: string, type: 'success' | 'error' | 'warning') => void
-}
-
-export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
+export function JsonEditor() {
   const { t } = useTranslation()
   const { reloadConfig } = useConfig()
+  const { showToast } = useOutletContext<ShellOutletContext>()
   const [jsonValue, setJsonValue] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
-  const [isVisible, setIsVisible] = useState(false)
-  const [isAnimating, setIsAnimating] = useState(false)
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -35,7 +30,6 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
   // the provider's normalized Config (which coerces null -> '' for the
   // app's controlled inputs). The editor should show the truth on disk.
   useEffect(() => {
-    if (!open) return
     let cancelled = false
     const load = async () => {
       try {
@@ -43,57 +37,29 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
         if (!cancelled) setJsonValue(JSON.stringify(raw, null, 2))
       } catch (error) {
         console.error('Failed to load config:', error)
-        if (!cancelled && showToast) {
-          showToast(t('app.config_saved_failed') + ': ' + (error as Error).message, 'error')
-        }
+        if (!cancelled) showToast(t('app.config_saved_failed') + ': ' + (error as Error).message, 'error')
       }
     }
     load()
     return () => {
       cancelled = true
     }
-  }, [open, showToast, t])
-
-  // Handle open/close animations
-  useEffect(() => {
-    if (open) {
-      setIsVisible(true)
-      // Trigger the animation after a small delay to ensure the element is rendered
-      requestAnimationFrame(() => {
-        setIsAnimating(true)
-      })
-    } else {
-      setIsAnimating(false)
-      // Wait for the animation to complete before hiding
-      const timer = setTimeout(() => {
-        setIsVisible(false)
-      }, 300)
-      return () => clearTimeout(timer)
-    }
-  }, [open])
+  }, [showToast, t])
 
   const handleSaveResponse = (response: unknown, successMessage: string, errorMessage: string) => {
     // Surface a toast based on the response payload
     if (response && typeof response === 'object' && 'success' in response) {
       const apiResponse = response as { success: boolean; message?: string }
       if (apiResponse.success) {
-        if (showToast) {
-          showToast(apiResponse.message || successMessage, 'success')
-        }
+        showToast(apiResponse.message || successMessage, 'success')
         return true
-      } else {
-        if (showToast) {
-          showToast(apiResponse.message || errorMessage, 'error')
-        }
-        return false
       }
-    } else {
-      // Default to success toast
-      if (showToast) {
-        showToast(successMessage, 'success')
-      }
-      return true
+      showToast(apiResponse.message || errorMessage, 'error')
+      return false
     }
+    // Default to success toast
+    showToast(successMessage, 'success')
+    return true
   }
 
   const handleSave = async () => {
@@ -115,80 +81,46 @@ export function JsonEditor({ open, onOpenChange, showToast }: JsonEditorProps) {
         // with no fallback). reloadConfig applies the same normalization
         // the provider does on mount, so other panels stay consistent.
         await reloadConfig()
-        onOpenChange(false)
       }
     } catch (error) {
       console.error('Failed to save config:', error)
-      if (showToast) {
-        showToast(t('app.config_saved_failed') + ': ' + (error as Error).message, 'error')
-      }
+      showToast(t('app.config_saved_failed') + ': ' + (error as Error).message, 'error')
     } finally {
       setIsSaving(false)
     }
   }
 
-  if (!isVisible && !open) {
-    return null
-  }
-
   return (
-    <>
-      {(isVisible || open) && (
-        <div
-          className={`fixed inset-0 z-50 transition-all duration-300 ease-out ${
-            isAnimating && open ? 'bg-black/50 opacity-100' : 'bg-black/0 opacity-0 pointer-events-none'
-          }`}
-          onClick={() => onOpenChange(false)}
+    <PageContainer>
+      <PageHeader title={t('json_editor.title')}>
+        <Button variant='outline' size='sm' onClick={handleSave} disabled={isSaving}>
+          <Save className='h-4 w-4 mr-2' />
+          {isSaving ? t('json_editor.saving') : t('json_editor.save')}
+        </Button>
+      </PageHeader>
+
+      <div className='flex-1 min-h-0'>
+        <Editor
+          height='100%'
+          defaultLanguage='json'
+          value={jsonValue}
+          onChange={(value) => setJsonValue(value || '')}
+          theme={isDark ? 'vs-dark' : 'vs'}
+          options={{
+            minimap: { enabled: true },
+            fontSize: 14,
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            wordWrap: 'on',
+            formatOnPaste: true,
+            formatOnType: true,
+            suggest: {
+              showKeywords: true,
+              showSnippets: true
+            }
+          }}
         />
-      )}
-
-      <div
-        ref={containerRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-background shadow-2xl transition-all duration-300 ease-out transform ${
-          isAnimating && open ? 'translate-y-0' : 'translate-y-full'
-        }`}
-        style={{
-          height: '100vh',
-          maxHeight: '100vh'
-        }}
-      >
-        <div className='flex items-center justify-between border-b p-4'>
-          <h2 className='text-lg font-semibold'>{t('json_editor.title')}</h2>
-          <div className='flex gap-2'>
-            <Button variant='outline' size='sm' onClick={() => onOpenChange(false)} disabled={isSaving}>
-              <X className='h-4 w-4 mr-2' />
-              {t('json_editor.cancel')}
-            </Button>
-            <Button variant='outline' size='sm' onClick={handleSave} disabled={isSaving}>
-              <Save className='h-4 w-4 mr-2' />
-              {isSaving ? t('json_editor.saving') : t('json_editor.save')}
-            </Button>
-          </div>
-        </div>
-
-        <div className='flex-1 min-h-0'>
-          <Editor
-            height='100%'
-            defaultLanguage='json'
-            value={jsonValue}
-            onChange={(value) => setJsonValue(value || '')}
-            theme={isDark ? 'vs-dark' : 'vs'}
-            options={{
-              minimap: { enabled: true },
-              fontSize: 14,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              wordWrap: 'on',
-              formatOnPaste: true,
-              formatOnType: true,
-              suggest: {
-                showKeywords: true,
-                showSnippets: true
-              }
-            }}
-          />
-        </div>
       </div>
-    </>
+    </PageContainer>
   )
 }

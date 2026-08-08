@@ -17,9 +17,15 @@ export const LoggerEnvBoolSchema = (fallback: 'true' | 'false') =>
 
 // Combined schema applied to process.env at logger init. LOG controls
 // whether log lines are appended to the file sink; LOG_LEVEL controls
-// pino's level gate. Both have permissive .catch() fallbacks so an
-// invalid env never breaks the logger.
+// pino's level gate. LOG_MAX_MB is the size cap that triggers file
+// rotation (see src/logger.ts). All have permissive .catch() fallbacks
+// so an invalid env never breaks the logger.
 export const LoggerEnvSchema = z.object({
   LOG: LoggerEnvBoolSchema('true'),
-  LOG_LEVEL: LogLevelSchema.catch('info')
+  LOG_LEVEL: LogLevelSchema.catch('info'),
+  LOG_MAX_MB: z
+    .string()
+    .transform((v) => Number(v))
+    .pipe(z.number().positive().finite())
+    .catch(10)
 })

@@ -161,7 +161,7 @@ export function Transformers() {
 
   return (
     <PageContainer>
-      <PageHeader title={`${t('transformers.title')} (${transformers.length})`}>
+      <PageHeader title={t('transformers.title')}>
         <Button onClick={() => setEditingIndex(transformers.length)}>{t('transformers.add')}</Button>
       </PageHeader>
       <PageContent>

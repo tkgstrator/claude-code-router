@@ -53,7 +53,15 @@
     "cost": "API Cost",
     "sessions": "Sessions",
     "personas": "Personas",
-    "settings": "Settings"
+    "logs": "Logs",
+    "jsonEditor": "JSON Editor",
+    "settings": "Settings",
+    "group": {
+      "connections": "Connections",
+      "routing": "Routing",
+      "analytics": "Analytics",
+      "system": "System"
+    }
   },
   "routingMap": {
     "title": "Routing Map",

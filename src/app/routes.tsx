@@ -4,7 +4,9 @@ import { ApiCost } from '@/components/ApiCost'
 import { AppShell } from '@/components/AppShell'
 import { DebugPage } from '@/components/DebugPage'
 import { ErrorPage } from '@/components/ErrorPage'
+import { JsonEditor } from '@/components/JsonEditor'
 import { Login } from '@/components/Login'
+import { LogViewer } from '@/components/LogViewer'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
 import { OauthResultPage } from '@/components/OauthResultPage'
 import { PersonaEdit } from '@/components/PersonaEdit'
@@ -63,6 +65,8 @@ export const router = createBrowserRouter([
           { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
           { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
           { path: '/personas/edit/:id', element: fullHeight(<PersonaEdit />) },
+          { path: '/logs', element: fullHeight(<LogViewer />) },
+          { path: '/json', element: fullHeight(<JsonEditor />) },
           { path: '/settings', element: fullHeight(<SettingsPage />) }
         ]
       },

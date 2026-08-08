@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Download, Layers, RefreshCw, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useOutletContext } from 'react-router-dom'
+import type { ShellOutletContext } from '@/components/AppShell'
+import { Breadcrumbs } from '@/components/log-viewer/Breadcrumbs'
 import { LogEditor } from '@/components/log-viewer/LogEditor'
 import { LogFileList } from '@/components/log-viewer/LogFileList'
-import { LogViewerHeader } from '@/components/log-viewer/LogViewerHeader'
 import { RequestGroupList } from '@/components/log-viewer/RequestGroupList'
+import { PageContainer, PageHeader } from '@/components/PageLayout'
+import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 import { createDebugClickHandler } from '@/lib/log-viewer/debug-navigation'
@@ -14,27 +18,19 @@ import { buildBreadcrumbs, resolveBackAction } from '@/lib/log-viewer/navigation
 import type { GroupedLogsResponse, LogFile } from '@/lib/log-viewer/types'
 import { createInlineWorker } from '@/lib/log-viewer/worker'
 
-interface LogViewerProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  showToast?: (message: string, type: 'success' | 'error' | 'warning') => void
-}
-
-export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
+export function LogViewer() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { showToast } = useOutletContext<ShellOutletContext>()
   const [logs, setLogs] = useState<string[]>([])
   const [logFiles, setLogFiles] = useState<LogFile[]>([])
   const [selectedFile, setSelectedFile] = useState<LogFile | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [isVisible, setIsVisible] = useState(false)
-  const [isAnimating, setIsAnimating] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [groupByReqId, setGroupByReqId] = useState(false)
   const [groupedLogs, setGroupedLogs] = useState<GroupedLogsResponse | null>(null)
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null)
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
-  const containerRef = useRef<HTMLDivElement>(null)
   const refreshInterval = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -48,10 +44,8 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
   const editorRef = useRef<any>(null)
 
   useEffect(() => {
-    if (open) {
-      loadLogFiles()
-    }
-  }, [open])
+    loadLogFiles()
+  }, [])
 
   // Initialize the Web Worker
   useEffect(() => {
@@ -68,24 +62,18 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
             setGroupedLogs(data)
           } else if (type === 'error') {
             console.error('Worker error:', error)
-            if (showToast) {
-              showToast(t('log_viewer.worker_error') + ': ' + error, 'error')
-            }
+            showToast(t('log_viewer.worker_error') + ': ' + error, 'error')
           }
         }
 
         // Listen for Worker errors
         workerRef.current.onerror = (error) => {
           console.error('Worker error:', error)
-          if (showToast) {
-            showToast(t('log_viewer.worker_init_failed'), 'error')
-          }
+          showToast(t('log_viewer.worker_init_failed'), 'error')
         }
       } catch (error) {
         console.error('Failed to create worker:', error)
-        if (showToast) {
-          showToast(t('log_viewer.worker_init_failed'), 'error')
-        }
+        showToast(t('log_viewer.worker_init_failed'), 'error')
       }
     }
 
@@ -99,7 +87,7 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
   }, [showToast, t])
 
   useEffect(() => {
-    if (autoRefresh && open && selectedFile) {
+    if (autoRefresh && selectedFile) {
       refreshInterval.current = setInterval(() => {
         loadLogs()
       }, 5000) // Refresh every 5 seconds
@@ -112,33 +100,15 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
         clearInterval(refreshInterval.current)
       }
     }
-  }, [autoRefresh, open, selectedFile])
+  }, [autoRefresh, selectedFile])
 
   // Load logs when selected file changes
   useEffect(() => {
-    if (selectedFile && open) {
+    if (selectedFile) {
       setLogs([]) // Clear existing logs
       loadLogs()
     }
-  }, [selectedFile, open])
-
-  // Handle open/close animations
-  useEffect(() => {
-    if (open) {
-      setIsVisible(true)
-      // Trigger the animation after a small delay to ensure the element is rendered
-      requestAnimationFrame(() => {
-        setIsAnimating(true)
-      })
-    } else {
-      setIsAnimating(false)
-      // Wait for the animation to complete before hiding
-      const timer = setTimeout(() => {
-        setIsVisible(false)
-      }, 300)
-      return () => clearTimeout(timer)
-    }
-  }, [open])
+  }, [selectedFile])
 
   const loadLogFiles = async () => {
     try {
@@ -151,15 +121,11 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
         setLogs([])
       } else {
         setLogFiles([])
-        if (showToast) {
-          showToast(t('log_viewer.no_log_files_available'), 'warning')
-        }
+        showToast(t('log_viewer.no_log_files_available'), 'warning')
       }
     } catch (error) {
       console.error('Failed to load log files:', error)
-      if (showToast) {
-        showToast(t('log_viewer.load_files_failed') + ': ' + (error as Error).message, 'error')
-      }
+      showToast(t('log_viewer.load_files_failed') + ': ' + (error as Error).message, 'error')
     } finally {
       setIsLoading(false)
     }
@@ -192,15 +158,11 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
       } else {
         setLogs([])
         setGroupedLogs(null)
-        if (showToast) {
-          showToast(t('log_viewer.no_logs_available'), 'warning')
-        }
+        showToast(t('log_viewer.no_logs_available'), 'warning')
       }
     } catch (error) {
       console.error('Failed to load logs:', error)
-      if (showToast) {
-        showToast(t('log_viewer.load_failed') + ': ' + (error as Error).message, 'error')
-      }
+      showToast(t('log_viewer.load_failed') + ': ' + (error as Error).message, 'error')
     } finally {
       setIsLoading(false)
     }
@@ -212,14 +174,10 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
     try {
       await api.clearLogs(selectedFile.path)
       setLogs([])
-      if (showToast) {
-        showToast(t('log_viewer.logs_cleared'), 'success')
-      }
+      showToast(t('log_viewer.logs_cleared'), 'success')
     } catch (error) {
       console.error('Failed to clear logs:', error)
-      if (showToast) {
-        showToast(t('log_viewer.clear_failed') + ': ' + (error as Error).message, 'error')
-      }
+      showToast(t('log_viewer.clear_failed') + ': ' + (error as Error).message, 'error')
     }
   }
 
@@ -267,9 +225,7 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
 
-    if (showToast) {
-      showToast(t('log_viewer.logs_downloaded'), 'success')
-    }
+    showToast(t('log_viewer.logs_downloaded'), 'success')
   }
 
   // Reset back to the root file-list view
@@ -297,76 +253,94 @@ export function LogViewer({ open, onOpenChange, showToast }: LogViewerProps) {
   const breadcrumbs = buildBreadcrumbs({ t, selectedFile, selectedReqId, resetToFileList, onFileBreadcrumbClick })
   const backAction = resolveBackAction(selectedFile, selectedReqId, () => setSelectedReqId(null), resetToFileList)
 
-  const handleDebugClick = createDebugClickHandler(logs, groupedLogs, groupByReqId, selectedReqId, navigate)
+  // Console-style: newest lines at the top for the file-wide view. Within
+  // a single drilled-in request (grouped + selectedReqId), keep
+  // chronological order — it's the natural read of what happened during
+  // that request.
+  const inSelectedReqView = groupByReqId && selectedReqId !== null
+  const displayLogs = useMemo(() => (inSelectedReqView ? logs : [...logs].reverse()), [logs, inSelectedReqView])
+
+  const handleDebugClick = createDebugClickHandler(displayLogs, groupedLogs, groupByReqId, selectedReqId, navigate)
 
   const configureEditor = createEditorMountHandler(
     editorRef,
-    () => getFinalRequestLines(logs, groupedLogs, groupByReqId, selectedReqId),
+    () => getFinalRequestLines(displayLogs, groupedLogs, groupByReqId, selectedReqId),
     handleDebugClick
   )
 
-  if (!isVisible && !open) {
-    return null
-  }
+  const showFileActions = Boolean(selectedFile)
+  const hasLogs = logs.length > 0
+  // Secondary bar under the title: back button + breadcrumb trail. Only
+  // rendered once the user has drilled in — the root file picker doesn't
+  // need it.
+  const secondary = selectedFile ? (
+    <div className='flex items-center gap-2'>
+      {backAction && (
+        <Button variant='ghost' size='sm' onClick={backAction}>
+          <ArrowLeft className='h-4 w-4 mr-2' />
+          {t('log_viewer.back')}
+        </Button>
+      )}
+      <Breadcrumbs items={breadcrumbs} />
+    </div>
+  ) : undefined
 
   return (
-    <>
-      {(isVisible || open) && (
-        <div
-          className={`fixed inset-0 z-50 transition-all duration-300 ease-out ${
-            isAnimating && open ? 'bg-black/50 opacity-100' : 'bg-black/0 opacity-0 pointer-events-none'
-          }`}
-          onClick={() => onOpenChange(false)}
-        />
-      )}
+    <PageContainer>
+      <PageHeader title={t('nav.logs')} extra={secondary}>
+        {showFileActions && (
+          <>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={toggleGroupByReqId}
+              className={groupByReqId ? 'bg-primary/10 text-primary' : ''}
+            >
+              <Layers className='h-4 w-4 mr-2' />
+              {groupByReqId ? t('log_viewer.grouped_on') : t('log_viewer.group_by_req_id')}
+            </Button>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={autoRefresh ? 'bg-primary/10 text-primary' : ''}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
+              {autoRefresh ? t('log_viewer.auto_refresh_on') : t('log_viewer.auto_refresh_off')}
+            </Button>
+            <Button variant='outline' size='sm' onClick={downloadLogs} disabled={!hasLogs}>
+              <Download className='h-4 w-4 mr-2' />
+              {t('log_viewer.download')}
+            </Button>
+            <Button variant='outline' size='sm' onClick={clearLogs} disabled={!hasLogs}>
+              <Trash2 className='h-4 w-4 mr-2' />
+              {t('log_viewer.clear')}
+            </Button>
+          </>
+        )}
+      </PageHeader>
 
-      <div
-        ref={containerRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-background shadow-2xl transition-all duration-300 ease-out transform ${
-          isAnimating && open ? 'translate-y-0' : 'translate-y-full'
-        }`}
-        style={{
-          height: '100vh',
-          maxHeight: '100vh'
-        }}
-      >
-        <LogViewerHeader
-          backAction={backAction}
-          breadcrumbs={breadcrumbs}
-          showFileActions={Boolean(selectedFile)}
-          groupByReqId={groupByReqId}
-          onToggleGroupByReqId={toggleGroupByReqId}
-          autoRefresh={autoRefresh}
-          onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
-          onDownload={downloadLogs}
-          onClear={clearLogs}
-          hasLogs={logs.length > 0}
-          onClose={() => onOpenChange(false)}
-          t={t}
-        />
-
-        <div className='flex-1 min-h-0'>
-          {isLoading ? (
-            <div className='flex items-center justify-center h-full'>
-              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
-            </div>
-          ) : selectedFile ? (
-            <>
-              {groupByReqId && groupedLogs && !selectedReqId ? (
-                <RequestGroupList summary={groupedLogs.summary} onSelectReqId={selectReqId} t={t} />
-              ) : (
-                <LogEditor
-                  value={formatLogsForEditor(logs, groupedLogs, groupByReqId, selectedReqId)}
-                  isDark={isDark}
-                  onMount={configureEditor}
-                />
-              )}
-            </>
+      <div className='flex-1 min-h-0'>
+        {isLoading ? (
+          <div className='flex items-center justify-center h-full'>
+            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
+          </div>
+        ) : selectedFile ? (
+          groupByReqId && groupedLogs && !selectedReqId ? (
+            <RequestGroupList summary={groupedLogs.summary} onSelectReqId={selectReqId} t={t} />
           ) : (
+            <LogEditor
+              value={formatLogsForEditor(displayLogs, groupedLogs, groupByReqId, selectedReqId)}
+              isDark={isDark}
+              onMount={configureEditor}
+            />
+          )
+        ) : (
+          <div className='px-6 py-6'>
             <LogFileList files={logFiles} onSelect={selectFile} t={t} />
-          )}
-        </div>
+          </div>
+        )}
       </div>
-    </>
+    </PageContainer>
   )
 }

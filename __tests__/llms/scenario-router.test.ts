@@ -699,7 +699,7 @@ test('applyProactiveFailover: trace records the chain walk on a successful fail-
   const config = routerWith(['codex,gpt-5'])
   const out = applyProactiveFailover('anthropic,claude-opus', 'default', ['codex,gpt-5'], 1000, config, log)
   expect(out).toBe('codex,gpt-5')
-  const info = captured.find((c) => c.msg.includes('primary exhausted'))
+  const info = captured.find((c) => c.msg.includes('primary dropped'))
   const trace = info?.obj.trace as { candidate: string; reason: string }[]
   expect(trace).toEqual([
     { candidate: 'anthropic,claude-opus', reason: 'exhausted' },
@@ -721,7 +721,7 @@ test('applyProactiveFailover: capability-gate skips are recorded in the trace', 
   })
   const out = applyProactiveFailover('codex,small', 'default', ['codex,big'], 5_000, config, log)
   expect(out).toBe('codex,big')
-  const info = captured.find((c) => c.msg.includes('primary exhausted'))
+  const info = captured.find((c) => c.msg.includes('primary dropped'))
   const trace = info?.obj.trace as { candidate: string; reason: string }[]
   expect(trace).toEqual([
     { candidate: 'codex,small', reason: 'capability' },
