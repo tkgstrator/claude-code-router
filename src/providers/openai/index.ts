@@ -116,10 +116,16 @@ const MODEL_DOCS_URL = (id: string): string => `https://developers.openai.com/ap
 // mutable list until it's empty.
 const CONTEXT_FETCH_CONCURRENCY = 6
 
+// React SSR emits an HTML comment between adjacent text nodes so
+// hydration can align them — the model docs page ships e.g.
+// `<div>1,050,000<!-- --> context window</div>`, which puts a comment
+// between the number and the label. Strip HTML comments before matching
+// so the plain-text regex catches the pattern regardless.
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g
 const CONTEXT_RE = /([0-9][0-9,]*)\s*context window/i
 
 const parseContextFromHtml = (html: string): number | null => {
-  const m = html.match(CONTEXT_RE)
+  const m = html.replace(HTML_COMMENT_RE, ' ').match(CONTEXT_RE)
   if (m === null) return null
   const n = Number(m[1].replace(/,/g, ''))
   return Number.isFinite(n) && n > 0 ? n : null
