@@ -8,6 +8,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
+import type { Logger } from 'pino'
 import { getPrismaClient } from '../../db/client'
 import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } from '../../llms'
 import { requestLogEmitter } from '../request-logs/events'
@@ -56,7 +57,48 @@ async function recordMessages(entries: MessageRecord[]): Promise<void> {
 
 // ─── Response formatting ────────────────────────────────────────────────
 
-async function formatResponse(c: Context, response: Response, stream: boolean): Promise<Response> {
+// Tee the upstream SSE body through a Transform that counts `data:` lines
+// and total bytes; on flush (end-of-stream) fire a warn when nothing came
+// through. This surfaces the "HTTP 200 but empty body" case that Claude
+// Code shows as "API returned an empty or malformed response" — until now
+// CCR silently relayed the empty stream and the operator had no signal.
+function countingSseTransform(
+  log: Logger,
+  ctx: { provider: string; model: string | undefined; status: number }
+): TransformStream<Uint8Array, Uint8Array> {
+  const decoder = new TextDecoder()
+  const state = { bytes: 0, events: 0, buffer: '' }
+  return new TransformStream({
+    transform(chunk, controller) {
+      state.bytes += chunk.byteLength
+      state.buffer += decoder.decode(chunk, { stream: true })
+      let nl = state.buffer.indexOf('\n')
+      while (nl !== -1) {
+        const line = state.buffer.slice(0, nl)
+        if (line.startsWith('data:')) state.events++
+        state.buffer = state.buffer.slice(nl + 1)
+        nl = state.buffer.indexOf('\n')
+      }
+      controller.enqueue(chunk)
+    },
+    flush() {
+      if (state.events === 0) {
+        log.warn(
+          { provider: ctx.provider, model: ctx.model, status: ctx.status, bytes: state.bytes },
+          'upstream sse stream closed with 0 events'
+        )
+      }
+    }
+  })
+}
+
+async function formatResponse(
+  c: Context,
+  response: Response,
+  stream: boolean,
+  log: Logger,
+  observed: { provider: string; model: string | undefined }
+): Promise<Response> {
   if (!stream) {
     // A few provider paths (codex-oauth notably) force stream=true
     // upstream even when the client asked for blocking JSON. Detect
@@ -69,6 +111,17 @@ async function formatResponse(c: Context, response: Response, stream: boolean): 
       return c.json(message, (response.status || 200) as 200)
     }
     const text = await response.text()
+    if (text.length === 0) {
+      log.warn(
+        {
+          provider: observed.provider,
+          model: observed.model,
+          status: response.status,
+          contentType: response.headers.get('content-type')
+        },
+        'upstream returned empty body — client will see malformed 200'
+      )
+    }
     const json = text.length > 0 ? JSON.parse(text) : {}
     return c.json(json, (response.status || 200) as 200)
   }
@@ -89,7 +142,19 @@ async function formatResponse(c: Context, response: Response, stream: boolean): 
     if (SKIP.has(k.toLowerCase())) continue
     headers.set(k, v)
   }
-  return new Response(response.body, { status: response.status, headers })
+  // Wrap the upstream body in a passthrough Transform that counts SSE
+  // events, so a 0-event close surfaces as a warn instead of silently
+  // relaying an empty stream.
+  const body = response.body
+    ? response.body.pipeThrough(
+        countingSseTransform(log, {
+          provider: observed.provider,
+          model: observed.model,
+          status: response.status
+        })
+      )
+    : response.body
+  return new Response(body, { status: response.status, headers })
 }
 
 function errorResponse(c: Context, err: unknown): Response {
@@ -123,7 +188,10 @@ v1Route.post('/v1/*', async (c) => {
       },
       { log: ctx.log, httpsProxy: ctx.config.getHttpsProxy(), recordUsage, recordMessages }
     )
-    return formatResponse(c, upstream, inv.body.stream === true)
+    return formatResponse(c, upstream, inv.body.stream === true, ctx.log, {
+      provider: inv.provider.name,
+      model: inv.request.model
+    })
   }
 
   // One model attempt with the effort-level retry folded in: if the
