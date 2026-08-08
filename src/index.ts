@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
 import { ZodError } from 'zod'
+import { accessLog } from './api/access-log'
 import { apiKeyAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
@@ -81,6 +82,10 @@ const app = new OpenAPIHono()
 // loopback `http://localhost:<port>/callback` pattern. It is therefore
 // naturally outside this gate; CSRF protection lives on the single-use
 // `state` issued at POST /api/oauth/initiate/* (still gated).
+// Access log runs BEFORE apiKeyAuth so 401s from the auth gate are
+// visible too — otherwise a wrong-key probe leaves no trace at all.
+app.use('/api/*', accessLog)
+app.use('/v1/*', accessLog)
 app.use('/api/*', apiKeyAuth)
 app.use('/v1/*', apiKeyAuth)
 
