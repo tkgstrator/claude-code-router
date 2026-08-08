@@ -12,7 +12,7 @@ import { ApplyConfigPayloadSchema, type Provider, type Router } from '@/schemas'
 import { getPrismaClient } from '../../db/client'
 import type { Prisma } from '../../generated/prisma/client'
 import { resetLlmsContext } from '../../llms'
-import { syncLevelFromEnv } from '../../logger'
+import { syncLoggerFromEnv } from '../../logger'
 import { applyProviders } from './apply/providers'
 import { applyRouter } from './apply/router'
 import { applyEnvelopeToEnv, writeConfigFile } from './envelope'
@@ -108,7 +108,7 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // envelope here; applyEnvelopeToEnv skips absent keys, so this is a
   // no-op in that case.
   applyEnvelopeToEnv(envelopeToWrite)
-  syncLevelFromEnv()
+  syncLoggerFromEnv()
 
   // Force the llms context to rebuild on the next request so Router /
   // provider changes take effect immediately without a server restart.

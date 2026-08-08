@@ -26,7 +26,7 @@ import { usageCostRoute } from './api/usage/cost/route'
 import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
 import { v1Route } from './api/v1/route'
-import { logger, syncLevelFromEnv } from './logger'
+import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
@@ -54,7 +54,7 @@ const envelope = await initConfig()
 // Re-apply LOG_LEVEL to the already-initialised logger: the pino
 // instance is constructed at import time before initConfig() has
 // mirrored config.json's LOG_LEVEL onto process.env.
-syncLevelFromEnv()
+syncLoggerFromEnv()
 logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
 // Self-heal subscription providers whose active account binding was
 // orphaned by older toggle code that nulled instead of promoting.
