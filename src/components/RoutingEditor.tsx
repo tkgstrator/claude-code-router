@@ -22,7 +22,6 @@ import { RoutingEditorPanel } from '@/components/routing-map/RoutingEditorPanel'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
-import { api } from '@/lib/api'
 import { modelNameOf } from '@/lib/router/fallback-slots'
 import {
   addRule,
@@ -41,9 +40,7 @@ import {
   scenarioFromNodeId
 } from '@/lib/routing-map/edit-graph'
 import type { RouterConfig } from '@/schemas'
-import type { Config } from '@/types'
 import type { ShellOutletContext } from './AppShell'
-import { useConfig } from './ConfigProvider'
 
 type AppEditNode = ScenarioEditNodeType | ModelEditNodeType
 
@@ -113,23 +110,33 @@ function scenarioNote(scenario: EditScenario, router: RouterConfig): string | un
   return undefined
 }
 
-// Interpret the /api/config response: { success, message } when present,
-// otherwise treat the write as succeeded (mirrors the Router form).
-function readSaveResult(res: unknown): { ok: boolean; message: string | undefined } {
-  if (typeof res !== 'object' || res === null) return { ok: true, message: undefined }
-  const ok = 'success' in res ? res.success === true : true
-  const message = 'message' in res && typeof res.message === 'string' ? res.message : undefined
-  return { ok, message }
+export interface PersonaOption {
+  id: string
+  name: string
 }
 
-export function RoutingEditor({ config, editable }: { config: Config; editable: boolean }) {
+export interface RoutingEditorProps {
+  // Seed value for the editor's draft state; the editor re-mounts (via
+  // React key) when this needs to be re-seeded from outside.
+  initialRouter: RouterConfig
+  // Personas offered in the persona selector. Empty array → the selector
+  // still renders (with "None") so the user can clear a stale persona,
+  // but no library entries appear.
+  personas: PersonaOption[]
+  // Persist the draft. Return `ok: false` and the editor surfaces the
+  // message as an error toast; return `ok: true` for a success toast.
+  onSave: (router: RouterConfig) => Promise<{ ok: boolean; message?: string }>
+  // Read-only view: no persona selector, no Save button, no edit gestures.
+  editable: boolean
+}
+
+export function RoutingEditor({ initialRouter, personas, onSave, editable }: RoutingEditorProps) {
   const { t } = useTranslation()
-  const { setConfig } = useConfig()
   const { showToast } = useOutletContext<ShellOutletContext>()
   const { resolvedTheme } = useTheme()
   const modelOptions = useEnabledModelOptions()
 
-  const [router, setRouter] = useState<RouterConfig>(config.Router)
+  const [router, setRouter] = useState<RouterConfig>(initialRouter)
   // Pending connection: set when the user drags an edge onto a
   // scenario that already has a primary, so the dialog can ask
   // whether the drag should become a fallback or a new rule.
@@ -138,7 +145,6 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
   const [saving, setSaving] = useState(false)
 
   const modelKeys = useMemo(() => modelOptions.map((o) => o.value), [modelOptions])
-  const personaOptions = config.Personas.map((p) => ({ id: p.id === undefined ? '' : p.id, name: p.name }))
   const personaValue = router.persona === undefined || router.persona === '' ? PERSONA_NONE : router.persona
   const graph = useMemo(() => buildEditGraph(router, modelKeys), [router, modelKeys])
 
@@ -383,24 +389,25 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
     }
   }, [])
 
-  const onSave = useCallback(async () => {
+  const handleSave = useCallback(async () => {
     setSaving(true)
-    const updated = { ...config, Router: router }
-    setConfig(updated)
     try {
-      const { ok, message } = readSaveResult(await api.updateConfig(updated))
-      showToast(message || t(ok ? 'app.config_saved_success' : 'app.config_saved_failed'), ok ? 'success' : 'error')
+      const { ok, message } = await onSave(router)
+      showToast(
+        message === undefined ? t(ok ? 'app.config_saved_success' : 'app.config_saved_failed') : message,
+        ok ? 'success' : 'error'
+      )
     } catch (err) {
       showToast(`${t('app.config_saved_failed')}: ${err instanceof Error ? err.message : String(err)}`, 'error')
     } finally {
       setSaving(false)
     }
-  }, [config, router, setConfig, showToast, t])
+  }, [router, onSave, showToast, t])
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col'>
       {editable && (
-        <div className='flex shrink-0 items-center justify-between gap-3 border-b px-3 py-1.5'>
+        <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-3 py-1.5'>
           <div className='flex items-center gap-2 text-xs text-muted-foreground'>
             <span>{t('router.persona')}</span>
             <Select
@@ -412,7 +419,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={PERSONA_NONE}>{t('router.personaNone')}</SelectItem>
-                {personaOptions.map((p) => (
+                {personas.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}
                   </SelectItem>
@@ -420,7 +427,7 @@ export function RoutingEditor({ config, editable }: { config: Config; editable: 
               </SelectContent>
             </Select>
           </div>
-          <Button type='button' size='sm' onClick={onSave} disabled={saving}>
+          <Button type='button' size='sm' onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className='h-3.5 w-3.5 animate-spin' aria-hidden='true' />}
             {t('app.save')}
           </Button>

@@ -1,4 +1,13 @@
+import type { RouterConfig } from '@/schemas'
 import type { Config } from '@/types'
+
+export interface RoutingPresetItem {
+  id: string
+  name: string
+  config: RouterConfig
+  createdAt: string
+  updatedAt: string
+}
 
 export interface RequestLogItem {
   id: string
@@ -252,6 +261,28 @@ class ApiClient {
   // cost/usage totals are preserved. Returns the number of sessions archived.
   async archiveAllSessions(): Promise<{ archived: number }> {
     return this.post<{ archived: number }>('/request-logs/sessions/archive', {})
+  }
+
+  // Router snapshots — Draft model. Applying a preset is a client-side
+  // action (replace the RoutingEditor's local state); this API just
+  // stores/reads/updates/deletes the snapshots themselves.
+  async listRoutingPresets(): Promise<{ presets: RoutingPresetItem[] }> {
+    return this.get<{ presets: RoutingPresetItem[] }>('/routing-presets')
+  }
+
+  async createRoutingPreset(input: { name: string; config: RouterConfig }): Promise<RoutingPresetItem> {
+    return this.post<RoutingPresetItem>('/routing-presets', input)
+  }
+
+  async updateRoutingPreset(id: string, input: { name?: string; config?: RouterConfig }): Promise<RoutingPresetItem> {
+    return this.apiFetch<RoutingPresetItem>(`/routing-presets/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    })
+  }
+
+  async deleteRoutingPreset(id: string): Promise<void> {
+    return this.deleteRequest<void>(`/routing-presets/${encodeURIComponent(id)}`)
   }
 
   // Requested-model → actual-target routing distribution. sinceHours=0
