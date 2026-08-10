@@ -41,7 +41,7 @@ export function Usage() {
 
   const refreshLive = useCallback(() => {
     api
-      .get<HistoryResponse>('/usage/history?days=7')
+      .get<HistoryResponse>('/usage/history?days=14')
       .then(setHistory)
       .catch(() => setHistory({ samples: [] }))
     api
@@ -121,8 +121,8 @@ export function Usage() {
       config[m] = { label: meta.label, color: meta.color }
     }
     const rows = [...byT.values()].sort((a, b) => (String(a.t) < String(b.t) ? -1 : 1))
-    // One tick per calendar day so the week reads as a 7-day progression
-    // instead of a wall of intraday times.
+    // One tick per calendar day so the range reads as a day-by-day
+    // progression instead of a wall of intraday times.
     const ticks = [...new Map(rows.map((r) => [dayjs(String(r.t)).format('YYYY-MM-DD'), String(r.t)])).values()]
     return { rows, metrics, config, ticks }
   }, [history])
@@ -193,7 +193,7 @@ export function Usage() {
               )}
             </div>
           </div>
-          {/* Past-week utilization trend */}
+          {/* Utilization trend over the past 14 days */}
           <div className='space-y-2 border-t pt-4'>
             <p className='text-sm font-medium text-muted-foreground'>{t('usage.history')}</p>
             {rows.length === 0 ? (
@@ -242,13 +242,7 @@ export function Usage() {
         </section>
 
         {/* ── Model routing ─────────────────────────────────────────── */}
-        <section className='space-y-3'>
-          <div className='w-full border-b pb-2'>
-            <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
-            <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
-          </div>
-          <ModelRoutingSection reloadToken={routingReload} />
-        </section>
+        <ModelRoutingSection reloadToken={routingReload} />
       </PageContent>
     </PageContainer>
   )

@@ -235,6 +235,28 @@ model Model {
   @@index([providerId])
 }
 
+// Saved snapshots of the Router config (the same nested shape that
+// RouterConfigSchema validates on the wire). Applying a preset to the
+// live routing is a client-side action — the editor loads the snapshot
+// into its draft state and the existing /api/config save path writes
+// it to RouterSlot on Save. So this table is intentionally decoupled
+// from RouterSlot: it just stores named blobs the user can switch
+// between. `name` is non-unique — the id (uuid) is the identity, so
+// duplicate labels are allowed.
+model RoutingPreset {
+  id        String   @id @default(uuid())
+  name      String
+  // Snapshot of the Router section (RouterConfigSchema) as JSONB.
+  // A snapshot may reference "provider,model" strings that no longer
+  // resolve at apply-time — the editor surfaces those as unresolved
+  // rather than erroring on load, so the user can rewire.
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
 model RouterSlot {
   id        String      @id @default(cuid())
   scenario  ScenarioKey @unique
