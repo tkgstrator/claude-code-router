@@ -13,7 +13,24 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import { api, type ModelRoutingResponse, type ModelRoutingRow } from '@/lib/api'
+
+// Period selector values in hours. 0 means "all-time" (no filter). Default
+// is 24h so a routing edit that drops a lane fades out of the panel within
+// a day instead of lingering forever.
+const PERIODS = [6, 24, 168, 0] as const
+type Period = (typeof PERIODS)[number]
+
+function periodLabelKey(period: Period): string {
+  return period === 6
+    ? 'usage.routingPeriod6h'
+    : period === 24
+      ? 'usage.routingPeriod24h'
+      : period === 168
+        ? 'usage.routingPeriod7d'
+        : 'usage.routingPeriodAll'
+}
 
 // Fixed lane order (default first), matching the Router page.
 // Historical `RequestLog.scenario = 'background'` rows still surface
@@ -103,33 +120,56 @@ function groupByScenarioAndTarget(rows: ModelRoutingRow[]): ScenarioGroup[] {
 export function ModelRoutingSection({ reloadToken }: { reloadToken: number }) {
   const { t } = useTranslation()
   const [data, setData] = useState<ModelRoutingResponse | null>(null)
+  const [period, setPeriod] = useState<Period>(24)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadToken is a refetch signal, not read in the effect body
   useEffect(() => {
+    setData(null)
     api
-      .getModelRouting()
+      .getModelRouting({ sinceHours: period })
       .then(setData)
       .catch(() => setData({ rows: [], total: 0 }))
-  }, [reloadToken])
+  }, [reloadToken, period])
 
   const groups = useMemo(() => (data === null ? [] : groupByScenarioAndTarget(data.rows)), [data])
 
-  if (data === null) {
-    return <p className='text-sm text-muted-foreground'>…</p>
-  }
-  if (groups.length === 0) {
-    return <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
-  }
-  // Auto-fill grid: each scenario column spans ~22rem so the two-level
-  // hierarchy stays readable and multiple lanes tile side-by-side on a
-  // wide viewport. `items-start` keeps lanes top-aligned rather than
-  // stretching to the tallest cell in their row.
   return (
-    <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-8 gap-y-6'>
-      {groups.map((group) => (
-        <ScenarioGroupCard key={group.scenario} group={group} />
-      ))}
-    </div>
+    <section className='space-y-3'>
+      <div className='flex items-start justify-between gap-2 border-b pb-2'>
+        <div className='min-w-0'>
+          <h3 className='text-base font-semibold'>{t('usage.routing')}</h3>
+          <p className='text-xs text-muted-foreground'>{t('usage.routingHint')}</p>
+        </div>
+        <div className='flex shrink-0 gap-1'>
+          {PERIODS.map((p) => (
+            <Button
+              key={p}
+              variant={period === p ? 'default' : 'ghost'}
+              size='sm'
+              className='h-7 px-2 text-xs'
+              onClick={() => setPeriod(p)}
+            >
+              {t(periodLabelKey(p))}
+            </Button>
+          ))}
+        </div>
+      </div>
+      {data === null ? (
+        <p className='text-sm text-muted-foreground'>…</p>
+      ) : groups.length === 0 ? (
+        <p className='text-sm text-muted-foreground'>{t('usage.routingEmpty')}</p>
+      ) : (
+        // Auto-fill grid: each scenario column spans ~22rem so the two-level
+        // hierarchy stays readable and multiple lanes tile side-by-side on a
+        // wide viewport. `items-start` keeps lanes top-aligned rather than
+        // stretching to the tallest cell in their row.
+        <div className='grid grid-cols-[repeat(auto-fill,minmax(22rem,1fr))] items-start gap-x-8 gap-y-6'>
+          {groups.map((group) => (
+            <ScenarioGroupCard key={group.scenario} group={group} />
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 

@@ -17,6 +17,7 @@ import { providersRoute } from './api/providers/route'
 import { providersTestRoute } from './api/providers/test/route'
 import { refreshModelsRoute } from './api/refresh-models/route'
 import { requestLogsRoute } from './api/request-logs/route'
+import { routingPresetsRoute } from './api/routing-presets/route'
 import { scrapePricesRoute } from './api/scrape-prices/[vendor]/route'
 import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
@@ -129,6 +130,7 @@ app.route('/', modelTestRoute)
 app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)
 app.route('/', requestLogsRoute)
+app.route('/', routingPresetsRoute)
 app.route('/', oauthRoute)
 
 // Native /v1/* LLM proxy — drives the llms pipeline without Fastify.
