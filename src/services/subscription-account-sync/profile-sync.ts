@@ -12,6 +12,7 @@ import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
 import { OauthRefreshResponseSchema } from '../../schemas/llm-oauth.dto'
 import { fetchClaudeProfile } from '../claude-profile-service'
+import { refreshCodexToken } from '../codex-oauth-service'
 import { decryptString, encryptionKey, encryptString, firstString } from './crypto'
 import { providersForKind } from './persist'
 import { claudeMonthlyPrice, codexMonthlyPrice } from './pricing'
@@ -59,6 +60,41 @@ const ensureFreshClaudeToken = async (
       }
     })
     return access_token
+  } catch {
+    return accessToken
+  }
+}
+
+// Codex twin of ensureFreshClaudeToken: rotates the token via
+// auth.openai.com when it is expired or within the leeway window, and
+// persists the rotated pair to the DB. Codex issues offline_access
+// grants that DO carry a refresh_token — the old "no refresh flow"
+// assumption was wrong.
+const ensureFreshCodexToken = async (
+  subAccountId: string,
+  accessToken: string,
+  refreshToken: string | null,
+  expiresAt: Date | null,
+  key: Buffer,
+  prisma: PrismaClient
+): Promise<string> => {
+  const needsRefresh = expiresAt === null || expiresAt.valueOf() - Date.now() <= REFRESH_LEEWAY_MS
+  if (!needsRefresh || !refreshToken) return accessToken
+  try {
+    const rotated = await refreshCodexToken({ refreshToken })
+    const expiresInSec = rotated.expires_in !== undefined ? rotated.expires_in : 3600
+    const newExpiresAt = new Date(Date.now() + expiresInSec * 1000)
+    const newAccessEnc = encryptString(rotated.access_token, key)
+    const newRefreshEnc = encryptString(rotated.refresh_token, key)
+    await prisma.subAccount.update({
+      where: { id: subAccountId },
+      data: {
+        accessTokenEnc: newAccessEnc,
+        refreshTokenEnc: newRefreshEnc,
+        expiresAt: newExpiresAt
+      }
+    })
+    return rotated.access_token
   } catch {
     return accessToken
   }
@@ -153,12 +189,21 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
   for (const p of codexProviders) {
     const accounts = await prisma.subAccount.findMany({ where: { providerId: p.id } })
     for (const account of accounts) {
-      const accessToken = decryptString(account.accessTokenEnc, key)
-      if (!accessToken) {
+      const rawAccessToken = decryptString(account.accessTokenEnc, key)
+      if (!rawAccessToken) {
         await recordAuthStatus(prisma, account.id, AuthStatus.invalid, 'No access token stored')
         failed++
         continue
       }
+      const codexRefreshToken = decryptString(account.refreshTokenEnc, key)
+      const accessToken = await ensureFreshCodexToken(
+        account.id,
+        rawAccessToken,
+        codexRefreshToken,
+        account.expiresAt,
+        key,
+        prisma
+      )
       try {
         const res = await fetch('https://chatgpt.com/backend-api/wham/usage', {
           headers: {
@@ -169,9 +214,11 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
         })
         if (!res.ok) {
           logger.warn({ status: res.status }, '[subaccount] codex wham/usage non-OK')
-          // Codex has no refresh flow — a 401/403 means the token is dead and
-          // the account must be re-authenticated via the CLI. Other statuses
-          // (429, 5xx) are transient, so leave the prior authStatus untouched.
+          // 401/403 means the rotated (or still-original) access token is
+          // no longer accepted. ensureFreshCodexToken already tried to
+          // refresh above — if we still land here, the refresh_token itself
+          // is dead and the user must re-authenticate. Other statuses
+          // (429, 5xx) are transient, so leave the prior authStatus intact.
           if (res.status === 401 || res.status === 403) {
             await recordAuthStatus(prisma, account.id, AuthStatus.invalid, `Codex auth rejected (HTTP ${res.status})`)
           }
