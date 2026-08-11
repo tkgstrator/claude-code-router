@@ -49,7 +49,9 @@ export function ManageProvidersDialog({
                     <div className='min-w-0 flex-1'>
                       <div className='font-medium text-sm truncate'>{entry.displayName}</div>
                       <div className='text-xs text-muted-foreground truncate'>
-                        {t('providers.catalog_models_count', { count: entry.models.length })}
+                        {t('providers.catalog_models_count', {
+                          count: entry.models.filter((m) => !m.deprecated && !m.legacy).length
+                        })}
                       </div>
                     </div>
                     <Switch checked={enabled} onCheckedChange={(next) => onToggleCatalog(entry, next)} />

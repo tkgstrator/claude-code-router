@@ -22,7 +22,8 @@ import {
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
-import { OAuthTransformer } from './oauth-base'
+import { refreshCodexToken } from '../../services/codex-oauth-service'
+import { type OAuthRefreshResult, OAuthTransformer } from './oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
 // request as "CLI" (subscription allotment) vs "Other" (overage) by
@@ -61,6 +62,23 @@ const CODEX_USER_AGENT: string = (() => {
 
 export class CodexOauthTransformer extends OAuthTransformer {
   readonly name = 'codex-oauth'
+
+  // The OAuth grant requested `offline_access`, so the token endpoint
+  // issues a rotating refresh_token alongside the access_token. Hit
+  // /oauth/token with grant_type=refresh_token when the current access
+  // token is within the base class's expiry leeway so we don't 401
+  // mid-request. The base class serialises concurrent refreshes per
+  // subAccountId and persists the rotated token via
+  // updateSubAccountAccessToken.
+  protected async refresh(input: { refreshToken: string }): Promise<OAuthRefreshResult | null> {
+    const rotated = await refreshCodexToken({ refreshToken: input.refreshToken })
+    const expiresInSec = rotated.expires_in !== undefined ? rotated.expires_in : 3600
+    return {
+      accessToken: rotated.access_token,
+      refreshToken: rotated.refresh_token,
+      expiresAt: new Date(Date.now() + expiresInSec * 1000)
+    }
+  }
 
   async transformRequestIn(
     request: UnifiedChatRequest,
