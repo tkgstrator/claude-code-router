@@ -48,7 +48,16 @@ export function rewriteReasoning(responsesReq: ResponsesUnifiedChatRequest): voi
 }
 
 export function collectSystemMessages(responsesReq: ResponsesUnifiedChatRequest, input: unknown[]): void {
-  const systemMessages = responsesReq.messages.filter((msg) => msg.role === 'system')
+  // Defensive against a body that reached this transformer with no
+  // `messages` field — an OpenAI-compat caller sending
+  // `POST /v1/chat/completions {model}` used to crash the whole
+  // request with an internal 500 (`undefined is not an object
+  // (evaluating 'responsesReq.messages.filter')`) that leaked the
+  // internal expression name. The route-plan validator ahead of us
+  // should reject that request with 400, but the transformer must not
+  // depend on it — treat "no messages" as "no system messages" here.
+  const messages = Array.isArray(responsesReq.messages) ? responsesReq.messages : []
+  const systemMessages = messages.filter((msg) => msg.role === 'system')
   if (systemMessages.length === 0) return
 
   const firstSystem = systemMessages[0]
