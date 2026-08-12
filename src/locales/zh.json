@@ -48,6 +48,7 @@
     "providers": "供应商",
     "routingMap": "路由图",
     "routerPreferences": "优先级",
+    "routerTiers": "Tier 列表",
     "routerUtilization": "使用情况",
     "transformers": "转换器",
     "subscriptions": "订阅",

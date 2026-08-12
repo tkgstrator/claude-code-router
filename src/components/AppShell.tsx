@@ -14,6 +14,7 @@ import {
   Moon,
   Server,
   Settings,
+  Sliders,
   Sun,
   Waypoints
 } from 'lucide-react'
@@ -76,6 +77,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
       { to: '/router-preferences', icon: ListOrdered, key: 'nav.routerPreferences' },
+      { to: '/router-tiers', icon: Sliders, key: 'nav.routerTiers' },
       { to: '/router-utilization', icon: BarChart3, key: 'nav.routerUtilization' },
       { to: '/personas', icon: Drama, key: 'nav.personas' }
     ]

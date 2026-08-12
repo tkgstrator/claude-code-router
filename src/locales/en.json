@@ -48,6 +48,7 @@
     "providers": "Providers",
     "routingMap": "Routing Map",
     "routerPreferences": "Preferences",
+    "routerTiers": "Tiers",
     "routerUtilization": "Utilization",
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",

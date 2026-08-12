@@ -48,6 +48,7 @@
     "providers": "プロバイダー",
     "routingMap": "ルーティングマップ",
     "routerPreferences": "優先順位",
+    "routerTiers": "Tier 一覧",
     "routerUtilization": "利用状況",
     "transformers": "Transformer",
     "subscriptions": "サブスクリプション",

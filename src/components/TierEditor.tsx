@@ -1,14 +1,14 @@
 /**
- * Tier Editor dialog.
+ * Tier Editor page.
  *
  * Bulk-edit `Model.manualTier` across every configured provider.
- * When set the value overrides the name-substring tier inference the
- * preference selector uses, so operators can classify third-party
+ * When set, the value overrides the name-substring tier inference
+ * the preference selector uses so operators can classify third-party
  * models (gpt-5.6-*, gemini-*, ...) as one of fable / opus / sonnet /
- * haiku so tier-respect constraints match.
+ * haiku.
  *
  * Save PATCHes just the changed rows (compared against the initial
- * snapshot on open); untouched models stay put with a single network
+ * snapshot on load); untouched models stay put with a single network
  * roundtrip per changed entry.
  */
 
@@ -16,15 +16,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
 import type { ShellOutletContext } from '@/components/AppShell'
+import { useConfig } from '@/components/ConfigProvider'
+import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import type { Provider } from '@/schemas'
@@ -33,9 +27,6 @@ type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'
 type TierValue = Tier | 'auto'
 const TIER_OPTIONS: readonly TierValue[] = ['auto', 'fable', 'opus', 'sonnet', 'haiku']
 
-// Name-inference fallback (mirrors tierOf() in the router). Used only
-// for the "auto → resolved as" hint next to the select so users can
-// see what the fallback would produce.
 const inferTier = (name: string): Tier | null => {
   const lower = name.toLowerCase()
   if (lower.includes('fable')) return 'fable'
@@ -43,12 +34,6 @@ const inferTier = (name: string): Tier | null => {
   if (lower.includes('sonnet')) return 'sonnet'
   if (lower.includes('haiku')) return 'haiku'
   return null
-}
-
-interface Props {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  providers: readonly Provider[]
 }
 
 interface Row {
@@ -76,16 +61,20 @@ const buildRows = (providers: readonly Provider[]): Row[] => {
   return out
 }
 
-export function TierEditor({ open, onOpenChange, providers }: Props) {
+export function TierEditor() {
   const { t } = useTranslation()
+  const { config } = useConfig()
   const { showToast } = useOutletContext<ShellOutletContext>()
+  const providers = useMemo(() => config?.Providers ?? [], [config])
   const [rows, setRows] = useState<Row[]>(() => buildRows(providers))
   const [saving, setSaving] = useState(false)
 
-  // Re-seed when the dialog re-opens so unsaved edits don't linger.
+  // Re-seed whenever the config-provided list changes so an external
+  // /api/config update (e.g. a Providers save on another tab) drops
+  // any stale rows without leaving edits from a deleted row behind.
   useEffect(() => {
-    if (open) setRows(buildRows(providers))
-  }, [open, providers])
+    setRows(buildRows(providers))
+  }, [providers])
 
   const rowsByProvider = useMemo(() => {
     const m = new Map<string, Row[]>()
@@ -103,6 +92,10 @@ export function TierEditor({ open, onOpenChange, providers }: Props) {
     setRows((prev) =>
       prev.map((r) => (r.providerName === provider && r.modelName === model ? { ...r, current: next } : r))
     )
+  }, [])
+
+  const resetChanges = useCallback(() => {
+    setRows((prev) => prev.map((r) => ({ ...r, current: r.initial })))
   }, [])
 
   const save = useCallback(async () => {
@@ -130,90 +123,81 @@ export function TierEditor({ open, onOpenChange, providers }: Props) {
           )
         }
       }
-      // Reset baseline for successful rows so a repeat save is a no-op.
       setRows((prev) =>
         prev.map((r) => {
           const outcome = outcomes.find((o) => o.row.providerName === r.providerName && o.row.modelName === r.modelName)
           return outcome?.ok ? { ...r, initial: r.current } : r
         })
       )
-      if (failed.length === 0) onOpenChange(false)
     } finally {
       setSaving(false)
     }
-  }, [rows, showToast, t, onOpenChange])
+  }, [rows, showToast, t])
 
   const providersOrdered = useMemo(() => [...rowsByProvider.keys()], [rowsByProvider])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-2xl max-h-[80vh] flex flex-col'>
-        <DialogHeader>
-          <DialogTitle>{t('tierEditor.title')}</DialogTitle>
-          <DialogDescription>{t('tierEditor.description')}</DialogDescription>
-        </DialogHeader>
-        <div className='flex-1 overflow-y-auto space-y-4'>
-          {providersOrdered.map((provider) => (
-            <section key={provider} className='space-y-1'>
-              <h3 className='sticky top-0 bg-background py-1 font-medium text-sm'>{provider}</h3>
-              <div className='divide-y border-y'>
-                {(rowsByProvider.get(provider) ?? []).map((r) => (
-                  <div
-                    key={`${r.providerName}:${r.modelName}`}
-                    className='flex items-center gap-3 border-l-2 border-l-transparent px-2 py-2 transition-colors hover:border-l-primary hover:bg-muted/50'
+    <PageContainer>
+      <PageHeader title={t('tierEditor.title')}>
+        <Button variant='ghost' onClick={resetChanges} disabled={dirtyCount === 0 || saving}>
+          {t('app.cancel')}
+        </Button>
+        <Button onClick={save} disabled={saving || dirtyCount === 0}>
+          {saving
+            ? t('app.saving')
+            : dirtyCount > 0
+              ? t('tierEditor.saveWithCount', { count: dirtyCount })
+              : t('app.save')}
+        </Button>
+      </PageHeader>
+      <PageContent className='space-y-4'>
+        <p className='text-muted-foreground text-sm'>{t('tierEditor.description')}</p>
+        {providersOrdered.map((provider) => (
+          <section key={provider} className='space-y-1'>
+            <h3 className='sticky top-0 z-10 bg-background py-1 font-medium text-sm'>{provider}</h3>
+            <div className='divide-y border-y'>
+              {(rowsByProvider.get(provider) ?? []).map((r) => (
+                <div
+                  key={`${r.providerName}:${r.modelName}`}
+                  className='flex items-center gap-3 border-l-2 border-l-transparent px-3 py-2 transition-colors hover:border-l-primary hover:bg-muted/50'
+                >
+                  <span className='flex-1 truncate font-medium text-sm'>{r.modelName}</span>
+                  {r.current === 'auto' && (
+                    <span className='text-muted-foreground text-xs'>
+                      {r.inferred === null
+                        ? t('tierEditor.inferredNone')
+                        : t('tierEditor.inferredAs', { tier: r.inferred })}
+                    </span>
+                  )}
+                  {r.current !== r.initial && (
+                    <span className='rounded bg-primary/10 px-1.5 py-0.5 text-primary text-xs'>
+                      {t('tierEditor.dirty')}
+                    </span>
+                  )}
+                  <Select
+                    value={r.current}
+                    onValueChange={(v) => setRowTier(r.providerName, r.modelName, v === 'auto' ? 'auto' : (v as Tier))}
                   >
-                    <span className='flex-1 truncate font-medium text-sm'>{r.modelName}</span>
-                    {r.current === 'auto' && (
-                      <span className='text-muted-foreground text-xs'>
-                        {r.inferred === null
-                          ? t('tierEditor.inferredNone')
-                          : t('tierEditor.inferredAs', { tier: r.inferred })}
-                      </span>
-                    )}
-                    {r.current !== r.initial && (
-                      <span className='rounded bg-primary/10 px-1.5 py-0.5 text-primary text-xs'>
-                        {t('tierEditor.dirty')}
-                      </span>
-                    )}
-                    <Select
-                      value={r.current}
-                      onValueChange={(v) =>
-                        setRowTier(r.providerName, r.modelName, v === 'auto' ? 'auto' : (v as Tier))
-                      }
-                    >
-                      <SelectTrigger className='w-28'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIER_OPTIONS.map((opt) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt === 'auto' ? t('tierEditor.auto') : opt}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-          {providersOrdered.length === 0 && (
-            <div className='py-6 text-sm text-muted-foreground'>{t('tierEditor.empty')}</div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant='ghost' onClick={() => onOpenChange(false)} disabled={saving}>
-            {t('app.cancel')}
-          </Button>
-          <Button onClick={save} disabled={saving || dirtyCount === 0}>
-            {saving
-              ? t('app.saving')
-              : dirtyCount > 0
-                ? t('tierEditor.saveWithCount', { count: dirtyCount })
-                : t('app.save')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+                    <SelectTrigger className='w-28'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt === 'auto' ? t('tierEditor.auto') : opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+        {providersOrdered.length === 0 && (
+          <div className='py-6 text-sm text-muted-foreground'>{t('tierEditor.empty')}</div>
+        )}
+      </PageContent>
+    </PageContainer>
   )
 }
