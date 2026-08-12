@@ -1,5 +1,7 @@
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
+import { logger } from '../logger'
+import { refreshQuotaSnapshots } from './routing-scheduler/collector'
 import { recordPerAccountUsage, scopedMetricKey } from './subaccount-usage-store'
 import { fetchUsageSnapshotWithAccountIds, type getUsage } from './usage-service'
 
@@ -88,6 +90,16 @@ export async function recordUsageSnapshots(): Promise<void> {
   // decision to skip accounts whose 7d / 5h window is at 100% with
   // resetAt still in the future.
   await recordPerAccountUsage(paired.claude, paired.codex)
+  // Phase 1 of the quota-aware preference router: mirror the same
+  // snapshot into the horizontal `SubAccountQuota` table so the future
+  // scheduler tick has a warm read source. Reuses the already-fetched
+  // arrays — no extra upstream traffic. Errors are logged and
+  // swallowed; the primary usage/history writes above are the
+  // authoritative path, this is best-effort auxiliary data.
+  const outcome = await refreshQuotaSnapshots({ claude: paired.claude, codex: paired.codex })
+  if (outcome.failed > 0) {
+    logger.warn(outcome, '[routing-scheduler] SubAccountQuota refresh had per-account failures')
+  }
 }
 
 export async function pruneOldSnapshots(): Promise<void> {

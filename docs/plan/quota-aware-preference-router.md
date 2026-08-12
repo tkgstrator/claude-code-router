@@ -306,7 +306,23 @@ DELETE FROM "RoutingWeightChange" WHERE "createdAt" < $1  -- dayjs().subtract(14
 
 ### 6.3 preference チェーンと constraints
 
-**L4 実装計画 B-1.1 の `RouterPreferenceProfile` / `RouterPreferenceEntry` をそのまま採用する**（entries が Model FK + `@@unique([profileId, priority])`、profile は `key='live'` シングルトン）。スキーマ再掲はしない — 差分だけ示す。
+**L4 実装計画 B-1.1 の `RouterPreferenceProfile` / `RouterPreferenceEntry` をそのまま採用する**（entries が Model FK + `@@unique([profileId, priority])`、profile は `key='live'` シングルトン）。差分:
+
+**`RouterPreferenceEntry` に subagent フィルタを追加** (Open Question 11 の決定を反映):
+
+```prisma
+model RouterPreferenceEntry {
+  // ... 既存フィールド ...
+  // Subagent-only tier filter. When non-null and the request is a
+  // subagent call, only candidates whose model tier is in this list
+  // participate. Null = no restriction (agent と同じ挙動). Enables
+  // "subagent は sonnet/haiku のみ" without splitting the whole
+  // preference into two lists.
+  subagentTiers String[]  // RequestedModelTier[]: 'fable' | 'opus' | 'sonnet' | 'haiku'
+}
+```
+
+constraints JSONB のスキーマ拡張 (`src/schemas/preference-router.dto.ts`):
 
 constraints JSONB のスキーマを拡張（`src/schemas/preference-router.dto.ts`）:
 
@@ -1164,10 +1180,23 @@ glob `__tests__/**` を確認した実在ファイルベース:
 
 ## 17. Open Questions（実装開始前に人間の判断が要るもの）
 
-1. **tier 制約の充足代数**（L4 C-2-1 の再掲・最重要）: sonnet 要求で sonnet 候補が全滅したとき opus/fable で救済するか。暫定: 不可 → 全滅扱い（quota-aware では 429 側に倒れる。L4 の passthrough とは帰結が変わる点に注意）。
-2. **全滅時 429 のデフォルト**: §9.3 は `exhaustedBehavior: '429'` を既定にしたが、既存ユーザーの体感変化が大きい。Phase 3 で苦情が出たら default を 'passthrough' に反転するか。
-3. **`preferenceWeight` の傾き**: `(N - rank)/N`（線形）か `1/2^rank`（幾何）か。線形は下位にも実流量が残りやすく、幾何は「ほぼ厳格な優先順」になる。暫定: 線形（重みはゲートであって配分比ではないため影響が小さい）。shadow の実測で決めたい。
-4. **weight を「配分比」として使うか**: 本計画の weight はしきい値ゲート + 表示であり、同率候補間の確率的分散はしない（決定的に rank 順）。「opus-5 と opus-4-7 に 6:4 で割る」ような真の加重分散をやるかは将来判断（やるなら probe バケットと同じ決定的ハッシュで）。
+### 17.0 決定済み (2026-08-11、Phase 1 着手前の triage)
+
+1. ~~**tier 制約の充足代数**~~ — **決定: strict** (sonnet 要求で sonnet 全滅なら 429、opus/fable への upgrade は行わない)。理由: クライアントの意図を尊重、コスト予測可能性を維持。将来 constraints に `tierRelaxation` を足す余地は残す。
+2. ~~**全滅時のデフォルト**~~ — **決定: 429 + Retry-After をデフォルト**、`exhaustedBehavior` constraint で個別に `passthrough` にも切替可能。§9.3 の既定を確定。
+4. ~~**weight を「配分比」として使うか**~~ — **決定: gate として実装、拡張余地を残す**。Phase 2 selector は決定的 rank 順、weight は threshold ゲートに限定。将来 constraints に `distributionMode: 'strict' | 'weighted'` を足せる形にコードを組む。
+11. ~~**agent / subagent で preference リストを分けるか**~~ — **決定: 1 本の preference + subagent 用 override フィルタ**。`RouterPreferenceProfile` は 1 個、`RouterPreferenceEntry` に `subagentTiers: RequestedModelTier[] | null` を追加し、subagent リクエスト時にこのフィルタで候補を絞る。default `null` (agent と同じ挙動)。schema 差分は §6.3 に追記予定。
+
+### 17.1 未決 / Phase 2 以降で決めるもの
+
+3. **`preferenceWeight` の傾き**: `(N - rank)/N`（線形）か `1/2^rank`（幾何）か。暫定: 線形。shadow の実測で決めたい。
+5. **§7.5 フォールバック推定の係数**（429 率 ×4）と有効化条件（total ≥ 20）: 根拠が弱い。Phase 1 の実データで再校正する。
+6. **per-account 手動窓上書き**: 組織プランで weekly が返らないアカウントが実在するか、Phase 1 データで確認してから schema に足す（§11.3）。
+7. **`RoutingWeightChange` の保持期間**（14 日）と参照 API の要否。
+8. **`ROUTING_SCHEDULER_INTERVAL_MS` の実効下限**: 下限 60s は shadow/staging 用途、本番は 300s 以上推奨（§6.4）。60s tick の運用が現実的か（RequestLog 429 率 SQL が毎分走る）は Phase 1 で計測。実効的に無意味なら下限を 300s に引き上げる。
+9. **マルチインスタンス**: snapshot は per-process。複数 CCR プロセスを同一 DB に向ける構成では各プロセスが独立に tick する（DB 書き込みは upsert なので衝突しない）。probe バケットと weight が微妙にずれるのを許容するか、Redis pub/sub で snapshot を配るか。暫定: 許容（現行はシングルプロセス運用）。
+10. **shadow 成功基準の数値化**（L4 C-2-6 と同一）: 「説明可能」の人裁定に代わる数値（例: 意図外 disagreement < 0.5%）を置くか。
+12. ~~`anthropic-ratelimit-*` ヘッダの実在確認~~ — **解決済み**: subscription (OAuth) レスポンスにレート残量ヘッダは載らないと確定 (§3.2)。quota 残量は oauth/usage / wham/usage の能動ポーリングが唯一の情報源。ヘッダ観測経路 (§7.3) は削除。
 5. **§7.5 フォールバック推定の係数**（429 率 ×4）と有効化条件（total ≥ 20）: 根拠が弱い。Phase 1 の実データで再校正する。
 6. **per-account 手動窓上書き**: 組織プランで weekly が返らないアカウントが実在するか、Phase 1 データで確認してから schema に足す（§11.3）。
 7. **`RoutingWeightChange` の保持期間**（14 日）と参照 API の要否。
