@@ -17,7 +17,7 @@
  */
 
 import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '@/schemas'
-import { Transformer } from './base'
+import { Transformer } from '../base'
 
 // gpt-5.x and o1/o3/o4 chat completions reject `max_tokens` in favour of
 // `max_completion_tokens`. The check is intentionally narrow — gpt-4.x

@@ -23,10 +23,8 @@ import { TokenizerRegistry } from './registry/tokenizer'
 import { TransformerRegistry } from './registry/transformer'
 import { AnthropicTransformer } from './transformers/anthropic'
 import { ClaudeCodeOauthTransformer } from './transformers/claude-code-oauth'
-import { CodexOauthTransformer } from './transformers/codex-oauth'
 import { GeminiTransformer } from './transformers/gemini'
-import { OpenAITransformer } from './transformers/openai'
-import { OpenAIResponsesTransformer } from './transformers/openai-responses'
+import { CodexOauthTransformer, OpenAIResponsesTransformer, OpenAITransformer } from './transformers/openai'
 
 export type LlmsContext = {
   config: ConfigStore
