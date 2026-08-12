@@ -19,6 +19,7 @@
 import type { Context } from 'hono'
 import { type LlmsContext, subscriptionKindOf } from '../../llms'
 import { isAccountExhausted, markAccountExhausted, markModelExhausted } from '../../services/failover-state'
+import { recordModelFailure, recordModelSuccess } from '../../services/routing-scheduler/model-health'
 import { getActiveAccountForSession, releaseAccountForSession } from '../../services/session-account-router'
 import {
   type AccountUsageMap,
@@ -94,7 +95,17 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
 
     let err: unknown
     try {
-      return { kind: 'done', response: await attempt(inv) }
+      const response = await attempt(inv)
+      // Success feeds the Phase 2e model-health tracker so the
+      // quota-aware selector can down-weight targets showing high
+      // error rates. Fire-and-forget: recording is a pure in-memory
+      // update, but wrap in try/catch defensively.
+      try {
+        recordModelSuccess(`${inv.provider.name},${model}`)
+      } catch {
+        // Never let telemetry break the request path.
+      }
+      return { kind: 'done', response }
     } catch (caught) {
       err = caught
     }
@@ -121,7 +132,17 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
     // elsewhere still short-circuits every model. `inv.request.model`
     // is only optional at the type level (Anthropic pipeline can drop
     // it); when absent we can't mark a specific model, so skip.
-    if (inv.request.model !== undefined) markModelExhausted(inv.provider.name, inv.request.model)
+    if (inv.request.model !== undefined) {
+      markModelExhausted(inv.provider.name, inv.request.model)
+      // Track the 429 in the Phase 2e model-health ring so the
+      // quota-aware selector sees the failure at the same target
+      // string it evaluates on.
+      try {
+        recordModelFailure(`${inv.provider.name},${inv.request.model}`)
+      } catch {
+        // Never let telemetry break the request path.
+      }
+    }
     ctx.log.warn(
       { provider: inv.provider.name, model: inv.request.model, scenario: plan.scenarioType },
       'rate limited; failing over to next fallback model'

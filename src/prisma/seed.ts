@@ -13,10 +13,11 @@
  */
 
 import { logger } from '../logger'
-import { ensureRouterSlots } from '../services/config/seed'
+import { ensurePreferenceProfile, ensureRouterSlots } from '../services/config/seed'
 
 async function main(): Promise<void> {
   await ensureRouterSlots()
+  await ensurePreferenceProfile()
   logger.info('prisma seed complete')
 }
 

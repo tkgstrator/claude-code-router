@@ -4,7 +4,7 @@ import {
   UpdateModelErrorResponseSchema,
   UpdateModelSuccessResponseSchema
 } from '../../../../../schemas'
-import { setModelEnabled } from '../../../../../services/config'
+import { setModelEnabled, setModelManualTier } from '../../../../../services/config'
 import { ValidationErrorResponseSchema, validationErrorHook } from '../../../../zod-response'
 
 export const providerModelRoute = new OpenAPIHono({ defaultHook: validationErrorHook })
@@ -45,9 +45,14 @@ const updateModelRoute = createRoute({
 
 providerModelRoute.openapi(updateModelRoute, async (c) => {
   const { name, model } = c.req.valid('param')
-  const { enabled } = c.req.valid('json')
+  const body = c.req.valid('json')
   try {
-    await setModelEnabled(name, model, enabled)
+    if (body.enabled !== undefined) {
+      await setModelEnabled(name, model, body.enabled)
+    }
+    if (body.manualTier !== undefined) {
+      await setModelManualTier(name, model, body.manualTier)
+    }
     return c.json({ success: true as const }, 200)
   } catch (err) {
     return c.json({ success: false as const, error: (err as Error).message }, 404)

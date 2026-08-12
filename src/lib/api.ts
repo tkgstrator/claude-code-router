@@ -159,6 +159,10 @@ class ApiClient {
     return this.apiFetch<T>(endpoint, { method: 'POST', body: JSON.stringify(data) })
   }
 
+  async put<T>(endpoint: string, data: unknown): Promise<T> {
+    return this.apiFetch<T>(endpoint, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
   private async deleteRequest<T>(endpoint: string, body: unknown = {}): Promise<T> {
     return this.apiFetch<T>(endpoint, { method: 'DELETE', body: JSON.stringify(body) })
   }
@@ -293,6 +297,138 @@ class ApiClient {
     const qs = q.toString()
     return this.get<ModelRoutingResponse>(`/request-logs/model-routing${qs ? `?${qs}` : ''}`)
   }
+
+  // Router preferences (Phase 6). The singleton preference chain that
+  // the quota-aware router walks. GET is empty on a fresh DB, PUT
+  // replaces the whole chain atomically.
+  async getRouterPreferences(): Promise<RouterPreferenceProfileWire> {
+    return this.get<RouterPreferenceProfileWire>('/router-preferences')
+  }
+
+  async putRouterPreferences(profile: RouterPreferenceProfileWire): Promise<RouterPreferencesApplyResponse> {
+    return this.put<RouterPreferencesApplyResponse>('/router-preferences', profile)
+  }
+
+  // Router scheduler snapshot (Phase 5). Read-only. Cold-boot returns
+  // an empty snapshot with tickAt=null so the UI renders "no data yet"
+  // without a special path.
+  async getRoutingSchedulerState(): Promise<RoutingSchedulerStateResponse> {
+    return this.get<RoutingSchedulerStateResponse>('/routing-scheduler-state')
+  }
+
+  // Set a per-model manual tier override (Tier Editor). Send null to
+  // clear and fall back to name inference. Reuses PATCH
+  // /api/providers/{name}/models/{model}.
+  async setModelTier(
+    providerName: string,
+    modelName: string,
+    manualTier: 'fable' | 'opus' | 'sonnet' | 'haiku' | null
+  ): Promise<{ success: boolean }> {
+    return this.apiFetch<{ success: boolean }>(
+      `/providers/${encodeURIComponent(providerName)}/models/${encodeURIComponent(modelName)}`,
+      { method: 'PATCH', body: JSON.stringify({ manualTier }) }
+    )
+  }
+
+  // Router utilization dashboard (Phase 7). Aggregations over the
+  // requested window in hours (default 24).
+  async getRouterUtilization(params?: { windowHours?: number }): Promise<RouterUtilizationResponse> {
+    const q = new URLSearchParams()
+    if (params?.windowHours != null) q.set('windowHours', String(params.windowHours))
+    const qs = q.toString()
+    return this.get<RouterUtilizationResponse>(`/router-utilization${qs ? `?${qs}` : ''}`)
+  }
+}
+
+export interface RouterPreferenceEntryWire {
+  priority: number
+  target: string
+  enabled: boolean
+  subagentTiers: Array<'fable' | 'opus' | 'sonnet' | 'haiku'>
+}
+
+export type PreferenceScenarioKey = 'default' | 'think' | 'longContext' | 'webSearch' | 'image'
+
+export type PreferenceEntriesByScenarioWire = Record<PreferenceScenarioKey, RouterPreferenceEntryWire[]>
+
+export interface RouterPreferenceProfileWire {
+  entriesByScenario: PreferenceEntriesByScenarioWire
+  constraints: Record<string, unknown> | null
+}
+
+export interface RouterPreferencesApplyResponse {
+  success: boolean
+  warnings: string[]
+}
+
+export interface RoutingSchedulerWeightEntry {
+  target: string
+  weight: number
+  healthiness: number
+  remainingBudgetPct: number | null
+  earliestResetAt: string | null
+  reasons: string[]
+}
+
+export interface RoutingSchedulerAccountView {
+  subAccountId: string
+  providerName: string
+  kind: 'claude' | 'codex'
+  fiveHour: { used: number; limit: number; resetAt: string | null } | null
+  weekly: { used: number; limit: number; resetAt: string | null } | null
+  refreshedAt: string | null
+  stale: boolean
+}
+
+export interface RoutingSchedulerStateResponse {
+  tickAt: string | null
+  tickCount: number
+  consecutiveFailures: number
+  degraded: boolean
+  weights: RoutingSchedulerWeightEntry[]
+  accounts: RoutingSchedulerAccountView[]
+  soonestResetAt: string | null
+  recentChanges: Array<{ target: string; from: number; to: number; reason: string; tickAt: string }>
+}
+
+export interface RouterUtilizationPerScenarioRow {
+  scenario: string
+  total: number
+  ok: number
+  err429: number
+  errOther: number
+}
+
+export interface RouterUtilizationPerTargetRow {
+  requestedModel: string | null
+  sentTo: string
+  count: number
+}
+
+export interface RouterUtilizationPerAccountRow {
+  subAccountId: string
+  providerName: string
+  kind: 'claude' | 'codex'
+  currentBudgetPct: number | null
+  fiveHourResetAt: string | null
+  weeklyResetAt: string | null
+  stale: boolean
+}
+
+export interface RouterUtilizationSuggestion {
+  kind: 'primary_never_reached' | 'fallback_over_used' | 'exhausted_no_secondary'
+  target: string
+  detail: string
+  proposedDiff: Record<string, unknown>
+}
+
+export interface RouterUtilizationResponse {
+  windowHours: number
+  generatedAt: string
+  perScenario: RouterUtilizationPerScenarioRow[]
+  perTarget: RouterUtilizationPerTargetRow[]
+  perAccount: RouterUtilizationPerAccountRow[]
+  suggestions: RouterUtilizationSuggestion[]
 }
 
 export const api = new ApiClient()

@@ -17,7 +17,10 @@ import { providersRoute } from './api/providers/route'
 import { providersTestRoute } from './api/providers/test/route'
 import { refreshModelsRoute } from './api/refresh-models/route'
 import { requestLogsRoute } from './api/request-logs/route'
+import { routerPreferencesRoute } from './api/router-preferences/route'
+import { routerUtilizationRoute } from './api/router-utilization/route'
 import { routingPresetsRoute } from './api/routing-presets/route'
+import { routingSchedulerStateRoute } from './api/routing-scheduler-state/route'
 import { scrapePricesRoute } from './api/scrape-prices/[vendor]/route'
 import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
@@ -31,6 +34,7 @@ import { v1Route } from './api/v1/route'
 import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
+import { startRoutingScheduler } from './services/routing-scheduler'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
 import { APP_VERSION } from './version'
@@ -70,6 +74,11 @@ void startUsageCapture()
 // persist its authStatus so the UI can flag accounts that need
 // re-authentication.
 void startAuthHealthCheck()
+// Routing scheduler (Phase 2 of the quota-aware router). Arms the
+// tick regardless of ROUTER_MODE; the tick body itself no-ops when
+// mode/shadow don't need a snapshot, so a scenario-mode deployment
+// pays no CPU cost beyond an idle setTimeout.
+startRoutingScheduler()
 
 const app = new OpenAPIHono()
 
@@ -131,6 +140,9 @@ app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)
 app.route('/', requestLogsRoute)
 app.route('/', routingPresetsRoute)
+app.route('/', routerPreferencesRoute)
+app.route('/', routerUtilizationRoute)
+app.route('/', routingSchedulerStateRoute)
 app.route('/', oauthRoute)
 
 // Native /v1/* LLM proxy — drives the llms pipeline without Fastify.

@@ -47,6 +47,11 @@ export const ProviderSchema = z
         z.object({ inputPer1M: z.number().nullable(), outputPer1M: z.number().nullable() })
       )
       .optional(),
+    // Per-model manual tier override consumed by the quota-aware
+    // preference selector. Absent keys fall back to name-substring
+    // inference. Kept as an optional map so providers without any
+    // overrides don't bloat the wire.
+    modelManualTiers: z.record(z.string().nonempty(), z.enum(['fable', 'opus', 'sonnet', 'haiku'])).optional(),
     transformer: ProviderTransformerSchema.optional(),
     // Per-account enable/disable for subscription providers. Absent on
     // api_key providers. Only the { id, enabled } pairs the UI sends

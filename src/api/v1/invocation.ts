@@ -181,6 +181,24 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
   await routeScenario(routeReq, { config: ctx.config, tokenizers: ctx.tokenizers })
   const scenarioType: ScenarioType = routeReq.scenarioType !== undefined ? routeReq.scenarioType : 'default'
 
+  // Phase 4: quota-aware selector exhausted all candidates and the
+  // profile's `exhaustedBehavior` is '429'. Return the rate-limit
+  // response verbatim so no upstream dispatch happens. `Retry-After`
+  // carries the seconds until the earliest binding-window reset.
+  const retryAfter = routeReq.quotaExhaustedRetryAfterSec
+  if (typeof retryAfter === 'number' && retryAfter > 0) {
+    return new Response(
+      JSON.stringify({
+        type: 'error',
+        error: { type: 'rate_limit_error', message: 'Preference chain exhausted; retry after the window resets.' }
+      }),
+      {
+        status: 429,
+        headers: { 'content-type': 'application/json', 'Retry-After': String(retryAfter) }
+      }
+    )
+  }
+
   const primaryModel = typeof body.model === 'string' ? body.model : ''
   if (primaryModel.length === 0) {
     return c.json({ type: 'error', error: { type: 'invalid_request', message: 'Missing model in request body' } }, 400)

@@ -1,0 +1,143 @@
+/**
+ * Shared types for the quota-aware routing scheduler (Phase 2d).
+ *
+ * Kept in a leaf module so `compute.ts` (pure), `state.ts` (in-process
+ * snapshot store), and `index.ts` (tick loop) can all import them
+ * without a cycle. Nothing here reaches out to the DB or upstream
+ * APIs — those live in the collector and the tick loop.
+ */
+
+import type { QuotaAwareConstraints, RouterPreferenceEntry } from '../../schemas'
+
+// One rate-limit window normalised to the pct-based used/limit +
+// reset shape the collector already writes. `windowLengthMs` is used
+// by drain-target math; null when the collector didn't observe it.
+export interface QuotaWindowState {
+  used: number
+  limit: number
+  resetAt: number | null // epoch ms
+  windowLengthMs: number | null
+}
+
+export interface AccountQuotaState {
+  subAccountId: string
+  kind: 'claude' | 'codex'
+  // Provider row's name (`claude-code`, `codex`, ...); the same value
+  // that appears before the comma in a preference target string.
+  providerName: string
+  // Zero to two windows (5h, weekly). Missing entries stay undefined
+  // so `computeWeights` can treat the account as unknown-budget when
+  // an upstream call has never succeeded.
+  fiveHour: QuotaWindowState | undefined
+  weekly: QuotaWindowState | undefined
+  // When the collector last wrote a value for this account. Null for
+  // a cold-start account that has never been polled. Used together
+  // with `constraints.staleQuotaFactor` and `unknownBudgetPolicy`.
+  refreshedAt: number | null
+}
+
+// Model-level candidate state used by the pure `computeWeights`.
+// One entry per preference target so the compute function can attach
+// the corresponding account state without walking the preference
+// chain again.
+export interface ModelCandidateState {
+  target: string
+  providerName: string
+  modelName: string
+  // Which accounts serve this target. Selecting `max(budget)` across
+  // this list matches the session-account-router's "route to the
+  // freshest account" behaviour.
+  accounts: readonly AccountQuotaState[]
+  // Recent 5-min error rate (0-1). Callers back this with the Phase 2e
+  // model-health tracker; a fresh model with no samples yet is passed
+  // in as 0.
+  errorRate: number
+}
+
+// Snapshot input the tick loop feeds to `computeWeights`. Deliberately
+// serialisable / clone-safe so the pure function stays deterministic
+// with an injected `now`.
+export interface SchedulerInputState {
+  now: number
+  preferences: readonly RouterPreferenceEntry[]
+  candidates: ReadonlyMap<string, ModelCandidateState>
+  previousWeights: ReadonlyMap<string, number> | null
+  constraints: QuotaAwareConstraints
+  // Poll TTL in ms — used to decide when a quota is "stale". The tick
+  // reads this from `usage-service/cache.ts` so the two numbers can't
+  // drift.
+  ttlMs: number
+}
+
+// Machine-readable reasons attached to each weight entry so the audit
+// log (`RoutingWeightChange`) and the UI can label a change without
+// re-implementing the compute logic.
+export type WeightReason =
+  | 'ok'
+  | 'quota_drop'
+  | 'quota_recovered'
+  | 'error_rate'
+  | 'reset_soon'
+  | 'stale_quota'
+  | 'probe_floor'
+  | 'hold_guard'
+  | 'unknown_budget'
+  | 'no_quota_kind'
+
+export interface WeightEntry {
+  target: string
+  weight: number // 0..1, normalised across enabled candidates
+  healthiness: number // raw score before normalisation
+  remainingBudgetPct: number | null // 0..100; null = unknown
+  earliestResetAt: number | null
+  reasons: readonly WeightReason[]
+}
+
+export interface WeightChange {
+  target: string
+  from: number
+  to: number
+  reason: WeightReason
+}
+
+export interface ComputeResult {
+  weights: readonly WeightEntry[]
+  // True when the hold-guard fired — the pure function returned the
+  // previous vector unchanged. The tick loop bumps `consecutiveHolds`
+  // and, past a threshold, marks the snapshot degraded so operators
+  // can spot a stuck scheduler.
+  held: boolean
+  // Only entries whose weight moved by >= 0.01 vs the previous vector.
+  // Empty on the first tick or when nothing changed.
+  changes: readonly WeightChange[]
+}
+
+// Per-account view exposed on the API / UI. Contains the same
+// information the compute function used, so the dashboard can render
+// "why is this account 0%?" without re-running the math.
+export interface AccountQuotaView {
+  subAccountId: string
+  providerName: string
+  kind: 'claude' | 'codex'
+  fiveHour: QuotaWindowState | null
+  weekly: QuotaWindowState | null
+  refreshedAt: number | null
+  stale: boolean
+}
+
+// The published snapshot the selector reads on every request. Frozen
+// object; the publisher swaps the reference so readers never see a
+// half-updated state.
+export interface RoutingSnapshot {
+  tickAt: number // epoch ms of the last successful compute
+  tickCount: number
+  consecutiveFailures: number
+  // True when successive holds or missing collector data have made
+  // the snapshot unreliable — surfaced on the API for operator visibility.
+  degraded: boolean
+  weights: ReadonlyMap<string, WeightEntry>
+  accounts: readonly AccountQuotaView[]
+  // Earliest binding-window reset across all exhausted candidates.
+  // Selector uses this for the 429 Retry-After header (Phase 2e).
+  soonestResetAt: number | null
+}
