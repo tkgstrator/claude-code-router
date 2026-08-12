@@ -315,6 +315,15 @@ class ApiClient {
   async getRoutingSchedulerState(): Promise<RoutingSchedulerStateResponse> {
     return this.get<RoutingSchedulerStateResponse>('/routing-scheduler-state')
   }
+
+  // Router utilization dashboard (Phase 7). Aggregations over the
+  // requested window in hours (default 24).
+  async getRouterUtilization(params?: { windowHours?: number }): Promise<RouterUtilizationResponse> {
+    const q = new URLSearchParams()
+    if (params?.windowHours != null) q.set('windowHours', String(params.windowHours))
+    const qs = q.toString()
+    return this.get<RouterUtilizationResponse>(`/router-utilization${qs ? `?${qs}` : ''}`)
+  }
 }
 
 export interface RouterPreferenceEntryWire {
@@ -362,6 +371,46 @@ export interface RoutingSchedulerStateResponse {
   accounts: RoutingSchedulerAccountView[]
   soonestResetAt: string | null
   recentChanges: Array<{ target: string; from: number; to: number; reason: string; tickAt: string }>
+}
+
+export interface RouterUtilizationPerScenarioRow {
+  scenario: string
+  total: number
+  ok: number
+  err429: number
+  errOther: number
+}
+
+export interface RouterUtilizationPerTargetRow {
+  requestedModel: string | null
+  sentTo: string
+  count: number
+}
+
+export interface RouterUtilizationPerAccountRow {
+  subAccountId: string
+  providerName: string
+  kind: 'claude' | 'codex'
+  currentBudgetPct: number | null
+  fiveHourResetAt: string | null
+  weeklyResetAt: string | null
+  stale: boolean
+}
+
+export interface RouterUtilizationSuggestion {
+  kind: 'primary_never_reached' | 'fallback_over_used' | 'exhausted_no_secondary'
+  target: string
+  detail: string
+  proposedDiff: Record<string, unknown>
+}
+
+export interface RouterUtilizationResponse {
+  windowHours: number
+  generatedAt: string
+  perScenario: RouterUtilizationPerScenarioRow[]
+  perTarget: RouterUtilizationPerTargetRow[]
+  perAccount: RouterUtilizationPerAccountRow[]
+  suggestions: RouterUtilizationSuggestion[]
 }
 
 export const api = new ApiClient()

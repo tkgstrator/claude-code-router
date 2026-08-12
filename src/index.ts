@@ -18,6 +18,7 @@ import { providersTestRoute } from './api/providers/test/route'
 import { refreshModelsRoute } from './api/refresh-models/route'
 import { requestLogsRoute } from './api/request-logs/route'
 import { routerPreferencesRoute } from './api/router-preferences/route'
+import { routerUtilizationRoute } from './api/router-utilization/route'
 import { routingPresetsRoute } from './api/routing-presets/route'
 import { routingSchedulerStateRoute } from './api/routing-scheduler-state/route'
 import { scrapePricesRoute } from './api/scrape-prices/[vendor]/route'
@@ -140,6 +141,7 @@ app.route('/', scrapePricesRoute)
 app.route('/', requestLogsRoute)
 app.route('/', routingPresetsRoute)
 app.route('/', routerPreferencesRoute)
+app.route('/', routerUtilizationRoute)
 app.route('/', routingSchedulerStateRoute)
 app.route('/', oauthRoute)
 
