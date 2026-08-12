@@ -247,16 +247,16 @@ model RoutingWeightChange {
 }
 
 model Model {
-  id                  String          @id @default(cuid())
+  id                  String                  @id @default(cuid())
   providerId          String
-  provider            Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider            Provider                @relation(fields: [providerId], references: [id], onDelete: Cascade)
   name                String
   // Whether this model is offered for routing / tested. Authoritative
   // (replaces the old provider.transformer._disabledModels list).
   // Defaults false: a model being registered/seeded does NOT make it
   // routable. Subscription presets seed their curated default set as
   // enabled; everything else stays off until the user enables it.
-  enabled             Boolean         @default(false)
+  enabled             Boolean                 @default(false)
   // Per-model request-shape override. A single api_key provider (e.g.
   // openai) hosts both chat models and Responses-only models (codex
   // family), so the provider-level apiStyle isn't granular enough.
@@ -267,11 +267,11 @@ model Model {
   // The flag is seeded from src/shared/data/deprecations.ts at
   // boot and on the UI refresh-models action; we never delete the row
   // because the user may still be routing to it.
-  deprecated          Boolean         @default(false)
+  deprecated          Boolean                 @default(false)
   // True when the model sits under the vendor's "legacy" / older-gen
   // pricing surface (scraped `legacy` flag). Distinct from `deprecated`:
   // a model can be legacy-priced but not formally deprecated.
-  legacy              Boolean         @default(false)
+  legacy              Boolean                 @default(false)
   // Official per-1M-token USD prices scraped from the vendor pricing
   // page (src/shared/data/providers/<vendor>/prices.json).
   // Null for subscription-auth models and any api_key model the scrape
@@ -291,7 +291,7 @@ model Model {
   // most recent success (kept even after a later failure so the UI can
   // show "last passed on ..."). testError holds the latest failure
   // reason for display.
-  testStatus          ModelTestStatus @default(unknown)
+  testStatus          ModelTestStatus         @default(unknown)
   testCheckedAt       DateTime?
   testPassedAt        DateTime?
   testError           String?
@@ -299,13 +299,57 @@ model Model {
   // agent route (main-agent traffic) and the subagent route (requests
   // carrying a <CCR-SUBAGENT-MODEL> tag). Named relations keep the two
   // back-references distinct on this side.
-  routerSlots         RouterSlot[]    @relation("RouterSlotAgentModel")
-  subagentRouterSlots RouterSlot[]    @relation("RouterSlotSubagentModel")
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  routerSlots         RouterSlot[]            @relation("RouterSlotAgentModel")
+  subagentRouterSlots RouterSlot[]            @relation("RouterSlotSubagentModel")
+  preferenceEntries   RouterPreferenceEntry[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
 
   @@unique([providerId, name])
   @@index([providerId])
+}
+
+// Preference-based routing (docs/plan/quota-aware-preference-router.md
+// §6.3). One profile row (key='live') holds mode-independent constraint
+// knobs; ordered entries reference Models directly so the same
+// delete-warning flow as RouterSlot applies.
+//
+// The profile is a singleton in Phase 2; the `key` column exists so a
+// future "preference presets" feature can add more rows without another
+// migration. Every apply path today upserts key='live'.
+model RouterPreferenceProfile {
+  id          String                  @id @default(cuid())
+  key         String                  @unique @default("live")
+  // Constraint knobs as JSONB (sonnetTierRespect / healthinessThreshold /
+  // exhaustedBehavior / ...). JSONB so adding a knob is not a
+  // migration, mirroring RouterSlot.params.
+  constraints Json?
+  updatedAt   DateTime                @updatedAt
+  entries     RouterPreferenceEntry[]
+}
+
+model RouterPreferenceEntry {
+  id            String                  @id @default(cuid())
+  profileId     String
+  profile       RouterPreferenceProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // 1 = most preferred. Unique per profile so the order is total.
+  priority      Int
+  modelId       String
+  model         Model                   @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  // Soft toggle: keep the row (and its priority slot) while excluding
+  // the model from selection — "temporarily drop Fable" without
+  // reordering the chain.
+  enabled       Boolean                 @default(true)
+  // Subagent-only tier filter. When the array is empty, all tiers
+  // participate (agent-equivalent behaviour); when populated, subagent
+  // calls only see candidates whose tier is in the list. Enables
+  // "subagent は sonnet/haiku のみ" without splitting the whole
+  // preference into two lists. Stored as String[] holding
+  // RequestedModelTier values ('fable' | 'opus' | 'sonnet' | 'haiku').
+  subagentTiers String[]                @default([])
+
+  @@unique([profileId, priority])
+  @@index([profileId])
 }
 
 // Saved snapshots of the Router config (the same nested shape that
