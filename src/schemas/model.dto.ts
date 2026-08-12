@@ -56,8 +56,15 @@ export const UpdateModelBodySchema = z.object({
   // one of the four canonical tiers to set, or null to clear the
   // override (fall back to name inference). Omit the field entirely
   // to leave the current value untouched.
-  manualTier: z.enum(['fable', 'opus', 'sonnet', 'haiku']).nullable().optional()
+  manualTier: z.enum(['fable', 'opus', 'sonnet', 'haiku']).nullable().optional(),
+  // Manual reasoning-effort override for OpenAI / OpenAI-Responses /
+  // Codex models. null clears the override (vendor default); omit to
+  // leave the current value untouched. `minimal` is gpt-5 family only.
+  reasoningEffort: z.enum(['minimal', 'low', 'medium', 'high']).nullable().optional()
 })
+
+export const ReasoningEffortSchema = z.enum(['minimal', 'low', 'medium', 'high']).openapi('ReasoningEffort')
+export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
 
 export const UpdateModelSuccessResponseSchema = z
   .object({ success: z.literal(true) })

@@ -689,13 +689,15 @@
     "editTiers": "tier を編集"
   },
   "tierEditor": {
-    "title": "モデル tier の上書き",
-    "description": "fable/opus/sonnet/haiku の命名規則に沿わないサードパーティのモデルにも、正規の tier を割り当てることで tier respect 制約と噛み合わせられます。",
+    "title": "モデル別の上書き",
+    "description": "fable/opus/sonnet/haiku の命名規則に沿わないサードパーティのモデルにも tier を割り当てて tier respect 制約と噛み合わせられます。あわせて OpenAI gpt-5.x / o-series モデルには reasoning_effort をモデル単位で上書きできます。",
     "auto": "自動",
     "dirty": "変更あり",
     "empty": "プロバイダーが設定されていません。",
+    "effortPlaceholder": "effort",
+    "effortUnsupported": "reasoning_effort は OpenAI の gpt-5.x / o-series モデルでのみ有効です",
     "saveWithCount": "{{count}} 件を保存",
-    "saved": "{{count}} 件の tier を保存しました",
+    "saved": "{{count}} 件の上書きを保存しました",
     "saveOneFailed": "{{target}} の保存に失敗"
   },
   "routerUtilization": {

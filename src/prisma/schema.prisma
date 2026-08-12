@@ -269,6 +269,13 @@ model Model {
   // classify third-party models (gpt-5.6-*, gemini-*, ...) as one of
   // fable / opus / sonnet / haiku so tier-respect constraints match.
   manualTier          String?
+  // Manual reasoning-effort override for OpenAI / OpenAI-Responses /
+  // Codex models. Null = pass the request through untouched (vendor
+  // default, currently 'medium' for reasoning models). Non-null values
+  // are one of 'minimal' (gpt-5 family only) / 'low' / 'medium' /
+  // 'high' and are injected into the outgoing request's `reasoning`
+  // block at build time.
+  reasoningEffort     String?
   // True when the vendor has marked this model as deprecated upstream.
   // The flag is seeded from src/shared/data/deprecations.ts at
   // boot and on the UI refresh-models action; we never delete the row

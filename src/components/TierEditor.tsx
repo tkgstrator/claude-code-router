@@ -1,11 +1,11 @@
 /**
- * Tier Editor page.
+ * Tier + reasoning-effort override editor page.
  *
- * Bulk-edit `Model.manualTier` across every configured provider.
- * When set, the value overrides the name-substring tier inference
- * the preference selector uses so operators can classify third-party
- * models (gpt-5.6-*, gemini-*, ...) as one of fable / opus / sonnet /
- * haiku.
+ * Bulk-edit `Model.manualTier` and `Model.reasoningEffort` across every
+ * configured provider. Tier feeds the quota-aware preference selector's
+ * tier-respect constraint; reasoning-effort is injected into the outgoing
+ * OpenAI / OpenAI-Responses request at build time (gpt-5.x / o-series
+ * only — other model families ignore the field).
  *
  * Save PATCHes just the changed rows (compared against the initial
  * snapshot on load); untouched models stay put with a single network
@@ -25,17 +25,36 @@ import type { Provider } from '@/schemas'
 
 type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'
 type TierValue = Tier | 'auto'
+type Effort = 'minimal' | 'low' | 'medium' | 'high'
+type EffortValue = Effort | 'auto'
+
 const TIER_OPTIONS: readonly TierValue[] = ['auto', 'fable', 'opus', 'sonnet', 'haiku']
+const EFFORT_OPTIONS: readonly EffortValue[] = ['auto', 'minimal', 'low', 'medium', 'high']
+
+// Same guard the server-side OpenAI transformer uses to decide whether
+// to emit `reasoning_effort` (gpt-5.x and o1/o3/o4 chat models); we grey
+// out the selector for anything else so operators don't set a value the
+// vendor will silently ignore.
+const REASONING_MODEL_RE = /^(gpt-5(?:\.\d+)?(?:-|$)|o[1-9](?:-|$))/
+const supportsReasoningEffort = (model: string): boolean => REASONING_MODEL_RE.test(model)
 
 interface Row {
   providerName: string
   modelName: string
-  initial: TierValue
-  current: TierValue
+  initialTier: TierValue
+  currentTier: TierValue
+  initialEffort: EffortValue
+  currentEffort: EffortValue
+  supportsEffort: boolean
 }
 
 const toTierValue = (raw: string | undefined): TierValue => {
   if (raw === 'fable' || raw === 'opus' || raw === 'sonnet' || raw === 'haiku') return raw
+  return 'auto'
+}
+
+const toEffortValue = (raw: string | undefined): EffortValue => {
+  if (raw === 'minimal' || raw === 'low' || raw === 'medium' || raw === 'high') return raw
   return 'auto'
 }
 
@@ -49,11 +68,19 @@ const buildRows = (providers: readonly Provider[]): Row[] => {
   for (const p of providers) {
     if (p.enabled === false) continue
     const disabled = new Set(p.transformer?._disabledModels ?? [])
-    const overrides = p.modelManualTiers ?? {}
+    const tierMap = p.modelManualTiers ?? {}
+    const effortMap = p.modelReasoningEfforts ?? {}
     for (const m of [...p.models].sort((a, b) => a.localeCompare(b))) {
       if (disabled.has(m)) continue
-      const v = toTierValue(overrides[m])
-      out.push({ providerName: p.name, modelName: m, initial: v, current: v })
+      out.push({
+        providerName: p.name,
+        modelName: m,
+        initialTier: toTierValue(tierMap[m]),
+        currentTier: toTierValue(tierMap[m]),
+        initialEffort: toEffortValue(effortMap[m]),
+        currentEffort: toEffortValue(effortMap[m]),
+        supportsEffort: supportsReasoningEffort(m)
+      })
     }
   }
   return out
@@ -84,27 +111,40 @@ export function TierEditor() {
     return m
   }, [rows])
 
-  const dirtyCount = useMemo(() => rows.filter((r) => r.current !== r.initial).length, [rows])
+  const isDirty = useCallback((r: Row) => r.currentTier !== r.initialTier || r.currentEffort !== r.initialEffort, [])
+  const dirtyCount = useMemo(() => rows.filter(isDirty).length, [rows, isDirty])
 
   const setRowTier = useCallback((provider: string, model: string, next: TierValue) => {
     setRows((prev) =>
-      prev.map((r) => (r.providerName === provider && r.modelName === model ? { ...r, current: next } : r))
+      prev.map((r) => (r.providerName === provider && r.modelName === model ? { ...r, currentTier: next } : r))
+    )
+  }, [])
+
+  const setRowEffort = useCallback((provider: string, model: string, next: EffortValue) => {
+    setRows((prev) =>
+      prev.map((r) => (r.providerName === provider && r.modelName === model ? { ...r, currentEffort: next } : r))
     )
   }, [])
 
   const resetChanges = useCallback(() => {
-    setRows((prev) => prev.map((r) => ({ ...r, current: r.initial })))
+    setRows((prev) => prev.map((r) => ({ ...r, currentTier: r.initialTier, currentEffort: r.initialEffort })))
   }, [])
 
   const save = useCallback(async () => {
     setSaving(true)
-    const changed = rows.filter((r) => r.current !== r.initial)
+    const changed = rows.filter(isDirty)
     const outcomes: { row: Row; ok: boolean; err?: string }[] = []
     try {
       for (const r of changed) {
-        const manualTier = r.current === 'auto' ? null : r.current
         try {
-          await api.setModelTier(r.providerName, r.modelName, manualTier)
+          if (r.currentTier !== r.initialTier) {
+            const manualTier = r.currentTier === 'auto' ? null : r.currentTier
+            await api.setModelTier(r.providerName, r.modelName, manualTier)
+          }
+          if (r.currentEffort !== r.initialEffort) {
+            const effort = r.currentEffort === 'auto' ? null : r.currentEffort
+            await api.setModelReasoningEffort(r.providerName, r.modelName, effort)
+          }
           outcomes.push({ row: r, ok: true })
         } catch (err) {
           outcomes.push({ row: r, ok: false, err: err instanceof Error ? err.message : String(err) })
@@ -124,13 +164,13 @@ export function TierEditor() {
       setRows((prev) =>
         prev.map((r) => {
           const outcome = outcomes.find((o) => o.row.providerName === r.providerName && o.row.modelName === r.modelName)
-          return outcome?.ok ? { ...r, initial: r.current } : r
+          return outcome?.ok ? { ...r, initialTier: r.currentTier, initialEffort: r.currentEffort } : r
         })
       )
     } finally {
       setSaving(false)
     }
-  }, [rows, showToast, t])
+  }, [rows, showToast, t, isDirty])
 
   const providersOrdered = useMemo(() => [...rowsByProvider.keys()], [rowsByProvider])
 
@@ -160,13 +200,13 @@ export function TierEditor() {
                   className='flex items-center gap-3 border-l-2 border-l-transparent px-3 py-2 transition-colors hover:border-l-primary hover:bg-muted/50'
                 >
                   <span className='flex-1 truncate font-medium text-sm'>{r.modelName}</span>
-                  {r.current !== r.initial && (
+                  {isDirty(r) && (
                     <span className='rounded bg-primary/10 px-1.5 py-0.5 text-primary text-xs'>
                       {t('tierEditor.dirty')}
                     </span>
                   )}
                   <Select
-                    value={r.current}
+                    value={r.currentTier}
                     onValueChange={(v) => setRowTier(r.providerName, r.modelName, v === 'auto' ? 'auto' : (v as Tier))}
                   >
                     <SelectTrigger className='w-28'>
@@ -174,6 +214,27 @@ export function TierEditor() {
                     </SelectTrigger>
                     <SelectContent>
                       {TIER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt === 'auto' ? t('tierEditor.auto') : opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={r.currentEffort}
+                    disabled={!r.supportsEffort}
+                    onValueChange={(v) =>
+                      setRowEffort(r.providerName, r.modelName, v === 'auto' ? 'auto' : (v as Effort))
+                    }
+                  >
+                    <SelectTrigger
+                      className='w-28'
+                      title={r.supportsEffort ? undefined : t('tierEditor.effortUnsupported')}
+                    >
+                      <SelectValue placeholder={t('tierEditor.effortPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EFFORT_OPTIONS.map((opt) => (
                         <SelectItem key={opt} value={opt}>
                           {opt === 'auto' ? t('tierEditor.auto') : opt}
                         </SelectItem>

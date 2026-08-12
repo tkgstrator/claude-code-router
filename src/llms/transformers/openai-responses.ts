@@ -53,6 +53,14 @@ export class OpenAIResponsesTransformer extends Transformer {
     // Responses API uses neither; drop it.
     delete (responsesReq as { max_completion_tokens?: unknown }).max_completion_tokens
 
+    // Manual per-model effort override wins over whatever the client
+    // sent (typically inherited from Anthropic's `thinking` block).
+    const effortOverride = provider?.modelReasoningEfforts?.[responsesReq.model ?? '']
+    if (effortOverride) {
+      // biome-ignore plugin: seeding the unified reasoning block so rewriteReasoning below picks up the override; the narrower unified type does not admit direct assignment.
+      ;(responsesReq as unknown as { reasoning: { effort: string } }).reasoning = { effort: effortOverride }
+    }
+
     rewriteReasoning(responsesReq)
 
     const input: unknown[] = []
