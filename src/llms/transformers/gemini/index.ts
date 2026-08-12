@@ -15,8 +15,8 @@ import {
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
-import { buildRequestBody, transformRequestOut, transformResponseOut } from '../utils/gemini-conversion'
-import { Transformer } from './base'
+import { buildRequestBody, transformRequestOut, transformResponseOut } from '../../utils/gemini-conversion'
+import { Transformer } from '../base'
 
 export class GeminiTransformer extends Transformer {
   readonly name = 'gemini'
