@@ -88,10 +88,27 @@ export async function processRequestTransformers(
     //    that Bun auto-decompresses, but the content-encoding header lingers
     //    in the response and triggers a double-decompress ZlibError on the
     //    Claude Code client side.
+    //  - authorization / x-api-key: these are CCR's own inbound-auth gate
+    //    (the client's CCR APIKEY). Forwarding them causes the upstream to
+    //    receive the CCR APIKEY as its Bearer instead of provider.api_key
+    //    — buildRequestHeaders sets the correct provider Bearer first, but
+    //    the inbound `authorization` (lowercase) spread on top would override
+    //    it, and OpenAI upstream then 400s with "Incorrect API key".
+    //    mergeAuthAndPassthroughHeaders already strips these when an
+    //    OAuth transformer's auth() returns headers; do the same here so
+    //    bypass providers without an auth-returning transformer (openai
+    //    api_key in single-use bypass) don't leak the inbound key.
     const headers: Record<string, string | undefined> = { ...input.headers }
     for (const key of Object.keys(headers)) {
       const lower = key.toLowerCase()
-      if (lower === 'content-length' || lower === 'accept-encoding') delete headers[key]
+      if (
+        lower === 'content-length' ||
+        lower === 'accept-encoding' ||
+        lower === 'authorization' ||
+        lower === 'x-api-key'
+      ) {
+        delete headers[key]
+      }
     }
     config = { headers }
     return { requestBody, config }
