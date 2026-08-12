@@ -11,10 +11,16 @@ import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
 import { getPrismaClient } from '../../db/client'
 import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } from '../../llms'
+import type { Transformer } from '../../llms/transformers/base'
 import { requestLogEmitter } from '../request-logs/events'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
 import { buildFailoverChain, buildRoutePlan, type ResolvedInvocation } from './invocation'
-import { aggregateAnthropicSseToJson, isSseContentType } from './sse-to-json'
+import {
+  aggregateAnthropicSseToJson,
+  aggregateOpenAiChatSseToJson,
+  aggregateOpenAiResponsesSseToJson,
+  isSseContentType
+} from './sse-to-json'
 import { bestSupportedLevel, deepReplaceValue, forwardUpstreamError } from './upstream-error'
 
 export const v1Route = new Hono()
@@ -92,22 +98,41 @@ function countingSseTransform(
   })
 }
 
+// Pick the SSE→JSON aggregator that matches the inbound endpoint. The
+// upstream response has already been reshaped by the endpoint
+// transformer's `transformResponseIn` into the inbound wire form, so
+// the aggregator only needs to know which wire shape it is:
+//
+//   AnthropicTransformer      → Anthropic message envelope
+//   OpenAITransformer         → OpenAI chat.completion envelope
+//   OpenAIResponsesTransformer→ OpenAI Responses `response` envelope
+//
+// Falls back to the Anthropic aggregator for unknown endpoints so the
+// long-standing /v1/messages path is untouched.
+function pickSseAggregator(transformer: Transformer): (response: Response) => Promise<Record<string, unknown>> {
+  if (transformer.name === 'openai') return aggregateOpenAiChatSseToJson
+  if (transformer.name === 'openai-responses') return aggregateOpenAiResponsesSseToJson
+  return aggregateAnthropicSseToJson
+}
+
 async function formatResponse(
   c: Context,
   response: Response,
   stream: boolean,
   log: Logger,
-  observed: { provider: string; model: string | undefined }
+  observed: { provider: string; model: string | undefined; transformer: Transformer }
 ): Promise<Response> {
   if (!stream) {
     // A few provider paths (codex-oauth notably) force stream=true
     // upstream even when the client asked for blocking JSON. Detect
     // SSE by content-type and aggregate the events back into the
-    // Anthropic non-stream envelope; only fall through to JSON.parse
-    // when the upstream really is JSON. Without this the parse throws
-    // on "event: message_start\ndata: ..." and the client sees a 500.
+    // non-stream envelope that matches the inbound endpoint; only fall
+    // through to JSON.parse when the upstream really is JSON. Without
+    // this the parse throws on "event: ...\ndata: ..." and the client
+    // sees a 500.
     if (isSseContentType(response.headers.get('content-type'))) {
-      const message = await aggregateAnthropicSseToJson(response)
+      const aggregate = pickSseAggregator(observed.transformer)
+      const message = await aggregate(response)
       return c.json(message, (response.status || 200) as 200)
     }
     const text = await response.text()
@@ -178,6 +203,14 @@ v1Route.post('/v1/*', async (c) => {
   const sessionId = sessionIdFrom(plan.headers)
 
   const runWith = async (inv: ResolvedInvocation): Promise<Response> => {
+    // Snapshot the client's stream preference BEFORE the pipeline runs.
+    // Some provider transformers (codex-oauth notably) force `stream = true`
+    // on the body they hand to the upstream and mutate `inv.body` in
+    // place; without this snapshot `formatResponse` would see the
+    // mutated value and treat a `stream: false` client request as if
+    // the caller wanted SSE — the SDK on the other end would then
+    // fail to parse the SSE body as JSON.
+    const clientAskedStream = inv.body.stream === true
     const upstream = await runPipeline(
       {
         body: inv.body,
@@ -188,9 +221,10 @@ v1Route.post('/v1/*', async (c) => {
       },
       { log: ctx.log, httpsProxy: ctx.config.getHttpsProxy(), recordUsage, recordMessages }
     )
-    return formatResponse(c, upstream, inv.body.stream === true, ctx.log, {
+    return formatResponse(c, upstream, clientAskedStream, ctx.log, {
       provider: inv.provider.name,
-      model: inv.request.model
+      model: inv.request.model,
+      transformer: inv.transformer
     })
   }
 

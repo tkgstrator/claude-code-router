@@ -24,8 +24,14 @@ import type {
   TransformerHookResult,
   UnifiedChatRequest
 } from '@/schemas'
-import { ResponsesAPIPayloadSchema } from '@/schemas'
+import { ChatCompletionResponseSchema, ResponsesAPIPayloadSchema } from '@/schemas'
+import { aggregateOpenAiChatSseToJson, isSseContentType } from '../utils/sse-aggregate'
 import { Transformer } from './base'
+import {
+  convertChatCompletionToResponses,
+  convertResponsesRequestToUnified,
+  wrapResponsesEnvelopeAsSse
+} from './openai-responses/inbound'
 import {
   collectSystemMessages,
   processNonSystemMessage,
@@ -39,6 +45,51 @@ import { ResponsesStreamSession } from './openai-responses/response-stream'
 export class OpenAIResponsesTransformer extends Transformer {
   readonly name = 'openai-responses'
   readonly endPoint = '/v1/responses'
+
+  // Endpoint-side inbound hook. Runs once per request BEFORE any
+  // provider transformer chain — takes the /v1/responses wire body
+  // (input/instructions/tools) and returns a UnifiedChatRequest so
+  // scenario routing, `messages`-shaped token counting, and every
+  // downstream provider transformer see a consistent shape. Round-trips
+  // cleanly when the target provider chain ALSO includes openai-responses
+  // (e.g. codex-oauth) — the provider chain's transformRequestIn
+  // re-converts unified messages back to Responses shape.
+  async transformRequestOut(request: unknown, _context: TransformerContext): Promise<UnifiedChatRequest> {
+    if (request === null || typeof request !== 'object') return request as UnifiedChatRequest
+    return convertResponsesRequestToUnified(request as Record<string, unknown>)
+  }
+
+  // Endpoint-side outbound hook. After the provider chain reversed the
+  // upstream reply into unified/chat-completion shape, convert back to
+  // the Responses `response` envelope the client asked for. SSE input is
+  // buffered — real per-token streaming through the Chat→Responses
+  // boundary is future work; for now the wire contract is honoured but
+  // TTFT is lost.
+  async transformResponseIn(response: Response, _context?: TransformerContext): Promise<Response> {
+    if (!response.ok) return response
+    const contentType = response.headers.get('content-type')
+    if (isSseContentType(contentType)) {
+      const chatJsonRaw = await aggregateOpenAiChatSseToJson(response)
+      const chat = ChatCompletionResponseSchema.safeParse(chatJsonRaw)
+      if (!chat.success) return response
+      const envelope = convertChatCompletionToResponses(chat.data)
+      const sse = wrapResponsesEnvelopeAsSse(envelope)
+      const headers = new Headers(response.headers)
+      headers.set('content-type', 'text/event-stream')
+      return new Response(sse, { status: response.status, statusText: response.statusText, headers })
+    }
+    const text = await response.text()
+    if (text.length === 0) return response
+    const parsedJson = JSON.parse(text)
+    const chat = ChatCompletionResponseSchema.safeParse(parsedJson)
+    if (!chat.success) return response
+    const envelope = convertChatCompletionToResponses(chat.data)
+    return new Response(JSON.stringify(envelope), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    })
+  }
 
   async transformRequestIn(
     request: UnifiedChatRequest,

@@ -1,0 +1,46 @@
+name: PR base guard
+
+# Enforce the release flow `feature → develop → master`: only PRs whose
+# head is `develop` may target `master`. Any feature branch aimed at
+# master fails this check with a clear message so the author redirects
+# to develop first.
+#
+# The other half of stopping master ↔ develop divergence — pairs with
+# `.github/workflows/backmerge.yaml`, which handles the master → develop
+# direction after each release. See `docs/plan/develop-master-divergence.md`
+# for the history that motivated both.
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject non-develop PRs targeting master
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ "${HEAD_REF}" != "develop" ]; then
+            cat <<EOF
+          ::error::PRs to master must originate from develop, got head=${HEAD_REF}.
+
+          The release flow is:  feature → develop → master
+
+          Rebase or retarget this PR:
+            1) Open a PR from '${HEAD_REF}' into 'develop' and land it there.
+            2) Run \`/release\` (or open a develop → master PR) to promote it.
+
+          Landing '${HEAD_REF}' directly into master leaves develop behind and
+          breaks the automated backmerge — see docs/plan/develop-master-divergence.md
+          for the history.
+          EOF
+            exit 1
+          fi
+          echo "head=develop → OK"
