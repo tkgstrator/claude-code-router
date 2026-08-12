@@ -29,6 +29,7 @@ import {
   type Metric
 } from '../../services/subaccount-usage-store'
 import { getSubAccountTokensForKind } from '../../services/subscription-account-sync-service'
+import { errorShapeForPath } from './error-shape'
 import { type ResolvedInvocation, type RoutePlan, resolveInvocationForModel } from './invocation'
 import { forwardUpstreamError, isRateLimited } from './upstream-error'
 
@@ -110,7 +111,7 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
       err = caught
     }
 
-    const forwarded = forwardUpstreamError(err)
+    const forwarded = forwardUpstreamError(err, errorShapeForPath(plan.path))
     if (!forwarded) {
       ctx.log.error({ err }, 'pipeline error')
       return { kind: 'done', response: errorResponse(c, err) }

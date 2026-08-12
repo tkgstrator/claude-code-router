@@ -14,6 +14,7 @@ import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } fro
 import type { Transformer } from '../../llms/transformers/base'
 import { requestLogEmitter } from '../request-logs/events'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
+import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
 import { buildFailoverChain, buildRoutePlan, type ResolvedInvocation } from './invocation'
 import {
   aggregateAnthropicSseToJson,
@@ -183,11 +184,11 @@ async function formatResponse(
 }
 
 function errorResponse(c: Context, err: unknown): Response {
-  if (err instanceof HTTPException) {
-    return c.json({ type: 'error', error: { type: 'internal_error', message: err.message } }, err.status as 500)
-  }
+  const shape = errorShapeForPath(new URL(c.req.url).pathname)
+  const status = err instanceof HTTPException ? err.status : 500
   const message = err instanceof Error ? err.message : String(err)
-  return c.json({ type: 'error', error: { type: 'internal_error', message } }, 500)
+  const envelope = buildErrorEnvelope({ shape, status, from: message })
+  return c.json(envelope, status as 500)
 }
 
 // ─── Handler ────────────────────────────────────────────────────────────
@@ -228,6 +229,11 @@ v1Route.post('/v1/*', async (c) => {
     })
   }
 
+  // Inbound path determines which error envelope OpenAI / Anthropic
+  // clients get back — /v1/chat/completions gets `{error:{message,type,code}}`
+  // even when the upstream returned codex's `{detail}`.
+  const inboundShape = errorShapeForPath(plan.path)
+
   // One model attempt with the effort-level retry folded in: if the
   // upstream 400 told us which effort levels it supports, swap and retry
   // once against the SAME model before bubbling the error up to the
@@ -236,7 +242,7 @@ v1Route.post('/v1/*', async (c) => {
     try {
       return await runWith(inv)
     } catch (err) {
-      if (forwardUpstreamError(err)) {
+      if (forwardUpstreamError(err, inboundShape)) {
         const message = err instanceof HTTPException ? err.message : ''
         const fix = bestSupportedLevel(message)
         if (fix && deepReplaceValue(inv.body, fix.bad, fix.level)) {
