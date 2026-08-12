@@ -27,21 +27,11 @@ type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'
 type TierValue = Tier | 'auto'
 const TIER_OPTIONS: readonly TierValue[] = ['auto', 'fable', 'opus', 'sonnet', 'haiku']
 
-const inferTier = (name: string): Tier | null => {
-  const lower = name.toLowerCase()
-  if (lower.includes('fable')) return 'fable'
-  if (lower.includes('opus')) return 'opus'
-  if (lower.includes('sonnet')) return 'sonnet'
-  if (lower.includes('haiku')) return 'haiku'
-  return null
-}
-
 interface Row {
   providerName: string
   modelName: string
   initial: TierValue
   current: TierValue
-  inferred: Tier | null
 }
 
 const toTierValue = (raw: string | undefined): TierValue => {
@@ -49,13 +39,21 @@ const toTierValue = (raw: string | undefined): TierValue => {
   return 'auto'
 }
 
+// Mirror the essential "enabled" gate that ModelsDashboard applies:
+// skip providers turned off in config and models the user disabled
+// via the transformer._disabledModels list. The subscription-plan
+// check is deliberately omitted here — a tier assignment survives even
+// while a subscription is being (re)configured, so we keep the row.
 const buildRows = (providers: readonly Provider[]): Row[] => {
   const out: Row[] = []
   for (const p of providers) {
+    if (p.enabled === false) continue
+    const disabled = new Set(p.transformer?._disabledModels ?? [])
     const overrides = p.modelManualTiers ?? {}
     for (const m of [...p.models].sort((a, b) => a.localeCompare(b))) {
+      if (disabled.has(m)) continue
       const v = toTierValue(overrides[m])
-      out.push({ providerName: p.name, modelName: m, initial: v, current: v, inferred: inferTier(m) })
+      out.push({ providerName: p.name, modelName: m, initial: v, current: v })
     }
   }
   return out
@@ -162,13 +160,6 @@ export function TierEditor() {
                   className='flex items-center gap-3 border-l-2 border-l-transparent px-3 py-2 transition-colors hover:border-l-primary hover:bg-muted/50'
                 >
                   <span className='flex-1 truncate font-medium text-sm'>{r.modelName}</span>
-                  {r.current === 'auto' && (
-                    <span className='text-muted-foreground text-xs'>
-                      {r.inferred === null
-                        ? t('tierEditor.inferredNone')
-                        : t('tierEditor.inferredAs', { tier: r.inferred })}
-                    </span>
-                  )}
                   {r.current !== r.initial && (
                     <span className='rounded bg-primary/10 px-1.5 py-0.5 text-primary text-xs'>
                       {t('tierEditor.dirty')}
