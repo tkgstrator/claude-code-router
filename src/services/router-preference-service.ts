@@ -33,19 +33,42 @@ interface DbEntryRow {
   priority: number
   enabled: boolean
   subagentTiers: string[]
-  model: { name: string; provider: { name: string } }
+  model: { name: string; manualTier: string | null; provider: { name: string } }
 }
 
 const ALLOWED_TIERS = new Set(['fable', 'opus', 'sonnet', 'haiku'])
+type CanonicalTier = 'fable' | 'opus' | 'sonnet' | 'haiku'
+const narrowTier = (raw: string | null | undefined): CanonicalTier | null => {
+  if (raw === null || raw === undefined) return null
+  return ALLOWED_TIERS.has(raw) ? (raw as CanonicalTier) : null
+}
 const narrowSubagentTiers = (raw: string[]): RouterPreferenceEntry['subagentTiers'] =>
-  raw.flatMap((t) => (ALLOWED_TIERS.has(t) ? [t as 'fable' | 'opus' | 'sonnet' | 'haiku'] : []))
+  raw.flatMap((t) => (ALLOWED_TIERS.has(t) ? [t as CanonicalTier] : []))
 
-const dbEntryToWire = (row: DbEntryRow): RouterPreferenceEntry => ({
-  priority: row.priority,
-  target: `${row.model.provider.name},${row.model.name}`,
-  enabled: row.enabled,
-  subagentTiers: narrowSubagentTiers(row.subagentTiers)
-})
+// Name-inference fallback that mirrors the private tierOf() in
+// scenario-router/model-selection.ts. Duplicated here (rather than
+// imported cross-service) so bun's test-file loader doesn't hit the
+// same "Export named not found" quirk we saw with scopedMetricKey.
+const inferTier = (modelName: string): CanonicalTier | null => {
+  const lower = modelName.toLowerCase()
+  if (lower.includes('fable')) return 'fable'
+  if (lower.includes('opus')) return 'opus'
+  if (lower.includes('sonnet')) return 'sonnet'
+  if (lower.includes('haiku')) return 'haiku'
+  return null
+}
+
+const dbEntryToWire = (row: DbEntryRow): RouterPreferenceEntry => {
+  const manual = narrowTier(row.model.manualTier)
+  const resolved = manual !== null ? manual : inferTier(row.model.name)
+  return {
+    priority: row.priority,
+    target: `${row.model.provider.name},${row.model.name}`,
+    enabled: row.enabled,
+    subagentTiers: narrowSubagentTiers(row.subagentTiers),
+    resolvedTier: resolved
+  }
+}
 
 const emptyEntriesByScenario = (): PreferenceEntriesByScenario => ({
   default: [],

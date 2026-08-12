@@ -74,3 +74,23 @@ export async function setModelEnabled(providerName: string, modelName: string, e
   await syncToConfigFile()
   resetLlmsContext()
 }
+
+// Manual tier override for the quota-aware selector. `null` clears the
+// override so tierOf(name) name-inference takes over again. Emits a
+// llmsContext reset so any in-flight selector state re-reads the
+// change on the next request.
+export async function setModelManualTier(
+  providerName: string,
+  modelName: string,
+  manualTier: 'fable' | 'opus' | 'sonnet' | 'haiku' | null
+): Promise<void> {
+  const prisma = getPrismaClient()
+  const model = await prisma.model.findFirst({
+    where: { name: modelName, provider: { name: providerName } }
+  })
+  if (!model) throw new Error(`Model "${modelName}" not found under provider "${providerName}"`)
+  if (model.manualTier === manualTier) return
+  await prisma.model.update({ where: { id: model.id }, data: { manualTier } })
+  await syncToConfigFile()
+  resetLlmsContext()
+}

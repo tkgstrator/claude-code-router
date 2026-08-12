@@ -684,7 +684,20 @@
     "exhaustedBehaviorHelpPassthrough": "passthrough: 跳过优先级链，直接使用客户端原本请求的模型。",
     "noSchedulerData": "调度器快照尚未生成。当 ROUTER_MODE 为 quota-aware 或 shadow 时，weight/预算徽章将出现。",
     "saved": "优先级已保存",
-    "saveFailed": "保存优先级失败"
+    "saveFailed": "保存优先级失败",
+    "editTiers": "编辑 tier"
+  },
+  "tierEditor": {
+    "title": "模型 tier 覆盖",
+    "description": "为不遵循 fable/opus/sonnet/haiku 命名规则的第三方模型指定正式 tier，使 quota-aware 选择器的 tier respect 约束能匹配到它们。",
+    "auto": "自动",
+    "inferredAs": "自动 → {{tier}}",
+    "inferredNone": "自动 → 无匹配",
+    "dirty": "已修改",
+    "empty": "未配置任何供应商。",
+    "saveWithCount": "保存 {{count}} 项修改",
+    "saved": "已保存 {{count}} 个 tier",
+    "saveOneFailed": "保存 {{target}} 失败"
   },
   "routerUtilization": {
     "title": "路由器使用情况",

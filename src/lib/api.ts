@@ -316,6 +316,20 @@ class ApiClient {
     return this.get<RoutingSchedulerStateResponse>('/routing-scheduler-state')
   }
 
+  // Set a per-model manual tier override (Tier Editor). Send null to
+  // clear and fall back to name inference. Reuses PATCH
+  // /api/providers/{name}/models/{model}.
+  async setModelTier(
+    providerName: string,
+    modelName: string,
+    manualTier: 'fable' | 'opus' | 'sonnet' | 'haiku' | null
+  ): Promise<{ success: boolean }> {
+    return this.apiFetch<{ success: boolean }>(
+      `/providers/${encodeURIComponent(providerName)}/models/${encodeURIComponent(modelName)}`,
+      { method: 'PATCH', body: JSON.stringify({ manualTier }) }
+    )
+  }
+
   // Router utilization dashboard (Phase 7). Aggregations over the
   // requested window in hours (default 24).
   async getRouterUtilization(params?: { windowHours?: number }): Promise<RouterUtilizationResponse> {

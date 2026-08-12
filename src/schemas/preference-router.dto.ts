@@ -100,7 +100,12 @@ export const RouterPreferenceEntrySchema = z
     priority: z.number().int().positive(),
     target: z.string().nonempty(),
     enabled: z.boolean().default(true),
-    subagentTiers: z.array(RequestedModelTierSchema).default([])
+    subagentTiers: z.array(RequestedModelTierSchema).default([]),
+    // Server-populated on read (loadPreferenceChain resolves it from
+    // Model.manualTier ?? tierOf(name)). Optional on the wire because
+    // legacy clients don't send it and the apply path ignores it —
+    // resolvedTier is a computed value, not user input.
+    resolvedTier: RequestedModelTierSchema.nullable().optional()
   })
   .openapi('RouterPreferenceEntry')
 export type RouterPreferenceEntry = z.infer<typeof RouterPreferenceEntrySchema>

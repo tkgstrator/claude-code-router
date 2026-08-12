@@ -263,6 +263,12 @@ model Model {
   // Null means "use the provider's apiStyle"; set explicitly (seeded)
   // for the models that need a different endpoint.
   apiStyle            ApiStyle?
+  // Manual tier override used by the quota-aware preference selector.
+  // Null = fall back to name-substring inference (tierOf) which only
+  // recognises the four Claude families; setting this lets operators
+  // classify third-party models (gpt-5.6-*, gemini-*, ...) as one of
+  // fable / opus / sonnet / haiku so tier-respect constraints match.
+  manualTier          String?
   // True when the vendor has marked this model as deprecated upstream.
   // The flag is seeded from src/shared/data/deprecations.ts at
   // boot and on the UI refresh-models action; we never delete the row

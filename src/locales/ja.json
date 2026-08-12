@@ -684,7 +684,20 @@
     "exhaustedBehaviorHelpPassthrough": "passthrough: 優先順位チェーンを無視し、クライアントが元々指定したモデルへそのまま流します。",
     "noSchedulerData": "スケジューラのスナップショットが未生成です。ROUTER_MODE が quota-aware または shadow のときに weight/予算バッジが表示されます。",
     "saved": "優先順位を保存しました",
-    "saveFailed": "優先順位の保存に失敗しました"
+    "saveFailed": "優先順位の保存に失敗しました",
+    "editTiers": "tier を編集"
+  },
+  "tierEditor": {
+    "title": "モデル tier の上書き",
+    "description": "fable/opus/sonnet/haiku の命名規則に沿わないサードパーティのモデルにも、正規の tier を割り当てることで tier respect 制約と噛み合わせられます。",
+    "auto": "自動",
+    "inferredAs": "自動 → {{tier}}",
+    "inferredNone": "自動 → 該当なし",
+    "dirty": "変更あり",
+    "empty": "プロバイダーが設定されていません。",
+    "saveWithCount": "{{count}} 件を保存",
+    "saved": "{{count}} 件の tier を保存しました",
+    "saveOneFailed": "{{target}} の保存に失敗"
   },
   "routerUtilization": {
     "title": "ルーター利用状況",
