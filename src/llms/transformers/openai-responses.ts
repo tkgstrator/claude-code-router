@@ -117,7 +117,10 @@ export class OpenAIResponsesTransformer extends Transformer {
     const input: unknown[] = []
     collectSystemMessages(responsesReq, input)
 
-    for (const message of responsesReq.messages) {
+    // Defensive: same guard as collectSystemMessages — the body may
+    // legitimately have no `messages` (OpenAI-compat caller sent an
+    // empty request) and the transformer must not crash.
+    for (const message of Array.isArray(responsesReq.messages) ? responsesReq.messages : []) {
       if (message.role === 'system') continue
       processNonSystemMessage(message, input)
     }

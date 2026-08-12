@@ -39,6 +39,25 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// Reduce an Anthropic-style top-level `system` (string OR array of
+// `{text, ...}` blocks) to a plain string for absorption into a
+// leading system message. Mirrors flattenSystemToText in openai.ts.
+function flattenTopLevelSystem(system: unknown): string {
+  if (typeof system === 'string') return system
+  if (!Array.isArray(system)) return ''
+  const parts: string[] = []
+  for (const block of system) {
+    if (typeof block === 'string') {
+      parts.push(block)
+      continue
+    }
+    if (block === null || typeof block !== 'object') continue
+    const text = Reflect.get(block, 'text')
+    if (typeof text === 'string') parts.push(text)
+  }
+  return parts.join('\n\n')
+}
+
 function contentTextParts(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -205,19 +224,28 @@ export function convertResponsesRequestToUnified(body: Record<string, unknown>):
     }
   }
 
+  // Absorb an Anthropic-style top-level `system` (Responses API doesn't
+  // model it, but a persona-enriched pipeline could still leave one) as
+  // a leading system message. Matches OpenAITransformer.transformRequestOut.
+  const systemText = body.system !== undefined && body.system !== null ? flattenTopLevelSystem(body.system) : ''
+  if (systemText.length > 0 && (messages.length === 0 || messages[0]?.role !== 'system')) {
+    messages.unshift({ role: 'system', content: systemText })
+  }
+
   const tools = convertToolsResponsesToChat(body.tools)
   const toolChoice = convertToolChoiceResponsesToChat(body.tool_choice)
 
   const unified: Record<string, unknown> = { ...body, model, messages }
   if (tools !== undefined) unified.tools = tools
   if (toolChoice !== undefined) unified.tool_choice = toolChoice
-  // These fields are Responses-only; strip so downstream `openai` /
-  // `anthropic` transformers don't see stray keys.
+  // These fields are Responses-only or already absorbed above; strip so
+  // downstream `openai` / `anthropic` transformers don't see stray keys.
   delete unified.input
   delete unified.instructions
   delete unified.parallel_tool_calls
   delete unified.previous_response_id
   delete unified.store
+  delete unified.system
   // `reasoning` is compatible: unified accepts `{effort, ...}` and
   // downstream transformers strip fields they don't know.
   // biome-ignore plugin: we intentionally widen the record back to UnifiedChatRequest — the shape is now unified-compatible.

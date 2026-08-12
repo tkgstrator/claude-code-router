@@ -171,6 +171,37 @@ describe('convertResponsesRequestToUnified', () => {
     expect(bag.store).toBeUndefined()
   })
 
+  test('absorbs an Anthropic-style top-level `system` (persona-leaked defence)', () => {
+    // Persona injection sets `body.system` — the router now gates it on
+    // Anthropic inbound only, but the endpoint transformer keeps the
+    // absorption as belt-and-braces so any future injection can't slip
+    // through as a stray top-level field.
+    const unified = convertResponsesRequestToUnified({
+      model: 'gpt-5-mini',
+      input: 'hi',
+      system: 'You are terse.'
+    })
+    expect(unified.messages).toEqual([
+      { role: 'system', content: 'You are terse.' },
+      { role: 'user', content: 'hi' }
+    ])
+    expect((unified as Record<string, unknown>).system).toBeUndefined()
+  })
+
+  test('system + instructions both prepend — instructions first, then system, then user', () => {
+    const unified = convertResponsesRequestToUnified({
+      model: 'gpt-5-mini',
+      input: 'hi',
+      instructions: 'Instr text',
+      system: 'System text'
+    })
+    // instructions creates the first system message → system absorption
+    // then sees an existing system[0] and skips prepending. Deterministic
+    // ordering: instructions wins when both are present.
+    expect(unified.messages[0]).toEqual({ role: 'system', content: 'Instr text' })
+    expect((unified as Record<string, unknown>).system).toBeUndefined()
+  })
+
   test('reasoning.effort survives round-trip into unified', () => {
     const unified = convertResponsesRequestToUnified({
       model: 'gpt-5.6-luna',
