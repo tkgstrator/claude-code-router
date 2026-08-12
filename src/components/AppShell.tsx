@@ -8,6 +8,7 @@ import {
   Gauge,
   Languages,
   LayoutDashboard,
+  ListOrdered,
   MessagesSquare,
   Moon,
   Server,
@@ -73,6 +74,7 @@ const NAV_GROUPS = [
     labelKey: 'nav.group.routing',
     items: [
       { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
+      { to: '/router-preferences', icon: ListOrdered, key: 'nav.routerPreferences' },
       { to: '/personas', icon: Drama, key: 'nav.personas' }
     ]
   },

@@ -159,6 +159,10 @@ class ApiClient {
     return this.apiFetch<T>(endpoint, { method: 'POST', body: JSON.stringify(data) })
   }
 
+  async put<T>(endpoint: string, data: unknown): Promise<T> {
+    return this.apiFetch<T>(endpoint, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
   private async deleteRequest<T>(endpoint: string, body: unknown = {}): Promise<T> {
     return this.apiFetch<T>(endpoint, { method: 'DELETE', body: JSON.stringify(body) })
   }
@@ -293,6 +297,71 @@ class ApiClient {
     const qs = q.toString()
     return this.get<ModelRoutingResponse>(`/request-logs/model-routing${qs ? `?${qs}` : ''}`)
   }
+
+  // Router preferences (Phase 6). The singleton preference chain that
+  // the quota-aware router walks. GET is empty on a fresh DB, PUT
+  // replaces the whole chain atomically.
+  async getRouterPreferences(): Promise<RouterPreferenceProfileWire> {
+    return this.get<RouterPreferenceProfileWire>('/router-preferences')
+  }
+
+  async putRouterPreferences(profile: RouterPreferenceProfileWire): Promise<RouterPreferencesApplyResponse> {
+    return this.put<RouterPreferencesApplyResponse>('/router-preferences', profile)
+  }
+
+  // Router scheduler snapshot (Phase 5). Read-only. Cold-boot returns
+  // an empty snapshot with tickAt=null so the UI renders "no data yet"
+  // without a special path.
+  async getRoutingSchedulerState(): Promise<RoutingSchedulerStateResponse> {
+    return this.get<RoutingSchedulerStateResponse>('/routing-scheduler-state')
+  }
+}
+
+export interface RouterPreferenceEntryWire {
+  priority: number
+  target: string
+  enabled: boolean
+  subagentTiers: Array<'fable' | 'opus' | 'sonnet' | 'haiku'>
+}
+
+export interface RouterPreferenceProfileWire {
+  entries: RouterPreferenceEntryWire[]
+  constraints: Record<string, unknown> | null
+}
+
+export interface RouterPreferencesApplyResponse {
+  success: boolean
+  warnings: string[]
+}
+
+export interface RoutingSchedulerWeightEntry {
+  target: string
+  weight: number
+  healthiness: number
+  remainingBudgetPct: number | null
+  earliestResetAt: string | null
+  reasons: string[]
+}
+
+export interface RoutingSchedulerAccountView {
+  subAccountId: string
+  providerName: string
+  kind: 'claude' | 'codex'
+  fiveHour: { used: number; limit: number; resetAt: string | null } | null
+  weekly: { used: number; limit: number; resetAt: string | null } | null
+  refreshedAt: string | null
+  stale: boolean
+}
+
+export interface RoutingSchedulerStateResponse {
+  tickAt: string | null
+  tickCount: number
+  consecutiveFailures: number
+  degraded: boolean
+  weights: RoutingSchedulerWeightEntry[]
+  accounts: RoutingSchedulerAccountView[]
+  soonestResetAt: string | null
+  recentChanges: Array<{ target: string; from: number; to: number; reason: string; tickAt: string }>
 }
 
 export const api = new ApiClient()
