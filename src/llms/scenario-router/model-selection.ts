@@ -206,7 +206,7 @@ function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
 // undefined. Order matters — `fable` is checked before `opus` because
 // a hypothetical `claude-fable-opus-mix` string should still tier to
 // fable (the family the user explicitly asked for).
-function tierOf(model: string): RequestedModelTier | undefined {
+export function tierOf(model: string): RequestedModelTier | undefined {
   if (typeof model !== 'string') return undefined
   const lower = model.toLowerCase()
   if (lower.includes('fable')) return 'fable'
