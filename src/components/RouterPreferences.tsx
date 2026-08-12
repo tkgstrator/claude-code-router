@@ -12,13 +12,21 @@
  * the same live weight.
  */
 
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -37,13 +45,18 @@ type Tier = (typeof TIERS)[number]
 
 const SCENARIOS: readonly PreferenceScenarioKey[] = ['default', 'think', 'longContext', 'webSearch', 'image']
 
-const collectAvailableTargets = (providers: readonly { name: string; models?: readonly string[] }[]): string[] => {
-  const out: string[] = []
-  for (const p of providers) {
-    for (const m of p.models ?? []) out.push(`${p.name},${m}`)
-  }
-  return out.sort((a, b) => a.localeCompare(b))
+interface ProviderModelIndex {
+  name: string
+  models: readonly string[]
 }
+
+// Collect the provider list preserving the config order so the
+// Add-model dialog shows providers in the order the user configured
+// them, with models sorted alphabetically inside each.
+const collectProviderIndex = (
+  providers: readonly { name: string; models?: readonly string[] }[]
+): ProviderModelIndex[] =>
+  providers.map((p) => ({ name: p.name, models: [...(p.models ?? [])].sort((a, b) => a.localeCompare(b)) }))
 
 interface ConstraintsForm {
   sonnetTierRespect: boolean
@@ -91,7 +104,9 @@ export function RouterPreferences() {
   const [saving, setSaving] = useState(false)
   const [scheduler, setScheduler] = useState<RoutingSchedulerStateResponse | null>(null)
   const [activeScenario, setActiveScenario] = useState<PreferenceScenarioKey>('default')
-  const [addTarget, setAddTarget] = useState<string>('')
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [addProvider, setAddProvider] = useState<string>('')
+  const [addModel, setAddModel] = useState<string>('')
 
   useEffect(() => {
     let cancelled = false
@@ -131,7 +146,16 @@ export function RouterPreferences() {
     }
   }, [])
 
-  const availableTargets = useMemo(() => collectAvailableTargets(config?.Providers ?? []), [config])
+  const providerIndex = useMemo(() => collectProviderIndex(config?.Providers ?? []), [config])
+  const activeTargets = useMemo(
+    () => new Set(byScenario[activeScenario].map((e) => e.target)),
+    [byScenario, activeScenario]
+  )
+  const modelsForAddProvider = useMemo(() => {
+    const p = providerIndex.find((x) => x.name === addProvider)
+    if (p === undefined) return [] as readonly string[]
+    return p.models.filter((m) => !activeTargets.has(`${p.name},${m}`))
+  }, [providerIndex, addProvider, activeTargets])
   const weightByTarget = useMemo(() => {
     const m = new Map<string, { weight: number; budget: number | null }>()
     for (const w of scheduler?.weights ?? []) m.set(w.target, { weight: w.weight, budget: w.remainingBudgetPct })
@@ -188,14 +212,23 @@ export function RouterPreferences() {
     [mutateActive]
   )
 
-  const addEntry = useCallback(() => {
-    if (addTarget === '') return
+  const openAddDialog = useCallback(() => {
+    setAddProvider('')
+    setAddModel('')
+    setAddDialogOpen(true)
+  }, [])
+
+  const confirmAdd = useCallback(() => {
+    if (addProvider === '' || addModel === '') return
+    const target = `${addProvider},${addModel}`
     mutateActive((prev) => {
-      if (prev.some((e) => e.target === addTarget)) return prev
-      return [...prev, { priority: prev.length + 1, target: addTarget, enabled: true, subagentTiers: [] }]
+      if (prev.some((e) => e.target === target)) return prev
+      return [...prev, { priority: prev.length + 1, target, enabled: true, subagentTiers: [] }]
     })
-    setAddTarget('')
-  }, [addTarget, mutateActive])
+    setAddDialogOpen(false)
+    setAddProvider('')
+    setAddModel('')
+  }, [addProvider, addModel, mutateActive])
 
   const save = useCallback(async () => {
     setSaving(true)
@@ -329,26 +362,80 @@ export function RouterPreferences() {
             )}
           </div>
 
-          <div className='flex items-center gap-2 pt-3'>
-            <Select value={addTarget} onValueChange={setAddTarget}>
-              <SelectTrigger className='flex-1'>
-                <SelectValue placeholder={t('routerPreferences.selectModel')} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTargets
-                  .filter((tg) => !activeEntries.some((e) => e.target === tg))
-                  .map((tg) => (
-                    <SelectItem key={tg} value={tg}>
-                      {tg}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={addEntry} disabled={addTarget === ''}>
+          <div className='flex items-center justify-end pt-3'>
+            <Button onClick={openAddDialog}>
+              <Plus className='h-4 w-4' />
               {t('routerPreferences.addModel')}
             </Button>
           </div>
         </section>
+
+        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <DialogContent className='sm:max-w-md'>
+            <DialogHeader>
+              <DialogTitle>{t('routerPreferences.addDialog.title')}</DialogTitle>
+              <DialogDescription>
+                {t('routerPreferences.addDialog.description', {
+                  scenario: t(`routerPreferences.scenario.${activeScenario}`)
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className='space-y-4 py-2'>
+              <div className='space-y-1.5'>
+                <Label>{t('routerPreferences.addDialog.provider')}</Label>
+                <Select
+                  value={addProvider}
+                  onValueChange={(v) => {
+                    setAddProvider(v)
+                    setAddModel('')
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('routerPreferences.addDialog.selectProvider')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providerIndex.map((p) => (
+                      <SelectItem key={p.name} value={p.name}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='space-y-1.5'>
+                <Label>{t('routerPreferences.addDialog.model')}</Label>
+                <Select value={addModel} onValueChange={setAddModel} disabled={addProvider === ''}>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        addProvider === ''
+                          ? t('routerPreferences.addDialog.pickProviderFirst')
+                          : modelsForAddProvider.length === 0
+                            ? t('routerPreferences.addDialog.allAdded')
+                            : t('routerPreferences.addDialog.selectModel')
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelsForAddProvider.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant='ghost' onClick={() => setAddDialogOpen(false)}>
+                {t('app.cancel')}
+              </Button>
+              <Button onClick={confirmAdd} disabled={addProvider === '' || addModel === ''}>
+                {t('routerPreferences.addModel')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <section className='space-y-3'>
           <h2 className='font-medium text-sm'>{t('routerPreferences.constraints')}</h2>
