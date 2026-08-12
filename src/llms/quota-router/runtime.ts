@@ -23,7 +23,7 @@
  * mode.
  */
 
-import { type PreferenceConstraints, QuotaAwareConstraintsSchema } from '@/schemas'
+import { type PreferenceConstraints, type QuotaAwareConstraints, QuotaAwareConstraintsSchema } from '@/schemas'
 import { logger } from '../../logger'
 import { loadRouterPreferences } from '../../services/router-preference-service'
 import { getRoutingSnapshot } from '../../services/routing-scheduler'
@@ -68,25 +68,34 @@ export interface QuotaAwareSelection {
 export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput): Promise<QuotaAwareSelection> {
   const preferences = await loadRouterPreferences()
   const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(preferences.constraints ?? {})
-  const constraints: PreferenceConstraints = constraintsParsed.success
+  const constraints: QuotaAwareConstraints = constraintsParsed.success
     ? constraintsParsed.data
     : QuotaAwareConstraintsSchema.parse({})
+  const l4Constraints: PreferenceConstraints = constraints
   const selection = selectByPreference({
     entries: preferences.entries,
-    constraints,
+    constraints: l4Constraints,
     requestedTier: input.requestedModel ? tierOf(input.requestedModel) : undefined,
     isSubagent: input.isSubagent,
     isExhausted: buildIsExhausted(),
     errorRate: buildErrorRate()
   })
-  // Retry-After hint from the scheduler's soonestResetAt (only useful
-  // when the selector returned no primary — the caller decides whether
-  // to attach it to a 429 response).
+  // Retry-After hint is populated ONLY when (a) the selector produced
+  // no primary AND (b) constraints.exhaustedBehavior is '429'. The
+  // caller uses null-vs-number to decide between "return 429" and
+  // "keep the scenario router's answer as a passthrough".
   const snapshot = getRoutingSnapshot()
-  const retryAfterSec =
-    selection.primary === null && snapshot?.soonestResetAt !== null && snapshot?.soonestResetAt !== undefined
-      ? Math.max(1, Math.ceil((snapshot.soonestResetAt - Date.now()) / 1000))
-      : null
+  const shouldEmit429 = selection.primary === null && constraints.exhaustedBehavior === '429'
+  let retryAfterSec: number | null = null
+  if (shouldEmit429) {
+    if (snapshot?.soonestResetAt !== null && snapshot?.soonestResetAt !== undefined) {
+      retryAfterSec = Math.max(1, Math.ceil((snapshot.soonestResetAt - Date.now()) / 1000))
+    } else {
+      // No snapshot yet or no reset info — fall back to the L4 default
+      // (30 s), matching Anthropic's typical retry hint for a soft 429.
+      retryAfterSec = 30
+    }
+  }
   return { selection, retryAfterSec }
 }
 
