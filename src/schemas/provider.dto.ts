@@ -54,7 +54,9 @@ export const ProviderSchema = z
     modelManualTiers: z.record(z.string().nonempty(), z.enum(['fable', 'opus', 'sonnet', 'haiku'])).optional(),
     // Per-model manual reasoning-effort override consumed at request
     // build time. Absent keys pass through untouched (vendor default).
-    modelReasoningEfforts: z.record(z.string().nonempty(), z.enum(['minimal', 'low', 'medium', 'high'])).optional(),
+    modelReasoningEfforts: z
+      .record(z.string().nonempty(), z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']))
+      .optional(),
     transformer: ProviderTransformerSchema.optional(),
     // Per-account enable/disable for subscription providers. Absent on
     // api_key providers. Only the { id, enabled } pairs the UI sends

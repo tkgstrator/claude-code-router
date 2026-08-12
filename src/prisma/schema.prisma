@@ -271,10 +271,12 @@ model Model {
   manualTier          String?
   // Manual reasoning-effort override for OpenAI / OpenAI-Responses /
   // Codex models. Null = pass the request through untouched (vendor
-  // default, currently 'medium' for reasoning models). Non-null values
-  // are one of 'minimal' (gpt-5 family only) / 'low' / 'medium' /
-  // 'high' and are injected into the outgoing request's `reasoning`
-  // block at build time.
+  // default = 'medium'). Non-null values mirror the OpenAI OpenAPI
+  // ReasoningEffort enum — 'none' | 'minimal' | 'low' | 'medium' |
+  // 'high' | 'xhigh' | 'max' — and are injected into the outgoing
+  // request's `reasoning_effort` (Chat Completions) or
+  // `reasoning.effort` (Responses) at build time. Not every reasoning
+  // model accepts every value; upstream 400s surface as request errors.
   reasoningEffort     String?
   // True when the vendor has marked this model as deprecated upstream.
   // The flag is seeded from src/shared/data/deprecations.ts at
