@@ -47,6 +47,7 @@
     "models": "Models",
     "providers": "Providers",
     "routingMap": "Routing Map",
+    "routerPreferences": "Preferences",
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
     "usage": "Usage",
@@ -641,5 +642,22 @@
     "name_required": "Every persona needs a name",
     "not_found": "This persona no longer exists.",
     "back_to_list": "Back"
+  },
+  "routerPreferences": {
+    "title": "Router Preferences",
+    "description": "Ordered chain the quota-aware router walks. Top entry is tried first; live weight and remaining budget come from the scheduler snapshot.",
+    "chain": "Preference chain",
+    "constraints": "Constraints",
+    "subagentTiers": "Subagent tiers",
+    "budget": "budget",
+    "selectModel": "Choose a model to add",
+    "addModel": "Add",
+    "sonnetTierRespect": "Respect sonnet tier",
+    "haikuTierRespect": "Respect haiku tier",
+    "minWeightPct": "Min weight (%)",
+    "exhaustedBehavior": "When all candidates exhausted",
+    "noSchedulerData": "Scheduler snapshot not populated yet — weight/budget badges will appear once ROUTER_MODE is quota-aware or shadow.",
+    "saved": "Preferences saved",
+    "saveFailed": "Failed to save preferences"
   }
 }
