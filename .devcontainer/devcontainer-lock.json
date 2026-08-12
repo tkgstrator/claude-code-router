@@ -1,5 +1,10 @@
 {
   "features": {
+    "ghcr.io/devcontainers-community/features/direnv:1": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/devcontainers-community/features/direnv@sha256:e0266877bb3935f243eaf70b3192182170f4f8c5cd86108e2509de2eff082ef5",
+      "integrity": "sha256:e0266877bb3935f243eaf70b3192182170f4f8c5cd86108e2509de2eff082ef5"
+    },
     "ghcr.io/devcontainers/features/aws-cli:1": {
       "version": "1.1.4",
       "resolved": "ghcr.io/devcontainers/features/aws-cli@sha256:1f93c8315b7a6d76982ebb2269f8b0d50413fc0f965c032edf4aee0caceb73ef",
