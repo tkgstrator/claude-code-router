@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { stripDisabledThinking, withClaudeCodeIdentity } from '../../../src/llms/transformers/claude-code-oauth'
+import { stripDisabledThinking, withClaudeCodeIdentity } from '../../../src/llms/transformers/anthropic/claude-code-oauth'
 
 const IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
