@@ -8,6 +8,13 @@
  * log lines. Per-scenario `rules[]` predicated overrides run inside
  * selectModel and produce the fallback chain the failover paths walk.
  *
+ * @deprecated Scheduled for removal after `ROUTER_MODE=quota-aware`
+ * reaches 100% rollout for a full release cycle. Migrate to the
+ * preference-based selector: set `ROUTER_MODE=quota-aware` and
+ * configure the chain via `/router-preferences`. See
+ * docs/plan/quota-aware-router-post-phase-4.md §Phase 8 for the
+ * staged deletion timeline (planned v3.0.0).
+ *
  * Port of vendor utils/router.ts, tightened to strict types: the
  * request body is now `RouterRequestBody` and the router config is
  * `RouterConfig` (mirrors AppConfig.Router from src/schemas).

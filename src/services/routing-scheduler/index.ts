@@ -272,9 +272,11 @@ export function startRoutingScheduler(): void {
   if (mode === 'scenario' && shadow === 'off') {
     logger.warn(
       {
-        hint: 'set ROUTER_MODE=quota-aware (start with ROUTER_ROLLOUT_PCT=1) to migrate — the scenario router will be removed in a future release'
+        hint: 'set ROUTER_MODE=quota-aware (start with ROUTER_ROLLOUT_PCT=1) to migrate',
+        removal: 'scheduled for v3.0.0 — see docs/plan/quota-aware-router-post-phase-4.md',
+        editor: 'configure the preference chain at /router-preferences'
       },
-      '[routing-scheduler] scenario mode is deprecated'
+      '[routing-scheduler] scenario mode is deprecated (removal in v3.0.0)'
     )
   }
 

@@ -68,6 +68,8 @@
   "routingMap": {
     "title": "Routing Map",
     "libraryDescription": "The current Live routing plus your saved routing configurations. Tap a card to edit; use the card's menu to apply a preset to Live.",
+    "deprecationNotice": "The scenario router is being replaced by a preference-based selector. New deployments should configure the chain at",
+    "deprecationLink": "Router Preferences",
     "backToLibrary": "Back to library",
     "editMode": "Edit",
     "editNoPrimary": "No primary model",
