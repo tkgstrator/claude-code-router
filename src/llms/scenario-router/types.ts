@@ -50,6 +50,13 @@ export type RouterRequest = {
   // rule-selected primary walks the rule-owned chain instead of the
   // scenario default.
   resolvedFallbacks?: string[]
+  // Set by the quota-aware dispatcher when every candidate in the
+  // preference chain failed the selector's gates AND the profile's
+  // `exhaustedBehavior` is '429'. Non-null value is the number of
+  // seconds until the earliest binding-window reset — the caller
+  // returns a 429 with `Retry-After: <seconds>` instead of dispatching
+  // upstream. Absent for scenario-router and passthrough branches.
+  quotaExhaustedRetryAfterSec?: number
 }
 
 export type RouterContext = {

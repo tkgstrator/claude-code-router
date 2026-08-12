@@ -263,7 +263,20 @@ export function startRoutingScheduler(): void {
   globalThis.__ccrRoutingSchedulerStarted = true
 
   const intervalMs = readIntervalMs()
-  logger.info({ intervalMs, mode: readMode(), shadow: readShadow() }, '[routing-scheduler] armed')
+  const mode = readMode()
+  const shadow = readShadow()
+  logger.info({ intervalMs, mode, shadow }, '[routing-scheduler] armed')
+  // Phase 4 deprecation notice: the scenario router is scheduled for
+  // removal after quota-aware mode reaches 100% rollout. Flag it at
+  // boot so operators still on the legacy path are aware.
+  if (mode === 'scenario' && shadow === 'off') {
+    logger.warn(
+      {
+        hint: 'set ROUTER_MODE=quota-aware (start with ROUTER_ROLLOUT_PCT=1) to migrate — the scenario router will be removed in a future release'
+      },
+      '[routing-scheduler] scenario mode is deprecated'
+    )
+  }
 
   const scheduleNext = (): void => {
     if (!globalThis.__ccrRoutingSchedulerStarted) return

@@ -99,11 +99,21 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
       if (quotaAware.selection.primary !== null) {
         model = quotaAware.selection.primary
         fallbacks = quotaAware.selection.fallbacks
+      } else if (quotaAware.retryAfterSec !== null) {
+        // Phase 4: all preference candidates were gated out AND the
+        // profile's `exhaustedBehavior` implied a 429 (the selector
+        // returns a non-null retryAfterSec only in that case). Stamp
+        // the seconds on the request so the /v1 handler can reply
+        // with a rate_limit_error + Retry-After header without
+        // dispatching upstream.
+        req.quotaExhaustedRetryAfterSec = quotaAware.retryAfterSec
+        req.log.warn(
+          { retryAfterSec: quotaAware.retryAfterSec, skipped: quotaAware.selection.skipped },
+          '[routing-quota-aware] preference chain exhausted — will 429'
+        )
       } else {
-        // No primary. Keep the scenario router's answer as the fallback
-        // path so a preference-only miss can't lose the request. A 429
-        // response with Retry-After is layered on top by the caller in
-        // Phase 4; here we simply pass through.
+        // Passthrough branch: no primary, no Retry-After. The
+        // scenario router's answer stays in place.
         req.log.info(
           { skipped: quotaAware.selection.skipped },
           '[routing-quota-aware] no primary — falling back to scenario router'
