@@ -18,6 +18,7 @@ import {
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
+import { convertAnthropicResponseToChat, isAnthropicMessageResponse } from './anthropic-response-to-chat'
 import type { TransformerAuthResult } from './base'
 import { type OAuthRefreshResult, OAuthTransformer } from './oauth-base'
 
@@ -203,5 +204,57 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
 
   async transformResponseIn(response: Response, _context?: TransformerContext): Promise<Response> {
     return response
+  }
+
+  // Non-bypass provider-chain outbound hook (mirror of transformRequestIn).
+  // Fires when the endpoint transformer is NOT claude-code-oauth — i.e.
+  // the caller hit /v1/chat/completions or /v1/responses instead of
+  // /v1/messages. Anthropic upstream returns its native message envelope
+  // (`{type:'message', content:[{type:'text',text}], usage:{input_tokens,
+  // output_tokens}}`), but the OpenAI-compat caller expects
+  // `{object:'chat.completion', choices:[{message,finish_reason}], usage:{
+  // prompt_tokens, completion_tokens, total_tokens}}`. Detect the Anthropic
+  // shape and convert; leave everything else untouched (bypass mode never
+  // reaches this hook, so /v1/messages callers still see the raw Anthropic
+  // response). SSE streams are passed through unchanged for now — an
+  // incremental Anthropic-SSE → Chat-SSE converter is a follow-up.
+  async transformResponseOut(response: Response, _context: TransformerContext): Promise<Response> {
+    if (!response.ok) return response
+    const contentType = response.headers.get('content-type')
+    // SSE not yet supported for cross-shape (Anthropic → Chat) streams.
+    // Passthrough keeps the client's stream reader happy syntactically
+    // even though the event shapes will confuse an OpenAI SDK parser.
+    if (typeof contentType === 'string' && contentType.includes('text/event-stream')) return response
+    const raw = await response.text()
+    if (raw.length === 0) return response
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      // Non-JSON body (upstream 4xx text, HTML from a fronting proxy) —
+      // hand it back untouched. Rewrapping non-JSON would hide the real
+      // error from the client.
+      return new Response(raw, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers
+      })
+    }
+    if (!isAnthropicMessageResponse(parsed)) {
+      // Already Chat-shape / Responses-shape / unknown. Return as-is
+      // rather than crashing — the endpoint transformer downstream will
+      // either accept it or the client will surface the mismatch.
+      return new Response(raw, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers
+      })
+    }
+    const chat = convertAnthropicResponseToChat(parsed)
+    return new Response(JSON.stringify(chat), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    })
   }
 }
