@@ -439,22 +439,31 @@ export function RouterPreferences() {
 
         <section className='space-y-3'>
           <h2 className='font-medium text-sm'>{t('routerPreferences.constraints')}</h2>
-          <div className='flex items-center justify-between border-b py-2'>
-            <Label>{t('routerPreferences.sonnetTierRespect')}</Label>
+          <div className='flex items-start justify-between gap-4 border-b py-3'>
+            <div className='min-w-0 flex-1 space-y-0.5'>
+              <Label>{t('routerPreferences.sonnetTierRespect')}</Label>
+              <p className='text-muted-foreground text-xs'>{t('routerPreferences.sonnetTierRespectHelp')}</p>
+            </div>
             <Switch
               checked={constraints.sonnetTierRespect}
               onCheckedChange={(v) => setConstraints((c) => ({ ...c, sonnetTierRespect: v }))}
             />
           </div>
-          <div className='flex items-center justify-between border-b py-2'>
-            <Label>{t('routerPreferences.haikuTierRespect')}</Label>
+          <div className='flex items-start justify-between gap-4 border-b py-3'>
+            <div className='min-w-0 flex-1 space-y-0.5'>
+              <Label>{t('routerPreferences.haikuTierRespect')}</Label>
+              <p className='text-muted-foreground text-xs'>{t('routerPreferences.haikuTierRespectHelp')}</p>
+            </div>
             <Switch
               checked={constraints.haikuTierRespect}
               onCheckedChange={(v) => setConstraints((c) => ({ ...c, haikuTierRespect: v }))}
             />
           </div>
-          <div className='flex items-center justify-between border-b py-2'>
-            <Label className='flex-1'>{t('routerPreferences.minWeightPct')}</Label>
+          <div className='flex items-start justify-between gap-4 border-b py-3'>
+            <div className='min-w-0 flex-1 space-y-0.5'>
+              <Label>{t('routerPreferences.minWeightPct')}</Label>
+              <p className='text-muted-foreground text-xs'>{t('routerPreferences.minWeightPctHelp')}</p>
+            </div>
             <Input
               type='number'
               min={0}
@@ -465,8 +474,15 @@ export function RouterPreferences() {
               className='w-24'
             />
           </div>
-          <div className='flex items-center justify-between border-b py-2'>
-            <Label>{t('routerPreferences.exhaustedBehavior')}</Label>
+          <div className='flex items-start justify-between gap-4 border-b py-3'>
+            <div className='min-w-0 flex-1 space-y-0.5'>
+              <Label>{t('routerPreferences.exhaustedBehavior')}</Label>
+              <p className='text-muted-foreground text-xs'>
+                {constraints.exhaustedBehavior === '429'
+                  ? t('routerPreferences.exhaustedBehaviorHelp429')
+                  : t('routerPreferences.exhaustedBehaviorHelpPassthrough')}
+              </p>
+            </div>
             <Select
               value={constraints.exhaustedBehavior}
               onValueChange={(v) =>
