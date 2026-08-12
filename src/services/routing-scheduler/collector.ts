@@ -24,7 +24,6 @@ import { Prisma } from '../../generated/prisma/client'
 import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
 import type { ClaudeUsage, CodexUsage } from '../../schemas/usage.dto'
-import { scopedMetricKey } from '../subaccount-usage-store'
 import { fetchUsageSnapshotWithAccountIds } from '../usage-service'
 
 export interface CollectorResult {
@@ -65,21 +64,26 @@ const toDate = (iso: string | null | undefined): Date | null => {
 
 const numberOrNull = (v: number | null | undefined): number | null => (typeof v === 'number' ? v : null)
 
+// Convert a per-model display_name into the slug used as the
+// `scopedWindows` JSONB key. Mirrors the trailing segment of
+// `scopedMetricKey` in `subaccount-usage-store.ts` — kept as a small
+// inline function here (instead of importing) to keep this module free
+// of cross-service imports whose ordering can trip Bun's TS parser.
+const modelSlug = (modelName: string): string => modelName.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+
 // Serialise Claude per-model weekly windows into the JSONB shape the
 // schema comment documents:
 //   { "<slug>": { "used": <pct>, "limit": 100, "resetAt": "<iso>" | null } }
-// Slugs come from `scopedMetricKey` so the naming matches
-// `SubAccountUsage.metric` for cross-referencing in queries. Returns
-// `Prisma.JsonNull` (not SQL NULL) when the source list is empty, so the
-// column round-trips as JSON null rather than being unset entirely.
+// Returns `Prisma.JsonNull` (not SQL NULL) when the source list is
+// empty, so the column round-trips as JSON null rather than being
+// unset entirely.
 const scopedWindowsFor = (
   scoped: readonly ClaudeUsage['weeklyScoped'][number][]
 ): Prisma.InputJsonValue | typeof Prisma.JsonNull => {
   if (scoped.length === 0) return Prisma.JsonNull
   const out: Record<string, { used: number; limit: number; resetAt: string | null }> = {}
   for (const s of scoped) {
-    const key = scopedMetricKey(s.modelName).replace(/^claude\.seven_day_scoped\./, '')
-    out[key] = { used: s.utilization, limit: PCT_LIMIT, resetAt: s.resetsAt }
+    out[modelSlug(s.modelName)] = { used: s.utilization, limit: PCT_LIMIT, resetAt: s.resetsAt }
   }
   return out
 }
