@@ -169,6 +169,12 @@ export function RoutingLibrary() {
       <PageContent>
         <div className='space-y-6'>
           <p className='text-sm text-muted-foreground'>{t('routingMap.libraryDescription')}</p>
+          <div className='rounded border-l-2 border-l-amber-500 bg-amber-500/5 px-3 py-2 text-sm'>
+            {t('routingMap.deprecationNotice')}{' '}
+            <a href='/router-preferences' className='underline hover:text-primary'>
+              {t('routingMap.deprecationLink')}
+            </a>
+          </div>
           {/* Auto-fill grid mirroring the Personas page — one cell per
               routing at ~28rem so scenario summaries stay readable. */}
           <div className='grid grid-cols-[repeat(auto-fill,minmax(28rem,1fr))] items-start gap-x-6 gap-y-1'>
