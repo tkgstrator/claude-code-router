@@ -6,7 +6,7 @@
  * (streaming or JSON) reply back into the chat-completions shape the
  * rest of the pipeline expects.
  *
- * The conversion pieces live under `./openai-responses/`:
+ * The conversion pieces live under `./responses/`:
  *   - `request.ts`         unified request -> Responses input[] shaping
  *   - `response-json.ts`   blocking JSON response -> chat.completion
  *   - `response-stream.ts` SSE session (dispatches into `stream-chunks.ts`)
@@ -25,13 +25,13 @@ import type {
   UnifiedChatRequest
 } from '@/schemas'
 import { ChatCompletionResponseSchema, ResponsesAPIPayloadSchema } from '@/schemas'
-import { aggregateOpenAiChatSseToJson, isSseContentType } from '../utils/sse-aggregate'
-import { Transformer } from './base'
+import { aggregateOpenAiChatSseToJson, isSseContentType } from '../../utils/sse-aggregate'
+import { Transformer } from '../base'
 import {
   convertChatCompletionToResponses,
   convertResponsesRequestToUnified,
   wrapResponsesEnvelopeAsSse
-} from './openai-responses/inbound'
+} from './responses/inbound'
 import {
   collectSystemMessages,
   convertResponseFormatToTextFormat,
@@ -39,9 +39,9 @@ import {
   remapToolChoice,
   remapTools,
   rewriteReasoning
-} from './openai-responses/request'
-import { convertResponseToChat } from './openai-responses/response-json'
-import { ResponsesStreamSession } from './openai-responses/response-stream'
+} from './responses/request'
+import { convertResponseToChat } from './responses/response-json'
+import { ResponsesStreamSession } from './responses/response-stream'
 
 export class OpenAIResponsesTransformer extends Transformer {
   readonly name = 'openai-responses'

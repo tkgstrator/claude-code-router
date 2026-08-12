@@ -12,7 +12,7 @@
  * needs an incremental converter, ~100 more lines).
  */
 
-import { nowSeconds } from './openai-responses/helpers'
+import { nowSeconds } from './openai/responses/helpers'
 
 // Anthropic wire types — kept structurally-typed (readonly) so the
 // converter can be called with `unknown` upstream JSON and validated
