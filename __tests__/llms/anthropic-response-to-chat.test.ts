@@ -7,10 +7,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import {
-  convertAnthropicResponseToChat,
-  isAnthropicMessageResponse
-} from '../../src/llms/transformers/anthropic-response-to-chat'
+import { convertAnthropicResponseToChat, isAnthropicMessageResponse } from '../../src/llms/transformers/anthropic'
 
 describe('isAnthropicMessageResponse', () => {
   test('accepts a canonical Anthropic message envelope', () => {

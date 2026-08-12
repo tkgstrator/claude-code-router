@@ -7,7 +7,7 @@
  * back into Anthropic events on the way out so the Claude Code client
  * sees its native protocol.
  *
- * The conversion pieces live under `./anthropic/`:
+ * The conversion pieces live alongside this file:
  *   - `request.ts`            wire -> unified request conversion
  *   - `response-blocking.ts`  OpenAI ChatCompletion -> Anthropic message
  *   - `response-stream/`      OpenAI SSE -> Anthropic SSE (pump/dispatch/
@@ -18,17 +18,17 @@
 import { HTTPException } from 'hono/http-exception'
 import type { RuntimeProvider, TransformerContext, UnifiedChatRequest, UnifiedMessage } from '@/schemas'
 import { AnthropicIncomingRequestSchema } from '@/schemas'
-import { getThinkLevel } from '../utils/thinking'
+import { getThinkLevel } from '../../utils/thinking'
+import { Transformer, type TransformerAuthResult } from '../base'
 import {
   appendIncomingMessage,
   buildSystemMessage,
   buildToolChoice,
   convertAnthropicToolsToUnified
-} from './anthropic/request'
-import { convertOpenAIResponseToAnthropic } from './anthropic/response-blocking'
-import { runStreamPump } from './anthropic/response-stream/pump'
-import { createStreamState } from './anthropic/response-stream/state'
-import { Transformer, type TransformerAuthResult } from './base'
+} from './request'
+import { convertOpenAIResponseToAnthropic } from './response-blocking'
+import { runStreamPump } from './response-stream/pump'
+import { createStreamState } from './response-stream/state'
 
 type AnthropicTransformerOptions = {
   UseBearer?: boolean

@@ -18,9 +18,9 @@ import {
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
-import { convertAnthropicResponseToChat, isAnthropicMessageResponse } from './anthropic-response-to-chat'
-import type { TransformerAuthResult } from './base'
-import { type OAuthRefreshResult, OAuthTransformer } from './oauth-base'
+import type { TransformerAuthResult } from '../base'
+import { type OAuthRefreshResult, OAuthTransformer } from '../oauth-base'
+import { convertAnthropicResponseToChat, isAnthropicMessageResponse } from './response-to-chat'
 
 const REFRESH_URL = 'https://platform.claude.com/v1/oauth/token'
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
