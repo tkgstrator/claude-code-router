@@ -17,6 +17,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
 import { RouterPreferences } from '@/components/RouterPreferences'
+import { RouterUtilization } from '@/components/RouterUtilization'
 import { RoutingLibrary } from '@/components/RoutingLibrary'
 import { RoutingLiveEditor } from '@/components/RoutingLiveEditor'
 import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
           { path: '/routing-map/live', element: fullHeight(<RoutingLiveEditor />) },
           { path: '/routing-map/preset/:id', element: fullHeight(<RoutingPresetEditor />) },
           { path: '/router-preferences', element: fullHeight(<RouterPreferences />) },
+          { path: '/router-utilization', element: fullHeight(<RouterUtilization />) },
           { path: '/transformers', element: fullHeight(<Transformers />) },
           { path: '/usage', element: fullHeight(<Usage />) },
           { path: '/cost', element: fullHeight(<ApiCost />) },

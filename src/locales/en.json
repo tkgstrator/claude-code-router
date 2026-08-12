@@ -48,6 +48,7 @@
     "providers": "Providers",
     "routingMap": "Routing Map",
     "routerPreferences": "Preferences",
+    "routerUtilization": "Utilization",
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
     "usage": "Usage",
@@ -659,5 +660,25 @@
     "noSchedulerData": "Scheduler snapshot not populated yet — weight/budget badges will appear once ROUTER_MODE is quota-aware or shadow.",
     "saved": "Preferences saved",
     "saveFailed": "Failed to save preferences"
+  },
+  "routerUtilization": {
+    "title": "Router Utilization",
+    "description": "Per-scenario, per-target, and per-account traffic snapshot for the selected time window. Suggestions highlight where the preference chain and actual routing disagree.",
+    "window": "Window",
+    "suggestions": "Suggestions",
+    "showDiff": "Show diff",
+    "hideDiff": "Hide diff",
+    "perScenario": "Per scenario",
+    "perTarget": "Requested → sent",
+    "perAccount": "Subscription accounts",
+    "scenario": "Scenario",
+    "requested": "Requested model",
+    "sentTo": "Sent to",
+    "account": "Account",
+    "provider": "Provider",
+    "budget": "Budget",
+    "noTraffic": "No traffic in the window yet.",
+    "noAccounts": "No subscription accounts configured.",
+    "loadFailed": "Failed to load utilization"
   }
 }

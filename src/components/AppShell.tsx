@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   CircleArrowUp,
   Coins,
   CreditCard,
@@ -75,6 +76,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
       { to: '/router-preferences', icon: ListOrdered, key: 'nav.routerPreferences' },
+      { to: '/router-utilization', icon: BarChart3, key: 'nav.routerUtilization' },
       { to: '/personas', icon: Drama, key: 'nav.personas' }
     ]
   },
