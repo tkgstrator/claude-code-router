@@ -25,11 +25,11 @@ import type { Provider } from '@/schemas'
 
 type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'
 type TierValue = Tier | 'auto'
-type Effort = 'minimal' | 'low' | 'medium' | 'high'
+type Effort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 type EffortValue = Effort | 'auto'
 
 const TIER_OPTIONS: readonly TierValue[] = ['auto', 'fable', 'opus', 'sonnet', 'haiku']
-const EFFORT_OPTIONS: readonly EffortValue[] = ['auto', 'minimal', 'low', 'medium', 'high']
+const EFFORT_OPTIONS: readonly EffortValue[] = ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
 // Same guard the server-side OpenAI transformer uses to decide whether
 // to emit `reasoning_effort` (gpt-5.x and o1/o3/o4 chat models); we grey
@@ -54,7 +54,17 @@ const toTierValue = (raw: string | undefined): TierValue => {
 }
 
 const toEffortValue = (raw: string | undefined): EffortValue => {
-  if (raw === 'minimal' || raw === 'low' || raw === 'medium' || raw === 'high') return raw
+  if (
+    raw === 'none' ||
+    raw === 'minimal' ||
+    raw === 'low' ||
+    raw === 'medium' ||
+    raw === 'high' ||
+    raw === 'xhigh' ||
+    raw === 'max'
+  ) {
+    return raw
+  }
   return 'auto'
 }
 

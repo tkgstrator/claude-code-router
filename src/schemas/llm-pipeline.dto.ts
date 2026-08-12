@@ -45,7 +45,9 @@ export const RuntimeProviderSchema = z.object({
   // Per-model manual reasoning-effort override consumed by OpenAI /
   // OpenAI-Responses / Codex transformers when building the outgoing
   // request. Absent = pass-through (vendor default).
-  modelReasoningEfforts: z.record(z.string().nonempty(), z.enum(['minimal', 'low', 'medium', 'high'])).optional()
+  modelReasoningEfforts: z
+    .record(z.string().nonempty(), z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']))
+    .optional()
 })
 export type RuntimeProvider = z.input<typeof RuntimeProviderSchema>
 

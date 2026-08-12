@@ -101,7 +101,7 @@ export async function setModelManualTier(
 export async function setModelReasoningEffort(
   providerName: string,
   modelName: string,
-  reasoningEffort: 'minimal' | 'low' | 'medium' | 'high' | null
+  reasoningEffort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
 ): Promise<void> {
   const prisma = getPrismaClient()
   const model = await prisma.model.findFirst({
