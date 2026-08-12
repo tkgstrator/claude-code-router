@@ -34,6 +34,7 @@ import {
 } from './openai-responses/inbound'
 import {
   collectSystemMessages,
+  convertResponseFormatToTextFormat,
   processNonSystemMessage,
   remapToolChoice,
   remapTools,
@@ -138,6 +139,24 @@ export class OpenAIResponsesTransformer extends Transformer {
     if (responsesReq.tool_choice !== undefined) {
       // biome-ignore plugin: same shape mismatch as `tools` — Responses expects `{type,name}` flat while unified nests the function name; the unified type cannot model the flat shape without breaking the Chat-Completions transformer.
       ;(responsesReq as unknown as { tool_choice: unknown }).tool_choice = remapToolChoice(responsesReq.tool_choice)
+    }
+
+    // Translate Chat-Completions `response_format` (top-level) into the
+    // Responses-API `text.format` nested shape. Both surfaces support
+    // the same three types (text / json_object / json_schema); only the
+    // container differs — Chat wraps json_schema in a `json_schema` sub-
+    // object while Responses flattens {name, schema, strict} up to the
+    // format itself. Codex allow-lists top-level params and rejects
+    // `response_format` outright, so leaving it top-level 400s the
+    // whole request.
+    const rawResponseFormat: unknown = Reflect.get(responsesReq, 'response_format')
+    if (rawResponseFormat !== undefined) {
+      const textFormat = convertResponseFormatToTextFormat(rawResponseFormat)
+      if (textFormat !== null) {
+        ;(responsesReq as unknown as { text: { format: unknown } }).text = { format: textFormat }
+      }
+      // biome-ignore plugin: response_format is a Chat-Completions field; delete after translation so the Responses upstream doesn't see it.
+      delete (responsesReq as { response_format?: unknown }).response_format
     }
 
     responsesReq.parallel_tool_calls = false

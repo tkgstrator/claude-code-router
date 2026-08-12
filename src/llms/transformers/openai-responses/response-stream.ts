@@ -8,7 +8,7 @@
 
 import type { ResponsesStreamEvent } from '@/schemas'
 import { ResponsesStreamEventSchema } from '@/schemas'
-import { handleStreamEvent, type StreamIndexState } from './stream-chunks'
+import { handleStreamEvent } from './stream-chunks'
 
 /**
  * Buffered SSE parser that drives the upstream Responses-API stream.
@@ -23,7 +23,6 @@ export class ResponsesStreamSession {
   private readonly encoder = new TextEncoder()
   private buffer = ''
   private isStreamEnded = false
-  private readonly indexState: StreamIndexState = { index: -1, lastEventType: '' }
 
   constructor(controller: ReadableStreamDefaultController<Uint8Array>) {
     this.controller = controller
@@ -116,12 +115,21 @@ export class ResponsesStreamSession {
     return result.success ? result.data : null
   }
 
-  private bumpIndex(eventType: string): number {
-    if (eventType !== this.indexState.lastEventType) {
-      this.indexState.index++
-      this.indexState.lastEventType = eventType
-    }
-    return this.indexState.index
+  private bumpIndex(_eventType: string): number {
+    // choices[].index is always 0 for an OpenAI Chat-Completions stream
+    // with n=1 (the only shape the pipeline supports). The previous
+    // implementation incremented on every distinct upstream event type,
+    // so a codex reply carrying reasoning items ahead of the message
+    // emitted text-delta chunks at index=N while buildCompletedChunk
+    // hardcoded index=0. Aggregating to the non-stream envelope produced
+    // two choices — choices[0]={content:'', finish_reason:'stop'} and
+    // choices[N]={content:'…', finish_reason:null} — so OpenAI SDKs
+    // (which read choices[0].message.content) reported an empty
+    // response. The same misalignment made convertChatCompletionToResponses
+    // hand back `output:[]` because chat.choices[0].message.content was
+    // the empty one. The parameter stays so the stream-chunks call
+    // sites don't need to change.
+    return 0
   }
 
   private enqueueChunk(obj: unknown): void {
