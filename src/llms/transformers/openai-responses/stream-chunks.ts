@@ -181,7 +181,23 @@ function buildFunctionArgsDeltaChunk(
 
 function buildCompletedChunk(data: ResponsesStreamEvent): Record<string, unknown> {
   const finishReason = data.response?.output?.some((item) => item.type === 'function_call') ? 'tool_calls' : 'stop'
-  return {
+  // Codex reports usage in Responses-API terms (input_tokens /
+  // output_tokens / total_tokens). Emit the Chat-Completions
+  // equivalent (prompt_tokens / completion_tokens / total_tokens) on
+  // the terminal chunk so aggregate → chat.completion carries it and
+  // the /v1/responses envelope carries its own usage block. Absent on
+  // upstreams that don't publish usage — omit the field rather than
+  // stamp zeros.
+  const rawUsage: unknown = Reflect.get(data.response ?? {}, 'usage')
+  const usage =
+    rawUsage !== null && typeof rawUsage === 'object'
+      ? {
+          prompt_tokens: numericField(rawUsage, 'input_tokens', 0),
+          completion_tokens: numericField(rawUsage, 'output_tokens', 0),
+          total_tokens: numericField(rawUsage, 'total_tokens', 0)
+        }
+      : undefined
+  const chunk: Record<string, unknown> = {
     id: newChatcmplId(data.response?.id),
     object: 'chat.completion.chunk',
     created: nowSeconds(),
@@ -194,6 +210,14 @@ function buildCompletedChunk(data: ResponsesStreamEvent): Record<string, unknown
       }
     ]
   }
+  if (usage !== undefined) chunk.usage = usage
+  return chunk
+}
+
+function numericField(source: unknown, key: string, fallback: number): number {
+  if (source === null || typeof source !== 'object') return fallback
+  const value = Reflect.get(source, key)
+  return typeof value === 'number' ? value : fallback
 }
 
 function buildReasoningDeltaChunk(
