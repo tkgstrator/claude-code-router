@@ -11,7 +11,13 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
-import { OauthRefreshResponseSchema, type RuntimeProvider, type TransformerContext } from '@/schemas'
+import {
+  OauthRefreshResponseSchema,
+  type RuntimeProvider,
+  type TransformerContext,
+  type TransformerHookResult,
+  type UnifiedChatRequest
+} from '@/schemas'
 import type { TransformerAuthResult } from './base'
 import { type OAuthRefreshResult, OAuthTransformer } from './oauth-base'
 
@@ -174,6 +180,25 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
   async transformRequestOut(request: unknown, _context: TransformerContext): Promise<never> {
     // biome-ignore plugin: bypass-mode passthrough — the request is already in the upstream wire shape; the abstract base's signature returns UnifiedChatRequest but here we return whatever came in.
     return request as never
+  }
+
+  // Non-bypass provider-chain hook. Fires when the endpoint transformer
+  // is NOT claude-code-oauth (i.e. the caller hit /v1/chat/completions
+  // or /v1/responses instead of /v1/messages). Without this override,
+  // only `auth()` runs — and only in bypass mode — leaving the outgoing
+  // request with no OAuth bearer. `applySubscriptionAuth` stamps
+  // `api_key: 'oauth'` on the provider as a marker, and `sendToProvider`
+  // then forwards that literal string as the Bearer, so Anthropic
+  // upstream sees `Authorization: Bearer oauth` and 401s with
+  // "Invalid bearer token". Reuses the same auth() logic so the
+  // Claude Code identity injection + thinking-strip stay consistent.
+  async transformRequestIn(
+    request: UnifiedChatRequest,
+    provider: RuntimeProvider,
+    context: TransformerContext
+  ): Promise<TransformerHookResult> {
+    const auth = await this.auth(request, provider, context)
+    return { body: auth.body, config: auth.config }
   }
 
   async transformResponseIn(response: Response, _context?: TransformerContext): Promise<Response> {
