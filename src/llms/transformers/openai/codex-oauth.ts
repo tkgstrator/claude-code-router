@@ -22,8 +22,8 @@ import {
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
-import { refreshCodexToken } from '../../services/codex-oauth-service'
-import { type OAuthRefreshResult, OAuthTransformer } from './oauth-base'
+import { refreshCodexToken } from '../../../services/codex-oauth-service'
+import { type OAuthRefreshResult, OAuthTransformer } from '../oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
 // request as "CLI" (subscription allotment) vs "Other" (overage) by

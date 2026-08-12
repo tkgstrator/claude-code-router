@@ -21,12 +21,9 @@ import { ConfigStore } from './registry/config'
 import { ProviderRegistry } from './registry/provider'
 import { TokenizerRegistry } from './registry/tokenizer'
 import { TransformerRegistry } from './registry/transformer'
-import { AnthropicTransformer } from './transformers/anthropic'
-import { ClaudeCodeOauthTransformer } from './transformers/claude-code-oauth'
-import { CodexOauthTransformer } from './transformers/codex-oauth'
+import { AnthropicTransformer, ClaudeCodeOauthTransformer } from './transformers/anthropic'
 import { GeminiTransformer } from './transformers/gemini'
-import { OpenAITransformer } from './transformers/openai'
-import { OpenAIResponsesTransformer } from './transformers/openai-responses'
+import { CodexOauthTransformer, OpenAIResponsesTransformer, OpenAITransformer } from './transformers/openai'
 
 export type LlmsContext = {
   config: ConfigStore

@@ -10,7 +10,7 @@ import {
   convertChatCompletionToResponses,
   convertResponsesRequestToUnified,
   wrapResponsesEnvelopeAsSse
-} from '../../src/llms/transformers/openai-responses/inbound'
+} from '../../src/llms/transformers/openai/responses/inbound'
 
 describe('convertResponsesRequestToUnified', () => {
   test('string input becomes a single user message', () => {

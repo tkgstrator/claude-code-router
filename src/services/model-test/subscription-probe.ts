@@ -7,7 +7,7 @@
 
 import { isTransformerHookResult, type RuntimeProvider } from '@/schemas'
 import { ApiStyle } from '../../generated/prisma/client'
-import { ClaudeCodeOauthTransformer } from '../../llms/transformers/claude-code-oauth'
+import { ClaudeCodeOauthTransformer } from '../../llms/transformers/anthropic'
 import { getActiveSubAccountAuth } from '../subscription-account-sync-service'
 import { fetchWithTimeout, formatHttpError, type ProbeResult, reachable } from './http'
 import { probeInference } from './probes'

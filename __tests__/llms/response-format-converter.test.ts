@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { convertResponseFormatToTextFormat } from '../../src/llms/transformers/openai-responses/request'
+import { convertResponseFormatToTextFormat } from '../../src/llms/transformers/openai/responses/request'
 
 describe('convertResponseFormatToTextFormat', () => {
   test('text passes through as {type:text}', () => {
