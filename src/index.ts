@@ -32,6 +32,7 @@ import { v1Route } from './api/v1/route'
 import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
+import { startRoutingScheduler } from './services/routing-scheduler'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
 import { APP_VERSION } from './version'
@@ -71,6 +72,11 @@ void startUsageCapture()
 // persist its authStatus so the UI can flag accounts that need
 // re-authentication.
 void startAuthHealthCheck()
+// Routing scheduler (Phase 2 of the quota-aware router). Arms the
+// tick regardless of ROUTER_MODE; the tick body itself no-ops when
+// mode/shadow don't need a snapshot, so a scenario-mode deployment
+// pays no CPU cost beyond an idle setTimeout.
+startRoutingScheduler()
 
 const app = new OpenAPIHono()
 
