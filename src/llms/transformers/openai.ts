@@ -36,11 +36,12 @@ export class OpenAITransformer extends Transformer {
 
   async transformRequestIn(
     request: UnifiedChatRequest,
-    _provider: RuntimeProvider,
+    provider: RuntimeProvider,
     _context: TransformerContext
   ): Promise<UnifiedChatRequest> {
     const req = request as UnifiedChatRequest & {
       max_completion_tokens?: number
+      reasoning_effort?: string
     }
     if (
       modelNeedsMaxCompletionTokens(req.model) &&
@@ -50,6 +51,13 @@ export class OpenAITransformer extends Transformer {
       req.max_completion_tokens = req.max_tokens
       // biome-ignore plugin: explicit removal of the unified-shape field — the upstream rejects it and the schema does not model field removal.
       delete (req as { max_tokens?: unknown }).max_tokens
+    }
+    const effort = provider.modelReasoningEfforts?.[req.model ?? '']
+    if (effort && modelNeedsMaxCompletionTokens(req.model)) {
+      // Chat Completions uses the top-level `reasoning_effort` field on
+      // gpt-5.x / o-series models; other families ignore it, so gate on
+      // the same predicate we use for max_completion_tokens.
+      req.reasoning_effort = effort
     }
     return req
   }

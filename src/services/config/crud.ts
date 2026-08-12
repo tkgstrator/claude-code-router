@@ -94,3 +94,22 @@ export async function setModelManualTier(
   await syncToConfigFile()
   resetLlmsContext()
 }
+
+// Manual reasoning-effort override for OpenAI-style reasoning models.
+// `null` clears the override, restoring the vendor default. Consumed at
+// unified-request build time in src/llms/request-effort-override.ts.
+export async function setModelReasoningEffort(
+  providerName: string,
+  modelName: string,
+  reasoningEffort: 'minimal' | 'low' | 'medium' | 'high' | null
+): Promise<void> {
+  const prisma = getPrismaClient()
+  const model = await prisma.model.findFirst({
+    where: { name: modelName, provider: { name: providerName } }
+  })
+  if (!model) throw new Error(`Model "${modelName}" not found under provider "${providerName}"`)
+  if (model.reasoningEffort === reasoningEffort) return
+  await prisma.model.update({ where: { id: model.id }, data: { reasoningEffort } })
+  await syncToConfigFile()
+  resetLlmsContext()
+}

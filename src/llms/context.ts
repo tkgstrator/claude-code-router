@@ -126,7 +126,8 @@ function toProviderConfigShapes(providers: Provider[]): ProviderConfigShape[] {
     // biome-ignore plugin: `transformer.use` entries are structurally the same on
     // both schemas (string | [string, options]) but the disk schema models them
     // with a wider union; this structural pass-through is the safe bridge.
-    transformer: p.transformer as ProviderConfigShape['transformer']
+    transformer: p.transformer as ProviderConfigShape['transformer'],
+    ...(p.modelReasoningEfforts ? { modelReasoningEfforts: p.modelReasoningEfforts } : {})
   }))
 }
 
