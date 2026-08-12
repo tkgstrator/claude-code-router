@@ -154,26 +154,35 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
   }
 
   const candidates = new Map<string, ModelCandidateState>()
-  for (const entry of preferences.entries) {
-    const info = modelIndex.get(entry.target)
-    if (info === undefined) {
+  // Union targets across every scenario's chain — the snapshot's
+  // weight map is keyed by target regardless of scenario, so each
+  // unique target gets one candidate entry. Per-scenario rank is
+  // reapplied by the selector at request time.
+  const seenTargets = new Set<string>()
+  for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
+    for (const entry of preferences.entriesByScenario[scenario]) {
+      if (seenTargets.has(entry.target)) continue
+      seenTargets.add(entry.target)
+      const info = modelIndex.get(entry.target)
+      if (info === undefined) {
+        candidates.set(entry.target, {
+          target: entry.target,
+          providerName: '',
+          modelName: '',
+          accounts: [],
+          errorRate: 0
+        })
+        continue
+      }
+      const modelName = entry.target.slice(info.providerName.length + 1)
       candidates.set(entry.target, {
         target: entry.target,
-        providerName: '',
-        modelName: '',
-        accounts: [],
-        errorRate: 0
+        providerName: info.providerName,
+        modelName,
+        accounts: accountsByProvider.get(info.providerName) ?? [],
+        errorRate: 0 // Phase 2e will fill from the model-health tracker
       })
-      continue
     }
-    const modelName = entry.target.slice(info.providerName.length + 1)
-    candidates.set(entry.target, {
-      target: entry.target,
-      providerName: info.providerName,
-      modelName,
-      accounts: accountsByProvider.get(info.providerName) ?? [],
-      errorRate: 0 // Phase 2e will fill from the model-health tracker
-    })
   }
 
   return { candidates, accounts: accountViews }
@@ -208,9 +217,34 @@ export async function runSchedulerTickForTest(prismaOverride?: PrismaClient): Pr
     const previous = getRoutingSnapshot()
     const previousWeights = previous === null ? null : previous.weights
     const constraints = resolveConstraints(preferences.constraints)
+    // Union preferences across all scenarios into a single virtual
+    // chain for compute purposes: the snapshot exposes one weight per
+    // unique target and the selector reapplies per-scenario ordering.
+    // Rank uses the best (lowest) priority the target holds anywhere.
+    const seen = new Map<string, { priority: number; enabled: boolean; subagentTiers: string[] }>()
+    for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
+      for (const entry of preferences.entriesByScenario[scenario]) {
+        const prev = seen.get(entry.target)
+        if (prev === undefined || entry.priority < prev.priority) {
+          seen.set(entry.target, {
+            priority: entry.priority,
+            enabled: entry.enabled || (prev?.enabled ?? false),
+            subagentTiers: entry.subagentTiers.map((t) => t)
+          })
+        }
+      }
+    }
+    const unionEntries = [...seen.entries()]
+      .sort((a, b) => a[1].priority - b[1].priority)
+      .map(([target, v], i) => ({
+        priority: i + 1,
+        target,
+        enabled: v.enabled,
+        subagentTiers: v.subagentTiers as ('fable' | 'opus' | 'sonnet' | 'haiku')[]
+      }))
     const input: SchedulerInputState = {
       now,
-      preferences: preferences.entries,
+      preferences: unionEntries,
       candidates,
       previousWeights: previousWeights === null ? null : new Map([...previousWeights].map(([k, v]) => [k, v.weight])),
       constraints,

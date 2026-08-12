@@ -650,6 +650,14 @@
     "title": "ルーター優先順位",
     "description": "quota-aware ルーターが順に辿る優先順位チェーンです。先頭のエントリから試行され、ライブの weight と残り予算はスケジューラのスナップショットから取得されます。",
     "chain": "優先順位チェーン",
+    "emptyScenario": "このシナリオにはまだエントリがありません。",
+    "scenario": {
+      "default": "デフォルト",
+      "think": "Think",
+      "longContext": "Long Context",
+      "webSearch": "Web 検索",
+      "image": "画像"
+    },
     "constraints": "制約",
     "subagentTiers": "サブエージェント tier",
     "budget": "予算",

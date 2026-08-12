@@ -16,7 +16,7 @@
  */
 
 import { z } from '@hono/zod-openapi'
-import { REQUESTED_MODEL_TIERS } from './router.dto'
+import { REQUESTED_MODEL_TIERS, ScenarioKeySchema } from './router.dto'
 
 // The tier the client asked for is always classified into one of these
 // buckets before the selector runs; `subagentTiers` filters candidates
@@ -105,14 +105,34 @@ export const RouterPreferenceEntrySchema = z
   .openapi('RouterPreferenceEntry')
 export type RouterPreferenceEntry = z.infer<typeof RouterPreferenceEntrySchema>
 
+// Per-scenario map of preference chains. Every scenario key is
+// present on the wire so the UI can render an empty tab without a
+// special "missing scenario" branch. The selector picks the chain
+// matching the incoming request's classified scenario.
+export const PreferenceEntriesByScenarioSchema = z
+  .object({
+    default: z.array(RouterPreferenceEntrySchema).default([]),
+    think: z.array(RouterPreferenceEntrySchema).default([]),
+    longContext: z.array(RouterPreferenceEntrySchema).default([]),
+    webSearch: z.array(RouterPreferenceEntrySchema).default([]),
+    image: z.array(RouterPreferenceEntrySchema).default([])
+  })
+  .openapi('PreferenceEntriesByScenario')
+export type PreferenceEntriesByScenario = z.infer<typeof PreferenceEntriesByScenarioSchema>
+
 // Full preference profile as seen on the wire. `constraints` is a
 // permissive object because it round-trips through JSONB; the selector
 // parses it into `PreferenceConstraintsSchema` /
 // `QuotaAwareConstraintsSchema` at boot depending on ROUTER_MODE.
 export const RouterPreferenceProfileSchema = z
   .object({
-    entries: z.array(RouterPreferenceEntrySchema),
+    entriesByScenario: PreferenceEntriesByScenarioSchema,
     constraints: z.record(z.string().nonempty(), z.any()).nullable().default(null)
   })
   .openapi('RouterPreferenceProfile')
 export type RouterPreferenceProfile = z.infer<typeof RouterPreferenceProfileSchema>
+
+export type { ScenarioKey } from './router.dto'
+// Re-export the shared enum so callers that touch the preference
+// schema get a single source of scenario keys.
+export const PREFERENCE_SCENARIOS = ScenarioKeySchema

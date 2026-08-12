@@ -650,6 +650,14 @@
     "title": "路由器优先级",
     "description": "quota-aware 路由器按顺序遍历的优先级链。首条条目优先尝试；实时的 weight 和剩余预算来自调度器快照。",
     "chain": "优先级链",
+    "emptyScenario": "此场景暂无条目。",
+    "scenario": {
+      "default": "默认",
+      "think": "Think",
+      "longContext": "长上下文",
+      "webSearch": "Web 搜索",
+      "image": "图片"
+    },
     "constraints": "约束",
     "subagentTiers": "子代理 tier",
     "budget": "预算",

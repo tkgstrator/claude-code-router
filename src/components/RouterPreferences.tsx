@@ -1,15 +1,15 @@
 /**
- * Router preference chain editor (Phase 6).
+ * Router preference chain editor (Phase 6, per-scenario chains).
  *
- * Reads GET /api/router-preferences to load the singleton chain,
- * lets the user reorder entries with up/down buttons, toggle
- * enable/subagent tiers, edit a subset of constraints, and PUT the
- * result back. Weight and remaining-budget badges come from
- * /api/routing-scheduler-state (Phase 5) polled every 30 s;
- * scenario-mode deployments show "no scheduler data yet" instead.
+ * Each scenario (default / think / longContext / webSearch / image)
+ * owns an independent priority chain. The editor renders one tab per
+ * scenario; the active tab's chain is what up/down/enable/subagent
+ * edits apply to. Save PUTs the whole per-scenario map atomically.
  *
- * No shadcn Card component (per project convention). Border-left
- * accent + hover:bg-muted/50 for the row treatment.
+ * Weight + budget badges come from /api/routing-scheduler-state
+ * (Phase 5) polled every 30 s. Snapshot weights are keyed by target
+ * regardless of scenario, so the same target in different tabs shows
+ * the same live weight.
  */
 
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
@@ -23,15 +23,20 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { api, type RouterPreferenceEntryWire, type RoutingSchedulerStateResponse } from '@/lib/api'
+import {
+  api,
+  type PreferenceEntriesByScenarioWire,
+  type PreferenceScenarioKey,
+  type RouterPreferenceEntryWire,
+  type RoutingSchedulerStateResponse
+} from '@/lib/api'
 import type { ShellOutletContext } from './AppShell'
 
 const TIERS = ['fable', 'opus', 'sonnet', 'haiku'] as const
 type Tier = (typeof TIERS)[number]
 
-// Available models drawn from the current Config: every provider's
-// models rendered as "providerName,modelName" so the target string
-// matches what the server expects.
+const SCENARIOS: readonly PreferenceScenarioKey[] = ['default', 'think', 'longContext', 'webSearch', 'image']
+
 const collectAvailableTargets = (providers: readonly { name: string; models?: readonly string[] }[]): string[] => {
   const out: string[] = []
   for (const p of providers) {
@@ -66,17 +71,27 @@ const readConstraints = (raw: Record<string, unknown> | null): ConstraintsForm =
   return out
 }
 
+const emptyByScenario = (): PreferenceEntriesByScenarioWire => ({
+  default: [],
+  think: [],
+  longContext: [],
+  webSearch: [],
+  image: []
+})
+
 const SCHEDULER_POLL_MS = 30_000
 
 export function RouterPreferences() {
   const { t } = useTranslation()
   const { config } = useConfig()
   const { showToast } = useOutletContext<ShellOutletContext>()
-  const [entries, setEntries] = useState<RouterPreferenceEntryWire[]>([])
+  const [byScenario, setByScenario] = useState<PreferenceEntriesByScenarioWire>(emptyByScenario)
   const [constraints, setConstraints] = useState<ConstraintsForm>(CONSTRAINT_DEFAULTS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scheduler, setScheduler] = useState<RoutingSchedulerStateResponse | null>(null)
+  const [activeScenario, setActiveScenario] = useState<PreferenceScenarioKey>('default')
+  const [addTarget, setAddTarget] = useState<string>('')
 
   useEffect(() => {
     let cancelled = false
@@ -84,7 +99,7 @@ export function RouterPreferences() {
       .getRouterPreferences()
       .then((p) => {
         if (cancelled) return
-        setEntries(p.entries)
+        setByScenario(p.entriesByScenario)
         setConstraints(readConstraints(p.constraints))
       })
       .catch((err) =>
@@ -98,8 +113,6 @@ export function RouterPreferences() {
     }
   }, [showToast])
 
-  // Scheduler-state polling. Skipped when scheduler is degraded /
-  // scenario-only — the badge just shows "no data".
   useEffect(() => {
     let cancelled = false
     const fetchOnce = (): void => {
@@ -108,9 +121,7 @@ export function RouterPreferences() {
         .then((s) => {
           if (!cancelled) setScheduler(s)
         })
-        .catch(() => {
-          /* silent — scheduler API may 404 on older backends */
-        })
+        .catch(() => {})
     }
     fetchOnce()
     const id = setInterval(fetchOnce, SCHEDULER_POLL_MS)
@@ -123,56 +134,74 @@ export function RouterPreferences() {
   const availableTargets = useMemo(() => collectAvailableTargets(config?.Providers ?? []), [config])
   const weightByTarget = useMemo(() => {
     const m = new Map<string, { weight: number; budget: number | null }>()
-    for (const w of scheduler?.weights ?? []) {
-      m.set(w.target, { weight: w.weight, budget: w.remainingBudgetPct })
-    }
+    for (const w of scheduler?.weights ?? []) m.set(w.target, { weight: w.weight, budget: w.remainingBudgetPct })
     return m
   }, [scheduler])
 
-  const move = useCallback((from: number, to: number) => {
-    setEntries((prev) => {
-      if (to < 0 || to >= prev.length) return prev
-      const next = [...prev]
-      const [pulled] = next.splice(from, 1)
-      next.splice(to, 0, pulled)
-      return next.map((e, i) => ({ ...e, priority: i + 1 }))
-    })
-  }, [])
+  const activeEntries = byScenario[activeScenario]
 
-  const remove = useCallback((idx: number) => {
-    setEntries((prev) => prev.filter((_, i) => i !== idx).map((e, i) => ({ ...e, priority: i + 1 })))
-  }, [])
+  const mutateActive = useCallback(
+    (fn: (prev: RouterPreferenceEntryWire[]) => RouterPreferenceEntryWire[]) => {
+      setByScenario((prev) => ({ ...prev, [activeScenario]: fn(prev[activeScenario]) }))
+    },
+    [activeScenario]
+  )
 
-  const setEnabled = useCallback((idx: number, enabled: boolean) => {
-    setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, enabled } : e)))
-  }, [])
-
-  const toggleSubagentTier = useCallback((idx: number, tier: Tier) => {
-    setEntries((prev) =>
-      prev.map((e, i) => {
-        if (i !== idx) return e
-        const has = e.subagentTiers.includes(tier)
-        const next = has ? e.subagentTiers.filter((x) => x !== tier) : [...e.subagentTiers, tier]
-        return { ...e, subagentTiers: next }
+  const move = useCallback(
+    (from: number, to: number) => {
+      mutateActive((prev) => {
+        if (to < 0 || to >= prev.length) return prev
+        const next = [...prev]
+        const [pulled] = next.splice(from, 1)
+        next.splice(to, 0, pulled)
+        return next.map((e, i) => ({ ...e, priority: i + 1 }))
       })
-    )
-  }, [])
+    },
+    [mutateActive]
+  )
 
-  const [addTarget, setAddTarget] = useState<string>('')
+  const remove = useCallback(
+    (idx: number) => {
+      mutateActive((prev) => prev.filter((_, i) => i !== idx).map((e, i) => ({ ...e, priority: i + 1 })))
+    },
+    [mutateActive]
+  )
+
+  const setEnabled = useCallback(
+    (idx: number, enabled: boolean) => {
+      mutateActive((prev) => prev.map((e, i) => (i === idx ? { ...e, enabled } : e)))
+    },
+    [mutateActive]
+  )
+
+  const toggleSubagentTier = useCallback(
+    (idx: number, tier: Tier) => {
+      mutateActive((prev) =>
+        prev.map((e, i) => {
+          if (i !== idx) return e
+          const has = e.subagentTiers.includes(tier)
+          const next = has ? e.subagentTiers.filter((x) => x !== tier) : [...e.subagentTiers, tier]
+          return { ...e, subagentTiers: next }
+        })
+      )
+    },
+    [mutateActive]
+  )
+
   const addEntry = useCallback(() => {
     if (addTarget === '') return
-    setEntries((prev) => {
+    mutateActive((prev) => {
       if (prev.some((e) => e.target === addTarget)) return prev
       return [...prev, { priority: prev.length + 1, target: addTarget, enabled: true, subagentTiers: [] }]
     })
     setAddTarget('')
-  }, [addTarget])
+  }, [addTarget, mutateActive])
 
   const save = useCallback(async () => {
     setSaving(true)
     try {
       const outcome = await api.putRouterPreferences({
-        entries,
+        entriesByScenario: byScenario,
         constraints: {
           sonnetTierRespect: constraints.sonnetTierRespect,
           haikuTierRespect: constraints.haikuTierRespect,
@@ -191,7 +220,7 @@ export function RouterPreferences() {
     } finally {
       setSaving(false)
     }
-  }, [entries, constraints, showToast, t])
+  }, [byScenario, constraints, showToast, t])
 
   if (loading) {
     return (
@@ -209,16 +238,38 @@ export function RouterPreferences() {
       <PageHeader title={t('routerPreferences.title')} />
       <PageContent className='space-y-6'>
         <p className='text-muted-foreground text-sm'>{t('routerPreferences.description')}</p>
+
         {scheduler !== null && scheduler.tickAt === null && (
           <div className='rounded border-l-2 border-l-amber-500 bg-amber-500/5 px-3 py-2 text-sm'>
             {t('routerPreferences.noSchedulerData')}
           </div>
         )}
 
+        <div className='flex flex-wrap gap-1 border-b'>
+          {SCENARIOS.map((s) => {
+            const count = byScenario[s].length
+            const active = activeScenario === s
+            return (
+              <button
+                key={s}
+                type='button'
+                onClick={() => setActiveScenario(s)}
+                className={
+                  active
+                    ? '-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium'
+                    : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
+                }
+              >
+                {t(`routerPreferences.scenario.${s}`)}
+                <span className='ml-2 text-muted-foreground tabular-nums'>{count}</span>
+              </button>
+            )
+          })}
+        </div>
+
         <section className='space-y-2'>
-          <h2 className='font-medium text-sm'>{t('routerPreferences.chain')}</h2>
           <div className='divide-y border-y empty:border-none'>
-            {entries.map((entry, idx) => {
+            {activeEntries.map((entry, idx) => {
               const badge = weightByTarget.get(entry.target)
               const weightPct = badge === undefined ? null : Math.round(badge.weight * 100)
               return (
@@ -263,7 +314,7 @@ export function RouterPreferences() {
                     size='sm'
                     variant='ghost'
                     onClick={() => move(idx, idx + 1)}
-                    disabled={idx === entries.length - 1}
+                    disabled={idx === activeEntries.length - 1}
                   >
                     <ArrowDown className='h-4 w-4' />
                   </Button>
@@ -273,6 +324,9 @@ export function RouterPreferences() {
                 </div>
               )
             })}
+            {activeEntries.length === 0 && (
+              <div className='px-3 py-4 text-sm text-muted-foreground'>{t('routerPreferences.emptyScenario')}</div>
+            )}
           </div>
 
           <div className='flex items-center gap-2 pt-3'>
@@ -282,10 +336,10 @@ export function RouterPreferences() {
               </SelectTrigger>
               <SelectContent>
                 {availableTargets
-                  .filter((t) => !entries.some((e) => e.target === t))
-                  .map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
+                  .filter((tg) => !activeEntries.some((e) => e.target === tg))
+                  .map((tg) => (
+                    <SelectItem key={tg} value={tg}>
+                      {tg}
                     </SelectItem>
                   ))}
               </SelectContent>
