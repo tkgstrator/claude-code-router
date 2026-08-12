@@ -57,7 +57,30 @@ export const ConfigEnvelopeSchema = z
     StatusLine: JsonValueSchema.optional(),
     transformers: z.array(PresetTransformerConfigSchema).optional(),
     plugins: z.array(JsonValueSchema).optional(),
-    Plugins: z.array(JsonValueSchema).optional()
+    Plugins: z.array(JsonValueSchema).optional(),
+
+    // Quota-aware preference router (docs/plan/quota-aware-preference-router.md
+    // §6.4). All four keys are Phase 2 knobs; the runtime router stays on
+    // 'scenario' until every phase ships and rollout is bumped >0. Absent
+    // on disk = defaults below (zero behaviour change).
+    //
+    // Which selector routes /v1 traffic:
+    //   'scenario'    — current RouterSlot-based router (default)
+    //   'preference'  — gate-only preference selector (L4)
+    //   'quota-aware' — scheduler-weighted preference selector (L3+L4)
+    ROUTER_MODE: z.enum(['scenario', 'preference', 'quota-aware']).default('scenario'),
+    // Run a second selector in parallel and log its would-be decision
+    // without affecting routing. 'off' disables shadowing.
+    ROUTER_SHADOW: z.enum(['off', 'preference', 'quota-aware']).default('off'),
+    // Percentage (0-100) of sessions the non-scenario ROUTER_MODE
+    // applies to; the rest stay on the scenario router. Session-hash
+    // bucketed so the same session ID always lands in the same bucket.
+    ROUTER_ROLLOUT_PCT: z.coerce.number().int().min(0).max(100).default(100),
+    // Scheduler tick interval. Default 5 min matches the usage-cache
+    // TTL; faster ticks just spin the weight recompute since upstream
+    // /usage endpoints are cached. Lower bound 60s is for
+    // shadow/staging; production should stay >= 300_000.
+    ROUTING_SCHEDULER_INTERVAL_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(300_000)
   })
   // Any other keys we don't know about — keep them, don't drop them.
   .catchall(JsonValueSchema)
