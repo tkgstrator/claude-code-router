@@ -6,6 +6,7 @@ import { accessLog } from './api/access-log'
 import { apiKeyAuth, openaiBearerAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
+import { healthRoute } from './api/health/route'
 import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
@@ -95,6 +96,12 @@ const app = new OpenAPIHono()
 // `state` issued at POST /api/oauth/initiate/* (still gated).
 // Access log runs BEFORE apiKeyAuth so 401s from the auth gate are
 // visible too — otherwise a wrong-key probe leaves no trace at all.
+// GET /health mounts BEFORE the auth middleware and BEFORE the SPA
+// catch-all so uptime probes hit a machine-readable JSON body without
+// carrying an APIKEY. Registered here (not inside the /api/* tree) so
+// the outer accessLog / apiKeyAuth don't gate it.
+app.route('/', healthRoute)
+
 app.use('/api/*', accessLog)
 app.use('/v1/*', accessLog)
 app.use('/api/*', apiKeyAuth)

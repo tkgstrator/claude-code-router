@@ -181,6 +181,36 @@ export function remapToolChoice(choice: UnifiedChatRequest['tool_choice']): unkn
   return { type: 'function', name }
 }
 
+// Convert Chat-Completions `response_format` to the Responses-API
+// `text.format` shape. The three canonical Chat shapes:
+//
+//   {type: 'text'}
+//   {type: 'json_object'}
+//   {type: 'json_schema', json_schema: {name, schema, strict?, description?}}
+//
+// map to the flatter Responses shape:
+//
+//   {type: 'text'}
+//   {type: 'json_object'}
+//   {type: 'json_schema', name, schema, strict?, description?}
+//
+// Returns null for shapes we can't confidently translate so the caller
+// can drop the field rather than build a malformed request.
+export function convertResponseFormatToTextFormat(raw: unknown): unknown {
+  if (!isObject(raw)) return null
+  const type = raw.type
+  if (type === 'text' || type === 'json_object') return { type }
+  if (type !== 'json_schema') return null
+  const jsonSchema = raw.json_schema
+  if (!isObject(jsonSchema)) return null
+  const flat: Record<string, unknown> = { type: 'json_schema' }
+  if (typeof jsonSchema.name === 'string') flat.name = jsonSchema.name
+  if (isObject(jsonSchema.schema)) flat.schema = jsonSchema.schema
+  if (typeof jsonSchema.strict === 'boolean') flat.strict = jsonSchema.strict
+  if (typeof jsonSchema.description === 'string') flat.description = jsonSchema.description
+  return flat
+}
+
 export function remapTools(tools: UnifiedChatRequest['tools']): unknown[] {
   if (!Array.isArray(tools)) return []
   const webSearch = tools.find((tool) => tool.function.name === 'web_search')
