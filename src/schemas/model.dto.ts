@@ -46,9 +46,17 @@ export const ModelTestAllResponseSchema = z
   })
   .openapi('ModelTestAllResponse')
 
-// PATCH /api/providers/:name/models/:model
+// PATCH /api/providers/:name/models/:model. Every field is optional
+// so the caller can send just the slice it wants to change. `enabled`
+// stays required-shaped for back-compat; the route handler treats
+// missing fields as "no change".
 export const UpdateModelBodySchema = z.object({
-  enabled: z.boolean()
+  enabled: z.boolean().optional(),
+  // Manual tier override consumed by the quota-aware selector. Send
+  // one of the four canonical tiers to set, or null to clear the
+  // override (fall back to name inference). Omit the field entirely
+  // to leave the current value untouched.
+  manualTier: z.enum(['fable', 'opus', 'sonnet', 'haiku']).nullable().optional()
 })
 
 export const UpdateModelSuccessResponseSchema = z

@@ -111,8 +111,15 @@ export function selectByPreference(input: PreferenceSelectorInput): PreferenceSe
       skipped.push({ target: entry.target, reason: 'disabled' })
       continue
     }
+    // Manual tier override (Model.manualTier) wins when present so
+    // operators can classify third-party models that don't follow the
+    // fable/opus/sonnet/haiku naming convention. Name inference is
+    // the fallback for legacy targets that pre-date the override.
     const modelName = modelNameOf(entry.target)
-    const candidateTier = modelName === undefined ? undefined : tierOf(modelName)
+    const inferredTier = modelName === undefined ? undefined : tierOf(modelName)
+    const overrideTier =
+      entry.resolvedTier === null || entry.resolvedTier === undefined ? undefined : entry.resolvedTier
+    const candidateTier = overrideTier ?? inferredTier
 
     if (input.isSubagent) {
       if (!tierMatchesSubagent(candidateTier, entry)) {

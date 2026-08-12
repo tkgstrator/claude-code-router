@@ -131,6 +131,11 @@ export const toProvider = (p: ProviderWithModels): Provider => {
   const modelPrices = Object.fromEntries(
     withPrice.map((m) => [m.name, { inputPer1M: m.inputPer1M, outputPer1M: m.outputPer1M }])
   )
+  const withManualTier = p.models.filter(
+    (m): m is DbModel & { manualTier: 'fable' | 'opus' | 'sonnet' | 'haiku' } =>
+      m.manualTier === 'fable' || m.manualTier === 'opus' || m.manualTier === 'sonnet' || m.manualTier === 'haiku'
+  )
+  const modelManualTiers = Object.fromEntries(withManualTier.map((m) => [m.name, m.manualTier]))
   return {
     name: p.name,
     enabled: providerEnabledFromTransformer(baseTransformer),
@@ -143,6 +148,7 @@ export const toProvider = (p: ProviderWithModels): Provider => {
     ...(tested.length > 0 ? { modelTestStatus } : {}),
     ...(withContext.length > 0 ? { modelContextWindows } : {}),
     ...(withPrice.length > 0 ? { modelPrices } : {}),
+    ...(withManualTier.length > 0 ? { modelManualTiers } : {}),
     // transformer is stored as JSONB; we re-derive _disabledModels from
     // Model.enabled so the UI sees the DB truth (the column on disk no
     // longer carries _disabledModels — see applyProviders).
