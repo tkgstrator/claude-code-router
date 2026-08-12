@@ -23,9 +23,14 @@
  * mode.
  */
 
-import { type PreferenceConstraints, type QuotaAwareConstraints, QuotaAwareConstraintsSchema } from '@/schemas'
+import {
+  type PreferenceConstraints,
+  type QuotaAwareConstraints,
+  QuotaAwareConstraintsSchema,
+  type ScenarioKey
+} from '@/schemas'
 import { logger } from '../../logger'
-import { loadRouterPreferences } from '../../services/router-preference-service'
+import { loadPreferenceChain } from '../../services/router-preference-service'
 import { getRoutingSnapshot } from '../../services/routing-scheduler'
 import { errorRateOf } from '../../services/routing-scheduler/model-health'
 import { getCachedUsagePct } from '../../services/usage-service'
@@ -58,6 +63,7 @@ const buildErrorRate = (): ((target: string) => number) => (target) => errorRate
 export interface QuotaAwareSelectionInput {
   requestedModel: string | undefined
   isSubagent: boolean
+  scenario: ScenarioKey
 }
 
 export interface QuotaAwareSelection {
@@ -66,14 +72,14 @@ export interface QuotaAwareSelection {
 }
 
 export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput): Promise<QuotaAwareSelection> {
-  const preferences = await loadRouterPreferences()
-  const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(preferences.constraints ?? {})
+  const chain = await loadPreferenceChain(input.scenario)
+  const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(chain.constraints ?? {})
   const constraints: QuotaAwareConstraints = constraintsParsed.success
     ? constraintsParsed.data
     : QuotaAwareConstraintsSchema.parse({})
   const l4Constraints: PreferenceConstraints = constraints
   const selection = selectByPreference({
-    entries: preferences.entries,
+    entries: chain.entries,
     constraints: l4Constraints,
     requestedTier: input.requestedModel ? tierOf(input.requestedModel) : undefined,
     isSubagent: input.isSubagent,

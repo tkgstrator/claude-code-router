@@ -189,9 +189,18 @@ export async function getRouterUtilization(sinceHours: number, prisma?: PrismaCl
     loadPerAccount(client),
     loadRouterPreferences(client)
   ])
+  // Union across scenarios: an entry counts as "in the chain" if it
+  // appears in any scenario. Enabled aggregates via OR so a target
+  // disabled in one scenario but active in another still counts.
+  const seen = new Map<string, boolean>()
+  for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
+    for (const e of preferences.entriesByScenario[scenario]) {
+      seen.set(e.target, (seen.get(e.target) ?? false) || e.enabled)
+    }
+  }
   const suggestions = detectSuggestions({
     perTarget,
-    preferences: preferences.entries.map((e) => ({ target: e.target, enabled: e.enabled }))
+    preferences: [...seen.entries()].map(([target, enabled]) => ({ target, enabled }))
   })
   return {
     windowHours: sinceHours,

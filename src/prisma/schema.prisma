@@ -332,7 +332,14 @@ model RouterPreferenceEntry {
   id            String                  @id @default(cuid())
   profileId     String
   profile       RouterPreferenceProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  // 1 = most preferred. Unique per profile so the order is total.
+  // Scenario the entry participates in. Legacy rows created before
+  // the per-scenario split default to `default` via the migration
+  // backfill; new rows must pass the value explicitly. Each scenario
+  // owns an independent chain (default / think / longContext /
+  // webSearch / image).
+  scenario      ScenarioKey             @default(default)
+  // 1 = most preferred. Unique per (profile, scenario) so each
+  // scenario's chain has a total ordering independent of the others.
   priority      Int
   modelId       String
   model         Model                   @relation(fields: [modelId], references: [id], onDelete: Cascade)
@@ -348,8 +355,9 @@ model RouterPreferenceEntry {
   // RequestedModelTier values ('fable' | 'opus' | 'sonnet' | 'haiku').
   subagentTiers String[]                @default([])
 
-  @@unique([profileId, priority])
+  @@unique([profileId, scenario, priority])
   @@index([profileId])
+  @@index([profileId, scenario])
 }
 
 // Saved snapshots of the Router config (the same nested shape that

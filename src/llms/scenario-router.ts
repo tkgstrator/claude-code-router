@@ -101,7 +101,8 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
       const requestedModel = typeof req.body.model === 'string' ? req.body.model : undefined
       const quotaAware = await resolveQuotaAwareSelection({
         requestedModel,
-        isSubagent: scenarioResult.isSubagent
+        isSubagent: scenarioResult.isSubagent,
+        scenario: scenarioResult.scenarioType
       })
       if (quotaAware.selection.primary !== null) {
         model = quotaAware.selection.primary
@@ -135,7 +136,8 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
       const requestedModel = typeof req.body.model === 'string' ? req.body.model : undefined
       const quotaAware = await resolveQuotaAwareSelection({
         requestedModel,
-        isSubagent: scenarioResult.isSubagent
+        isSubagent: scenarioResult.isSubagent,
+        scenario: scenarioResult.scenarioType
       }).catch((err) => {
         req.log.warn({ err }, '[routing-shadow] resolveQuotaAwareSelection threw — dropping shadow log')
         return null

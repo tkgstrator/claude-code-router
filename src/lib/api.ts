@@ -333,8 +333,12 @@ export interface RouterPreferenceEntryWire {
   subagentTiers: Array<'fable' | 'opus' | 'sonnet' | 'haiku'>
 }
 
+export type PreferenceScenarioKey = 'default' | 'think' | 'longContext' | 'webSearch' | 'image'
+
+export type PreferenceEntriesByScenarioWire = Record<PreferenceScenarioKey, RouterPreferenceEntryWire[]>
+
 export interface RouterPreferenceProfileWire {
-  entries: RouterPreferenceEntryWire[]
+  entriesByScenario: PreferenceEntriesByScenarioWire
   constraints: Record<string, unknown> | null
 }
 

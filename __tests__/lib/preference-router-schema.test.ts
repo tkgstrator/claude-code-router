@@ -87,28 +87,38 @@ test('RouterPreferenceEntrySchema rejects unknown tier values in subagentTiers',
   ).toThrow()
 })
 
-test('RouterPreferenceProfileSchema accepts an empty chain with null constraints', () => {
-  const parsed = RouterPreferenceProfileSchema.parse({ entries: [] })
-  expect(parsed.entries).toEqual([])
+test('RouterPreferenceProfileSchema accepts an empty per-scenario map with null constraints', () => {
+  const parsed = RouterPreferenceProfileSchema.parse({ entriesByScenario: {} })
+  expect(parsed.entriesByScenario.default).toEqual([])
+  expect(parsed.entriesByScenario.think).toEqual([])
+  expect(parsed.entriesByScenario.longContext).toEqual([])
+  expect(parsed.entriesByScenario.webSearch).toEqual([])
+  expect(parsed.entriesByScenario.image).toEqual([])
   expect(parsed.constraints).toBeNull()
 })
 
-test('RouterPreferenceProfileSchema round-trips a populated chain', () => {
+test('RouterPreferenceProfileSchema round-trips populated per-scenario chains', () => {
   const input = {
-    entries: [
-      { priority: 1, target: 'claude-code,claude-fable-5', enabled: true, subagentTiers: [] },
-      {
-        priority: 2,
-        target: 'claude-code,claude-opus-5',
-        enabled: true,
-        subagentTiers: ['sonnet', 'haiku']
-      }
-    ],
+    entriesByScenario: {
+      default: [
+        { priority: 1, target: 'claude-code,claude-sonnet-5', enabled: true, subagentTiers: [] }
+      ],
+      think: [
+        { priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] },
+        {
+          priority: 2,
+          target: 'claude-code,claude-fable-5',
+          enabled: true,
+          subagentTiers: ['sonnet', 'haiku']
+        }
+      ]
+    },
     constraints: { exhaustedBehavior: '429' }
   }
   const parsed = RouterPreferenceProfileSchema.parse(input)
-  expect(parsed.entries).toHaveLength(2)
-  expect(parsed.entries[0].target).toBe('claude-code,claude-fable-5')
-  expect(parsed.entries[1].subagentTiers).toEqual(['sonnet', 'haiku'])
+  expect(parsed.entriesByScenario.default).toHaveLength(1)
+  expect(parsed.entriesByScenario.think).toHaveLength(2)
+  expect(parsed.entriesByScenario.longContext).toEqual([])
+  expect(parsed.entriesByScenario.think[1].subagentTiers).toEqual(['sonnet', 'haiku'])
   expect(parsed.constraints).toEqual({ exhaustedBehavior: '429' })
 })

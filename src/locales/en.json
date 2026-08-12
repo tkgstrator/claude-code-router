@@ -650,6 +650,14 @@
     "title": "Router Preferences",
     "description": "Ordered chain the quota-aware router walks. Top entry is tried first; live weight and remaining budget come from the scheduler snapshot.",
     "chain": "Preference chain",
+    "emptyScenario": "No entries in this scenario yet.",
+    "scenario": {
+      "default": "Default",
+      "think": "Think",
+      "longContext": "Long Context",
+      "webSearch": "Web Search",
+      "image": "Image"
+    },
     "constraints": "Constraints",
     "subagentTiers": "Subagent tiers",
     "budget": "budget",

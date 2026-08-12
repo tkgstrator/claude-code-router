@@ -7,6 +7,14 @@ import { __resetSchedulerStateForTest } from '../../../src/services/routing-sche
 
 const describeOrSkip = HAS_DB ? describe : describe.skip
 
+const emptyChains = {
+  default: [],
+  think: [],
+  longContext: [],
+  webSearch: [],
+  image: []
+}
+
 describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
   beforeEach(async () => {
     await resetDbTables()
@@ -17,22 +25,31 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
     await teardownPrisma()
   })
 
-  test('empty preference chain returns no primary and no Retry-After', async () => {
-    const out = await resolveQuotaAwareSelection({ requestedModel: 'claude-opus-5', isSubagent: false })
+  test('empty per-scenario chain returns no primary + default 30s Retry-After', async () => {
+    const out = await resolveQuotaAwareSelection({
+      requestedModel: 'claude-opus-5',
+      isSubagent: false,
+      scenario: 'default'
+    })
     expect(out.selection.primary).toBeNull()
-    // Default constraints exhaustedBehavior='429' but no snapshot yet;
-    // resolveQuotaAwareSelection returns the L4 default 30s hint.
     expect(out.retryAfterSec).toBe(30)
   })
 
   test('passthrough constraint suppresses Retry-After even when the chain is empty', async () => {
-    await applyRouterPreferences({ entries: [], constraints: { exhaustedBehavior: 'passthrough' } })
-    const out = await resolveQuotaAwareSelection({ requestedModel: 'claude-opus-5', isSubagent: false })
+    await applyRouterPreferences({
+      entriesByScenario: emptyChains,
+      constraints: { exhaustedBehavior: 'passthrough' }
+    })
+    const out = await resolveQuotaAwareSelection({
+      requestedModel: 'claude-opus-5',
+      isSubagent: false,
+      scenario: 'default'
+    })
     expect(out.selection.primary).toBeNull()
     expect(out.retryAfterSec).toBeNull()
   })
 
-  test('healthy primary yields a target and no Retry-After', async () => {
+  test('healthy primary in the request-matched scenario yields a target', async () => {
     const prisma = getPrismaClient()
     const provider = await prisma.provider.create({
       data: {
@@ -46,11 +63,47 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
       data: { providerId: provider.id, name: 'claude-opus-5', enabled: true }
     })
     await applyRouterPreferences({
-      entries: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] }],
+      entriesByScenario: {
+        ...emptyChains,
+        think: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] }]
+      },
       constraints: null
     })
-    const out = await resolveQuotaAwareSelection({ requestedModel: 'claude-opus-5', isSubagent: false })
+    const out = await resolveQuotaAwareSelection({
+      requestedModel: 'claude-opus-5',
+      isSubagent: false,
+      scenario: 'think'
+    })
     expect(out.selection.primary).toBe('claude-code,claude-opus-5')
     expect(out.retryAfterSec).toBeNull()
+  })
+
+  test('a scenario without a chain still returns null primary + default Retry-After', async () => {
+    const prisma = getPrismaClient()
+    const provider = await prisma.provider.create({
+      data: {
+        name: 'claude-code',
+        apiBaseUrl: 'https://api.anthropic.com',
+        authMode: 'subscription',
+        apiStyle: 'anthropic'
+      }
+    })
+    await prisma.model.create({
+      data: { providerId: provider.id, name: 'claude-opus-5', enabled: true }
+    })
+    await applyRouterPreferences({
+      entriesByScenario: {
+        ...emptyChains,
+        think: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] }]
+      },
+      constraints: null
+    })
+    // Same DB, but ask for default — the entry is only in `think`.
+    const out = await resolveQuotaAwareSelection({
+      requestedModel: 'claude-opus-5',
+      isSubagent: false,
+      scenario: 'default'
+    })
+    expect(out.selection.primary).toBeNull()
   })
 })
