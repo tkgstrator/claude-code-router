@@ -8,8 +8,8 @@
  * land encrypted in the DB; nothing is written to disk.
  *
  * Client id + the refresh URL match the values already hardcoded in
- * `llms/transformers/claude-code-oauth.ts` so the proxy keeps working
- * with the stored tokens.
+ * `llms/transformers/anthropic/claude-code-oauth.ts` so the proxy keeps
+ * working with the stored tokens.
  */
 
 import { logger } from '../logger'
