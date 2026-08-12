@@ -176,7 +176,12 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
   const routeReq: RouterRequest = {
     body: body as PipelineRequest['body'] & { model: string },
     log: ctx.log,
-    sessionId: undefined
+    sessionId: undefined,
+    // The scenario router uses this to gate Anthropic-idiom mutations
+    // (persona injection etc.) so OpenAI-compat callers on
+    // /v1/chat/completions and /v1/responses get the exact request
+    // they sent rather than one enriched for Claude Code.
+    inboundPath: path
   }
   await routeScenario(routeReq, { config: ctx.config, tokenizers: ctx.tokenizers })
   const scenarioType: ScenarioType = routeReq.scenarioType !== undefined ? routeReq.scenarioType : 'default'

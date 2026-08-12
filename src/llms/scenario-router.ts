@@ -168,8 +168,20 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // subagent-tag handling (done inside selectModel) so it composes
     // with — rather than clobbers — any per-call system content. Empty
     // is a no-op, keeping the cached prefix byte-stable.
-    const personaPrompt = resolveActivePersonaPrompt(router, ctx.config)
-    req.body.system = applyGlobalSystemPrompt(req.body.system, personaPrompt)
+    //
+    // Gated to Anthropic-shape inbound (/v1/messages) only: persona is
+    // an Anthropic-idiom convenience the Claude Code client expects,
+    // and injecting it on an OpenAI-compat caller adds a stray
+    // top-level `system` field the OpenAI wire format doesn't model —
+    // upstreams that strictly allow-list top-level params (codex is
+    // one) then reject the whole request with 400
+    // `Unsupported parameter: system`. `inboundPath` is absent on the
+    // pre-existing test callers that predate this hook; treat that as
+    // "unknown, apply the enrichment" for backward-compat.
+    if (req.inboundPath === undefined || req.inboundPath === '/v1/messages') {
+      const personaPrompt = resolveActivePersonaPrompt(router, ctx.config)
+      req.body.system = applyGlobalSystemPrompt(req.body.system, personaPrompt)
+    }
   } catch (err) {
     req.log.error({ err }, 'scenario router failed; falling back to default model')
     // The runtime Router is the flat shape; the default agent primary is

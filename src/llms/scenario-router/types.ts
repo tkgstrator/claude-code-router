@@ -36,6 +36,14 @@ export type RouterRequest = {
   body: RouterRequestBody
   log: Logger
   sessionId?: string
+  // Inbound wire endpoint the request arrived on (e.g. `/v1/messages`,
+  // `/v1/chat/completions`, `/v1/responses`). CCR-idiom mutations that
+  // only make sense for the Anthropic client (persona injection notably)
+  // gate on this: OpenAI-shape callers get the exact request they sent,
+  // Anthropic-shape callers still get the enrichments Claude Code
+  // expects. Absent for pre-existing test callers that predate this
+  // hook — treated as "unknown, apply everything" for backward-compat.
+  inboundPath?: string
   scenarioType?: ScenarioType
   tokenCount?: number
   // Set by selectModel: true when the request carried a
