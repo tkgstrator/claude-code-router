@@ -692,8 +692,6 @@
     "title": "Model tier overrides",
     "description": "Assign a canonical tier to any model so the quota-aware selector's tier-respect constraints match third-party models whose names don't follow the fable/opus/sonnet/haiku convention.",
     "auto": "auto",
-    "inferredAs": "auto → {{tier}}",
-    "inferredNone": "auto → no match",
     "dirty": "changed",
     "empty": "No providers configured.",
     "saveWithCount": "Save {{count}} change(s)",

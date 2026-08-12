@@ -692,8 +692,6 @@
     "title": "モデル tier の上書き",
     "description": "fable/opus/sonnet/haiku の命名規則に沿わないサードパーティのモデルにも、正規の tier を割り当てることで tier respect 制約と噛み合わせられます。",
     "auto": "自動",
-    "inferredAs": "自動 → {{tier}}",
-    "inferredNone": "自動 → 該当なし",
     "dirty": "変更あり",
     "empty": "プロバイダーが設定されていません。",
     "saveWithCount": "{{count}} 件を保存",

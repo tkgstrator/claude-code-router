@@ -692,8 +692,6 @@
     "title": "模型 tier 覆盖",
     "description": "为不遵循 fable/opus/sonnet/haiku 命名规则的第三方模型指定正式 tier，使 quota-aware 选择器的 tier respect 约束能匹配到它们。",
     "auto": "自动",
-    "inferredAs": "自动 → {{tier}}",
-    "inferredNone": "自动 → 无匹配",
     "dirty": "已修改",
     "empty": "未配置任何供应商。",
     "saveWithCount": "保存 {{count}} 项修改",
