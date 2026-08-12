@@ -82,6 +82,45 @@ describe('Responses→Chat stream converter — choices index alignment', () => 
     expect(choices[0].finish_reason).toBe('stop')
   })
 
+  test('usage survives the ResponsesStreamEvent schema (previously stripped, causing usage: null)', async () => {
+    // Regression: the response object schema originally only allowed
+    // {id, model, output} so Zod stripped `usage` before
+    // buildCompletedChunk could read it. Reporter hit v2.60.2 with
+    // usage: null even after the completed-chunk builder added the
+    // field.
+    const events = [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { id: 'm1', type: 'message', content: [] }
+      },
+      { type: 'response.output_text.delta', item_id: 'm1', output_index: 0, delta: 'ok' },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp_check',
+          model: 'gpt-5.6-luna',
+          output: [{ type: 'message' }],
+          // Real codex payload — includes extra fields Zod must not
+          // reject and usage sub-fields it must preserve.
+          usage: {
+            input_tokens: 18,
+            input_tokens_details: { cached_tokens: 0 },
+            output_tokens: 5,
+            output_tokens_details: { reasoning_tokens: 0 },
+            total_tokens: 23
+          }
+        }
+      }
+    ]
+    const aggregate = await aggregateOpenAiChatSseToJson(driveStream(events))
+    expect(aggregate.usage).toEqual({
+      prompt_tokens: 18,
+      completion_tokens: 5,
+      total_tokens: 23
+    })
+  })
+
   test('usage from response.completed makes it into the aggregate envelope', async () => {
     const events = [
       {

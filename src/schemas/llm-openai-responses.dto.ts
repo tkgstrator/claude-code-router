@@ -114,8 +114,21 @@ export const ResponsesStreamEventSchema = z.object({
     .object({
       id: z.string().nonempty().optional(),
       model: z.string().nonempty().optional(),
-      output: z.array(z.object({ type: z.string().nonempty() })).default([])
+      output: z.array(z.object({ type: z.string().nonempty() })).default([]),
+      // Codex publishes usage on `response.completed` only; the value
+      // is optional / null on the earlier `response.created` /
+      // `response.in_progress` events. Modelled here so Zod doesn't
+      // strip it before the completed-chunk builder reads it.
+      usage: z
+        .object({
+          input_tokens: z.number().int().nonnegative().optional(),
+          output_tokens: z.number().int().nonnegative().optional(),
+          total_tokens: z.number().int().nonnegative().optional()
+        })
+        .loose()
+        .optional()
     })
+    .loose()
     .optional(),
   annotation: ResponsesAnnotationSchema.optional(),
   part: z.unknown().optional(),
