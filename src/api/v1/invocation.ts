@@ -23,6 +23,7 @@ import {
   type Transformer
 } from '../../llms'
 import { isModelExhausted } from '../../services/failover-state'
+import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
 
 // ─── Reasoning-effort normalisation ────────────────────────────────────
 
@@ -141,10 +142,11 @@ export interface ResolvedInvocation {
 export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Response | RoutePlan> {
   const url = new URL(c.req.url)
   const path = url.pathname
+  const shape = errorShapeForPath(path)
 
   const transformersByName = endpointTransformerMap(ctx).get(path)
   if (!transformersByName) {
-    return c.json({ type: 'error', error: { type: 'not_found', message: `No handler for ${path}` } }, 404)
+    return c.json(buildErrorEnvelope({ shape, status: 404, from: `No handler for ${path}` }), 404)
   }
   // First registered transformer at this endpoint; resolveInvocationForModel
   // may swap it per-model if the routed-to provider has a bypass single-use.
@@ -152,13 +154,7 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
 
   const bodyParsed = RecordSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!bodyParsed.success) {
-    return c.json(
-      {
-        type: 'error',
-        error: { type: 'invalid_request', message: 'Request body must be a JSON object' }
-      },
-      400
-    )
+    return c.json(buildErrorEnvelope({ shape, status: 400, from: 'Request body must be a JSON object' }), 400)
   }
   const body = bodyParsed.data
   const headers: Record<string, string> = {}
@@ -193,10 +189,13 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
   const retryAfter = routeReq.quotaExhaustedRetryAfterSec
   if (typeof retryAfter === 'number' && retryAfter > 0) {
     return new Response(
-      JSON.stringify({
-        type: 'error',
-        error: { type: 'rate_limit_error', message: 'Preference chain exhausted; retry after the window resets.' }
-      }),
+      JSON.stringify(
+        buildErrorEnvelope({
+          shape,
+          status: 429,
+          from: 'Preference chain exhausted; retry after the window resets.'
+        })
+      ),
       {
         status: 429,
         headers: { 'content-type': 'application/json', 'Retry-After': String(retryAfter) }
@@ -206,7 +205,7 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
 
   const primaryModel = typeof body.model === 'string' ? body.model : ''
   if (primaryModel.length === 0) {
-    return c.json({ type: 'error', error: { type: 'invalid_request', message: 'Missing model in request body' } }, 400)
+    return c.json(buildErrorEnvelope({ shape, status: 400, from: 'Missing model in request body' }), 400)
   }
 
   return {
