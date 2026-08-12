@@ -20,12 +20,7 @@ import type { RuntimeProvider, TransformerContext, UnifiedChatRequest, UnifiedMe
 import { AnthropicIncomingRequestSchema } from '@/schemas'
 import { getThinkLevel } from '../../utils/thinking'
 import { Transformer, type TransformerAuthResult } from '../base'
-import {
-  appendIncomingMessage,
-  buildSystemMessage,
-  buildToolChoice,
-  convertAnthropicToolsToUnified
-} from './request'
+import { appendIncomingMessage, buildSystemMessage, buildToolChoice, convertAnthropicToolsToUnified } from './request'
 import { convertOpenAIResponseToAnthropic } from './response-blocking'
 import { runStreamPump } from './response-stream/pump'
 import { createStreamState } from './response-stream/state'
