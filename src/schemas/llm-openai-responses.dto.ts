@@ -149,3 +149,119 @@ export const ResponsesUnifiedChatRequestSchema = UnifiedChatRequestSchema.extend
   parallel_tool_calls: z.boolean().default(false)
 })
 export type ResponsesUnifiedChatRequest = z.input<typeof ResponsesUnifiedChatRequestSchema>
+
+// ─── /v1/responses INBOUND request-body shapes ─────────────────────────
+//
+// Mirror of the OpenAI Responses API wire shape as it arrives on our
+// inbound endpoint. The reverse of the schemas above — those describe
+// what CCR SENDS to a Responses upstream; these describe what CCR
+// RECEIVES from an OpenAI-client caller (Codex CLI, Cline in
+// Responses-mode, direct curl).
+//
+// The item-level union is loose (`z.union` of `.loose()` schemas) so
+// unknown item kinds fall through unmodified rather than throwing a
+// schema violation — the inbound converter drops them silently.
+
+export const ResponsesInboundContentBlockSchema = z
+  .object({
+    type: z.string().nonempty(),
+    text: z.string().min(0).optional(),
+    image_url: z.union([z.string().nonempty(), z.object({ url: z.string().nonempty() })]).optional()
+  })
+  .loose()
+export type ResponsesInboundContentBlock = z.infer<typeof ResponsesInboundContentBlockSchema>
+
+export const ResponsesInboundMessageItemSchema = z
+  .object({
+    type: z.literal('message').optional(),
+    role: z.string().nonempty().optional(),
+    content: z.union([z.string().min(0), z.array(ResponsesInboundContentBlockSchema)]).optional()
+  })
+  .loose()
+export type ResponsesInboundMessageItem = z.infer<typeof ResponsesInboundMessageItemSchema>
+
+export const ResponsesInboundFunctionCallItemSchema = z
+  .object({
+    type: z.literal('function_call'),
+    call_id: z.string().nonempty().optional(),
+    id: z.string().nonempty().optional(),
+    name: z.string().min(0).optional(),
+    arguments: z.string().min(0).optional()
+  })
+  .loose()
+export type ResponsesInboundFunctionCallItem = z.infer<typeof ResponsesInboundFunctionCallItemSchema>
+
+export const ResponsesInboundFunctionCallOutputItemSchema = z
+  .object({
+    type: z.literal('function_call_output'),
+    call_id: z.string().nonempty().optional(),
+    output: z.unknown().optional()
+  })
+  .loose()
+export type ResponsesInboundFunctionCallOutputItem = z.infer<typeof ResponsesInboundFunctionCallOutputItemSchema>
+
+export const ResponsesInboundInputItemSchema = z.union([
+  ResponsesInboundFunctionCallItemSchema,
+  ResponsesInboundFunctionCallOutputItemSchema,
+  ResponsesInboundMessageItemSchema
+])
+export type ResponsesInboundInputItem = z.infer<typeof ResponsesInboundInputItemSchema>
+
+// ─── OpenAI chat.completion RESPONSE envelope ──────────────────────────
+//
+// The non-stream shape every OpenAI-compat chat endpoint returns.
+// Modelled here (not llm-chat.dto.ts) because it's only read by the
+// Responses-inbound reverse converter — moving it later is a one-line
+// re-export if a second reader shows up.
+
+export const ChatCompletionResponseToolCallSchema = z
+  .object({
+    id: z.string().nonempty().optional(),
+    type: z.string().nonempty().optional(),
+    function: z
+      .object({
+        name: z.string().min(0).optional(),
+        arguments: z.string().min(0).optional()
+      })
+      .loose()
+      .optional()
+  })
+  .loose()
+export type ChatCompletionResponseToolCall = z.infer<typeof ChatCompletionResponseToolCallSchema>
+
+export const ChatCompletionResponseMessageSchema = z
+  .object({
+    role: z.string().nonempty().optional(),
+    content: z.unknown().optional(),
+    tool_calls: z.array(ChatCompletionResponseToolCallSchema).optional()
+  })
+  .loose()
+export type ChatCompletionResponseMessage = z.infer<typeof ChatCompletionResponseMessageSchema>
+
+export const ChatCompletionResponseChoiceSchema = z
+  .object({
+    index: z.number().int().nonnegative().optional(),
+    message: ChatCompletionResponseMessageSchema.optional(),
+    finish_reason: z.union([z.string().nonempty(), z.null()]).optional()
+  })
+  .loose()
+export type ChatCompletionResponseChoice = z.infer<typeof ChatCompletionResponseChoiceSchema>
+
+export const ChatCompletionResponseSchema = z
+  .object({
+    id: z.string().nonempty().optional(),
+    object: z.string().nonempty().optional(),
+    created: z.number().int().nonnegative().optional(),
+    model: z.string().nonempty().optional(),
+    choices: z.array(ChatCompletionResponseChoiceSchema).optional(),
+    usage: z
+      .object({
+        prompt_tokens: z.number().int().nonnegative().optional(),
+        completion_tokens: z.number().int().nonnegative().optional(),
+        total_tokens: z.number().int().nonnegative().optional()
+      })
+      .loose()
+      .optional()
+  })
+  .loose()
+export type ChatCompletionResponse = z.infer<typeof ChatCompletionResponseSchema>

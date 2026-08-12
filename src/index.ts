@@ -3,7 +3,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
 import { ZodError } from 'zod'
 import { accessLog } from './api/access-log'
-import { apiKeyAuth } from './api/api-key-auth'
+import { apiKeyAuth, openaiBearerAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
 import { logsRoute } from './api/logs/route'
@@ -30,6 +30,7 @@ import { usageCostHistoryRoute } from './api/usage/cost/history/route'
 import { usageCostRoute } from './api/usage/cost/route'
 import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
+import { v1ModelsRoute } from './api/v1/models-list'
 import { v1Route } from './api/v1/route'
 import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
@@ -97,6 +98,14 @@ const app = new OpenAPIHono()
 app.use('/api/*', accessLog)
 app.use('/v1/*', accessLog)
 app.use('/api/*', apiKeyAuth)
+// OpenAI-compat inbound endpoints: reject `x-api-key` (the Anthropic
+// convention Claude Code sends) so operators aren't tempted to reuse the
+// same key across two auth conventions. Registered BEFORE the /v1/*
+// catch-all so it wins for these paths; the wildcard still covers
+// /v1/messages for Claude Code.
+app.use('/v1/chat/completions', openaiBearerAuth)
+app.use('/v1/responses', openaiBearerAuth)
+app.use('/v1/models', openaiBearerAuth)
 app.use('/v1/*', apiKeyAuth)
 
 app.onError((err, c) => {
@@ -145,6 +154,9 @@ app.route('/', routerUtilizationRoute)
 app.route('/', routingSchedulerStateRoute)
 app.route('/', oauthRoute)
 
+// OpenAI-compat GET /v1/models — mounted BEFORE v1Route so the wildcard
+// POST handler inside v1Route never has a chance to swallow it.
+app.route('/', v1ModelsRoute)
 // Native /v1/* LLM proxy — drives the llms pipeline without Fastify.
 app.route('/', v1Route)
 

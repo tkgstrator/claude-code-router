@@ -307,6 +307,65 @@ Pin a specific model for a subagent by prefixing its prompt with:
 Please help me analyze this code...
 ```
 
+## 🔀 OpenAI-compat API surface
+
+CCR is not just a Claude Code proxy — it also exposes an **OpenAI-compatible API** so any OpenAI SDK caller (Codex CLI, Cline, OpenWebUI, `openai` for Python / JS, `curl`) can consume your **subscription quota** (Claude Max, ChatGPT Plus/Pro) as if it were a plain OpenAI endpoint. The caller sees a normal OpenAI request/response; behind CCR the request is routed to your OAuth-authenticated Claude / Codex account, so cost stays inside your monthly subscription instead of hitting metered API billing.
+
+### Endpoints (OpenAI wire shape)
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET`  | `/v1/models`             | Returns the DB-backed enabled model list as `{object:'list', data:[…]}`. Each `id` is CCR's canonical `provider,model` (round-trip it straight into the next call). |
+| `POST` | `/v1/chat/completions`   | Standard Chat Completions — stream + non-stream. Body's `model` field takes the `provider,model` id from `/v1/models`. |
+| `POST` | `/v1/responses`          | OpenAI Responses API — stream + non-stream. Same model addressing as above. |
+
+Auth on these three paths is **`Authorization: Bearer <APIKEY>` only** (the `x-api-key` header — an Anthropic convention — is rejected here, and 401 bodies follow OpenAI's `{error:{message,type,code}}` shape). The Anthropic-style `/v1/messages` endpoint used by Claude Code keeps its existing dual-mode auth (`x-api-key` + `Bearer`).
+
+### Example — OpenAI Python SDK against your Codex subscription
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:3456/v1",
+    api_key="<your CCR APIKEY>",
+)
+
+# 1. Discover routable models
+for m in client.models.list().data:
+    print(m.id, m.owned_by)
+# → codex,gpt-5.6-luna  (owned_by=codex)
+# → claude-code,claude-sonnet-5  (owned_by=claude-code)
+# ...
+
+# 2. Chat Completions (routed through your Codex Plus/Pro subscription)
+res = client.chat.completions.create(
+    model="codex,gpt-5.6-luna",
+    messages=[{"role": "user", "content": "reply pong"}],
+)
+print(res.choices[0].message.content)  # → pong
+```
+
+### Example — OpenAI JS SDK
+
+```ts
+import OpenAI from 'openai'
+
+const client = new OpenAI({
+  baseURL: 'http://localhost:3456/v1',
+  apiKey: process.env.CCR_APIKEY,
+})
+
+const stream = await client.chat.completions.create({
+  model: 'codex,gpt-5.6-luna',
+  messages: [{ role: 'user', content: 'reply pong' }],
+  stream: true,
+})
+for await (const chunk of stream) process.stdout.write(chunk.choices[0]?.delta?.content ?? '')
+```
+
+Any client that supports overriding `base_url` / `baseURL` works the same way. Router / failover / persona / subagent-tag features apply to these inbound paths too, so a call to `codex,gpt-5.6-luna` still walks the configured fallback chain when the primary is rate-limited.
+
 ## 📊 Logging
 
 - **Server-level logs** (pino): `~/.claude-code-router/logs/ccr-*.log` — HTTP requests, API calls, server events. Level controlled by `LOG_LEVEL`.
