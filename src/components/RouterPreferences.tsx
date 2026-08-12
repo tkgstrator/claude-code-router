@@ -12,7 +12,7 @@
  * the same live weight.
  */
 
-import { ArrowDown, ArrowUp, Plus, Sliders, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -39,7 +39,6 @@ import {
   type RoutingSchedulerStateResponse
 } from '@/lib/api'
 import type { ShellOutletContext } from './AppShell'
-import { TierEditor } from './TierEditor'
 
 const TIERS = ['fable', 'opus', 'sonnet', 'haiku'] as const
 type Tier = (typeof TIERS)[number]
@@ -106,7 +105,6 @@ export function RouterPreferences() {
   const [scheduler, setScheduler] = useState<RoutingSchedulerStateResponse | null>(null)
   const [activeScenario, setActiveScenario] = useState<PreferenceScenarioKey>('default')
   const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [tierEditorOpen, setTierEditorOpen] = useState(false)
   const [addProvider, setAddProvider] = useState<string>('')
   const [addModel, setAddModel] = useState<string>('')
 
@@ -270,16 +268,9 @@ export function RouterPreferences() {
 
   return (
     <PageContainer>
-      <PageHeader title={t('routerPreferences.title')}>
-        <Button variant='outline' size='sm' onClick={() => setTierEditorOpen(true)}>
-          <Sliders className='h-4 w-4' />
-          {t('routerPreferences.editTiers')}
-        </Button>
-      </PageHeader>
+      <PageHeader title={t('routerPreferences.title')} />
       <PageContent className='space-y-6'>
         <p className='text-muted-foreground text-sm'>{t('routerPreferences.description')}</p>
-
-        <TierEditor open={tierEditorOpen} onOpenChange={setTierEditorOpen} providers={config?.Providers ?? []} />
 
         {scheduler !== null && scheduler.tickAt === null && (
           <div className='rounded border-l-2 border-l-amber-500 bg-amber-500/5 px-3 py-2 text-sm'>

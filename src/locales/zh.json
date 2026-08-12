@@ -48,6 +48,7 @@
     "providers": "供应商",
     "routingMap": "路由图",
     "routerPreferences": "优先级",
+    "routerTiers": "Tier 列表",
     "routerUtilization": "使用情况",
     "transformers": "转换器",
     "subscriptions": "订阅",
@@ -688,15 +689,15 @@
     "editTiers": "编辑 tier"
   },
   "tierEditor": {
-    "title": "模型 tier 覆盖",
-    "description": "为不遵循 fable/opus/sonnet/haiku 命名规则的第三方模型指定正式 tier，使 quota-aware 选择器的 tier respect 约束能匹配到它们。",
+    "title": "模型级覆盖",
+    "description": "为不遵循 fable/opus/sonnet/haiku 命名规则的第三方模型指定 tier 使 tier respect 约束匹配它们；并可为 OpenAI gpt-5.x / o-series 模型逐个覆盖 reasoning_effort。",
     "auto": "自动",
-    "inferredAs": "自动 → {{tier}}",
-    "inferredNone": "自动 → 无匹配",
     "dirty": "已修改",
     "empty": "未配置任何供应商。",
+    "effortPlaceholder": "effort",
+    "effortUnsupported": "reasoning_effort 仅在 OpenAI 的 gpt-5.x / o-series 模型上生效",
     "saveWithCount": "保存 {{count}} 项修改",
-    "saved": "已保存 {{count}} 个 tier",
+    "saved": "已保存 {{count}} 项覆盖",
     "saveOneFailed": "保存 {{target}} 失败"
   },
   "routerUtilization": {

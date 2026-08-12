@@ -24,6 +24,7 @@ import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
 import { SessionsPage } from '@/components/Sessions'
 import { SettingsPage } from '@/components/SettingsPage'
 import { Subscriptions } from '@/components/Subscriptions'
+import { TierEditor } from '@/components/TierEditor'
 import { Transformers } from '@/components/Transformers'
 import { Usage } from '@/components/Usage'
 
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
           { path: '/routing-map/preset/:id', element: fullHeight(<RoutingPresetEditor />) },
           { path: '/router-preferences', element: fullHeight(<RouterPreferences />) },
           { path: '/router-utilization', element: fullHeight(<RouterUtilization />) },
+          { path: '/router-tiers', element: fullHeight(<TierEditor />) },
           { path: '/transformers', element: fullHeight(<Transformers />) },
           { path: '/usage', element: fullHeight(<Usage />) },
           { path: '/cost', element: fullHeight(<ApiCost />) },
