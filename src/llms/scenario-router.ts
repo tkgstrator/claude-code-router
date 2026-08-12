@@ -19,12 +19,34 @@
  */
 
 import type { FlatRouter } from '@/schemas'
+import { isSessionInRollout } from '../services/routing-scheduler/rollout'
+import { logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
 import { applyProactiveFailover } from './scenario-router/failover'
 import { selectModel } from './scenario-router/model-selection'
 import { applyGlobalSystemPrompt, resolveActivePersonaPrompt } from './scenario-router/persona'
 import { getProjectRouter } from './scenario-router/project-config'
 import type { RouterConfig, RouterContext, RouterRequest, RouterRequestBody } from './scenario-router/types'
 import type { TokenizeRequest } from './tokenizers/base'
+
+// Read the runtime mode + rollout knobs from process.env once per
+// routeScenario call. The values are safe to re-read every request
+// because applyUiConfig writes them via applyEnvelopeToEnv (a hot
+// reload without a server restart already updates process.env).
+const readRouterMode = (): 'scenario' | 'preference' | 'quota-aware' => {
+  const raw = process.env.ROUTER_MODE ?? 'scenario'
+  return raw === 'preference' || raw === 'quota-aware' ? raw : 'scenario'
+}
+const readRouterShadow = (): 'off' | 'preference' | 'quota-aware' => {
+  const raw = process.env.ROUTER_SHADOW ?? 'off'
+  return raw === 'preference' || raw === 'quota-aware' ? raw : 'off'
+}
+const readRolloutPct = (): number => {
+  const raw = Number.parseInt(process.env.ROUTER_ROLLOUT_PCT ?? '100', 10)
+  if (!Number.isFinite(raw)) return 100
+  if (raw < 0) return 0
+  if (raw > 100) return 100
+  return raw
+}
 
 export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas'
 export type { SubscriptionKindProvider } from './scenario-router/failover'
@@ -57,10 +79,70 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // when no per-project file applies.
     const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
 
-    const { model, scenarioType, isSubagent, fallbacks } = selectModel(req, tokenCount, router, ctx.config)
-    req.body.model = applyProactiveFailover(model, scenarioType, fallbacks, tokenCount, ctx.config, req.log)
-    req.scenarioType = scenarioType
-    req.isSubagent = isSubagent
+    const scenarioResult = selectModel(req, tokenCount, router, ctx.config)
+    const mode = readRouterMode()
+    const shadow = readRouterShadow()
+    const inRollout = isSessionInRollout(req.sessionId ?? null, readRolloutPct())
+
+    // Quota-aware primary path: only when the mode is set AND the
+    // session falls into the rollout bucket. Outside the bucket
+    // (or when preferences resolve to nothing) we fall back to the
+    // scenario router's output so behaviour degrades gracefully.
+    let model = scenarioResult.model
+    let fallbacks: string[] = scenarioResult.fallbacks
+    if (mode === 'quota-aware' && inRollout) {
+      const requestedModel = typeof req.body.model === 'string' ? req.body.model : undefined
+      const quotaAware = await resolveQuotaAwareSelection({
+        requestedModel,
+        isSubagent: scenarioResult.isSubagent
+      })
+      if (quotaAware.selection.primary !== null) {
+        model = quotaAware.selection.primary
+        fallbacks = quotaAware.selection.fallbacks
+      } else {
+        // No primary. Keep the scenario router's answer as the fallback
+        // path so a preference-only miss can't lose the request. A 429
+        // response with Retry-After is layered on top by the caller in
+        // Phase 4; here we simply pass through.
+        req.log.info(
+          { skipped: quotaAware.selection.skipped },
+          '[routing-quota-aware] no primary — falling back to scenario router'
+        )
+      }
+    }
+
+    // Shadow path: run the quota-aware selector alongside the primary
+    // path and log divergence without affecting routing. Skipped when
+    // the primary path already IS the quota-aware selector.
+    if (shadow === 'quota-aware' && !(mode === 'quota-aware' && inRollout)) {
+      const requestedModel = typeof req.body.model === 'string' ? req.body.model : undefined
+      const quotaAware = await resolveQuotaAwareSelection({
+        requestedModel,
+        isSubagent: scenarioResult.isSubagent
+      }).catch((err) => {
+        req.log.warn({ err }, '[routing-shadow] resolveQuotaAwareSelection threw — dropping shadow log')
+        return null
+      })
+      if (quotaAware !== null) {
+        logShadowDivergence({
+          scenarioPrimary: model,
+          shadow: quotaAware.selection,
+          requestedModel,
+          isSubagent: scenarioResult.isSubagent
+        })
+      }
+    }
+
+    req.body.model = applyProactiveFailover(
+      model,
+      scenarioResult.scenarioType,
+      fallbacks,
+      tokenCount,
+      ctx.config,
+      req.log
+    )
+    req.scenarioType = scenarioResult.scenarioType
+    req.isSubagent = scenarioResult.isSubagent
     req.resolvedFallbacks = fallbacks
 
     // Append the active persona's prompt to user-facing routes. AFTER
