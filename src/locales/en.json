@@ -48,6 +48,7 @@
     "providers": "Providers",
     "routingMap": "Routing Map",
     "routerPreferences": "Preferences",
+    "routerTiers": "Tiers",
     "routerUtilization": "Utilization",
     "transformers": "Transformers",
     "subscriptions": "Subscriptions",
@@ -688,15 +689,15 @@
     "editTiers": "Edit tiers"
   },
   "tierEditor": {
-    "title": "Model tier overrides",
-    "description": "Assign a canonical tier to any model so the quota-aware selector's tier-respect constraints match third-party models whose names don't follow the fable/opus/sonnet/haiku convention.",
+    "title": "Model overrides",
+    "description": "Assign a canonical tier to any model so the quota-aware selector's tier-respect constraints match third-party models, and set a per-model reasoning-effort override for OpenAI gpt-5.x / o-series models.",
     "auto": "auto",
-    "inferredAs": "auto → {{tier}}",
-    "inferredNone": "auto → no match",
     "dirty": "changed",
     "empty": "No providers configured.",
+    "effortPlaceholder": "effort",
+    "effortUnsupported": "reasoning_effort is only accepted by OpenAI gpt-5.x / o-series models",
     "saveWithCount": "Save {{count}} change(s)",
-    "saved": "Saved {{count}} tier(s)",
+    "saved": "Saved {{count}} override(s)",
     "saveOneFailed": "Failed to save {{target}}"
   },
   "routerUtilization": {

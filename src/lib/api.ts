@@ -330,6 +330,19 @@ class ApiClient {
     )
   }
 
+  // Set a per-model reasoning-effort override. Send null to clear and
+  // fall back to the vendor default. Reuses the same PATCH endpoint.
+  async setModelReasoningEffort(
+    providerName: string,
+    modelName: string,
+    reasoningEffort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
+  ): Promise<{ success: boolean }> {
+    return this.apiFetch<{ success: boolean }>(
+      `/providers/${encodeURIComponent(providerName)}/models/${encodeURIComponent(modelName)}`,
+      { method: 'PATCH', body: JSON.stringify({ reasoningEffort }) }
+    )
+  }
+
   // Router utilization dashboard (Phase 7). Aggregations over the
   // requested window in hours (default 24).
   async getRouterUtilization(params?: { windowHours?: number }): Promise<RouterUtilizationResponse> {
