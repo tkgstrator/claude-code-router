@@ -651,6 +651,16 @@
     "description": "Ordered chain the quota-aware router walks. Top entry is tried first; live weight and remaining budget come from the scheduler snapshot.",
     "chain": "Preference chain",
     "emptyScenario": "No entries in this scenario yet.",
+    "addDialog": {
+      "title": "Add model to preference chain",
+      "description": "Add a model to the {{scenario}} chain. Pick a provider first, then choose one of its models.",
+      "provider": "Provider",
+      "selectProvider": "Choose a provider",
+      "model": "Model",
+      "pickProviderFirst": "Pick a provider first",
+      "allAdded": "All of this provider's models are already in the chain",
+      "selectModel": "Choose a model"
+    },
     "scenario": {
       "default": "Default",
       "think": "Think",

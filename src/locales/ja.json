@@ -651,6 +651,16 @@
     "description": "quota-aware ルーターが順に辿る優先順位チェーンです。先頭のエントリから試行され、ライブの weight と残り予算はスケジューラのスナップショットから取得されます。",
     "chain": "優先順位チェーン",
     "emptyScenario": "このシナリオにはまだエントリがありません。",
+    "addDialog": {
+      "title": "優先順位チェーンにモデルを追加",
+      "description": "{{scenario}} のチェーンにモデルを追加します。まずプロバイダーを選び、次にそのプロバイダーのモデルを選択してください。",
+      "provider": "プロバイダー",
+      "selectProvider": "プロバイダーを選択",
+      "model": "モデル",
+      "pickProviderFirst": "先にプロバイダーを選んでください",
+      "allAdded": "このプロバイダーのモデルはすべてチェーンに追加済みです",
+      "selectModel": "モデルを選択"
+    },
     "scenario": {
       "default": "デフォルト",
       "think": "Think",
