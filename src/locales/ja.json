@@ -225,7 +225,15 @@
     "timeout": "API タイムアウト (ms)",
     "proxy_url": "プロキシ URL",
     "custom_router_path": "カスタムルータースクリプトのパス",
-    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力"
+    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力",
+    "router_section": "ルーターモード",
+    "router_section_help": "/v1 トラフィックを捌くセレクタを切り替えます。反映にはサーバー再起動が必要です。",
+    "router_mode": "ルーターモード",
+    "router_mode_help": "scenario = 従来のルーティングマップ (Router.default など)。preference = ゲート判定のみの優先順位チェーン。quota-aware = paceRatio に応じた tier シフト付きのスケジューラ加重版チェーン。",
+    "router_shadow": "シャドウセレクタ",
+    "router_shadow_help": "プライマリと並行して 2 つ目のセレクタを走らせ、実ルーティングには影響させずログだけ吐きます。切替前の検証に使えます。",
+    "router_rollout_pct": "ロールアウト %",
+    "router_rollout_pct_help": "scenario 以外のモードを適用するセッションの割合。残りは scenario のまま。セッション ID をハッシュしてバケット化するので同じセッションは常に同じ側に落ちます。"
   },
   "transformers": {
     "title": "カスタム Transformer",

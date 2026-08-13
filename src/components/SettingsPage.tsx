@@ -18,6 +18,18 @@ import { StatusLineConfigDialog } from './StatusLineConfigDialog'
 
 const LOG_LEVEL_OPTIONS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'].map((v) => ({ label: v, value: v }))
 
+const ROUTER_MODE_OPTIONS = [
+  { label: 'scenario (routing map)', value: 'scenario' },
+  { label: 'preference (gate-only chain)', value: 'preference' },
+  { label: 'quota-aware (scheduler-weighted)', value: 'quota-aware' }
+]
+
+const ROUTER_SHADOW_OPTIONS = [
+  { label: 'off', value: 'off' },
+  { label: 'preference', value: 'preference' },
+  { label: 'quota-aware', value: 'quota-aware' }
+]
+
 export function SettingsPage() {
   const { config } = useConfig()
   if (!config) return null
@@ -41,7 +53,10 @@ function SettingsForm({ config }: { config: Config }) {
       API_TIMEOUT_MS: config.API_TIMEOUT_MS,
       PROXY_URL: config.PROXY_URL,
       APIKEY: config.APIKEY,
-      CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH
+      CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH,
+      ROUTER_MODE: config.ROUTER_MODE ?? 'scenario',
+      ROUTER_SHADOW: config.ROUTER_SHADOW ?? 'off',
+      ROUTER_ROLLOUT_PCT: config.ROUTER_ROLLOUT_PCT ?? 100
     }
   })
 
@@ -219,6 +234,74 @@ function SettingsForm({ config }: { config: Config }) {
                 </FormItem>
               )}
             />
+
+            <div className='space-y-4 border-t pt-4'>
+              <div className='space-y-0.5'>
+                <h3 className='font-medium text-sm'>{t('toplevel.router_section')}</h3>
+                <p className='text-muted-foreground text-xs'>{t('toplevel.router_section_help')}</p>
+              </div>
+
+              <FormField
+                control={form.control}
+                name='ROUTER_MODE'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('toplevel.router_mode')}</FormLabel>
+                    <FormControl>
+                      <SelectCombobox
+                        options={ROUTER_MODE_OPTIONS}
+                        value={field.value}
+                        onChange={(v) => field.onChange(v as SettingsFormOutput['ROUTER_MODE'])}
+                      />
+                    </FormControl>
+                    <p className='text-muted-foreground text-xs'>{t('toplevel.router_mode_help')}</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='ROUTER_SHADOW'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('toplevel.router_shadow')}</FormLabel>
+                    <FormControl>
+                      <SelectCombobox
+                        options={ROUTER_SHADOW_OPTIONS}
+                        value={field.value}
+                        onChange={(v) => field.onChange(v as SettingsFormOutput['ROUTER_SHADOW'])}
+                      />
+                    </FormControl>
+                    <p className='text-muted-foreground text-xs'>{t('toplevel.router_shadow_help')}</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='ROUTER_ROLLOUT_PCT'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('toplevel.router_rollout_pct')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                        className='w-32 tabular-nums'
+                      />
+                    </FormControl>
+                    <p className='text-muted-foreground text-xs'>{t('toplevel.router_rollout_pct_help')}</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <Button type='submit'>{t('app.save')}</Button>
           </form>

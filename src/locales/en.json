@@ -225,7 +225,15 @@
     "timeout": "API Timeout (ms)",
     "proxy_url": "Proxy URL",
     "custom_router_path": "Custom Router Script Path",
-    "custom_router_path_placeholder": "Enter absolute path to custom router script file"
+    "custom_router_path_placeholder": "Enter absolute path to custom router script file",
+    "router_section": "Router mode",
+    "router_section_help": "Switch which selector routes /v1 traffic. Changes take effect after the server restarts.",
+    "router_mode": "Router mode",
+    "router_mode_help": "scenario = classic routing map (Router.default etc.). preference = gate-only preference chain. quota-aware = scheduler-weighted preference chain with pace-aware tier shifting.",
+    "router_shadow": "Shadow selector",
+    "router_shadow_help": "Run a second selector alongside the primary and log its would-be decision without affecting routing. Useful for validating a new mode before flipping.",
+    "router_rollout_pct": "Rollout %",
+    "router_rollout_pct_help": "Percentage of sessions the non-scenario mode applies to; the rest stay on the scenario router. Sessions are hash-bucketed so the same session always lands in the same bucket."
   },
   "transformers": {
     "title": "Custom Transformers",
