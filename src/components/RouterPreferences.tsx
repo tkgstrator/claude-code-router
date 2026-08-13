@@ -457,7 +457,7 @@ export function RouterPreferences() {
                       }
                     >
                       <div className='flex items-center gap-3'>
-                        <span className='w-7 shrink-0 text-center font-mono text-muted-foreground text-xs tabular-nums'>
+                        <span className='w-7 shrink-0 text-center text-muted-foreground text-xs tabular-nums'>
                           {visIdx + 1}
                         </span>
                         <div className='flex min-w-0 flex-1 items-baseline gap-1.5'>
@@ -649,7 +649,7 @@ export function RouterPreferences() {
               step={0.5}
               value={constraints.minWeightPct}
               onChange={(e) => setConstraints((c) => ({ ...c, minWeightPct: Number.parseFloat(e.target.value) }))}
-              className='w-24'
+              className='w-24 tabular-nums'
             />
           </div>
           <div className='flex items-start justify-between gap-4 border-b py-3'>

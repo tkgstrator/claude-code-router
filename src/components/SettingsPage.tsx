@@ -172,7 +172,12 @@ function SettingsForm({ config }: { config: Config }) {
                 <FormItem>
                   <FormLabel>{t('toplevel.port')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} onChange={(e) => field.onChange(e.target.valueAsNumber)} />
+                    <Input
+                      type='number'
+                      {...field}
+                      className='tabular-nums'
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -186,7 +191,12 @@ function SettingsForm({ config }: { config: Config }) {
                 <FormItem>
                   <FormLabel>{t('toplevel.timeout')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} onChange={(e) => field.onChange(e.target.valueAsNumber)} />
+                    <Input
+                      type='number'
+                      {...field}
+                      className='tabular-nums'
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
