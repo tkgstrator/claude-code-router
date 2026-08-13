@@ -50,13 +50,49 @@ interface ProviderModelIndex {
   models: readonly string[]
 }
 
-// Collect the provider list preserving the config order so the
-// Add-model dialog shows providers in the order the user configured
-// them, with models sorted alphabetically inside each.
-const collectProviderIndex = (
-  providers: readonly { name: string; models?: readonly string[] }[]
-): ProviderModelIndex[] =>
-  providers.map((p) => ({ name: p.name, models: [...(p.models ?? [])].sort((a, b) => a.localeCompare(b)) }))
+// Only surface models the user has kept enabled: skip whole providers
+// switched off, and drop any per-model entry the user has toggled off
+// via the transformer._disabledModels list. Matches the "active model"
+// gate ModelsDashboard / TierEditor apply so all three surfaces show
+// the same rows.
+// The wire `transformer` field is typed as an open Record for the
+// server-side use array, so narrow it locally to just the two keys the
+// active-model gate actually reads.
+const readDisabledModels = (transformer: unknown): Set<string> => {
+  if (transformer === null || transformer === undefined || typeof transformer !== 'object') return new Set()
+  const raw = (transformer as { _disabledModels?: unknown })._disabledModels
+  if (!Array.isArray(raw)) return new Set()
+  return new Set(raw.filter((m): m is string => typeof m === 'string'))
+}
+
+interface WireProviderForIndex {
+  name: string
+  enabled?: boolean
+  models?: readonly string[]
+  transformer?: unknown
+}
+
+const collectProviderIndex = (providers: readonly WireProviderForIndex[]): ProviderModelIndex[] => {
+  const out: ProviderModelIndex[] = []
+  for (const p of providers) {
+    if (p.enabled === false) continue
+    const disabled = readDisabledModels(p.transformer)
+    const kept = (p.models ?? []).filter((m) => !disabled.has(m))
+    if (kept.length === 0) continue
+    out.push({ name: p.name, models: [...kept].sort((a, b) => a.localeCompare(b)) })
+  }
+  return out
+}
+
+// Flatten providerIndex to a Set of "provider,model" targets so the
+// chain renderer can hide entries pointing at a model the user has
+// meanwhile disabled without dropping them from state (a re-enable
+// puts them back on screen without a reload).
+const activeTargetSet = (providers: readonly ProviderModelIndex[]): Set<string> => {
+  const out = new Set<string>()
+  for (const p of providers) for (const m of p.models) out.add(`${p.name},${m}`)
+  return out
+}
 
 interface ConstraintsForm {
   sonnetTierRespect: boolean
@@ -147,6 +183,10 @@ export function RouterPreferences() {
   }, [])
 
   const providerIndex = useMemo(() => collectProviderIndex(config?.Providers ?? []), [config])
+  // Targets the active-model gate accepts. Chain rendering hides
+  // entries whose target is not here (a stale row for a since-disabled
+  // model would otherwise sit in the list with no way to route to it).
+  const activeModelTargets = useMemo(() => activeTargetSet(providerIndex), [providerIndex])
   const activeTargets = useMemo(
     () => new Set(byScenario[activeScenario].map((e) => e.target)),
     [byScenario, activeScenario]
@@ -280,7 +320,11 @@ export function RouterPreferences() {
 
         <div className='flex flex-wrap gap-1 border-b'>
           {SCENARIOS.map((s) => {
-            const count = byScenario[s].length
+            // Count what the user will actually see on this tab, not the
+            // raw entry count — a scenario whose four rows all point at
+            // since-disabled models should not read "4" while the tab
+            // itself renders empty.
+            const count = byScenario[s].filter((e) => activeModelTargets.has(e.target)).length
             const active = activeScenario === s
             return (
               <button
@@ -302,64 +346,86 @@ export function RouterPreferences() {
 
         <section className='space-y-2'>
           <div className='divide-y border-y empty:border-none'>
-            {activeEntries.map((entry, idx) => {
-              const badge = weightByTarget.get(entry.target)
-              const weightPct = badge === undefined ? null : Math.round(badge.weight * 100)
-              return (
-                <div
-                  key={entry.target}
-                  className='flex items-center gap-3 border-l-2 border-l-transparent px-3 py-2 transition-colors hover:border-l-primary hover:bg-muted/50'
-                >
-                  <span className='w-6 text-center text-muted-foreground text-xs tabular-nums'>{idx + 1}</span>
-                  <div className='flex flex-1 flex-col gap-1'>
-                    <span className='font-medium text-sm'>{entry.target}</span>
-                    <div className='flex flex-wrap gap-1 text-xs text-muted-foreground'>
-                      <span>{t('routerPreferences.subagentTiers')}:</span>
-                      {TIERS.map((tier) => (
-                        <button
-                          key={tier}
-                          type='button'
-                          className={
-                            entry.subagentTiers.includes(tier)
-                              ? 'rounded bg-primary/10 px-1.5 py-0.5 text-primary'
-                              : 'rounded bg-muted px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70'
-                          }
-                          onClick={() => toggleSubagentTier(idx, tier)}
-                        >
-                          {tier}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {weightPct !== null && (
-                    <span className='w-16 text-right text-muted-foreground text-xs tabular-nums'>{weightPct}%</span>
-                  )}
-                  {badge?.budget != null && (
-                    <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
-                      {t('routerPreferences.budget')}: {badge.budget}%
-                    </span>
-                  )}
-                  <Switch checked={entry.enabled} onCheckedChange={(next) => setEnabled(idx, next)} />
-                  <Button size='sm' variant='ghost' onClick={() => move(idx, idx - 1)} disabled={idx === 0}>
-                    <ArrowUp className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    size='sm'
-                    variant='ghost'
-                    onClick={() => move(idx, idx + 1)}
-                    disabled={idx === activeEntries.length - 1}
+            {(() => {
+              // Filter out entries whose target model has since been
+              // disabled at the provider level — the row stays in state
+              // (a re-enable puts it back on screen instantly) but
+              // hiding it from the chain matches the "active model" gate
+              // TierEditor / ModelsDashboard apply. Preserve the raw
+              // index alongside the visible position so move / remove /
+              // enable / toggleSubagentTier still target the correct
+              // element inside the full activeEntries array.
+              const visible = activeEntries
+                .map((entry, idx) => ({ entry, idx }))
+                .filter(({ entry }) => activeModelTargets.has(entry.target))
+              if (visible.length === 0) {
+                return (
+                  <div className='px-3 py-4 text-sm text-muted-foreground'>{t('routerPreferences.emptyScenario')}</div>
+                )
+              }
+              return visible.map(({ entry, idx }, visIdx) => {
+                const badge = weightByTarget.get(entry.target)
+                const weightPct = badge === undefined ? null : Math.round(badge.weight * 100)
+                const prevRealIdx = visIdx === 0 ? null : visible[visIdx - 1].idx
+                const nextRealIdx = visIdx === visible.length - 1 ? null : visible[visIdx + 1].idx
+                return (
+                  <div
+                    key={entry.target}
+                    className='flex items-center gap-3 border-l-2 border-l-transparent px-3 py-2 transition-colors hover:border-l-primary hover:bg-muted/50'
                   >
-                    <ArrowDown className='h-4 w-4' />
-                  </Button>
-                  <Button size='sm' variant='ghost' onClick={() => remove(idx)}>
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                </div>
-              )
-            })}
-            {activeEntries.length === 0 && (
-              <div className='px-3 py-4 text-sm text-muted-foreground'>{t('routerPreferences.emptyScenario')}</div>
-            )}
+                    <span className='w-6 text-center text-muted-foreground text-xs tabular-nums'>{visIdx + 1}</span>
+                    <div className='flex flex-1 flex-col gap-1'>
+                      <span className='font-medium text-sm'>{entry.target}</span>
+                      <div className='flex flex-wrap gap-1 text-xs text-muted-foreground'>
+                        <span>{t('routerPreferences.subagentTiers')}:</span>
+                        {TIERS.map((tier) => (
+                          <button
+                            key={tier}
+                            type='button'
+                            className={
+                              entry.subagentTiers.includes(tier)
+                                ? 'rounded bg-primary/10 px-1.5 py-0.5 text-primary'
+                                : 'rounded bg-muted px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70'
+                            }
+                            onClick={() => toggleSubagentTier(idx, tier)}
+                          >
+                            {tier}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {weightPct !== null && (
+                      <span className='w-16 text-right text-muted-foreground text-xs tabular-nums'>{weightPct}%</span>
+                    )}
+                    {badge?.budget != null && (
+                      <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
+                        {t('routerPreferences.budget')}: {badge.budget}%
+                      </span>
+                    )}
+                    <Switch checked={entry.enabled} onCheckedChange={(next) => setEnabled(idx, next)} />
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      onClick={() => prevRealIdx !== null && move(idx, prevRealIdx)}
+                      disabled={prevRealIdx === null}
+                    >
+                      <ArrowUp className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      onClick={() => nextRealIdx !== null && move(idx, nextRealIdx)}
+                      disabled={nextRealIdx === null}
+                    >
+                      <ArrowDown className='h-4 w-4' />
+                    </Button>
+                    <Button size='sm' variant='ghost' onClick={() => remove(idx)}>
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
+                )
+              })
+            })()}
           </div>
 
           <div className='flex items-center justify-end pt-3'>
