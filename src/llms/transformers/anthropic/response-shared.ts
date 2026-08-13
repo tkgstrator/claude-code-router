@@ -1,23 +1,13 @@
 /**
  * Response-side helpers shared by the blocking (`response-blocking.ts`)
  * and streaming (`response-stream/`) Anthropic response conversion.
+ *
+ * The OpenAI-finish → Anthropic-stop reason mapping used to live here;
+ * it now lives (with its inverse) in `src/llms/utils/finish-reason.ts`
+ * so both directions stay derived from a single canonical table.
  */
 
 import type { ChatCompletion } from 'openai/resources'
-
-// Stop reason mapping (OpenAI finish_reason -> Anthropic stop_reason).
-const STOP_REASON_MAPPING: Record<string, string> = {
-  stop: 'end_turn',
-  length: 'max_tokens',
-  tool_calls: 'tool_use',
-  content_filter: 'stop_sequence'
-}
-
-export function mapFinishReason(finishReason: string | null | undefined): string {
-  if (!finishReason) return 'end_turn'
-  const mapped = STOP_REASON_MAPPING[finishReason]
-  return mapped === undefined ? 'end_turn' : mapped
-}
 
 // Compute the (input_tokens, output_tokens, cache_read_input_tokens)
 // triple from an OpenAI usage object. The fields are genuinely optional

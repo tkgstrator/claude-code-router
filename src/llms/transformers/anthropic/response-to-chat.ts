@@ -12,7 +12,9 @@
  * needs an incremental converter, ~100 more lines).
  */
 
-import { nowSeconds } from '../openai/responses/helpers'
+import { anthropicToOpenAiFinishReason } from '../../utils/finish-reason'
+import { isObject } from '../../utils/guards'
+import { nowSeconds } from '../../utils/time'
 
 // Anthropic wire types — kept structurally-typed (readonly) so the
 // converter can be called with `unknown` upstream JSON and validated
@@ -45,10 +47,6 @@ interface AnthropicMessageResponse {
   }
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 // Runtime guard: the upstream body should be Anthropic-shape. When it
 // isn't (already Chat-shape from a bypassed path, or unrelated), the
 // caller passes through unchanged.
@@ -59,15 +57,6 @@ export function isAnthropicMessageResponse(value: unknown): value is AnthropicMe
   // successful response, and neither shape (Chat / Responses) uses
   // them at the top level.
   return value.type === 'message' && Array.isArray(value.content)
-}
-
-// Anthropic → OpenAI finish_reason. Missing / unknown maps to 'stop'
-// so the client always gets one of the canonical values it expects.
-function mapStopReason(stopReason: string | null | undefined): string {
-  if (stopReason === 'tool_use') return 'tool_calls'
-  if (stopReason === 'max_tokens') return 'length'
-  if (stopReason === 'stop_sequence') return 'stop'
-  return 'stop'
 }
 
 function collectTextContent(content: AnthropicContentBlock[]): string {
@@ -147,7 +136,7 @@ export function convertAnthropicResponseToChat(anthropic: AnthropicMessageRespon
       {
         index: 0,
         message,
-        finish_reason: mapStopReason(anthropic.stop_reason)
+        finish_reason: anthropicToOpenAiFinishReason(anthropic.stop_reason)
       }
     ]
   }

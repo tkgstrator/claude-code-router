@@ -25,6 +25,7 @@ import type {
   UnifiedChatRequest
 } from '@/schemas'
 import { ChatCompletionResponseSchema, ResponsesAPIPayloadSchema } from '@/schemas'
+import { cloneResponse } from '../../utils/response-clone'
 import { aggregateOpenAiChatSseToJson, isSseContentType } from '../../utils/sse-aggregate'
 import { Transformer } from '../base'
 import {
@@ -75,9 +76,7 @@ export class OpenAIResponsesTransformer extends Transformer {
       if (!chat.success) return response
       const envelope = convertChatCompletionToResponses(chat.data)
       const sse = wrapResponsesEnvelopeAsSse(envelope)
-      const headers = new Headers(response.headers)
-      headers.set('content-type', 'text/event-stream')
-      return new Response(sse, { status: response.status, statusText: response.statusText, headers })
+      return cloneResponse(response, sse, { 'content-type': 'text/event-stream' })
     }
     const text = await response.text()
     if (text.length === 0) return response
@@ -85,11 +84,7 @@ export class OpenAIResponsesTransformer extends Transformer {
     const chat = ChatCompletionResponseSchema.safeParse(parsedJson)
     if (!chat.success) return response
     const envelope = convertChatCompletionToResponses(chat.data)
-    return new Response(JSON.stringify(envelope), {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers
-    })
+    return cloneResponse(response, JSON.stringify(envelope))
   }
 
   async transformRequestIn(
@@ -203,18 +198,10 @@ export class OpenAIResponsesTransformer extends Transformer {
     // Check whether the JSON response is in the responses API format
     if (jsonResponse.object === 'response' && jsonResponse.output) {
       const chatResponse = convertResponseToChat(jsonResponse, this.logger)
-      return new Response(JSON.stringify(chatResponse), {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers
-      })
+      return cloneResponse(response, JSON.stringify(chatResponse))
     }
 
-    return new Response(JSON.stringify(jsonResponse), {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers
-    })
+    return cloneResponse(response, JSON.stringify(jsonResponse))
   }
 
   private handleStreamResponse(response: Response): Response {

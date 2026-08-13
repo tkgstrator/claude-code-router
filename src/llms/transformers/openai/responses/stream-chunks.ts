@@ -7,7 +7,8 @@
  */
 
 import type { MessageContent, ResponsesStreamEvent } from '@/schemas'
-import { firstDefined, modelOr, newChatcmplId, nowSeconds, stringDeltaOrEmpty } from './helpers'
+import { nowSeconds } from '../../../utils/time'
+import { firstDefined, modelOr, newChatcmplId, stringDeltaOrEmpty } from './helpers'
 
 export type StreamIndexState = {
   index: number
