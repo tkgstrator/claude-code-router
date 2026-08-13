@@ -687,6 +687,9 @@
     "exhaustedBehaviorHelp429": "429 + Retry-After: return a rate-limit response to the client with the seconds until the earliest window resets.",
     "exhaustedBehaviorHelpPassthrough": "passthrough: fall back to the client's originally requested model without touching the preference chain.",
     "noSchedulerData": "Live weight and budget are unavailable — the quota-aware scheduler is not running.",
+    "longContextThresholdHelp": "Requests whose input token count exceeds this fall into the longContext chain.",
+    "columnWeight": "Weight",
+    "columnBudget": "Budget",
     "saved": "Preferences saved",
     "saveFailed": "Failed to save preferences",
     "editTiers": "Edit tiers"
