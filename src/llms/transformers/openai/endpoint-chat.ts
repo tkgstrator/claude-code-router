@@ -17,7 +17,7 @@
  */
 
 import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '@/schemas'
-import { REASONING_MODEL_RE } from '@/shared/constants'
+import { REASONING_MODEL_RE } from '@/shared/reasoning-model'
 import { absorbTopLevelSystem } from '../../utils/system-blocks'
 import { Transformer } from '../base'
 
