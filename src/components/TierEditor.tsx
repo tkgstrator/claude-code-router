@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import type { Provider } from '@/schemas'
-import { REASONING_MODEL_RE } from '@/shared/constants'
+import { REASONING_MODEL_RE } from '@/shared/reasoning-model'
 
 type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'
 type TierValue = Tier | 'auto'
