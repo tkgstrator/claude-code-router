@@ -130,12 +130,22 @@ const emptyByScenario = (): PreferenceEntriesByScenarioWire => ({
 
 const SCHEDULER_POLL_MS = 30_000
 
+const DEFAULT_LONG_CONTEXT_THRESHOLD = 128000
+
 export function RouterPreferences() {
   const { t } = useTranslation()
-  const { config } = useConfig()
+  const { config, reloadConfig } = useConfig()
   const { showToast } = useOutletContext<ShellOutletContext>()
   const [byScenario, setByScenario] = useState<PreferenceEntriesByScenarioWire>(emptyByScenario)
   const [constraints, setConstraints] = useState<ConstraintsForm>(CONSTRAINT_DEFAULTS)
+  // longContext threshold lives on Router.longContext.threshold (not
+  // on the preference constraints blob), so we mirror it in local
+  // state and PATCH it via /api/config on Save when it changed. The
+  // scenario classifier reads this value to decide when a request
+  // qualifies as long-context.
+  const initialThreshold = config?.Router.longContext.threshold ?? DEFAULT_LONG_CONTEXT_THRESHOLD
+  const [longContextThreshold, setLongContextThreshold] = useState<number>(initialThreshold)
+  const [thresholdBaseline, setThresholdBaseline] = useState<number>(initialThreshold)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scheduler, setScheduler] = useState<RoutingSchedulerStateResponse | null>(null)
@@ -143,6 +153,16 @@ export function RouterPreferences() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addProvider, setAddProvider] = useState<string>('')
   const [addModel, setAddModel] = useState<string>('')
+
+  // Re-sync the threshold input when config lands / reloads. The
+  // baseline holds the value we last read from the server so Save can
+  // skip the /api/config round-trip when the user didn't touch it.
+  useEffect(() => {
+    if (config === null) return
+    const v = config.Router.longContext.threshold ?? DEFAULT_LONG_CONTEXT_THRESHOLD
+    setLongContextThreshold(v)
+    setThresholdBaseline(v)
+  }, [config])
 
   useEffect(() => {
     let cancelled = false
@@ -282,6 +302,20 @@ export function RouterPreferences() {
           exhaustedBehavior: constraints.exhaustedBehavior
         }
       })
+      // Threshold is edited on this page but lives on Router.longContext,
+      // not on the preference constraints blob — patch it via /api/config
+      // only when the user actually changed it, so unrelated fields on the
+      // Router stay untouched and a no-op Save doesn't churn config.json.
+      if (config !== null && longContextThreshold !== thresholdBaseline && Number.isFinite(longContextThreshold)) {
+        await api.updateConfig({
+          ...config,
+          Router: {
+            ...config.Router,
+            longContext: { ...config.Router.longContext, threshold: longContextThreshold }
+          }
+        })
+        await reloadConfig()
+      }
       if (outcome.success) {
         showToast(t('routerPreferences.saved'), 'success')
         for (const w of outcome.warnings) showToast(w, 'warning')
@@ -293,7 +327,7 @@ export function RouterPreferences() {
     } finally {
       setSaving(false)
     }
-  }, [byScenario, constraints, showToast, t])
+  }, [byScenario, constraints, config, longContextThreshold, thresholdBaseline, reloadConfig, showToast, t])
 
   if (loading) {
     return (
@@ -343,6 +377,27 @@ export function RouterPreferences() {
             )
           })}
         </div>
+
+        {activeScenario === 'longContext' && (
+          <div className='flex items-center gap-3 rounded border-l-2 border-l-primary/40 bg-muted/30 px-3 py-2'>
+            <Label htmlFor='longContextThreshold' className='text-xs text-muted-foreground'>
+              {t('router.longContextThreshold')}
+            </Label>
+            <Input
+              id='longContextThreshold'
+              type='number'
+              min={1}
+              step={1000}
+              className='h-7 w-32 text-xs tabular-nums'
+              value={longContextThreshold}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber
+                if (Number.isFinite(v)) setLongContextThreshold(v)
+              }}
+            />
+            <span className='text-xs text-muted-foreground'>tokens</span>
+          </div>
+        )}
 
         <section className='space-y-2'>
           <div className='divide-y border-y empty:border-none'>
