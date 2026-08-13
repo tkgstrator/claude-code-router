@@ -346,6 +346,18 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.API_TIMEOUT_MS).toBeUndefined()
   })
 
+  test('LOG_LEVEL change round-trips through apply then compose (no stale env overlay)', async () => {
+    // Regression: readConfigFile's env overlay silently reasserts
+    // process.env values over disk, and process.env was mirrored from
+    // disk at boot but never refreshed on UI writes. As a result a
+    // saved LOG_LEVEL was clobbered by the boot-time value on the very
+    // next GET, so users saw the field snap back to 'info' on reload.
+    await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key', LOG_LEVEL: 'info' })
+    await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key', LOG_LEVEL: 'debug' })
+    const ui = await composeUiConfig()
+    expect(ui.LOG_LEVEL).toBe('debug')
+  })
+
   test('Personas (top-level) and Router.persona round-trip through apply then compose', async () => {
     await applyUiConfig({
       Providers: [],

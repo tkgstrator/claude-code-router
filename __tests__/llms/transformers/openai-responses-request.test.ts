@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { remapToolChoice } from '../../../src/llms/transformers/openai-responses/request'
+import { remapToolChoice } from '../../../src/llms/transformers/openai/responses/request'
 
 // remapToolChoice reshapes the unified Chat-Completions tool_choice into
 // the flat Responses-API form. See the helper's block comment for the

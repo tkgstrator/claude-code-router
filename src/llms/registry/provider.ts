@@ -88,6 +88,7 @@ export class ProviderRegistry {
       // explicit normalisation rather than trusting the input.
       models: config.models ? config.models : []
     }
+    if (config.modelReasoningEfforts) resolved.modelReasoningEfforts = config.modelReasoningEfforts
     if (!config.transformer) return resolved
 
     resolved.transformer = this.resolveTransformerBlock(config.transformer)

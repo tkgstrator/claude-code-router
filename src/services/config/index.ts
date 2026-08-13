@@ -10,6 +10,13 @@
 export { apiStyleForVendor, modelApiStyleOverride } from './api-style'
 export { type ApplyResult, applyUiConfig } from './apply'
 export { composeUiConfig, loadFullConfig } from './compose'
-export { deleteProviderByName, getProviders, setModelEnabled, upsertProvider } from './crud'
+export {
+  deleteProviderByName,
+  getProviders,
+  setModelEnabled,
+  setModelManualTier,
+  setModelReasoningEffort,
+  upsertProvider
+} from './crud'
 export { getEnabledModels } from './enabled-models'
-export { ensureRouterSlots, ensureSeedProviders } from './seed'
+export { ensurePreferenceProfile, ensureRouterSlots, ensureSeedProviders } from './seed'

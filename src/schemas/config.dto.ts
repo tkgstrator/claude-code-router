@@ -43,6 +43,12 @@ export const ConfigEnvelopeSchema = z
     // empty means "no persona". Round-trips through the disk envelope
     // like the other optional scalars (see CUSTOM_ROUTER_PATH).
     ActivePersona: z.string().optional(),
+    // User-editable display name for the live routing (the RouterSlot
+    // rows). Presented on the Routing Library grid + Live editor. Absent
+    // / empty → UI falls back to the "Live" i18n label. Auto-populated
+    // when a preset is applied to Live so the card reads as "Work"
+    // instead of the generic "Live".
+    LiveRoutingName: z.string().optional(),
 
     // Object-shaped envelope members that stay on disk for PR #1.
     // Personas is the named persona library; it stays on disk alongside
@@ -51,7 +57,30 @@ export const ConfigEnvelopeSchema = z
     StatusLine: JsonValueSchema.optional(),
     transformers: z.array(PresetTransformerConfigSchema).optional(),
     plugins: z.array(JsonValueSchema).optional(),
-    Plugins: z.array(JsonValueSchema).optional()
+    Plugins: z.array(JsonValueSchema).optional(),
+
+    // Quota-aware preference router (docs/plan/quota-aware-preference-router.md
+    // §6.4). All four keys are Phase 2 knobs; the runtime router stays on
+    // 'scenario' until every phase ships and rollout is bumped >0. Absent
+    // on disk = defaults below (zero behaviour change).
+    //
+    // Which selector routes /v1 traffic:
+    //   'scenario'    — current RouterSlot-based router (default)
+    //   'preference'  — gate-only preference selector (L4)
+    //   'quota-aware' — scheduler-weighted preference selector (L3+L4)
+    ROUTER_MODE: z.enum(['scenario', 'preference', 'quota-aware']).default('scenario'),
+    // Run a second selector in parallel and log its would-be decision
+    // without affecting routing. 'off' disables shadowing.
+    ROUTER_SHADOW: z.enum(['off', 'preference', 'quota-aware']).default('off'),
+    // Percentage (0-100) of sessions the non-scenario ROUTER_MODE
+    // applies to; the rest stay on the scenario router. Session-hash
+    // bucketed so the same session ID always lands in the same bucket.
+    ROUTER_ROLLOUT_PCT: z.coerce.number().int().min(0).max(100).default(100),
+    // Scheduler tick interval. Default 5 min matches the usage-cache
+    // TTL; faster ticks just spin the weight recompute since upstream
+    // /usage endpoints are cached. Lower bound 60s is for
+    // shadow/staging; production should stay >= 300_000.
+    ROUTING_SCHEDULER_INTERVAL_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(300_000)
   })
   // Any other keys we don't know about — keep them, don't drop them.
   .catchall(JsonValueSchema)
@@ -97,6 +126,9 @@ export const ConfigSchema = z.object({
   API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.url(),
   CUSTOM_ROUTER_PATH: z.string().nonempty().optional(),
+  // Display name for the live routing. Optional; UI falls back to the
+  // "Live" i18n label when absent.
+  LiveRoutingName: z.string().optional(),
   // Active persona lives on Router.persona (RouterConfigSchema), not as a
   // top-level field. The persona library stays top-level.
   Personas: z.array(PersonaSchema).default([])
@@ -119,7 +151,11 @@ export const ApplyConfigPayloadSchema = z
     CUSTOM_ROUTER_PATH: EmptyStringToNullSchema.optional(),
     // The active persona arrives nested as Router.persona (RouterSchema,
     // empty string clears); only the persona library is top-level here.
-    Personas: z.array(PersonaSchema).optional()
+    Personas: z.array(PersonaSchema).optional(),
+    // Live routing display name. EmptyStringToNullSchema so the client
+    // can clear it by sending ''; pruneUnsetEnvelopePaths drops null/''
+    // from the on-disk envelope.
+    LiveRoutingName: EmptyStringToNullSchema.optional()
   })
   .catchall(JsonValueSchema)
   .openapi('ApplyConfigPayload')

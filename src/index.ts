@@ -2,9 +2,11 @@ import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
 import { ZodError } from 'zod'
-import { apiKeyAuth } from './api/api-key-auth'
+import { accessLog } from './api/access-log'
+import { apiKeyAuth, openaiBearerAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
+import { healthRoute } from './api/health/route'
 import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
@@ -16,6 +18,10 @@ import { providersRoute } from './api/providers/route'
 import { providersTestRoute } from './api/providers/test/route'
 import { refreshModelsRoute } from './api/refresh-models/route'
 import { requestLogsRoute } from './api/request-logs/route'
+import { routerPreferencesRoute } from './api/router-preferences/route'
+import { routerUtilizationRoute } from './api/router-utilization/route'
+import { routingPresetsRoute } from './api/routing-presets/route'
+import { routingSchedulerStateRoute } from './api/routing-scheduler-state/route'
 import { scrapePricesRoute } from './api/scrape-prices/[vendor]/route'
 import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
@@ -25,10 +31,12 @@ import { usageCostHistoryRoute } from './api/usage/cost/history/route'
 import { usageCostRoute } from './api/usage/cost/route'
 import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
+import { v1ModelsRoute } from './api/v1/models-list'
 import { v1Route } from './api/v1/route'
-import { logger, syncLevelFromEnv } from './logger'
+import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
+import { startRoutingScheduler } from './services/routing-scheduler'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
 import { APP_VERSION } from './version'
@@ -54,7 +62,7 @@ const envelope = await initConfig()
 // Re-apply LOG_LEVEL to the already-initialised logger: the pino
 // instance is constructed at import time before initConfig() has
 // mirrored config.json's LOG_LEVEL onto process.env.
-syncLevelFromEnv()
+syncLoggerFromEnv()
 logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
 // Self-heal subscription providers whose active account binding was
 // orphaned by older toggle code that nulled instead of promoting.
@@ -68,6 +76,11 @@ void startUsageCapture()
 // persist its authStatus so the UI can flag accounts that need
 // re-authentication.
 void startAuthHealthCheck()
+// Routing scheduler (Phase 2 of the quota-aware router). Arms the
+// tick regardless of ROUTER_MODE; the tick body itself no-ops when
+// mode/shadow don't need a snapshot, so a scenario-mode deployment
+// pays no CPU cost beyond an idle setTimeout.
+startRoutingScheduler()
 
 const app = new OpenAPIHono()
 
@@ -81,7 +94,25 @@ const app = new OpenAPIHono()
 // loopback `http://localhost:<port>/callback` pattern. It is therefore
 // naturally outside this gate; CSRF protection lives on the single-use
 // `state` issued at POST /api/oauth/initiate/* (still gated).
+// Access log runs BEFORE apiKeyAuth so 401s from the auth gate are
+// visible too — otherwise a wrong-key probe leaves no trace at all.
+// GET /health mounts BEFORE the auth middleware and BEFORE the SPA
+// catch-all so uptime probes hit a machine-readable JSON body without
+// carrying an APIKEY. Registered here (not inside the /api/* tree) so
+// the outer accessLog / apiKeyAuth don't gate it.
+app.route('/', healthRoute)
+
+app.use('/api/*', accessLog)
+app.use('/v1/*', accessLog)
 app.use('/api/*', apiKeyAuth)
+// OpenAI-compat inbound endpoints: reject `x-api-key` (the Anthropic
+// convention Claude Code sends) so operators aren't tempted to reuse the
+// same key across two auth conventions. Registered BEFORE the /v1/*
+// catch-all so it wins for these paths; the wildcard still covers
+// /v1/messages for Claude Code.
+app.use('/v1/chat/completions', openaiBearerAuth)
+app.use('/v1/responses', openaiBearerAuth)
+app.use('/v1/models', openaiBearerAuth)
 app.use('/v1/*', apiKeyAuth)
 
 app.onError((err, c) => {
@@ -124,8 +155,15 @@ app.route('/', modelTestRoute)
 app.route('/', modelTestAllRoute)
 app.route('/', scrapePricesRoute)
 app.route('/', requestLogsRoute)
+app.route('/', routingPresetsRoute)
+app.route('/', routerPreferencesRoute)
+app.route('/', routerUtilizationRoute)
+app.route('/', routingSchedulerStateRoute)
 app.route('/', oauthRoute)
 
+// OpenAI-compat GET /v1/models — mounted BEFORE v1Route so the wildcard
+// POST handler inside v1Route never has a chance to swallow it.
+app.route('/', v1ModelsRoute)
 // Native /v1/* LLM proxy — drives the llms pipeline without Fastify.
 app.route('/', v1Route)
 

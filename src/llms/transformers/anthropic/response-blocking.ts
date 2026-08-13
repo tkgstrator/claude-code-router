@@ -7,7 +7,8 @@ import { HTTPException } from 'hono/http-exception'
 import type { ChatCompletion } from 'openai/resources'
 import type { Logger } from 'pino'
 import { v4 } from 'uuid'
-import { computeUsage, mapFinishReason } from './response-shared'
+import { openaiToAnthropicStopReason } from '../../utils/finish-reason'
+import { computeUsage } from './response-shared'
 
 // Structural guard for the subset of `ChatCompletion` fields this
 // transformer reads. We accept the upstream payload as `unknown` and
@@ -183,7 +184,7 @@ export function convertOpenAIResponseToAnthropic(
       role: 'assistant',
       model: openaiResponse.model,
       content,
-      stop_reason: mapFinishReason(choice.finish_reason),
+      stop_reason: openaiToAnthropicStopReason(choice.finish_reason),
       stop_sequence: null,
       usage
     }

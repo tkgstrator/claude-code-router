@@ -32,6 +32,19 @@ export async function ensureRouterSlots(prisma: PrismaClient = getPrismaClient()
   )
 }
 
+// Seed the singleton preference profile (docs/plan/quota-aware-preference-router.md
+// §6.3). Idempotent — upserts by the unique `key = 'live'` discriminator.
+// `constraints` stays NULL until the user (or a migration) populates it;
+// the schema layer treats missing constraints as "all defaults", so a
+// null constraint blob is the safe zero-config starting state.
+export async function ensurePreferenceProfile(prisma: PrismaClient = getPrismaClient()): Promise<void> {
+  await prisma.routerPreferenceProfile.upsert({
+    where: { key: 'live' },
+    update: {},
+    create: { key: 'live' }
+  })
+}
+
 // First-run convenience: populate the Provider table from the
 // llm-prices snapshot so the UI's Add-Provider dropdown and the catalog
 // of available models are non-empty out of the box. api_key is left

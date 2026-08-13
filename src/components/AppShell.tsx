@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   CircleArrowUp,
   Coins,
   CreditCard,
@@ -8,11 +9,12 @@ import {
   Gauge,
   Languages,
   LayoutDashboard,
+  ListOrdered,
   MessagesSquare,
   Moon,
-  Save,
   Server,
   Settings,
+  Sliders,
   Sun,
   Waypoints
 } from 'lucide-react'
@@ -74,6 +76,9 @@ const NAV_GROUPS = [
     labelKey: 'nav.group.routing',
     items: [
       { to: '/routing-map', icon: Waypoints, key: 'nav.routingMap' },
+      { to: '/router-preferences', icon: ListOrdered, key: 'nav.routerPreferences' },
+      { to: '/router-tiers', icon: Sliders, key: 'nav.routerTiers' },
+      { to: '/router-utilization', icon: BarChart3, key: 'nav.routerUtilization' },
       { to: '/personas', icon: Drama, key: 'nav.personas' }
     ]
   },
@@ -152,27 +157,6 @@ export function AppShell() {
     if (type === 'success') sonnerToast.success(message)
     else if (type === 'error') sonnerToast.error(message)
     else sonnerToast.warning(message)
-  }
-
-  const saveConfig = async () => {
-    if (!config) {
-      showToast(t('app.config_missing'), 'error')
-      return
-    }
-    try {
-      const response = await api.updateConfig(config)
-      if (response && typeof response === 'object' && 'success' in response) {
-        const apiResponse = response as { success: boolean; message?: string }
-        showToast(
-          apiResponse.message || t(apiResponse.success ? 'app.config_saved_success' : 'app.config_saved_failed'),
-          apiResponse.success ? 'success' : 'error'
-        )
-      } else {
-        showToast(t('app.config_saved_success'), 'success')
-      }
-    } catch (err) {
-      showToast(`${t('app.config_saved_failed')}: ${(err as Error).message}`, 'error')
-    }
   }
 
   const checkForUpdates = useCallback(
@@ -295,8 +279,8 @@ export function AppShell() {
         <AppSidebar />
         <SidebarInset>
           {/* px-6 matches PageHeader/PageContent gutters so the global header
-              actions (Save) line up with the page header actions (e.g. Sync)
-              and the page content's edges. */}
+              actions line up with the page header actions (e.g. Sync) and
+              the page content's edges. */}
           <header className='flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-6'>
             <SidebarTrigger />
             <div className='flex items-center gap-2'>
@@ -343,10 +327,6 @@ export function AppShell() {
                   <TooltipContent>{t('app.check_updates')}</TooltipContent>
                 </Tooltip>
               )}
-              <Button onClick={saveConfig} variant='outline'>
-                <Save className='mr-2 h-4 w-4' />
-                {t('app.save')}
-              </Button>
             </div>
           </header>
           <main className='flex-1 overflow-auto'>

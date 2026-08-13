@@ -16,10 +16,15 @@ import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
-import { RoutingMap } from '@/components/RoutingMap'
+import { RouterPreferences } from '@/components/RouterPreferences'
+import { RouterUtilization } from '@/components/RouterUtilization'
+import { RoutingLibrary } from '@/components/RoutingLibrary'
+import { RoutingLiveEditor } from '@/components/RoutingLiveEditor'
+import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
 import { SessionsPage } from '@/components/Sessions'
 import { SettingsPage } from '@/components/SettingsPage'
 import { Subscriptions } from '@/components/Subscriptions'
+import { TierEditor } from '@/components/TierEditor'
 import { Transformers } from '@/components/Transformers'
 import { Usage } from '@/components/Usage'
 
@@ -56,7 +61,12 @@ export const router = createBrowserRouter([
           { path: '/models', element: fullHeight(<ModelsDashboard />) },
           { path: '/providers', element: fullHeight(<Providers />) },
           { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
-          { path: '/routing-map', element: fullHeight(<RoutingMap />) },
+          { path: '/routing-map', element: fullHeight(<RoutingLibrary />) },
+          { path: '/routing-map/live', element: fullHeight(<RoutingLiveEditor />) },
+          { path: '/routing-map/preset/:id', element: fullHeight(<RoutingPresetEditor />) },
+          { path: '/router-preferences', element: fullHeight(<RouterPreferences />) },
+          { path: '/router-utilization', element: fullHeight(<RouterUtilization />) },
+          { path: '/router-tiers', element: fullHeight(<TierEditor />) },
           { path: '/transformers', element: fullHeight(<Transformers />) },
           { path: '/usage', element: fullHeight(<Usage />) },
           { path: '/cost', element: fullHeight(<ApiCost />) },

@@ -1,0 +1,91 @@
+/**
+ * Persona injection is an Anthropic-idiom convenience — it belongs on
+ * /v1/messages (Claude Code) but must NOT run on the OpenAI-compat
+ * inbound surfaces (/v1/chat/completions, /v1/responses). Leaking a
+ * top-level `system` field into an OpenAI-shape body causes strict
+ * upstreams (codex) to 400 with `Unsupported parameter: system`, and
+ * even lax upstreams (openai chat) see a field the wire format
+ * doesn't model.
+ *
+ * These tests exercise routeScenario directly with an inboundPath and
+ * assert `body.system` (the field the pipeline actually reads for
+ * persona) is only touched on the Anthropic path.
+ */
+
+import { describe, expect, test } from 'bun:test'
+import { routeScenario } from '../../src/llms/scenario-router'
+import type { RouterRequest } from '../../src/llms/scenario-router/types'
+import { ConfigStore } from '../../src/llms/registry/config'
+import { TokenizerRegistry } from '../../src/llms/registry/tokenizer'
+import pino from 'pino'
+
+const log = pino({ level: 'silent' })
+
+async function runRouter(path: string | undefined, body: Record<string, unknown>): Promise<RouterRequest> {
+  const config = new ConfigStore({
+    Providers: [
+      {
+        name: 'anthropic',
+        auth_mode: 'api_key',
+        api_key: 'sk-x',
+        api_base_url: 'https://api.anthropic.com/v1/messages',
+        models: ['claude-sonnet-5']
+      }
+    ],
+    providers: [
+      {
+        name: 'anthropic',
+        auth_mode: 'api_key',
+        api_key: 'sk-x',
+        api_base_url: 'https://api.anthropic.com/v1/messages',
+        models: ['claude-sonnet-5']
+      }
+    ],
+    Personas: [
+      { id: 'p1', name: 'brief', prompt: 'You are terse.' }
+    ],
+    Router: {
+      persona: 'p1',
+      default: 'anthropic,claude-sonnet-5'
+    }
+  })
+  const tokenizers = new TokenizerRegistry(log)
+  await tokenizers.initialize()
+  const req: RouterRequest = {
+    body: { ...body, model: 'anthropic,claude-sonnet-5' } as RouterRequest['body'],
+    log,
+    inboundPath: path
+  }
+  await routeScenario(req, { config, tokenizers })
+  return req
+}
+
+describe('routeScenario — persona gate', () => {
+  test('applies persona on /v1/messages (Anthropic inbound)', async () => {
+    const req = await runRouter('/v1/messages', { messages: [{ role: 'user', content: 'hi' }] })
+    expect(req.body.system).toBe('You are terse.')
+  })
+
+  test('does NOT touch body.system on /v1/chat/completions (OpenAI inbound)', async () => {
+    const req = await runRouter('/v1/chat/completions', { messages: [{ role: 'user', content: 'hi' }] })
+    expect(req.body.system).toBeUndefined()
+  })
+
+  test('does NOT touch body.system on /v1/responses (OpenAI inbound)', async () => {
+    const req = await runRouter('/v1/responses', { input: 'hi' })
+    expect(req.body.system).toBeUndefined()
+  })
+
+  test('missing inboundPath (test/legacy callers) still applies persona — backward compat', async () => {
+    const req = await runRouter(undefined, { messages: [{ role: 'user', content: 'hi' }] })
+    expect(req.body.system).toBe('You are terse.')
+  })
+
+  test('composes with caller-supplied Anthropic system when active', async () => {
+    const req = await runRouter('/v1/messages', {
+      messages: [{ role: 'user', content: 'hi' }],
+      system: 'Existing prefix.'
+    })
+    expect(req.body.system).toBe('Existing prefix.\n\nYou are terse.')
+  })
+})

@@ -173,6 +173,28 @@ async function syncDeprecationFlags(p: ProviderRow, allCurrentNames: string[]): 
   }
 }
 
+// Ask the vendor to look up per-model contextWindow from its docs pages
+// for every id CCR knows about (DB rows ∪ freshly-added rows). Runs
+// regardless of whether the pricing scrape or /v1/models returned
+// anything — subscription providers with an empty live catalog still
+// get their existing rows' context refreshed. Values the vendor returns
+// overwrite the current DB value; missing ids are left alone.
+async function refreshContextWindows(p: ProviderRow, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0
+  const provider = getVendorProvider(p.name)
+  if (provider === undefined) return 0
+  const contexts = await provider.fetchContextWindows(ids)
+  if (contexts.size === 0) return 0
+  const prisma = getPrismaClient()
+  for (const [name, contextWindow] of contexts) {
+    await prisma.model.update({
+      where: { providerId_name: { providerId: p.id, name } },
+      data: { contextWindow }
+    })
+  }
+  return contexts.size
+}
+
 // Reconcile one Provider's models against the union of the /v1/models
 // live list and the vendor's scraped catalog. Returns the outcome to
 // report to the UI.
@@ -180,11 +202,6 @@ async function refreshOneProvider(p: ProviderRow, catalog: VendorCatalog): Promi
   const prisma = getPrismaClient()
   const live = await fetchLiveCatalog(p)
   const desired = new Set<string>([...catalog.scraped.map((s) => s.apiId), ...live.ids])
-  if (desired.size === 0) {
-    const errorMsg = live.error === undefined ? 'no upstream catalog available' : live.error
-    return { provider: p.name, added: [], error: errorMsg }
-  }
-
   const existing = new Set(p.models.map((m) => m.name))
   const toAdd = [...desired].filter((id) => !existing.has(id))
   const defaults = subscriptionDefaultsById(p.name)
@@ -199,11 +216,22 @@ async function refreshOneProvider(p: ProviderRow, catalog: VendorCatalog): Promi
   await applyScrapedPrices(p, catalog, existing)
   await syncDeprecationFlags(p, [...existing, ...toAdd])
 
+  // Contextwindow refresh runs against DB rows ∪ freshly added, so a
+  // subscription provider with no pricing/live catalog still gets its
+  // existing rows' context refreshed against the vendor's per-model
+  // docs pages.
+  const contextsUpdated = await refreshContextWindows(p, Array.from(new Set([...existing, ...toAdd])))
+
   // Report `error` only when NOTHING was accomplished. A subscription
-  // provider that picked up new models via scrape shouldn't be flagged
-  // just because it has no api key.
-  const succeeded = toAdd.length > 0 || catalog.scraped.length > 0
-  return { provider: p.name, added: toAdd, error: succeeded ? undefined : live.error }
+  // provider that picked up new models via scrape (or refreshed the
+  // contextWindow of existing ones) shouldn't be flagged just because
+  // it has no api key.
+  const succeeded = toAdd.length > 0 || catalog.scraped.length > 0 || contextsUpdated > 0
+  if (!succeeded) {
+    const errorMsg = live.error === undefined ? 'no upstream catalog available' : live.error
+    return { provider: p.name, added: [], error: errorMsg }
+  }
+  return { provider: p.name, added: toAdd, error: undefined }
 }
 
 // Which scrape bucket to consult for a given Provider. Subscription

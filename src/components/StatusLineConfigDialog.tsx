@@ -4,6 +4,7 @@ import { SelectCombobox as Combobox } from '@/components/SelectCombobox'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { api } from '@/lib/api'
 import { MODULE_TYPES, NERD_FONTS } from '@/lib/statusline/constants'
 import { buildHexColorCss, collectHexBackgroundColors } from '@/lib/statusline/hex-colors'
 import {
@@ -94,7 +95,7 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
 
   const [validationErrors, setValidationErrors] = useState<string[]>([])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Validate the configuration
     const validationResult = validateStatusLineConfig(statusLineConfig)
 
@@ -109,14 +110,16 @@ export function StatusLineConfigDialog({ isOpen, onOpenChange }: StatusLineConfi
     setValidationErrors([])
 
     if (config) {
-      setConfig({
+      const nextConfig = {
         ...config,
         StatusLine: {
           ...statusLineConfig,
           fontFamily
         }
-      })
+      }
+      setConfig(nextConfig)
       onOpenChange(false)
+      await api.updateConfig(nextConfig)
     }
   }
 

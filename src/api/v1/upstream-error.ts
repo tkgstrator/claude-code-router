@@ -10,6 +10,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
+import { buildErrorEnvelope, type ErrorShape, parseUpstreamBody } from './error-shape'
 
 // sendToProvider throws an HTTPException with the exact message
 // "Error from provider(<name>,<model>: <status>): <rawBody>" so the
@@ -18,15 +19,24 @@ import { HTTPException } from 'hono/http-exception'
 const PROVIDER_ERR_RE = /^Error from provider\([^)]*:\s*(\d+)\):\s*([\s\S]*)$/
 
 // Repackage the parsed provider error as a real Response the client can
-// receive. Returns null when the error is not the provider-shaped one
-// (caller should treat as a pipeline error and surface a generic 5xx).
-export function forwardUpstreamError(err: unknown): Response | null {
+// receive. `shape` chooses the wire envelope so an OpenAI SDK caller on
+// /v1/chat/completions gets `{error:{message,type,code,param}}` even
+// when the upstream returned codex's `{detail:"..."}` or anthropic's
+// `{type:'error',error:{...}}`. Returns null when the error is not the
+// provider-shaped one (caller should treat as a pipeline error and
+// surface a generic 5xx).
+export function forwardUpstreamError(err: unknown, shape: ErrorShape = 'anthropic'): Response | null {
   if (!(err instanceof HTTPException)) return null
   const message = err.message
   const m = message.match(PROVIDER_ERR_RE)
   if (!m) return null
   const status = Number(m[1]) || err.status || 502
-  return new Response(m[2], { status, headers: { 'content-type': 'application/json' } })
+  const parsed = parseUpstreamBody(m[2])
+  const envelope = buildErrorEnvelope({ shape, status, from: parsed })
+  return new Response(JSON.stringify(envelope), {
+    status,
+    headers: { 'content-type': 'application/json' }
+  })
 }
 
 // Upstream statuses that mean "this model can't serve right now, move to

@@ -20,7 +20,20 @@ const LOG_DIR = path.join(HOME_DIR, 'logs')
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
 
-const env = LoggerEnvSchema.parse(process.env)
+// Env-driven logger state re-derived from process.env. Kept behind a
+// mutable holder so `syncLoggerFromEnv()` can refresh it whenever the
+// disk envelope changes (a UI save re-parses config.json into
+// process.env via applyEnvelopeToEnv). Without this, LOG (file-output
+// gate) and LOG_MAX_MB (rotation size) freeze at boot and no UI edit
+// takes effect until the server restarts.
+const runtimeConfig = {
+  env: LoggerEnvSchema.parse(process.env),
+  // Derived from env.LOG_MAX_MB; refreshed alongside env by
+  // syncLoggerFromEnv so a UI change of LOG_MAX_MB re-sizes the
+  // rotation cap without a restart.
+  logMaxBytes: 0
+}
+runtimeConfig.logMaxBytes = runtimeConfig.env.LOG_MAX_MB * 1024 * 1024
 
 const SIMPLE_REDACT_KEYS = [
   'authorization',
@@ -66,8 +79,9 @@ try {
 // grows past LOG_MAX_MB, subsequent writes go to `ccr-YYYY-MM-DD-N.log`
 // with an incrementing suffix, so a single busy day produces a series
 // of digestible files instead of one multi-hundred-MB blob. A restart
-// mid-day resumes at the highest existing suffix.
-const LOG_MAX_BYTES = env.LOG_MAX_MB * 1024 * 1024
+// mid-day resumes at the highest existing suffix. The cap itself lives
+// on runtimeConfig.logMaxBytes so a UI change of LOG_MAX_MB takes
+// effect on the next line write.
 
 const rotationState = {
   date: '',
@@ -94,10 +108,10 @@ const ensureRotationForDate = (date: string): void => {
 
 const fileStream = {
   write(line: string): void {
-    if (!env.LOG) return
+    if (!runtimeConfig.env.LOG) return
     const date = dayjs().format('YYYY-MM-DD')
     ensureRotationForDate(date)
-    if (rotationState.bytes + line.length > LOG_MAX_BYTES) {
+    if (rotationState.bytes + line.length > runtimeConfig.logMaxBytes) {
       rotationState.seq++
       rotationState.bytes = 0
     }
@@ -121,7 +135,7 @@ const consoleStream = pinoPretty({
 
 // Plain combined stream instead of pino.multistream: multistream fixes its
 // internal minLevel at construction time, so logger.level changes made after
-// creation (e.g. syncLevelFromEnv) are silently ignored. A plain write()
+// creation (e.g. syncLoggerFromEnv) are silently ignored. A plain write()
 // shim delegates entirely to pino's own level gate, which IS updated by
 // logger.level assignments.
 const combinedStream = {
@@ -133,7 +147,7 @@ const combinedStream = {
 
 export const logger = pino(
   {
-    level: env.LOG_LEVEL,
+    level: runtimeConfig.env.LOG_LEVEL,
     base: null,
     messageKey: 'msg',
     redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
@@ -148,15 +162,23 @@ export const logger = pino(
   combinedStream
 )
 
-// Called from src/index.ts after initConfig() applies the config.json
-// envelope to process.env — the logger is initialised at import time
-// before the envelope is loaded, so the level must be re-applied once
-// it is known.
-export const syncLevelFromEnv = () => {
+// Refresh every env-driven bit of logger state (LOG_LEVEL / LOG /
+// LOG_MAX_MB) from the current process.env. Called from src/index.ts
+// after initConfig() first mirrors config.json onto process.env, and
+// again from applyUiConfig() after a UI save updates the envelope so
+// changes take effect without a server restart. Both the pino level
+// gate and the file-write / rotation gates read runtimeConfig on every
+// line, so re-parsing here is enough to make them reactive.
+export const syncLoggerFromEnv = () => {
+  runtimeConfig.env = LoggerEnvSchema.parse(process.env)
+  runtimeConfig.logMaxBytes = runtimeConfig.env.LOG_MAX_MB * 1024 * 1024
   const raw = process.env.LOG_LEVEL ?? ''
   const valid = ['fatal', 'error', 'warn', 'info', 'debug', 'trace']
   if (valid.includes(raw)) logger.level = raw
-  logger.info({ LOG_LEVEL: logger.level, LOG: env.LOG, LOG_MAX_MB: env.LOG_MAX_MB }, 'log config applied')
+  logger.info(
+    { LOG_LEVEL: logger.level, LOG: runtimeConfig.env.LOG, LOG_MAX_MB: runtimeConfig.env.LOG_MAX_MB },
+    'log config applied'
+  )
 }
 
 export { LOG_DIR }

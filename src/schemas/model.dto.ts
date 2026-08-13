@@ -46,10 +46,30 @@ export const ModelTestAllResponseSchema = z
   })
   .openapi('ModelTestAllResponse')
 
-// PATCH /api/providers/:name/models/:model
+// PATCH /api/providers/:name/models/:model. Every field is optional
+// so the caller can send just the slice it wants to change. `enabled`
+// stays required-shaped for back-compat; the route handler treats
+// missing fields as "no change".
 export const UpdateModelBodySchema = z.object({
-  enabled: z.boolean()
+  enabled: z.boolean().optional(),
+  // Manual tier override consumed by the quota-aware selector. Send
+  // one of the four canonical tiers to set, or null to clear the
+  // override (fall back to name inference). Omit the field entirely
+  // to leave the current value untouched.
+  manualTier: z.enum(['fable', 'opus', 'sonnet', 'haiku']).nullable().optional(),
+  // Manual reasoning-effort override for OpenAI / OpenAI-Responses /
+  // Codex models. null clears the override (vendor default = medium);
+  // omit to leave the current value untouched. Enum mirrors the values
+  // the OpenAI OpenAPI spec accepts — not every reasoning model supports
+  // every value, but the transformer passes through and 400s surface as
+  // upstream errors, not schema violations.
+  reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).nullable().optional()
 })
+
+export const ReasoningEffortSchema = z
+  .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+  .openapi('ReasoningEffort')
+export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
 
 export const UpdateModelSuccessResponseSchema = z
   .object({ success: z.literal(true) })

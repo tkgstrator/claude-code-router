@@ -23,6 +23,7 @@ import {
   type Transformer
 } from '../../llms'
 import { isModelExhausted } from '../../services/failover-state'
+import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
 
 // ─── Reasoning-effort normalisation ────────────────────────────────────
 
@@ -141,10 +142,11 @@ export interface ResolvedInvocation {
 export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Response | RoutePlan> {
   const url = new URL(c.req.url)
   const path = url.pathname
+  const shape = errorShapeForPath(path)
 
   const transformersByName = endpointTransformerMap(ctx).get(path)
   if (!transformersByName) {
-    return c.json({ type: 'error', error: { type: 'not_found', message: `No handler for ${path}` } }, 404)
+    return c.json(buildErrorEnvelope({ shape, status: 404, from: `No handler for ${path}` }), 404)
   }
   // First registered transformer at this endpoint; resolveInvocationForModel
   // may swap it per-model if the routed-to provider has a bypass single-use.
@@ -152,13 +154,7 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
 
   const bodyParsed = RecordSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!bodyParsed.success) {
-    return c.json(
-      {
-        type: 'error',
-        error: { type: 'invalid_request', message: 'Request body must be a JSON object' }
-      },
-      400
-    )
+    return c.json(buildErrorEnvelope({ shape, status: 400, from: 'Request body must be a JSON object' }), 400)
   }
   const body = bodyParsed.data
   const headers: Record<string, string> = {}
@@ -176,14 +172,40 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
   const routeReq: RouterRequest = {
     body: body as PipelineRequest['body'] & { model: string },
     log: ctx.log,
-    sessionId: undefined
+    sessionId: undefined,
+    // The scenario router uses this to gate Anthropic-idiom mutations
+    // (persona injection etc.) so OpenAI-compat callers on
+    // /v1/chat/completions and /v1/responses get the exact request
+    // they sent rather than one enriched for Claude Code.
+    inboundPath: path
   }
   await routeScenario(routeReq, { config: ctx.config, tokenizers: ctx.tokenizers })
   const scenarioType: ScenarioType = routeReq.scenarioType !== undefined ? routeReq.scenarioType : 'default'
 
+  // Phase 4: quota-aware selector exhausted all candidates and the
+  // profile's `exhaustedBehavior` is '429'. Return the rate-limit
+  // response verbatim so no upstream dispatch happens. `Retry-After`
+  // carries the seconds until the earliest binding-window reset.
+  const retryAfter = routeReq.quotaExhaustedRetryAfterSec
+  if (typeof retryAfter === 'number' && retryAfter > 0) {
+    return new Response(
+      JSON.stringify(
+        buildErrorEnvelope({
+          shape,
+          status: 429,
+          from: 'Preference chain exhausted; retry after the window resets.'
+        })
+      ),
+      {
+        status: 429,
+        headers: { 'content-type': 'application/json', 'Retry-After': String(retryAfter) }
+      }
+    )
+  }
+
   const primaryModel = typeof body.model === 'string' ? body.model : ''
   if (primaryModel.length === 0) {
-    return c.json({ type: 'error', error: { type: 'invalid_request', message: 'Missing model in request body' } }, 400)
+    return c.json(buildErrorEnvelope({ shape, status: 400, from: 'Missing model in request body' }), 400)
   }
 
   return {

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { PresetDetail } from '@/lib/presets/types'
-import { DynamicConfigForm } from '../preset/DynamicConfigForm'
+import { DynamicConfigForm } from './DynamicConfigForm'
 
 interface PresetDetailDialogProps {
   open: boolean

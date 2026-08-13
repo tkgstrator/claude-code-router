@@ -6,6 +6,7 @@
 
 import type { Provider } from '@/schemas'
 import { AuthMode, type Model as DbModel, type Provider as DbProvider } from '../../../generated/prisma/client'
+import { apiStyleForVendor } from '../api-style'
 import type { Tx } from '../apply'
 import { apiKeyForStorage, buildStoredTransformer } from './fields'
 import { applyModelEnabledFlips, reconcileModelRows } from './model-rows'
@@ -56,12 +57,19 @@ export async function applyProviders(tx: Tx, incoming: Provider[], warnings: str
     )
     const storedTransformer = buildStoredTransformer(inc)
     const apiKey = apiKeyForStorage(inc.api_key)
+    // Provider request shape is derived from the vendor name (single source
+    // of truth in apiStyleForVendor). Written on every upsert so newly-
+    // created rows don't fall through to the DB default (openai_chat) —
+    // that default breaks subscription / anthropic / gemini providers,
+    // which route through vendor-specific probes gated on apiStyle.
+    const apiStyle = apiStyleForVendor(inc.name)
     const provider = await tx.provider.upsert({
       where: { name: inc.name },
       update: {
         apiBaseUrl: inc.api_base_url,
         apiKey,
         authMode,
+        apiStyle,
         transformer: storedTransformer
       },
       create: {
@@ -69,6 +77,7 @@ export async function applyProviders(tx: Tx, incoming: Provider[], warnings: str
         apiBaseUrl: inc.api_base_url,
         apiKey,
         authMode,
+        apiStyle,
         transformer: storedTransformer
       },
       include: { models: true }

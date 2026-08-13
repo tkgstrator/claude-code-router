@@ -14,7 +14,13 @@ import { readConfigFile, writeConfigFile } from './envelope'
 // the wire (see composeUiConfig); on disk we represent unset as the key
 // being absent rather than persisting an explicit null or '' — the next
 // composeUiConfig re-derives null from absence. A real value is kept.
-export const OPTIONAL_ENVELOPE_PATHS = ['CLAUDE_PATH', 'PROXY_URL', 'CUSTOM_ROUTER_PATH', 'ActivePersona'] as const
+export const OPTIONAL_ENVELOPE_PATHS = [
+  'CLAUDE_PATH',
+  'PROXY_URL',
+  'CUSTOM_ROUTER_PATH',
+  'ActivePersona',
+  'LiveRoutingName'
+] as const
 
 export const pruneUnsetEnvelopePaths = (envelope: Record<string, unknown>): Record<string, unknown> => {
   const out: Record<string, unknown> = { ...envelope }

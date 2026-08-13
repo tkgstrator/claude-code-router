@@ -17,6 +17,7 @@ import type {
   PipelineToolCall
 } from '@/schemas'
 import { GeminiStreamChunkSchema } from '@/schemas'
+import { cloneResponse } from '../response-clone'
 import {
   buildAnnotations,
   lowercaseFinishReason,
@@ -359,9 +360,5 @@ export function transformStreamingResponse(response: Response, providerName: str
     }
   })
 
-  return new Response(stream, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers
-  })
+  return cloneResponse(response, stream)
 }

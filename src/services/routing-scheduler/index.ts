@@ -1,0 +1,351 @@
+/**
+ * Routing scheduler tick loop (Phase 2d).
+ *
+ * In-process `setTimeout` chain — not BullMQ — because:
+ *   1. the snapshot lives in process memory; there's no reason to run
+ *      the tick anywhere else,
+ *   2. Redis-death must not block routing decisions,
+ *   3. 5min–1h cadence is well inside a single Node/Bun process's
+ *      reliability budget.
+ *
+ * The chain is drift-corrected: each tick reschedules itself relative
+ * to `dayjs().valueOf()`, so a slow tick doesn't compound. A globalThis
+ * flag makes the start idempotent under Vite HMR / SSR re-evaluation.
+ *
+ * The tick body is fully try/caught. On failure `consecutiveFailures`
+ * increments and the previous snapshot stays published — routing never
+ * blocks because compute threw. Test hooks: `runSchedulerTickForTest()`
+ * runs one tick synchronously without arming the timer.
+ */
+
+import { getPrismaClient } from '../../db/client'
+import type { PrismaClient } from '../../generated/prisma/client'
+import dayjs from '../../lib/dayjs'
+import { logger } from '../../logger'
+import { type QuotaAwareConstraints, QuotaAwareConstraintsSchema } from '../../schemas'
+import { loadRouterPreferences } from '../router-preference-service'
+import { refreshQuotaSnapshots } from './collector'
+import { computeWeights } from './compute'
+import {
+  getRoutingSnapshot,
+  publishSnapshot,
+  recordWeightChanges,
+  __resetSchedulerStateForTest as resetStateForTest
+} from './state'
+import type {
+  AccountQuotaState,
+  AccountQuotaView,
+  ModelCandidateState,
+  QuotaWindowState,
+  RoutingSnapshot,
+  SchedulerInputState
+} from './types'
+
+const DEFAULT_TICK_MS = 300_000 // 5 min, matches plan doc §6.4 default
+const USAGE_CACHE_TTL_MS = 5 * 60 * 1000 // must match usage-service/cache.ts
+
+declare global {
+  var __ccrRoutingSchedulerStarted: boolean | undefined
+  var __ccrRoutingSchedulerTimer: ReturnType<typeof setTimeout> | undefined
+}
+
+let consecutiveFailures = 0
+let consecutiveHolds = 0
+let tickCount = 0
+
+const readIntervalMs = (): number => {
+  const raw = process.env.ROUTING_SCHEDULER_INTERVAL_MS
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
+  return Number.isFinite(parsed) && parsed >= 60_000 ? parsed : DEFAULT_TICK_MS
+}
+
+const readMode = (): 'scenario' | 'preference' | 'quota-aware' => {
+  const raw = process.env.ROUTER_MODE ?? 'scenario'
+  if (raw === 'preference' || raw === 'quota-aware') return raw
+  return 'scenario'
+}
+
+const readShadow = (): 'off' | 'preference' | 'quota-aware' => {
+  const raw = process.env.ROUTER_SHADOW ?? 'off'
+  if (raw === 'preference' || raw === 'quota-aware') return raw
+  return 'off'
+}
+
+const shouldRunTick = (): boolean => {
+  // The tick is only useful for quota-aware selection (either primary
+  // or shadow). Preference-only mode uses cached usage directly and
+  // doesn't need the scheduler-owned weight snapshot.
+  return readMode() === 'quota-aware' || readShadow() === 'quota-aware'
+}
+
+// Convert a DB quota row into the in-memory window shape. Missing
+// values collapse to undefined so `computeWeights` can distinguish
+// "no data" from "zero remaining".
+const windowFromDb = (
+  used: number | null,
+  limit: number | null,
+  resetAt: Date | null,
+  windowSeconds: number | null
+): QuotaWindowState | undefined => {
+  if (used === null || limit === null) return undefined
+  return {
+    used,
+    limit,
+    resetAt: resetAt === null ? null : resetAt.valueOf(),
+    windowLengthMs: windowSeconds === null ? null : windowSeconds * 1000
+  }
+}
+
+interface LoadedState {
+  candidates: Map<string, ModelCandidateState>
+  accounts: AccountQuotaView[]
+}
+
+// Build the per-candidate state map by joining preference targets to
+// Model → Provider → SubAccount(quota) rows. Every preference entry
+// is preserved; targets whose model has no accounts (or the model is
+// gone entirely) still get an empty `accounts` array so the compute
+// function can attach `no_quota_kind` / `unknown_budget`.
+async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
+  const preferences = await loadRouterPreferences(prisma)
+  const providers = await prisma.provider.findMany({
+    include: {
+      models: true,
+      subscriptionAccounts: { include: { quota: true } }
+    }
+  })
+  const modelIndex = new Map<string, { providerName: string; kind: 'claude' | 'codex' | null }>()
+  const accountsByProvider = new Map<string, AccountQuotaState[]>()
+  const accountViews: AccountQuotaView[] = []
+  for (const p of providers) {
+    const kind: 'claude' | 'codex' | null =
+      p.authMode === 'subscription' ? (p.name.toLowerCase().includes('codex') ? 'codex' : 'claude') : null
+    for (const m of p.models) modelIndex.set(`${p.name},${m.name}`, { providerName: p.name, kind })
+    if (kind === null) continue
+    const accts: AccountQuotaState[] = []
+    for (const a of p.subscriptionAccounts) {
+      const q = a.quota
+      const fiveHour =
+        q === null
+          ? undefined
+          : windowFromDb(q.fiveHourUsed, q.fiveHourLimit, q.fiveHourResetAt, q.fiveHourWindowSeconds)
+      const weekly =
+        q === null ? undefined : windowFromDb(q.weeklyUsed, q.weeklyLimit, q.weeklyResetAt, q.weeklyWindowSeconds)
+      const refreshedAt = q?.quotaRefreshedAt ? q.quotaRefreshedAt.valueOf() : null
+      accts.push({
+        subAccountId: a.id,
+        kind,
+        providerName: p.name,
+        fiveHour,
+        weekly,
+        refreshedAt
+      })
+      accountViews.push({
+        subAccountId: a.id,
+        providerName: p.name,
+        kind,
+        fiveHour: fiveHour ?? null,
+        weekly: weekly ?? null,
+        refreshedAt,
+        stale: false // recomputed below with `now`
+      })
+    }
+    accountsByProvider.set(p.name, accts)
+  }
+
+  const candidates = new Map<string, ModelCandidateState>()
+  // Union targets across every scenario's chain — the snapshot's
+  // weight map is keyed by target regardless of scenario, so each
+  // unique target gets one candidate entry. Per-scenario rank is
+  // reapplied by the selector at request time.
+  const seenTargets = new Set<string>()
+  for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
+    for (const entry of preferences.entriesByScenario[scenario]) {
+      if (seenTargets.has(entry.target)) continue
+      seenTargets.add(entry.target)
+      const info = modelIndex.get(entry.target)
+      if (info === undefined) {
+        candidates.set(entry.target, {
+          target: entry.target,
+          providerName: '',
+          modelName: '',
+          accounts: [],
+          errorRate: 0
+        })
+        continue
+      }
+      const modelName = entry.target.slice(info.providerName.length + 1)
+      candidates.set(entry.target, {
+        target: entry.target,
+        providerName: info.providerName,
+        modelName,
+        accounts: accountsByProvider.get(info.providerName) ?? [],
+        errorRate: 0 // Phase 2e will fill from the model-health tracker
+      })
+    }
+  }
+
+  return { candidates, accounts: accountViews }
+}
+
+const resolveConstraints = (raw: unknown): QuotaAwareConstraints => {
+  const parsed = QuotaAwareConstraintsSchema.safeParse(raw ?? {})
+  return parsed.success ? parsed.data : QuotaAwareConstraintsSchema.parse({})
+}
+
+// Compute the earliest reset time across every candidate whose weight
+// is zero — the Retry-After source for the all-exhausted branch.
+const soonestResetOf = (weights: readonly { weight: number; earliestResetAt: number | null }[]): number | null => {
+  let soonest: number | null = null
+  for (const w of weights) {
+    if (w.weight > 0) continue
+    if (w.earliestResetAt === null) continue
+    if (soonest === null || w.earliestResetAt < soonest) soonest = w.earliestResetAt
+  }
+  return soonest
+}
+
+// The whole tick body — extracted so the test hook can run it without
+// starting a timer.
+export async function runSchedulerTickForTest(prismaOverride?: PrismaClient): Promise<RoutingSnapshot | null> {
+  const prisma = prismaOverride ?? getPrismaClient()
+  try {
+    const now = dayjs().valueOf()
+    await refreshQuotaSnapshots(undefined, prisma)
+    const { candidates, accounts } = await loadCandidateState(prisma)
+    const preferences = await loadRouterPreferences(prisma)
+    const previous = getRoutingSnapshot()
+    const previousWeights = previous === null ? null : previous.weights
+    const constraints = resolveConstraints(preferences.constraints)
+    // Union preferences across all scenarios into a single virtual
+    // chain for compute purposes: the snapshot exposes one weight per
+    // unique target and the selector reapplies per-scenario ordering.
+    // Rank uses the best (lowest) priority the target holds anywhere.
+    const seen = new Map<string, { priority: number; enabled: boolean; subagentTiers: string[] }>()
+    for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
+      for (const entry of preferences.entriesByScenario[scenario]) {
+        const prev = seen.get(entry.target)
+        if (prev === undefined || entry.priority < prev.priority) {
+          seen.set(entry.target, {
+            priority: entry.priority,
+            enabled: entry.enabled || (prev?.enabled ?? false),
+            subagentTiers: entry.subagentTiers.map((t) => t)
+          })
+        }
+      }
+    }
+    const unionEntries = [...seen.entries()]
+      .sort((a, b) => a[1].priority - b[1].priority)
+      .map(([target, v], i) => ({
+        priority: i + 1,
+        target,
+        enabled: v.enabled,
+        subagentTiers: v.subagentTiers as ('fable' | 'opus' | 'sonnet' | 'haiku')[]
+      }))
+    const input: SchedulerInputState = {
+      now,
+      preferences: unionEntries,
+      candidates,
+      previousWeights: previousWeights === null ? null : new Map([...previousWeights].map(([k, v]) => [k, v.weight])),
+      constraints,
+      ttlMs: USAGE_CACHE_TTL_MS
+    }
+    const result = computeWeights(input)
+    if (result.held) consecutiveHolds += 1
+    else consecutiveHolds = 0
+    const weightMap = new Map(result.weights.map((w) => [w.target, w]))
+    const staleAccounts = accounts.map((a) => ({
+      ...a,
+      stale: a.refreshedAt !== null && now - a.refreshedAt > 3 * USAGE_CACHE_TTL_MS
+    }))
+    const snapshot: RoutingSnapshot = {
+      tickAt: now,
+      tickCount: ++tickCount,
+      consecutiveFailures: 0,
+      degraded: consecutiveHolds >= 5,
+      weights: weightMap,
+      accounts: staleAccounts,
+      soonestResetAt: soonestResetOf(result.weights)
+    }
+    publishSnapshot(snapshot)
+    recordWeightChanges(result.changes, now)
+    if (result.changes.length > 0) {
+      await prisma.routingWeightChange.createMany({
+        data: result.changes.map((c) => ({
+          target: c.target,
+          fromWeight: c.from,
+          toWeight: c.to,
+          reason: c.reason,
+          tickAt: dayjs(now).toDate()
+        }))
+      })
+    }
+    consecutiveFailures = 0
+    return snapshot
+  } catch (err) {
+    consecutiveFailures += 1
+    logger.warn({ err, consecutiveFailures }, '[routing-scheduler] tick failed — keeping previous snapshot')
+    return null
+  }
+}
+
+// Drift-corrected setTimeout chain. Each tick reschedules relative to
+// `dayjs().valueOf()`, so a slow tick shortens the next delay but never
+// compounds.
+export function startRoutingScheduler(): void {
+  if (globalThis.__ccrRoutingSchedulerStarted) return
+  globalThis.__ccrRoutingSchedulerStarted = true
+
+  const intervalMs = readIntervalMs()
+  const mode = readMode()
+  const shadow = readShadow()
+  logger.info({ intervalMs, mode, shadow }, '[routing-scheduler] armed')
+  // Phase 4 deprecation notice: the scenario router is scheduled for
+  // removal after quota-aware mode reaches 100% rollout. Flag it at
+  // boot so operators still on the legacy path are aware.
+  if (mode === 'scenario' && shadow === 'off') {
+    logger.warn(
+      {
+        hint: 'set ROUTER_MODE=quota-aware (start with ROUTER_ROLLOUT_PCT=1) to migrate',
+        removal: 'scheduled for v3.0.0 — see docs/plan/quota-aware-router-post-phase-4.md',
+        editor: 'configure the preference chain at /router-preferences'
+      },
+      '[routing-scheduler] scenario mode is deprecated (removal in v3.0.0)'
+    )
+  }
+
+  const scheduleNext = (): void => {
+    if (!globalThis.__ccrRoutingSchedulerStarted) return
+    const start = dayjs().valueOf()
+    globalThis.__ccrRoutingSchedulerTimer = setTimeout(async () => {
+      if (shouldRunTick()) {
+        await runSchedulerTickForTest()
+      }
+      const elapsed = dayjs().valueOf() - start
+      const delay = Math.max(1_000, intervalMs - elapsed)
+      if (globalThis.__ccrRoutingSchedulerStarted) {
+        globalThis.__ccrRoutingSchedulerTimer = setTimeout(scheduleNext, delay)
+      }
+    }, intervalMs)
+  }
+
+  scheduleNext()
+}
+
+export function stopRoutingScheduler(): void {
+  globalThis.__ccrRoutingSchedulerStarted = false
+  if (globalThis.__ccrRoutingSchedulerTimer !== undefined) {
+    clearTimeout(globalThis.__ccrRoutingSchedulerTimer)
+    globalThis.__ccrRoutingSchedulerTimer = undefined
+  }
+}
+
+export function __resetSchedulerForTest(): void {
+  stopRoutingScheduler()
+  resetStateForTest()
+  consecutiveFailures = 0
+  consecutiveHolds = 0
+  tickCount = 0
+}
+
+export { getRecentWeightChanges, getRoutingSnapshot } from './state'
