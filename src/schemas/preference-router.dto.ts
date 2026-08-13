@@ -45,7 +45,26 @@ export const PreferenceConstraintsSchema = z
     // Minimum number of recent samples before `errorRateSkipPct`
     // engages. Prevents a single early error from evicting a fresh
     // model.
-    minHealthSamples: z.number().int().min(0).default(5)
+    minHealthSamples: z.number().int().min(0).default(5),
+    // Pace-aware tier auto-shift. paceRatio = consumed% / elapsed% on
+    // the account's binding window:
+    //   > paceOverThreshold   → the tier is burning through its budget
+    //     too fast, allow one tier BELOW the requested tier (e.g. Fable
+    //     request served by Opus) so the pricey lane cools off.
+    //   < paceUnderThreshold  → the tier will end the window with slack
+    //     budget, allow one tier ABOVE the requested tier (e.g. Sonnet
+    //     request served by Opus) to burn the subscription rather than
+    //     let it reset unused.
+    // Both bounds are permissive (default 1.5 / 0.5) — a strict 1.0
+    // pin would flip on inevitable sleep periods and early-window
+    // cold starts. Set either to null/1 to disable that direction.
+    paceOverThreshold: z.number().positive().default(1.5),
+    paceUnderThreshold: z.number().positive().default(0.5),
+    // Skip the pace-based tier logic entirely until at least this
+    // fraction of the window has elapsed. Early in the window the
+    // paceRatio numerator is noisy — a single request out of the gate
+    // looks like a 100x pace.
+    pacePolicyMinElapsedPct: z.number().min(0).max(100).default(20)
   })
   .openapi('PreferenceConstraints')
 export type PreferenceConstraints = z.infer<typeof PreferenceConstraintsSchema>
