@@ -25,6 +25,8 @@
  * than dropped, unknown non-JSON becomes the message string verbatim.
  */
 
+import { isObject } from '@/llms/utils/guards'
+
 // ─── Shape resolution ─────────────────────────────────────────────────
 
 export type ErrorShape = 'openai' | 'anthropic'
@@ -81,10 +83,6 @@ function extractUpstream(raw: unknown): ExtractedUpstream {
   // Unknown JSON shape — stringify so the client at least sees the
   // upstream detail rather than a generic "internal error".
   return { message: JSON.stringify(obj) }
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 // Try to parse an upstream response body as JSON; fall back to the raw

@@ -32,31 +32,11 @@ import {
   ResponsesInboundFunctionCallOutputItemSchema,
   ResponsesInboundMessageItemSchema
 } from '@/schemas'
+import { isObject } from '../../../utils/guards'
+import { flattenSystemToText } from '../../../utils/system-blocks'
+import { nowSeconds } from '../../../utils/time'
 
 // ─── Request: Responses → UnifiedChatRequest ───────────────────────────
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-// Reduce an Anthropic-style top-level `system` (string OR array of
-// `{text, ...}` blocks) to a plain string for absorption into a
-// leading system message. Mirrors flattenSystemToText in openai.ts.
-function flattenTopLevelSystem(system: unknown): string {
-  if (typeof system === 'string') return system
-  if (!Array.isArray(system)) return ''
-  const parts: string[] = []
-  for (const block of system) {
-    if (typeof block === 'string') {
-      parts.push(block)
-      continue
-    }
-    if (block === null || typeof block !== 'object') continue
-    const text = Reflect.get(block, 'text')
-    if (typeof text === 'string') parts.push(text)
-  }
-  return parts.join('\n\n')
-}
 
 function contentTextParts(content: unknown): string {
   if (typeof content === 'string') return content
@@ -227,7 +207,7 @@ export function convertResponsesRequestToUnified(body: Record<string, unknown>):
   // Absorb an Anthropic-style top-level `system` (Responses API doesn't
   // model it, but a persona-enriched pipeline could still leave one) as
   // a leading system message. Matches OpenAITransformer.transformRequestOut.
-  const systemText = body.system !== undefined && body.system !== null ? flattenTopLevelSystem(body.system) : ''
+  const systemText = body.system !== undefined && body.system !== null ? flattenSystemToText(body.system) : ''
   if (systemText.length > 0 && (messages.length === 0 || messages[0]?.role !== 'system')) {
     messages.unshift({ role: 'system', content: systemText })
   }
@@ -295,7 +275,7 @@ export function convertChatCompletionToResponses(chat: ChatCompletionResponse): 
   const envelope: Record<string, unknown> = {
     id: chat.id ?? `resp_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
     object: 'response',
-    created_at: chat.created ?? Math.floor(Date.now() / 1000),
+    created_at: chat.created ?? nowSeconds(),
     status: 'completed',
     model: chat.model ?? '',
     output

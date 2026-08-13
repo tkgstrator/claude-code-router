@@ -8,6 +8,7 @@
 
 import type { Logger } from 'pino'
 import { type GeminiCandidate, type GeminiResponse, type GeminiResponsePart, GeminiResponseSchema } from '@/schemas'
+import { cloneResponse } from '../response-clone'
 import { nowSeconds, partsOf, toPipelineToolCalls, toUsage } from './response-shared'
 
 /**
@@ -97,9 +98,5 @@ export async function transformBlockingResponse(
   }
   logger?.debug({ response: parsed.data }, `${providerName} response:`)
   const body = buildBlockingResponseBody(parsed.data)
-  return new Response(JSON.stringify(body), {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers
-  })
+  return cloneResponse(response, JSON.stringify(body))
 }

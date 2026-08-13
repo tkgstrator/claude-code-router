@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import type { Provider } from '@/schemas'
+import { REASONING_MODEL_RE } from '@/shared/constants'
 
 type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'
 type TierValue = Tier | 'auto'
@@ -34,8 +35,8 @@ const EFFORT_OPTIONS: readonly EffortValue[] = ['auto', 'none', 'minimal', 'low'
 // Same guard the server-side OpenAI transformer uses to decide whether
 // to emit `reasoning_effort` (gpt-5.x and o1/o3/o4 chat models); we grey
 // out the selector for anything else so operators don't set a value the
-// vendor will silently ignore.
-const REASONING_MODEL_RE = /^(gpt-5(?:\.\d+)?(?:-|$)|o[1-9](?:-|$))/
+// vendor will silently ignore. Regex lives in @/shared/constants so the
+// server and frontend stay in lock-step.
 const supportsReasoningEffort = (model: string): boolean => REASONING_MODEL_RE.test(model)
 
 interface Row {

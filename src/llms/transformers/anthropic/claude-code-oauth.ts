@@ -18,6 +18,7 @@ import {
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
+import { cloneResponse } from '../../utils/response-clone'
 import type { TransformerAuthResult } from '../base'
 import { type OAuthRefreshResult, OAuthTransformer } from '../oauth-base'
 import { convertAnthropicResponseToChat, isAnthropicMessageResponse } from './response-to-chat'
@@ -234,27 +235,15 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
       // Non-JSON body (upstream 4xx text, HTML from a fronting proxy) —
       // hand it back untouched. Rewrapping non-JSON would hide the real
       // error from the client.
-      return new Response(raw, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers
-      })
+      return cloneResponse(response, raw)
     }
     if (!isAnthropicMessageResponse(parsed)) {
       // Already Chat-shape / Responses-shape / unknown. Return as-is
       // rather than crashing — the endpoint transformer downstream will
       // either accept it or the client will surface the mismatch.
-      return new Response(raw, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers
-      })
+      return cloneResponse(response, raw)
     }
     const chat = convertAnthropicResponseToChat(parsed)
-    return new Response(JSON.stringify(chat), {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers
-    })
+    return cloneResponse(response, JSON.stringify(chat))
   }
 }

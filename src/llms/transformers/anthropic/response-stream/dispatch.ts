@@ -8,7 +8,8 @@
  */
 
 import { v4 } from 'uuid'
-import { computeUsage, mapFinishReason } from '../response-shared'
+import { openaiToAnthropicStopReason } from '../../../utils/finish-reason'
+import { computeUsage } from '../response-shared'
 import { handleToolCallDelta } from './tool-calls'
 import type { StreamChoiceDelta, StreamChunk, StreamState } from './types'
 
@@ -203,7 +204,7 @@ function handleFinishReason(finishReason: string, usage: StreamChunk['usage'], s
   }
 
   if (!state.isClosed) {
-    const anthropicStopReason = mapFinishReason(finishReason)
+    const anthropicStopReason = openaiToAnthropicStopReason(finishReason)
     state.stopReasonMessageDelta = {
       type: 'message_delta',
       delta: { stop_reason: anthropicStopReason, stop_sequence: null },
