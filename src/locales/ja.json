@@ -21,6 +21,9 @@
     "edit": "編集",
     "remove": "削除",
     "delete": "削除",
+    "enable": "有効化",
+    "moveUp": "上へ",
+    "moveDown": "下へ",
     "settings": "設定",
     "selectFile": "ファイルを選択",
     "config_saved_success": "設定を保存しました",
@@ -683,7 +686,7 @@
     "exhaustedBehavior": "全候補が枯渇したとき",
     "exhaustedBehaviorHelp429": "429 + Retry-After: クライアントに rate-limit エラーを返し、次に窓が空くまでの秒数を Retry-After に載せます。",
     "exhaustedBehaviorHelpPassthrough": "passthrough: 優先順位チェーンを無視し、クライアントが元々指定したモデルへそのまま流します。",
-    "noSchedulerData": "スケジューラのスナップショットが未生成です。ROUTER_MODE が quota-aware または shadow のときに weight/予算バッジが表示されます。",
+    "noSchedulerData": "ライブの weight / 予算は表示できません — quota-aware スケジューラが動作していません。",
     "saved": "優先順位を保存しました",
     "saveFailed": "優先順位の保存に失敗しました",
     "editTiers": "tier を編集"
