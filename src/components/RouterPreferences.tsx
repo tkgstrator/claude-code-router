@@ -377,144 +377,168 @@ export function RouterPreferences() {
         </div>
 
         {activeScenario === 'longContext' && (
-          <div className='flex items-center gap-3 rounded border-l-2 border-l-primary/40 bg-muted/30 px-3 py-2'>
-            <Label htmlFor='longContextThreshold' className='text-xs text-muted-foreground'>
-              {t('router.longContextThreshold')}
-            </Label>
-            <Input
-              id='longContextThreshold'
-              type='number'
-              min={1}
-              step={1000}
-              className='h-7 w-32 text-xs tabular-nums'
-              value={longContextThreshold}
-              onChange={(e) => {
-                const v = e.target.valueAsNumber
-                if (Number.isFinite(v)) setLongContextThreshold(v)
-              }}
-            />
-            <span className='text-xs text-muted-foreground'>tokens</span>
+          <div className='flex items-start justify-between gap-4 border-b py-3'>
+            <div className='min-w-0 flex-1 space-y-0.5'>
+              <Label htmlFor='longContextThreshold'>{t('router.longContextThreshold')}</Label>
+              <p className='text-muted-foreground text-xs'>{t('routerPreferences.longContextThresholdHelp')}</p>
+            </div>
+            <div className='flex items-center gap-2'>
+              <Input
+                id='longContextThreshold'
+                type='number'
+                min={1}
+                step={1000}
+                className='w-32 text-right tabular-nums'
+                value={longContextThreshold}
+                onChange={(e) => {
+                  const v = e.target.valueAsNumber
+                  if (Number.isFinite(v)) setLongContextThreshold(v)
+                }}
+              />
+              <span className='text-muted-foreground text-xs'>tokens</span>
+            </div>
           </div>
         )}
 
         <section className='space-y-2'>
-          <div className='divide-y border-y empty:border-none'>
-            {(() => {
-              // Filter out entries whose target model has since been
-              // disabled at the provider level — the row stays in state
-              // (a re-enable puts it back on screen instantly) but
-              // hiding it from the chain matches the "active model" gate
-              // TierEditor / ModelsDashboard apply. Preserve the raw
-              // index alongside the visible position so move / remove /
-              // enable / toggleSubagentTier still target the correct
-              // element inside the full activeEntries array.
-              const visible = activeEntries
-                .map((entry, idx) => ({ entry, idx }))
-                .filter(({ entry }) => activeModelTargets.has(entry.target))
-              if (visible.length === 0) {
-                return (
-                  <div className='px-3 py-4 text-sm text-muted-foreground'>{t('routerPreferences.emptyScenario')}</div>
-                )
-              }
-              return visible.map(({ entry, idx }, visIdx) => {
-                const badge = weightByTarget.get(entry.target)
-                const weightPct = badge === undefined ? null : Math.round(badge.weight * 100)
-                const prevRealIdx = visIdx === 0 ? null : visible[visIdx - 1].idx
-                const nextRealIdx = visIdx === visible.length - 1 ? null : visible[visIdx + 1].idx
-                // Split "provider,model" so the model name gets the visual
-                // weight (that's what people scan for) and the provider
-                // sits alongside in muted text. Falls back to the raw
-                // target for malformed rows that missed a comma.
-                const commaIdx = entry.target.indexOf(',')
-                const providerName = commaIdx > 0 ? entry.target.slice(0, commaIdx) : ''
-                const modelName = commaIdx > 0 ? entry.target.slice(commaIdx + 1) : entry.target
-                return (
-                  <div
-                    key={entry.target}
-                    className={
-                      entry.enabled
-                        ? 'group flex flex-col gap-2 border-l-2 border-l-transparent px-3 py-2.5 transition-colors hover:border-l-primary hover:bg-muted/50'
-                        : 'group flex flex-col gap-2 border-l-2 border-l-transparent px-3 py-2.5 text-muted-foreground opacity-60 transition-colors hover:border-l-primary hover:bg-muted/50'
-                    }
-                  >
-                    <div className='flex items-center gap-3'>
-                      <span className='w-7 shrink-0 text-center font-mono text-muted-foreground text-xs tabular-nums'>
-                        {visIdx + 1}
-                      </span>
-                      <div className='flex min-w-0 flex-1 items-baseline gap-1.5'>
-                        <span className='font-medium text-sm'>{modelName}</span>
-                        {providerName !== '' && (
-                          <span className='truncate text-muted-foreground text-xs'>{providerName}</span>
-                        )}
-                      </div>
-                      <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
-                        {weightPct !== null ? `${weightPct}%` : '—'}
-                      </span>
-                      <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
-                        {badge?.budget != null ? `${badge.budget}%` : '—'}
-                      </span>
-                      <Switch
-                        checked={entry.enabled}
-                        onCheckedChange={(next) => setEnabled(idx, next)}
-                        aria-label={t('app.enable')}
-                      />
-                      <div className='flex items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100'>
-                        <Button
-                          size='sm'
-                          variant='ghost'
-                          className='h-7 w-7 p-0'
-                          onClick={() => prevRealIdx !== null && move(idx, prevRealIdx)}
-                          disabled={prevRealIdx === null}
-                          aria-label={t('app.moveUp')}
-                        >
-                          <ArrowUp className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          size='sm'
-                          variant='ghost'
-                          className='h-7 w-7 p-0'
-                          onClick={() => nextRealIdx !== null && move(idx, nextRealIdx)}
-                          disabled={nextRealIdx === null}
-                          aria-label={t('app.moveDown')}
-                        >
-                          <ArrowDown className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          size='sm'
-                          variant='ghost'
-                          className='h-7 w-7 p-0 text-destructive hover:text-destructive'
-                          onClick={() => remove(idx)}
-                          aria-label={t('app.delete')}
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className='flex items-center gap-1.5 pl-10 text-xs'>
-                      <span className='text-muted-foreground'>{t('routerPreferences.subagentTiers')}</span>
-                      {TIERS.map((tier) => {
-                        const on = entry.subagentTiers.includes(tier)
-                        return (
-                          <button
-                            key={tier}
-                            type='button'
-                            className={
-                              on
-                                ? 'rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary'
-                                : 'rounded bg-muted/60 px-1.5 py-0.5 text-muted-foreground hover:bg-muted'
-                            }
-                            onClick={() => toggleSubagentTier(idx, tier)}
-                          >
-                            {tier}
-                          </button>
-                        )
-                      })}
-                    </div>
+          {(() => {
+            // Filter entries whose target model has since been disabled at
+            // the provider level — the row stays in state (a re-enable puts
+            // it back on screen instantly) but hiding it from the chain
+            // matches the "active model" gate TierEditor / ModelsDashboard
+            // apply. Preserve the raw index alongside the visible position
+            // so move / remove / enable / toggleSubagentTier still target
+            // the correct element inside the full activeEntries array.
+            const visible = activeEntries
+              .map((entry, idx) => ({ entry, idx }))
+              .filter(({ entry }) => activeModelTargets.has(entry.target))
+            // Only reserve the weight / budget columns when the scheduler
+            // is actually publishing snapshots — otherwise every row would
+            // waste horizontal space on two em-dash placeholders.
+            const hasLiveData = scheduler !== null && scheduler.tickAt !== null
+            if (visible.length === 0) {
+              return (
+                <div className='border-y px-3 py-4 text-sm text-muted-foreground'>
+                  {t('routerPreferences.emptyScenario')}
+                </div>
+              )
+            }
+            return (
+              <div className='divide-y border-y'>
+                {hasLiveData && (
+                  <div className='flex items-center gap-3 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground'>
+                    <span className='w-7 shrink-0' />
+                    <span className='flex-1' />
+                    <span className='w-14 text-right'>{t('routerPreferences.columnWeight')}</span>
+                    <span className='w-14 text-right'>{t('routerPreferences.columnBudget')}</span>
+                    <span className='w-11 shrink-0' />
+                    <span className='w-24 shrink-0' />
                   </div>
-                )
-              })
-            })()}
-          </div>
+                )}
+                {visible.map(({ entry, idx }, visIdx) => {
+                  const badge = weightByTarget.get(entry.target)
+                  const weightPct = badge === undefined ? null : Math.round(badge.weight * 100)
+                  const prevRealIdx = visIdx === 0 ? null : visible[visIdx - 1].idx
+                  const nextRealIdx = visIdx === visible.length - 1 ? null : visible[visIdx + 1].idx
+                  // Split "provider,model" so the model name gets the visual
+                  // weight (that's what people scan for) and the provider
+                  // sits alongside in muted text. Falls back to the raw
+                  // target for malformed rows that missed a comma.
+                  const commaIdx = entry.target.indexOf(',')
+                  const providerName = commaIdx > 0 ? entry.target.slice(0, commaIdx) : ''
+                  const modelName = commaIdx > 0 ? entry.target.slice(commaIdx + 1) : entry.target
+                  return (
+                    <div
+                      key={entry.target}
+                      className={
+                        entry.enabled
+                          ? 'group flex flex-col gap-2 border-l-2 border-l-transparent px-3 py-2.5 transition-colors hover:border-l-primary hover:bg-muted/50'
+                          : 'group flex flex-col gap-2 border-l-2 border-l-transparent px-3 py-2.5 text-muted-foreground opacity-60 transition-colors hover:border-l-primary hover:bg-muted/50'
+                      }
+                    >
+                      <div className='flex items-center gap-3'>
+                        <span className='w-7 shrink-0 text-center font-mono text-muted-foreground text-xs tabular-nums'>
+                          {visIdx + 1}
+                        </span>
+                        <div className='flex min-w-0 flex-1 items-baseline gap-1.5'>
+                          <span className='font-medium text-sm'>{modelName}</span>
+                          {providerName !== '' && (
+                            <span className='truncate text-muted-foreground text-xs'>{providerName}</span>
+                          )}
+                        </div>
+                        {hasLiveData && (
+                          <>
+                            <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
+                              {weightPct !== null ? `${weightPct}%` : '—'}
+                            </span>
+                            <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
+                              {badge?.budget != null ? `${badge.budget}%` : '—'}
+                            </span>
+                          </>
+                        )}
+                        <Switch
+                          checked={entry.enabled}
+                          onCheckedChange={(next) => setEnabled(idx, next)}
+                          aria-label={t('app.enable')}
+                        />
+                        <div className='flex items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100'>
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            className='h-7 w-7 p-0'
+                            onClick={() => prevRealIdx !== null && move(idx, prevRealIdx)}
+                            disabled={prevRealIdx === null}
+                            aria-label={t('app.moveUp')}
+                          >
+                            <ArrowUp className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            className='h-7 w-7 p-0'
+                            onClick={() => nextRealIdx !== null && move(idx, nextRealIdx)}
+                            disabled={nextRealIdx === null}
+                            aria-label={t('app.moveDown')}
+                          >
+                            <ArrowDown className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            className='h-7 w-7 p-0 text-destructive hover:text-destructive'
+                            onClick={() => remove(idx)}
+                            aria-label={t('app.delete')}
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className='flex items-center gap-1.5 pl-10 text-xs'>
+                        <span className='text-muted-foreground'>{t('routerPreferences.subagentTiers')}</span>
+                        {TIERS.map((tier) => {
+                          const on = entry.subagentTiers.includes(tier)
+                          return (
+                            <button
+                              key={tier}
+                              type='button'
+                              className={
+                                on
+                                  ? 'rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary'
+                                  : 'rounded bg-muted/60 px-1.5 py-0.5 text-muted-foreground hover:bg-muted'
+                              }
+                              onClick={() => toggleSubagentTier(idx, tier)}
+                            >
+                              {tier}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           <div className='flex items-center justify-end pt-3'>
             <Button onClick={openAddDialog}>

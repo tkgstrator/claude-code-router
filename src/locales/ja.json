@@ -687,6 +687,9 @@
     "exhaustedBehaviorHelp429": "429 + Retry-After: クライアントに rate-limit エラーを返し、次に窓が空くまでの秒数を Retry-After に載せます。",
     "exhaustedBehaviorHelpPassthrough": "passthrough: 優先順位チェーンを無視し、クライアントが元々指定したモデルへそのまま流します。",
     "noSchedulerData": "ライブの weight / 予算は表示できません — quota-aware スケジューラが動作していません。",
+    "longContextThresholdHelp": "入力トークン数がこの値を超えると longContext チェーンにルーティングされます。",
+    "columnWeight": "Weight",
+    "columnBudget": "予算",
     "saved": "優先順位を保存しました",
     "saveFailed": "優先順位の保存に失敗しました",
     "editTiers": "tier を編集"
