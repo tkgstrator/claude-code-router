@@ -44,7 +44,16 @@ export const ENVELOPE_ENV_KEYS = [
   'PROXY_URL',
   'API_TIMEOUT_MS',
   'CLAUDE_PATH',
-  'NON_INTERACTIVE_MODE'
+  'NON_INTERACTIVE_MODE',
+  // Quota-aware router knobs. Mirrored onto process.env so the router
+  // reads the fresh value on the next request without a full restart —
+  // the scenario/preference/quota-aware selector all call getenv on
+  // each request, so a UI-driven mode swap propagates in-process even
+  // though we still show the "restart to fully apply" note (the
+  // scheduler tick loop reads its interval once at boot).
+  'ROUTER_MODE',
+  'ROUTER_SHADOW',
+  'ROUTER_ROLLOUT_PCT'
 ] as const
 export type EnvelopeEnvKey = (typeof ENVELOPE_ENV_KEYS)[number]
 
