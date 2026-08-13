@@ -347,9 +347,7 @@ export function RouterPreferences() {
         <p className='text-muted-foreground text-sm'>{t('routerPreferences.description')}</p>
 
         {scheduler !== null && scheduler.tickAt === null && (
-          <div className='rounded border-l-2 border-l-amber-500 bg-amber-500/5 px-3 py-2 text-sm'>
-            {t('routerPreferences.noSchedulerData')}
-          </div>
+          <p className='text-muted-foreground text-xs'>{t('routerPreferences.noSchedulerData')}</p>
         )}
 
         <div className='flex flex-wrap gap-1 border-b'>
@@ -423,60 +421,95 @@ export function RouterPreferences() {
                 const weightPct = badge === undefined ? null : Math.round(badge.weight * 100)
                 const prevRealIdx = visIdx === 0 ? null : visible[visIdx - 1].idx
                 const nextRealIdx = visIdx === visible.length - 1 ? null : visible[visIdx + 1].idx
+                // Split "provider,model" so the model name gets the visual
+                // weight (that's what people scan for) and the provider
+                // sits alongside in muted text. Falls back to the raw
+                // target for malformed rows that missed a comma.
+                const commaIdx = entry.target.indexOf(',')
+                const providerName = commaIdx > 0 ? entry.target.slice(0, commaIdx) : ''
+                const modelName = commaIdx > 0 ? entry.target.slice(commaIdx + 1) : entry.target
                 return (
                   <div
                     key={entry.target}
-                    className='flex items-center gap-3 border-l-2 border-l-transparent px-3 py-2 transition-colors hover:border-l-primary hover:bg-muted/50'
+                    className={
+                      entry.enabled
+                        ? 'group flex flex-col gap-2 border-l-2 border-l-transparent px-3 py-2.5 transition-colors hover:border-l-primary hover:bg-muted/50'
+                        : 'group flex flex-col gap-2 border-l-2 border-l-transparent px-3 py-2.5 text-muted-foreground opacity-60 transition-colors hover:border-l-primary hover:bg-muted/50'
+                    }
                   >
-                    <span className='w-6 text-center text-muted-foreground text-xs tabular-nums'>{visIdx + 1}</span>
-                    <div className='flex flex-1 flex-col gap-1'>
-                      <span className='font-medium text-sm'>{entry.target}</span>
-                      <div className='flex flex-wrap gap-1 text-xs text-muted-foreground'>
-                        <span>{t('routerPreferences.subagentTiers')}:</span>
-                        {TIERS.map((tier) => (
+                    <div className='flex items-center gap-3'>
+                      <span className='w-7 shrink-0 text-center font-mono text-muted-foreground text-xs tabular-nums'>
+                        {visIdx + 1}
+                      </span>
+                      <div className='flex min-w-0 flex-1 items-baseline gap-1.5'>
+                        <span className='font-medium text-sm'>{modelName}</span>
+                        {providerName !== '' && (
+                          <span className='truncate text-muted-foreground text-xs'>{providerName}</span>
+                        )}
+                      </div>
+                      <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
+                        {weightPct !== null ? `${weightPct}%` : '—'}
+                      </span>
+                      <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
+                        {badge?.budget != null ? `${badge.budget}%` : '—'}
+                      </span>
+                      <Switch
+                        checked={entry.enabled}
+                        onCheckedChange={(next) => setEnabled(idx, next)}
+                        aria-label={t('app.enable')}
+                      />
+                      <div className='flex items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100'>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          className='h-7 w-7 p-0'
+                          onClick={() => prevRealIdx !== null && move(idx, prevRealIdx)}
+                          disabled={prevRealIdx === null}
+                          aria-label={t('app.moveUp')}
+                        >
+                          <ArrowUp className='h-4 w-4' />
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          className='h-7 w-7 p-0'
+                          onClick={() => nextRealIdx !== null && move(idx, nextRealIdx)}
+                          disabled={nextRealIdx === null}
+                          aria-label={t('app.moveDown')}
+                        >
+                          <ArrowDown className='h-4 w-4' />
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          className='h-7 w-7 p-0 text-destructive hover:text-destructive'
+                          onClick={() => remove(idx)}
+                          aria-label={t('app.delete')}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className='flex items-center gap-1.5 pl-10 text-xs'>
+                      <span className='text-muted-foreground'>{t('routerPreferences.subagentTiers')}</span>
+                      {TIERS.map((tier) => {
+                        const on = entry.subagentTiers.includes(tier)
+                        return (
                           <button
                             key={tier}
                             type='button'
                             className={
-                              entry.subagentTiers.includes(tier)
-                                ? 'rounded bg-primary/10 px-1.5 py-0.5 text-primary'
-                                : 'rounded bg-muted px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70'
+                              on
+                                ? 'rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary'
+                                : 'rounded bg-muted/60 px-1.5 py-0.5 text-muted-foreground hover:bg-muted'
                             }
                             onClick={() => toggleSubagentTier(idx, tier)}
                           >
                             {tier}
                           </button>
-                        ))}
-                      </div>
+                        )
+                      })}
                     </div>
-                    {weightPct !== null && (
-                      <span className='w-16 text-right text-muted-foreground text-xs tabular-nums'>{weightPct}%</span>
-                    )}
-                    {badge?.budget != null && (
-                      <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
-                        {t('routerPreferences.budget')}: {badge.budget}%
-                      </span>
-                    )}
-                    <Switch checked={entry.enabled} onCheckedChange={(next) => setEnabled(idx, next)} />
-                    <Button
-                      size='sm'
-                      variant='ghost'
-                      onClick={() => prevRealIdx !== null && move(idx, prevRealIdx)}
-                      disabled={prevRealIdx === null}
-                    >
-                      <ArrowUp className='h-4 w-4' />
-                    </Button>
-                    <Button
-                      size='sm'
-                      variant='ghost'
-                      onClick={() => nextRealIdx !== null && move(idx, nextRealIdx)}
-                      disabled={nextRealIdx === null}
-                    >
-                      <ArrowDown className='h-4 w-4' />
-                    </Button>
-                    <Button size='sm' variant='ghost' onClick={() => remove(idx)}>
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
                   </div>
                 )
               })

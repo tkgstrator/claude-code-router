@@ -21,6 +21,9 @@
     "edit": "编辑",
     "remove": "移除",
     "delete": "删除",
+    "enable": "启用",
+    "moveUp": "上移",
+    "moveDown": "下移",
     "settings": "设置",
     "selectFile": "选择文件",
     "config_saved_success": "配置保存成功",
@@ -683,7 +686,7 @@
     "exhaustedBehavior": "所有候选枯竭时",
     "exhaustedBehaviorHelp429": "429 + Retry-After: 向客户端返回限流响应，Retry-After 指明最近窗口重置的秒数。",
     "exhaustedBehaviorHelpPassthrough": "passthrough: 跳过优先级链，直接使用客户端原本请求的模型。",
-    "noSchedulerData": "调度器快照尚未生成。当 ROUTER_MODE 为 quota-aware 或 shadow 时，weight/预算徽章将出现。",
+    "noSchedulerData": "无法显示实时 weight / 预算 — quota-aware 调度器未在运行。",
     "saved": "优先级已保存",
     "saveFailed": "保存优先级失败",
     "editTiers": "编辑 tier"
