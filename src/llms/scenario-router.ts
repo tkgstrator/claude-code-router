@@ -76,6 +76,21 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     if (parts.length > 1) req.sessionId = parts[1]
   }
 
+  // Bypass for OpenAI-compat inbound: /v1/chat/completions and
+  // /v1/responses callers hand-pick their target with `provider,model`
+  // in body.model and expect that exact model to reach upstream — the
+  // scenario map, per-project overrides, rule stack, and quota-aware
+  // selector are all Anthropic-idiom conveniences that would silently
+  // rewrite the caller's choice. Skip the whole selector, leave
+  // body.model as-is, and stamp default-scenario metadata so the
+  // downstream pipeline has the fields it reads.
+  if (req.inboundPath === '/v1/chat/completions' || req.inboundPath === '/v1/responses') {
+    req.scenarioType = 'default'
+    req.isSubagent = false
+    req.resolvedFallbacks = []
+    return
+  }
+
   try {
     const tokenCount = await countRequestTokens(ctx.tokenizers, req.body)
     req.tokenCount = tokenCount

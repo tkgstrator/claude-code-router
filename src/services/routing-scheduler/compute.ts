@@ -139,6 +139,59 @@ interface RawScore {
   earliestResetAt: number | null
   reasons: WeightReason[]
   enabled: boolean
+  paceRatio: number | null
+  windowElapsedRatio: number | null
+}
+
+// paceRatio for a single window: consumed% / elapsed%. Returns null when
+// any input is missing or the elapsed fraction is too small to be
+// meaningful (< 1% — one request out of the gate would otherwise look
+// like a 100x pace). The tightest of a candidate's windows dominates
+// so `windowPace` is called per window and the caller takes the max.
+interface WindowPace {
+  paceRatio: number
+  elapsedRatio: number
+}
+const windowPace = (
+  window: { used: number; limit: number; resetAt: number | null; windowLengthMs: number | null },
+  now: number
+): WindowPace | null => {
+  if (window.limit <= 0) return null
+  if (window.resetAt === null || window.windowLengthMs === null) return null
+  if (window.windowLengthMs <= 0) return null
+  const startedAt = window.resetAt - window.windowLengthMs
+  const elapsedMs = now - startedAt
+  if (elapsedMs <= 0) return null
+  const elapsedRatio = Math.min(1, elapsedMs / window.windowLengthMs)
+  if (elapsedRatio < 0.01) return null
+  const consumedRatio = window.used / window.limit
+  return { paceRatio: consumedRatio / elapsedRatio, elapsedRatio }
+}
+
+// Candidate-level pace: aggregate min-elapsed max-pace across the
+// candidate's usable accounts and their windows. Min-elapsed captures
+// the earliest active window so the caller's "we're only 5% into the
+// window" guard fires when needed. Max-paceRatio captures the tightest
+// binding window so an underused weekly doesn't mask a burning 5h.
+interface CandidatePace {
+  paceRatio: number | null
+  windowElapsedRatio: number | null
+}
+const candidatePace = (candidate: ModelCandidateState, now: number, ttlMs: number): CandidatePace => {
+  let worstPace: number | null = null
+  let earliestElapsed: number | null = null
+  for (const acct of candidate.accounts) {
+    if (!accountKnown(acct)) continue
+    if (accountStale(acct, now, ttlMs)) continue
+    const wp5h = acct.fiveHour === undefined ? null : windowPace(acct.fiveHour, now)
+    const wpWk = acct.weekly === undefined ? null : windowPace(acct.weekly, now)
+    for (const wp of [wp5h, wpWk]) {
+      if (wp === null) continue
+      if (worstPace === null || wp.paceRatio > worstPace) worstPace = wp.paceRatio
+      if (earliestElapsed === null || wp.elapsedRatio < earliestElapsed) earliestElapsed = wp.elapsedRatio
+    }
+  }
+  return { paceRatio: worstPace, windowElapsedRatio: earliestElapsed }
 }
 
 const scoreCandidate = (
@@ -153,7 +206,16 @@ const scoreCandidate = (
   const preferenceWeight = totalRanks === 0 ? 0 : (totalRanks - rankIndex) / totalRanks
 
   if (!enabled) {
-    return { target, healthiness: 0, budgetPct: null, earliestResetAt: null, reasons: ['ok'], enabled: false }
+    return {
+      target,
+      healthiness: 0,
+      budgetPct: null,
+      earliestResetAt: null,
+      reasons: ['ok'],
+      enabled: false,
+      paceRatio: null,
+      windowElapsedRatio: null
+    }
   }
   if (candidate === undefined) {
     // The preference entry references a model no longer registered.
@@ -163,12 +225,15 @@ const scoreCandidate = (
       budgetPct: null,
       earliestResetAt: null,
       reasons: ['no_quota_kind'],
-      enabled: true
+      enabled: true,
+      paceRatio: null,
+      windowElapsedRatio: null
     }
   }
 
   const budgetView = modelBudget(candidate, input.now, input.ttlMs)
   const earliestResetAt = earliestReset(candidate)
+  const pace = candidatePace(candidate, input.now, input.ttlMs)
 
   // Budget resolution: known value > stale demotion > cold-start allow.
   let budgetValue: number
@@ -197,7 +262,9 @@ const scoreCandidate = (
     budgetPct: budgetView.value === null ? null : Math.round(budgetView.value * 100),
     earliestResetAt,
     reasons,
-    enabled: true
+    enabled: true,
+    paceRatio: pace.paceRatio,
+    windowElapsedRatio: pace.windowElapsedRatio
   }
 }
 
@@ -323,7 +390,9 @@ export function computeWeights(state: SchedulerInputState): ComputeResult {
       healthiness: r.healthiness,
       remainingBudgetPct: r.budgetPct,
       earliestResetAt: r.earliestResetAt,
-      reasons: ['hold_guard']
+      reasons: ['hold_guard'],
+      paceRatio: r.paceRatio,
+      windowElapsedRatio: r.windowElapsedRatio
     }))
     return { weights: heldEntries, held: true, changes: [] }
   }
@@ -334,7 +403,9 @@ export function computeWeights(state: SchedulerInputState): ComputeResult {
     healthiness: r.healthiness,
     remainingBudgetPct: r.budgetPct,
     earliestResetAt: r.earliestResetAt,
-    reasons: r.reasons
+    reasons: r.reasons,
+    paceRatio: r.paceRatio,
+    windowElapsedRatio: r.windowElapsedRatio
   }))
 
   const changes: WeightChange[] = []

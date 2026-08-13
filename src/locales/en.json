@@ -21,6 +21,9 @@
     "edit": "Edit",
     "remove": "Remove",
     "delete": "Delete",
+    "enable": "Enable",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
     "settings": "Settings",
     "selectFile": "Select File",
     "config_saved_success": "Config saved successfully",
@@ -683,7 +686,7 @@
     "exhaustedBehavior": "When all candidates exhausted",
     "exhaustedBehaviorHelp429": "429 + Retry-After: return a rate-limit response to the client with the seconds until the earliest window resets.",
     "exhaustedBehaviorHelpPassthrough": "passthrough: fall back to the client's originally requested model without touching the preference chain.",
-    "noSchedulerData": "Scheduler snapshot not populated yet — weight/budget badges will appear once ROUTER_MODE is quota-aware or shadow.",
+    "noSchedulerData": "Live weight and budget are unavailable — the quota-aware scheduler is not running.",
     "saved": "Preferences saved",
     "saveFailed": "Failed to save preferences",
     "editTiers": "Edit tiers"
