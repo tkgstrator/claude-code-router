@@ -114,13 +114,21 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
       subscriptionAccounts: { include: { quota: true } }
     }
   })
-  const modelIndex = new Map<string, { providerName: string; kind: 'claude' | 'codex' | null }>()
+  const modelIndex = new Map<
+    string,
+    { providerName: string; kind: 'claude' | 'codex' | null; contextWindow: number | null }
+  >()
   const accountsByProvider = new Map<string, AccountQuotaState[]>()
   const accountViews: AccountQuotaView[] = []
   for (const p of providers) {
     const kind: 'claude' | 'codex' | null =
       p.authMode === 'subscription' ? (p.name.toLowerCase().includes('codex') ? 'codex' : 'claude') : null
-    for (const m of p.models) modelIndex.set(`${p.name},${m.name}`, { providerName: p.name, kind })
+    for (const m of p.models)
+      modelIndex.set(`${p.name},${m.name}`, {
+        providerName: p.name,
+        kind,
+        contextWindow: m.contextWindow
+      })
     if (kind === null) continue
     const accts: AccountQuotaState[] = []
     for (const a of p.subscriptionAccounts) {
@@ -170,7 +178,8 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
           providerName: '',
           modelName: '',
           accounts: [],
-          errorRate: 0
+          errorRate: 0,
+          contextWindow: null
         })
         continue
       }
@@ -180,7 +189,8 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
         providerName: info.providerName,
         modelName,
         accounts: accountsByProvider.get(info.providerName) ?? [],
-        errorRate: 0 // Phase 2e will fill from the model-health tracker
+        errorRate: 0, // Phase 2e will fill from the model-health tracker
+        contextWindow: info.contextWindow
       })
     }
   }

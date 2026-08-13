@@ -141,6 +141,7 @@ interface RawScore {
   enabled: boolean
   paceRatio: number | null
   windowElapsedRatio: number | null
+  contextWindow: number | null
 }
 
 // paceRatio for a single window: consumed% / elapsed%. Returns null when
@@ -214,7 +215,8 @@ const scoreCandidate = (
       reasons: ['ok'],
       enabled: false,
       paceRatio: null,
-      windowElapsedRatio: null
+      windowElapsedRatio: null,
+      contextWindow: candidate?.contextWindow ?? null
     }
   }
   if (candidate === undefined) {
@@ -227,7 +229,8 @@ const scoreCandidate = (
       reasons: ['no_quota_kind'],
       enabled: true,
       paceRatio: null,
-      windowElapsedRatio: null
+      windowElapsedRatio: null,
+      contextWindow: null
     }
   }
 
@@ -264,7 +267,8 @@ const scoreCandidate = (
     reasons,
     enabled: true,
     paceRatio: pace.paceRatio,
-    windowElapsedRatio: pace.windowElapsedRatio
+    windowElapsedRatio: pace.windowElapsedRatio,
+    contextWindow: candidate.contextWindow
   }
 }
 
@@ -392,7 +396,8 @@ export function computeWeights(state: SchedulerInputState): ComputeResult {
       earliestResetAt: r.earliestResetAt,
       reasons: ['hold_guard'],
       paceRatio: r.paceRatio,
-      windowElapsedRatio: r.windowElapsedRatio
+      windowElapsedRatio: r.windowElapsedRatio,
+      contextWindow: r.contextWindow
     }))
     return { weights: heldEntries, held: true, changes: [] }
   }
@@ -405,7 +410,8 @@ export function computeWeights(state: SchedulerInputState): ComputeResult {
     earliestResetAt: r.earliestResetAt,
     reasons: r.reasons,
     paceRatio: r.paceRatio,
-    windowElapsedRatio: r.windowElapsedRatio
+    windowElapsedRatio: r.windowElapsedRatio,
+    contextWindow: r.contextWindow
   }))
 
   const changes: WeightChange[] = []

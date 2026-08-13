@@ -62,6 +62,20 @@ const buildIsExhausted = (): ((target: string) => boolean) => {
 
 const buildErrorRate = (): ((target: string) => number) => (target) => errorRateOf(target)
 
+// Look up the candidate's Model.contextWindow via the latest scheduler
+// snapshot. Null when no snapshot exists yet or the candidate isn't in
+// the snapshot (scraper hasn't reached that model) — the selector
+// treats null as "allow" so the gate never becomes a hard block for
+// fresh installs. Kept as a factory so the snapshot is read once per
+// selection call.
+const buildContextWindowOf = (): ((target: string) => number | null) => {
+  const snapshot = getRoutingSnapshot()
+  return (target: string): number | null => {
+    if (snapshot === null) return null
+    return snapshot.weights.get(target)?.contextWindow ?? null
+  }
+}
+
 // Tier navigation: fable > opus > sonnet > haiku (expensive → cheap).
 // `tierBelow` returns the next-cheaper tier (used for downshift when
 // the requested tier is over-paced); `tierAbove` returns the
@@ -113,6 +127,11 @@ export interface QuotaAwareSelectionInput {
   requestedModel: string | undefined
   isSubagent: boolean
   scenario: ScenarioKey
+  // Estimated input-token count for this request. The scenario router
+  // computes it via tokenizers/base before classification; passing it
+  // through lets the selector's context-window gate skip candidates
+  // that can't physically hold the request. Undefined = don't gate.
+  requestTokenCount?: number
 }
 
 export interface QuotaAwareSelection {
@@ -141,6 +160,8 @@ export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput
     isSubagent: input.isSubagent,
     isExhausted: buildIsExhausted(),
     errorRate: buildErrorRate(),
+    contextWindowOf: buildContextWindowOf(),
+    requestTokenCount: input.requestTokenCount,
     allowedTiersOverride
   })
   // Retry-After hint is populated ONLY when (a) the selector produced
