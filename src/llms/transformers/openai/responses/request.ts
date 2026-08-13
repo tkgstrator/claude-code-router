@@ -7,6 +7,7 @@
  */
 
 import type { ResponsesUnifiedChatRequest, UnifiedChatRequest } from '@/schemas'
+import { isObject } from '../../../utils/guards'
 
 type MutableMessage = Record<string, unknown>
 
@@ -15,10 +16,6 @@ type RequestContentBlock = {
   text?: string
   image_url?: { url?: string }
   cache_control?: unknown
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
 }
 
 function isTextWrapper(value: unknown): value is { text: string } {

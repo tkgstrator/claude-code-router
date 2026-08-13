@@ -17,37 +17,19 @@
  */
 
 import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '@/schemas'
+import { REASONING_MODEL_RE } from '@/shared/constants'
+import { absorbTopLevelSystem } from '../../utils/system-blocks'
 import { Transformer } from '../base'
 
 // gpt-5.x and o1/o3/o4 chat completions reject `max_tokens` in favour of
 // `max_completion_tokens`. The check is intentionally narrow — gpt-4.x
 // still uses the legacy field, and codex/Responses-only models are
-// peeled off by the chain before we see them.
-const MAX_COMPLETION_TOKENS_MODELS = /^(gpt-5(?:\.\d+)?(?:-|$)|o[1-9](?:-|$))/
-
+// peeled off by the chain before we see them. The regex itself is
+// shared with the frontend TierEditor via @/shared/constants so both
+// surfaces stay in lock-step.
 function modelNeedsMaxCompletionTokens(model: string | undefined): boolean {
   if (typeof model !== 'string' || model.length === 0) return false
-  return MAX_COMPLETION_TOKENS_MODELS.test(model)
-}
-
-// Reduce Anthropic-style `system` (string OR array of `{text, ...}` blocks)
-// to a plain string. Non-string blocks and blocks without `text` are
-// skipped rather than throwing — the goal is defensive absorption, not
-// strict Anthropic parsing.
-function flattenSystemToText(system: unknown): string {
-  if (typeof system === 'string') return system
-  if (!Array.isArray(system)) return ''
-  const parts: string[] = []
-  for (const block of system) {
-    if (typeof block === 'string') {
-      parts.push(block)
-      continue
-    }
-    if (block === null || typeof block !== 'object') continue
-    const text = Reflect.get(block, 'text')
-    if (typeof text === 'string') parts.push(text)
-  }
-  return parts.join('\n\n')
+  return REASONING_MODEL_RE.test(model)
 }
 
 export class OpenAITransformer extends Transformer {
@@ -81,19 +63,11 @@ export class OpenAITransformer extends Transformer {
 
     // Absorb Anthropic-style top-level `system` into a leading system
     // message. Supports both the string form and Anthropic's
-    // block-array form (concatenate all text blocks).
-    if (body.system !== undefined && body.system !== null) {
-      const systemText = flattenSystemToText(body.system)
-      if (systemText.length > 0) {
-        const messages = Array.isArray(body.messages) ? body.messages : []
-        // Only prepend if the caller didn't already put a system message
-        // at index 0 — avoids duplicating persona text on retries.
-        if (messages.length === 0 || messages[0]?.role !== 'system') {
-          body.messages = [{ role: 'system', content: systemText }, ...messages]
-        }
-      }
-      delete body.system
-    }
+    // block-array form (concatenate all text blocks). Idempotent —
+    // a body whose messages[0] is already a system message is left
+    // with only the top-level field stripped so retries don't
+    // double-prepend the persona text.
+    absorbTopLevelSystem(body)
 
     // Translate top-level `reasoning_effort` scalar into the nested
     // `reasoning.effort` unified shape so downstream provider chains

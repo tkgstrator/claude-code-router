@@ -14,3 +14,11 @@ export const PLUGINS_DIR = path.join(HOME_DIR, 'plugins')
 // Claude projects directory — read by the vendored llms router to look
 // up the active CCR session's per-project routing override.
 export const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects')
+
+// Model-family guard for reasoning-effort support. Matches gpt-5.x and
+// o1/o3/o4 chat models — the only OpenAI families that accept
+// `max_completion_tokens` and `reasoning_effort` on Chat Completions.
+// Older gpt-4.x models silently ignore both fields. Shared by the
+// server-side OpenAI transformer and the frontend Tier editor so both
+// surfaces stay in lock-step.
+export const REASONING_MODEL_RE = /^(gpt-5(?:\.\d+)?(?:-|$)|o[1-9](?:-|$))/

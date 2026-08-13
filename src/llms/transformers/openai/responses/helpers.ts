@@ -10,10 +10,6 @@ export function newChatcmplId(seed: string | undefined): string {
   return `chatcmpl-${Date.now()}`
 }
 
-export function nowSeconds(): number {
-  return Math.floor(Date.now() / 1000)
-}
-
 export function stringDeltaOrEmpty(delta: ResponsesStreamEvent['delta']): string {
   return typeof delta === 'string' ? delta : ''
 }

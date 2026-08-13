@@ -23,6 +23,7 @@ import {
   type UnifiedChatRequest
 } from '@/schemas'
 import { refreshCodexToken } from '../../../services/codex-oauth-service'
+import { cloneResponse } from '../../utils/response-clone'
 import { type OAuthRefreshResult, OAuthTransformer } from '../oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
@@ -159,12 +160,6 @@ export class CodexOauthTransformer extends OAuthTransformer {
     if (!response.ok) return response
     const ct = response.headers.get('content-type')
     if (ct?.includes('text/event-stream')) return response
-    const headers = new Headers(response.headers)
-    headers.set('content-type', 'text/event-stream')
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers
-    })
+    return cloneResponse(response, response.body, { 'content-type': 'text/event-stream' })
   }
 }

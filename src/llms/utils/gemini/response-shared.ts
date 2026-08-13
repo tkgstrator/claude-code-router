@@ -15,10 +15,16 @@ import type {
   PipelineToolCall
 } from '@/schemas'
 
+// Re-exported so the gemini response converters keep their existing
+// `./response-shared` import path — the canonical implementation now
+// lives at `src/llms/utils/time.ts` alongside the other transformer
+// utilities. The gemini directory's flatter re-org is deferred to a
+// sibling refactor; until then this re-export avoids touching every
+// gemini caller in this PR.
+export { nowSeconds } from '../time'
+
 export const genRandomToolId = (prefix: 'tool' | 'ccr_tool' = 'tool'): string =>
   `${prefix}_${Math.random().toString(36).substring(2, 15)}`
-
-export const nowSeconds = (): number => Math.floor(Date.now() / 1000)
 
 /** A zero-filled usage block used when the upstream omitted `usageMetadata`. */
 const EMPTY_USAGE: PipelineChunkUsage = {
