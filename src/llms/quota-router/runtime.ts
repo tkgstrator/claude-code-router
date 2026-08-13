@@ -27,6 +27,8 @@ import {
   type PreferenceConstraints,
   type QuotaAwareConstraints,
   QuotaAwareConstraintsSchema,
+  type RequestedModelTier,
+  type RouterPreferenceEntry,
   type ScenarioKey
 } from '@/schemas'
 import { logger } from '../../logger'
@@ -60,6 +62,53 @@ const buildIsExhausted = (): ((target: string) => boolean) => {
 
 const buildErrorRate = (): ((target: string) => number) => (target) => errorRateOf(target)
 
+// Tier navigation: fable > opus > sonnet > haiku (expensive → cheap).
+// `tierBelow` returns the next-cheaper tier (used for downshift when
+// the requested tier is over-paced); `tierAbove` returns the
+// next-pricier tier (used for upshift when the requested tier has
+// slack budget it won't burn on its own).
+const TIER_ORDER: readonly RequestedModelTier[] = ['fable', 'opus', 'sonnet', 'haiku']
+const tierBelow = (t: RequestedModelTier): RequestedModelTier | undefined => {
+  const idx = TIER_ORDER.indexOf(t)
+  return idx < 0 || idx === TIER_ORDER.length - 1 ? undefined : TIER_ORDER[idx + 1]
+}
+const tierAbove = (t: RequestedModelTier): RequestedModelTier | undefined => {
+  const idx = TIER_ORDER.indexOf(t)
+  return idx <= 0 ? undefined : TIER_ORDER[idx - 1]
+}
+
+// Pace-aware tier widening. Given the requested tier and the chain, look
+// up the paceRatio of the top enabled candidate matching that tier in
+// the snapshot and decide whether to admit an adjacent tier for this
+// request. Returns undefined when there is no snapshot data, the
+// window has barely started (early-window noise), or the pace sits
+// inside the neutral band. In every "undefined" case the caller
+// preserves the pre-Phase-2f strict-tier behaviour.
+const resolveAllowedTiers = (
+  requestedTier: RequestedModelTier | undefined,
+  entries: readonly RouterPreferenceEntry[],
+  constraints: PreferenceConstraints
+): ReadonlySet<RequestedModelTier> | undefined => {
+  if (requestedTier === undefined) return undefined
+  const snapshot = getRoutingSnapshot()
+  if (snapshot === null) return undefined
+  const canonical = entries.find((e) => e.enabled && e.resolvedTier === requestedTier)
+  if (canonical === undefined) return undefined
+  const entry = snapshot.weights.get(canonical.target)
+  if (entry === undefined) return undefined
+  if (entry.paceRatio === null || entry.windowElapsedRatio === null) return undefined
+  if (entry.windowElapsedRatio * 100 < constraints.pacePolicyMinElapsedPct) return undefined
+  if (entry.paceRatio > constraints.paceOverThreshold) {
+    const below = tierBelow(requestedTier)
+    return below === undefined ? undefined : new Set<RequestedModelTier>([requestedTier, below])
+  }
+  if (entry.paceRatio < constraints.paceUnderThreshold) {
+    const above = tierAbove(requestedTier)
+    return above === undefined ? undefined : new Set<RequestedModelTier>([requestedTier, above])
+  }
+  return undefined
+}
+
 export interface QuotaAwareSelectionInput {
   requestedModel: string | undefined
   isSubagent: boolean
@@ -78,13 +127,21 @@ export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput
     ? constraintsParsed.data
     : QuotaAwareConstraintsSchema.parse({})
   const l4Constraints: PreferenceConstraints = constraints
+  const requestedTier = input.requestedModel ? tierOf(input.requestedModel) : undefined
+  // Pace-based widening only applies to agent calls — subagent tag
+  // routing has its own filter (subagentTiers) that operators use to
+  // pin the sub-lane, and blurring it silently would surprise them.
+  const allowedTiersOverride = input.isSubagent
+    ? undefined
+    : resolveAllowedTiers(requestedTier, chain.entries, l4Constraints)
   const selection = selectByPreference({
     entries: chain.entries,
     constraints: l4Constraints,
-    requestedTier: input.requestedModel ? tierOf(input.requestedModel) : undefined,
+    requestedTier,
     isSubagent: input.isSubagent,
     isExhausted: buildIsExhausted(),
-    errorRate: buildErrorRate()
+    errorRate: buildErrorRate(),
+    allowedTiersOverride
   })
   // Retry-After hint is populated ONLY when (a) the selector produced
   // no primary AND (b) constraints.exhaustedBehavior is '429'. The

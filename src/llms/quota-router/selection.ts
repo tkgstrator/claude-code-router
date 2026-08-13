@@ -48,6 +48,15 @@ export interface PreferenceSelectorInput {
   // Recent error rate (0-1). Callers back with the Phase 2e
   // model-health tracker; Phase 2c can pass `() => 0`.
   errorRate: (target: string) => number
+  // Optional pace-aware tier widening (Phase 2f). When set, replaces
+  // the strict same-tier check with membership in this set. The
+  // runtime computes it by evaluating the requested tier's canonical
+  // candidate paceRatio against the pace thresholds — if it is
+  // over-paced the set becomes {requested, requestedMinusOne}, if
+  // under-paced {requested, requestedPlusOne}, else {requested}. Undefined
+  // preserves the pre-shift strict-tier behaviour (used by tests and by
+  // requests where no snapshot data is available).
+  allowedTiersOverride?: ReadonlySet<RequestedModelTier>
 }
 
 export interface PreferenceSelection {
@@ -70,11 +79,22 @@ export type SkipReason = 'disabled' | 'tier_mismatch_agent' | 'tier_mismatch_sub
 // same-tier only when the respect flag is on. Client tiers other than
 // sonnet/haiku (opus/fable) don't have a respect knob — those callers
 // accept any tier so the preference author has full control.
+//
+// Pace-aware widening: when `allowedTiersOverride` is provided the
+// runtime has already decided which tiers should be admissible for
+// this request based on the requested tier's current paceRatio. It
+// takes precedence over the respect flags — the whole point of the
+// override is to relax the strict same-tier gate for a well-defined
+// reason (burn slack budget / cool down over-paced tier).
 const tierMatchesAgent = (
   candidateTier: RequestedModelTier | undefined,
   requestedTier: RequestedModelTier | undefined,
-  constraints: PreferenceConstraints
+  constraints: PreferenceConstraints,
+  allowedTiersOverride: ReadonlySet<RequestedModelTier> | undefined
 ): boolean => {
+  if (allowedTiersOverride !== undefined && requestedTier !== undefined) {
+    return candidateTier !== undefined && allowedTiersOverride.has(candidateTier)
+  }
   if (requestedTier === 'sonnet' && constraints.sonnetTierRespect) return candidateTier === 'sonnet'
   if (requestedTier === 'haiku' && constraints.haikuTierRespect) return candidateTier === 'haiku'
   return true
@@ -126,7 +146,7 @@ export function selectByPreference(input: PreferenceSelectorInput): PreferenceSe
         skipped.push({ target: entry.target, reason: 'tier_mismatch_subagent' })
         continue
       }
-    } else if (!tierMatchesAgent(candidateTier, input.requestedTier, input.constraints)) {
+    } else if (!tierMatchesAgent(candidateTier, input.requestedTier, input.constraints, input.allowedTiersOverride)) {
       skipped.push({ target: entry.target, reason: 'tier_mismatch_agent' })
       continue
     }

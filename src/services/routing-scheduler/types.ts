@@ -91,6 +91,16 @@ export interface WeightEntry {
   remainingBudgetPct: number | null // 0..100; null = unknown
   earliestResetAt: number | null
   reasons: readonly WeightReason[]
+  // consumed% / elapsed% on the account's tightest binding window
+  // (min across the candidate's usable accounts, tightest of 5h/weekly
+  // for each). > 1 = burning too fast; < 1 = slack.
+  // Null when no account has enough info (unknown budget or the
+  // account is cold-start with no windowLengthMs).
+  paceRatio: number | null
+  // 0..1 fraction of the binding window that has already elapsed.
+  // Null when unknown. Consulted before applying pace-based tier
+  // shifts so early-window noise doesn't flip the tier.
+  windowElapsedRatio: number | null
 }
 
 export interface WeightChange {
