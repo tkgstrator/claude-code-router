@@ -97,6 +97,12 @@ export const PipelineRequestSchema = z.object({
   // stamps it before the pipeline runs — so it stays a plain boolean
   // (no optional / nullable) at this layer.
   isSubagent: z.boolean().default(false),
+  // Which wire format the request came in on. Set by the /v1 route
+  // builder from the inbound path — 'anthropic' for /v1/messages
+  // (Claude Code), 'openai' for /v1/chat/completions and /v1/responses.
+  // Persisted on RequestLog / Session so the History view can filter
+  // by inbound type without re-parsing the path from the payload.
+  inboundType: z.enum(['anthropic', 'openai']).optional(),
   sessionId: z.string().nonempty().optional(),
   tokenCount: z.number().optional()
 })

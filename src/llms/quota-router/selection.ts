@@ -48,6 +48,16 @@ export interface PreferenceSelectorInput {
   // Recent error rate (0-1). Callers back with the Phase 2e
   // model-health tracker; Phase 2c can pass `() => 0`.
   errorRate: (target: string) => number
+  // Model's max input tokens (from Model.contextWindow, mirrored on
+  // the snapshot). Null = unknown (the vendor's page didn't publish it
+  // or the model hasn't been scraped). Combined with `requestTokenCount`
+  // below to drop candidates that physically can't serve the request.
+  contextWindowOf?: (target: string) => number | null
+  // Estimated input-token count for THIS request, used with
+  // `contextWindowOf` to gate candidates whose max input is smaller.
+  // Undefined disables the gate — legacy callers that don't tokenise
+  // pre-selection keep the pre-Phase-2g behaviour.
+  requestTokenCount?: number
   // Optional pace-aware tier widening (Phase 2f). When set, replaces
   // the strict same-tier check with membership in this set. The
   // runtime computes it by evaluating the requested tier's canonical
@@ -71,7 +81,13 @@ export interface PreferenceSelection {
   skipped: { target: string; reason: SkipReason }[]
 }
 
-export type SkipReason = 'disabled' | 'tier_mismatch_agent' | 'tier_mismatch_subagent' | 'exhausted' | 'error_rate'
+export type SkipReason =
+  | 'disabled'
+  | 'tier_mismatch_agent'
+  | 'tier_mismatch_subagent'
+  | 'exhausted'
+  | 'error_rate'
+  | 'context_too_small'
 
 // Tier match for AGENT calls: the constraint knobs (sonnetTierRespect,
 // haikuTierRespect) express "client asked for tier X, honour that or
@@ -149,6 +165,20 @@ export function selectByPreference(input: PreferenceSelectorInput): PreferenceSe
     } else if (!tierMatchesAgent(candidateTier, input.requestedTier, input.constraints, input.allowedTiersOverride)) {
       skipped.push({ target: entry.target, reason: 'tier_mismatch_agent' })
       continue
+    }
+
+    // Physical context window gate. A candidate whose max input is
+    // smaller than the current request's token count would 400 or
+    // silently truncate — skip it before the exhausted/error checks
+    // so the reason is precise for the utilisation dashboard. Unknown
+    // contextWindow (scraper miss / cold-start row) is treated as
+    // "allow, we'll trust the vendor" rather than blocking the row.
+    if (input.requestTokenCount !== undefined && input.contextWindowOf !== undefined) {
+      const window = input.contextWindowOf(entry.target)
+      if (window !== null && window < input.requestTokenCount) {
+        skipped.push({ target: entry.target, reason: 'context_too_small' })
+        continue
+      }
     }
 
     if (input.isExhausted(entry.target)) {

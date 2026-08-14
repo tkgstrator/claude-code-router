@@ -52,6 +52,12 @@ export interface ModelCandidateState {
   // model-health tracker; a fresh model with no samples yet is passed
   // in as 0.
   errorRate: number
+  // Max input tokens the model accepts, mirrored from Model.contextWindow.
+  // Null when the scraper hasn't captured the value (subscription-only
+  // models, models the vendor page doesn't publish). The selector's
+  // context-window gate treats null as "unknown, allow" so a fresh
+  // seed doesn't block routing.
+  contextWindow: number | null
 }
 
 // Snapshot input the tick loop feeds to `computeWeights`. Deliberately
@@ -101,6 +107,11 @@ export interface WeightEntry {
   // Null when unknown. Consulted before applying pace-based tier
   // shifts so early-window noise doesn't flip the tier.
   windowElapsedRatio: number | null
+  // Model.contextWindow, mirrored on the snapshot so the selector's
+  // context-window gate can reject candidates that physically cannot
+  // serve the current request's token count without a fresh Prisma
+  // read on every request. Null = unknown; the gate allows.
+  contextWindow: number | null
 }
 
 export interface WeightChange {

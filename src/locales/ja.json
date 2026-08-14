@@ -225,7 +225,15 @@
     "timeout": "API タイムアウト (ms)",
     "proxy_url": "プロキシ URL",
     "custom_router_path": "カスタムルータースクリプトのパス",
-    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力"
+    "custom_router_path_placeholder": "カスタムルータースクリプトファイルの絶対パスを入力",
+    "router_section": "ルーティング",
+    "router_section_help": "Claude Code (/v1/messages) トラフィックを捌くセレクタを切り替えます。次のリクエストから反映されます。OpenAI 互換 (/v1/chat/completions、/v1/responses) は本モードの影響を受けず、クライアントが指定した model をそのまま upstream に送ります。",
+    "router_mode": "モード",
+    "router_mode_help": "scenario = 従来のルーティングマップ (Router.default など)。preference = ゲート判定のみの優先順位チェーン。quota-aware = paceRatio に応じた tier シフト付きのスケジューラ加重版チェーン。",
+    "router_shadow": "シャドウセレクタ",
+    "router_shadow_help": "プライマリと並行して 2 つ目のセレクタを走らせ、実ルーティングには影響させずログだけ吐きます。切替前の検証に使えます。",
+    "router_rollout_pct": "ロールアウト %",
+    "router_rollout_pct_help": "scenario 以外のモードを適用するセッションの割合。残りは scenario のまま。セッション ID をハッシュしてバケット化するので同じセッションは常に同じ側に落ちます。"
   },
   "transformers": {
     "title": "カスタム Transformer",
@@ -540,6 +548,11 @@
     "archive_all": "すべてアーカイブ",
     "select_session": "セッションを選択して詳細を確認",
     "preview_empty": "（ユーザー入力なし）",
+    "filter": {
+      "all": "すべて",
+      "claudeCode": "Claude Code",
+      "api": "API"
+    },
     "detail": {
       "provider": "プロバイダー",
       "model": "モデル",

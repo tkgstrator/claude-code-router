@@ -288,7 +288,8 @@ export function resolveInvocationForModel(
     model,
     scenarioType: plan.scenarioType,
     requestedModel: plan.requestedModel,
-    isSubagent: plan.isSubagent
+    isSubagent: plan.isSubagent,
+    inboundType: inboundTypeFromPath(plan.path)
   }
 
   return { body, headers, request, provider, transformer }
@@ -296,6 +297,18 @@ export function resolveInvocationForModel(
 
 const providerNameOf = (modelString: string): string => modelString.split(',')[0]
 const modelNameOf = (modelString: string): string => modelString.split(',').slice(1).join(',')
+
+// Persisted wire-type slug for a /v1 inbound path. `/v1/messages` is
+// the Anthropic surface Claude Code targets; `/v1/chat/completions`
+// and `/v1/responses` are the OpenAI-compat surfaces. Unknown paths
+// (never expected here, but the route helper is generic) return
+// undefined so RequestLog / Session stay null instead of falsely
+// tagging with one bucket.
+function inboundTypeFromPath(path: string): 'anthropic' | 'openai' | undefined {
+  if (path === '/v1/messages') return 'anthropic'
+  if (path === '/v1/chat/completions' || path === '/v1/responses') return 'openai'
+  return undefined
+}
 
 // Ordered list of "provider,model" candidates for this request: the
 // resolved primary first, then the pre-computed fallback chain. Skips

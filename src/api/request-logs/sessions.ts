@@ -16,6 +16,17 @@ import { buildPriceMap, computeCosts } from '../../services/cost-service'
 import { requestLogsRoute } from './app'
 import { loadPreviews } from './preview'
 
+// Narrow the Session.inboundType text column (typed `string | null` by
+// Prisma) to the discriminated union the wire schema expects. Anything
+// unrecognised — including the null on pre-migration rows — surfaces as
+// null so the History view treats it as "unknown" rather than falsely
+// bucketed. Kept as a helper so TypeScript picks up the narrowing at
+// the object-literal assignment site.
+function narrowInboundType(raw: string | null): 'anthropic' | 'openai' | null {
+  if (raw === 'anthropic' || raw === 'openai') return raw
+  return null
+}
+
 // ── GET /api/request-logs/sessions ───────────────────────────────────────────
 
 const getSessionsRoute = createRoute({
@@ -52,14 +63,21 @@ const getSessionSummaryRoute = createRoute({
 })
 
 requestLogsRoute.openapi(getSessionsRoute, async (c) => {
-  const { limit, offset, sinceHours } = c.req.valid('query')
+  const { limit, offset, sinceHours, inboundType } = c.req.valid('query')
   const prisma = getPrismaClient()
 
   // Limit to sessions active within the recent window (0 = no limit) so the
   // History list doesn't grow unbounded. Archived sessions are always hidden
   // — their RequestLog rows still count toward the Usage/cost totals.
+  // `inboundType` filter narrows to Claude Code vs OpenAI-compat sessions;
+  // when omitted the list mixes both. Pre-migration rows (inboundType null)
+  // are excluded from a filtered view rather than falsely bucketed.
   const since = sinceHours > 0 ? dayjs().subtract(sinceHours, 'hour').toDate() : null
-  const where = { archivedAt: null, ...(since ? { updatedAt: { gte: since } } : {}) }
+  const where = {
+    archivedAt: null,
+    ...(since ? { updatedAt: { gte: since } } : {}),
+    ...(inboundType ? { inboundType } : {})
+  }
 
   // Sessions from the Session table (ordered by most-recently-updated first)
   const [total, sessionRows] = await Promise.all([
@@ -118,6 +136,7 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
 
     return {
       sessionId: s.id,
+      inboundType: narrowInboundType(s.inboundType),
       requestCount: logs.length,
       providers,
       models,
@@ -188,6 +207,7 @@ requestLogsRoute.openapi(getSessionSummaryRoute, async (c) => {
   return c.json(
     {
       sessionId,
+      inboundType: narrowInboundType(session.inboundType),
       requestCount: logs.length,
       providers,
       models,

@@ -129,6 +129,13 @@ export const ConfigSchema = z.object({
   // Display name for the live routing. Optional; UI falls back to the
   // "Live" i18n label when absent.
   LiveRoutingName: z.string().optional(),
+  // Quota-aware router knobs. Kept optional here so an envelope that
+  // predates them still parses; the server-side envelope schema
+  // (ConfigEnvelopeSchema) supplies the defaults when the disk value
+  // is missing. Editable from the Settings page.
+  ROUTER_MODE: z.enum(['scenario', 'preference', 'quota-aware']).optional(),
+  ROUTER_SHADOW: z.enum(['off', 'preference', 'quota-aware']).optional(),
+  ROUTER_ROLLOUT_PCT: z.number().int().min(0).max(100).optional(),
   // Active persona lives on Router.persona (RouterConfigSchema), not as a
   // top-level field. The persona library stays top-level.
   Personas: z.array(PersonaSchema).default([])
