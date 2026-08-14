@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
-import { api, type SessionSummary } from '@/lib/api'
+import { api, type InboundType, type SessionSummary } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 import { fmtCost, fmtMs, fmtTokens } from '@/lib/sessions/format'
 
@@ -28,15 +28,25 @@ function fmtSessionRange(firstAt: string, lastAt: string): string {
   return `${start.format('MM/DD HH:mm')} – ${end.format('MM/DD HH:mm')}`
 }
 
+// Which inbound wire types the History tab currently shows. `undefined`
+// = mix both (server returns all). The tab persists in state only —
+// URL parameters are noise for a per-user preference this transient.
+type InboundFilter = 'all' | InboundType
+
 export function SessionsPage() {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [inboundFilter, setInboundFilter] = useState<InboundFilter>('all')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (filter: InboundFilter) => {
     setLoading(true)
     try {
-      const res = await api.getRequestLogSessions({ limit: 100, sinceHours: 6 })
+      const res = await api.getRequestLogSessions({
+        limit: 100,
+        sinceHours: 6,
+        inboundType: filter === 'all' ? undefined : filter
+      })
       setSessions(res.sessions)
     } catch {
       // silently ignore
@@ -46,8 +56,8 @@ export function SessionsPage() {
   }, [])
 
   useEffect(() => {
-    load()
-  }, [load])
+    load(inboundFilter)
+  }, [load, inboundFilter])
 
   // SSE: patch the session list in-place whenever a new RequestLog is
   // written. Fetching only the affected session's summary keeps the grid
@@ -60,8 +70,19 @@ export function SessionsPage() {
       try {
         const { sessionId } = JSON.parse(e.data) as { sessionId: string }
         void api.getSessionSummary(sessionId).then((summary) => {
+          // Respect the active filter: a summary that doesn't match the
+          // current tab is either dropped (new row we wouldn't have
+          // fetched) or removed (existing row that shouldn't stay
+          // visible on the wrong tab).
+          const matchesFilter = inboundFilter === 'all' || summary.inboundType === inboundFilter
           setSessions((prev) => {
             const idx = prev.findIndex((s) => s.sessionId === sessionId)
+            if (!matchesFilter) {
+              if (idx === -1) return prev
+              const next = [...prev]
+              next.splice(idx, 1)
+              return next
+            }
             if (idx === -1) return [summary, ...prev]
             const next = [...prev]
             next[idx] = summary
@@ -73,7 +94,7 @@ export function SessionsPage() {
     // Do not close on error: the browser's EventSource reconnects
     // automatically after transient network failures.
     return () => es.close()
-  }, [])
+  }, [inboundFilter])
 
   const handleArchiveAll = async () => {
     if (!window.confirm(t('sessions.archive_confirm'))) return
@@ -81,10 +102,16 @@ export function SessionsPage() {
     setSessions([])
   }
 
+  const filterOptions: readonly { key: InboundFilter; label: string }[] = [
+    { key: 'all', label: t('sessions.filter.all') },
+    { key: 'anthropic', label: t('sessions.filter.claudeCode') },
+    { key: 'openai', label: t('sessions.filter.api') }
+  ]
+
   return (
     <PageContainer>
       <PageHeader fluid title={t('sessions.title')}>
-        <Button variant='outline' onClick={load} disabled={loading}>
+        <Button variant='outline' onClick={() => load(inboundFilter)} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           {t('sessions.refresh')}
         </Button>
@@ -95,6 +122,25 @@ export function SessionsPage() {
       </PageHeader>
 
       <PageContent fluid>
+        <div className='mb-4 flex flex-wrap gap-1 border-b'>
+          {filterOptions.map((o) => {
+            const active = inboundFilter === o.key
+            return (
+              <button
+                key={o.key}
+                type='button'
+                onClick={() => setInboundFilter(o.key)}
+                className={
+                  active
+                    ? '-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium'
+                    : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
+                }
+              >
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
         {loading && sessions.length === 0 ? (
           <div className='flex flex-1 items-center justify-center text-sm text-muted-foreground'>
             {t('sessions.loading')}
@@ -116,17 +162,29 @@ export function SessionsPage() {
   )
 }
 
+function inboundBadgeLabel(t: (k: string) => string, kind: InboundType | null): string | null {
+  if (kind === 'anthropic') return t('sessions.filter.claudeCode')
+  if (kind === 'openai') return t('sessions.filter.api')
+  return null
+}
+
 function SessionCard({ session }: { session: SessionSummary }) {
   const { t } = useTranslation()
   const hasPreview = session.preview !== null && session.preview.length > 0
+  const badge = inboundBadgeLabel(t, session.inboundType)
   return (
     <div className='group space-y-3 border-l-2 border-transparent px-3 py-3 transition-colors hover:border-primary hover:bg-muted/50'>
       {/* Header row: date + total cost */}
       <div className='flex items-start justify-between gap-2'>
         <div className='min-w-0'>
-          <p className='text-sm font-semibold text-foreground tabular-nums'>
-            {dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}
-          </p>
+          <div className='flex items-center gap-2'>
+            <p className='text-sm font-semibold text-foreground tabular-nums'>
+              {dayjs(session.lastAt).format('YYYY/MM/DD HH:mm')}
+            </p>
+            {badge !== null && (
+              <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground'>{badge}</span>
+            )}
+          </div>
           <p className='truncate font-mono text-[10px] text-muted-foreground'>{session.sessionId}</p>
         </div>
         {session.totalCostUsd != null && (

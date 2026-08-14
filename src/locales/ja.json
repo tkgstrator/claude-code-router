@@ -548,6 +548,11 @@
     "archive_all": "すべてアーカイブ",
     "select_session": "セッションを選択して詳細を確認",
     "preview_empty": "（ユーザー入力なし）",
+    "filter": {
+      "all": "すべて",
+      "claudeCode": "Claude Code",
+      "api": "API"
+    },
     "detail": {
       "provider": "プロバイダー",
       "model": "モデル",

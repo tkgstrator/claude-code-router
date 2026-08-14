@@ -32,9 +32,13 @@ async function recordUsage(entry: UsageRecord): Promise<void> {
   const prisma = getPrismaClient()
   // New activity un-archives a previously archived session so it returns to
   // the History list (archivedAt: null), while still bumping updatedAt.
+  // inboundType is set on the CREATE branch only — first-observed sticks so
+  // a rare session-id reuse across wire formats does not silently flip the
+  // tag on the History list. Null when the row was pre-migration or the
+  // path did not carry a known inbound type.
   await prisma.session.upsert({
     where: { id: entry.sessionId },
-    create: { id: entry.sessionId },
+    create: { id: entry.sessionId, inboundType: entry.inboundType ?? null },
     update: { updatedAt: new Date(), archivedAt: null }
   })
   await prisma.requestLog.create({ data: { ...entry } })

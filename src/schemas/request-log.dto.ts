@@ -1,7 +1,13 @@
 import { z } from '@hono/zod-openapi'
 
+export const InboundTypeSchema = z.enum(['anthropic', 'openai'])
+export type InboundType = z.infer<typeof InboundTypeSchema>
+
 export const SessionSummarySchema = z.object({
   sessionId: z.string().nonempty(),
+  // Which wire format the session first came in on. Null on
+  // pre-migration sessions.
+  inboundType: InboundTypeSchema.nullable(),
   requestCount: z.number().int().nonnegative(),
   providers: z.array(z.string().nonempty()),
   models: z.array(z.string().nonempty()),
@@ -57,7 +63,10 @@ export const RequestLogsSessionsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
   // Only return sessions active within the last N hours (0 = no time limit).
   // History tends to grow unbounded, so default to a recent window.
-  sinceHours: z.coerce.number().int().min(0).max(8760).default(6)
+  sinceHours: z.coerce.number().int().min(0).max(8760).default(6),
+  // Filter by inbound wire type. 'anthropic' = Claude Code (/v1/messages),
+  // 'openai' = /v1/chat/completions + /v1/responses. Omit for "all".
+  inboundType: InboundTypeSchema.optional()
 })
 
 export const SessionIdParamSchema = z.object({ sessionId: z.string().nonempty() })
