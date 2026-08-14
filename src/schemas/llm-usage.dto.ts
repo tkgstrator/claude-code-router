@@ -79,6 +79,12 @@ export const UsageRecordSchema = z.object({
   // for the same reason.
   requestedModel: z.string().nonempty().nullable(),
   scenario: z.string().nonempty().nullable(),
+  // Which wire format the request came in on. 'anthropic' for
+  // /v1/messages (Claude Code), 'openai' for /v1/chat/completions and
+  // /v1/responses. Null for rows written before this landed (backfill
+  // is not possible — the inbound path is not recoverable from stored
+  // fields). Persisted on both RequestLog and Session (first-observed).
+  inboundType: z.enum(['anthropic', 'openai']).nullable(),
   // Whether the request took the subagent lane (a <CCR-SUBAGENT-MODEL>
   // tag was present). Always known at write — the route builder stamps
   // it before the pipeline runs, so this stays a plain boolean.

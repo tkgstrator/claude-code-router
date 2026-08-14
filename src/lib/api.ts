@@ -33,8 +33,13 @@ export interface RequestLogItem {
   totalCostUsd: number | null
 }
 
+export type InboundType = 'anthropic' | 'openai'
+
 export interface SessionSummary {
   sessionId: string
+  // Wire format the session first came in on. Null on pre-migration
+  // sessions.
+  inboundType: InboundType | null
   requestCount: number
   providers: string[]
   models: string[]
@@ -249,7 +254,12 @@ class ApiClient {
     )
   }
 
-  async getRequestLogSessions(params?: { limit?: number; offset?: number; sinceHours?: number }): Promise<{
+  async getRequestLogSessions(params?: {
+    limit?: number
+    offset?: number
+    sinceHours?: number
+    inboundType?: InboundType
+  }): Promise<{
     sessions: SessionSummary[]
     total: number
   }> {
@@ -257,6 +267,7 @@ class ApiClient {
     if (params?.limit != null) q.set('limit', String(params.limit))
     if (params?.offset != null) q.set('offset', String(params.offset))
     if (params?.sinceHours != null) q.set('sinceHours', String(params.sinceHours))
+    if (params?.inboundType != null) q.set('inboundType', params.inboundType)
     const qs = q.toString()
     return this.get<{ sessions: SessionSummary[]; total: number }>(`/request-logs/sessions${qs ? `?${qs}` : ''}`)
   }

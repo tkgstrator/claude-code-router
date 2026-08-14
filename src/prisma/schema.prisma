@@ -430,6 +430,12 @@ model Session {
   // preserved. Reset to null when the session receives new activity, so a
   // resumed session reappears in the list. Never physically deleted here.
   archivedAt DateTime?
+  // First-observed inbound wire type for this session: 'anthropic' or
+  // 'openai'. Set once on the first request that carries an inboundType
+  // and never overwritten, so a subsequent OpenAI-compat request that
+  // happens to reuse a Claude Code session id (rare, but possible) does
+  // not silently flip the tag. Null for pre-migration sessions.
+  inboundType String?
   logs       RequestLog[]
   messages   Message[]
 }
@@ -471,6 +477,12 @@ model RequestLog {
   // landed (untracked); true / false thereafter. Kept nullable so the
   // model-routing report can distinguish "no data" from "data says agent".
   isSubagent       Boolean?
+  // Which wire format the client came in on: 'anthropic' for
+  // /v1/messages (Claude Code) or 'openai' for /v1/chat/completions
+  // and /v1/responses. Null for rows written before this landed
+  // (untracked). Persisted so the History view can filter by inbound
+  // type without re-parsing anything from the payload.
+  inboundType      String?
   inputTokens      Int      @default(0)
   outputTokens     Int      @default(0)
   cacheReadTokens  Int      @default(0)

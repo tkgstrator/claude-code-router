@@ -548,6 +548,11 @@
     "archive_all": "Archive all",
     "select_session": "Select a session to view details",
     "preview_empty": "(no user text yet)",
+    "filter": {
+      "all": "All",
+      "claudeCode": "Claude Code",
+      "api": "API"
+    },
     "detail": {
       "provider": "Provider",
       "model": "Model",

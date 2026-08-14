@@ -46,6 +46,7 @@ export async function captureUsage(
   const requestedModel = context.req?.requestedModel
   const scenario = context.req?.scenarioType
   const isSubagent = context.req?.isSubagent === true
+  const inboundType = context.req?.inboundType
 
   await deps.recordUsage?.({
     sessionId,
@@ -53,6 +54,7 @@ export async function captureUsage(
     model: view.model !== undefined ? view.model : 'unknown',
     requestedModel: requestedModel !== undefined ? requestedModel : null,
     scenario: scenario !== undefined ? scenario : null,
+    inboundType: inboundType !== undefined ? inboundType : null,
     isSubagent,
     inputTokens: tokens.rawInput,
     outputTokens: tokens.outputTokens,
