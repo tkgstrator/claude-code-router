@@ -80,7 +80,14 @@ export const ConfigEnvelopeSchema = z
     // TTL; faster ticks just spin the weight recompute since upstream
     // /usage endpoints are cached. Lower bound 60s is for
     // shadow/staging; production should stay >= 300_000.
-    ROUTING_SCHEDULER_INTERVAL_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(300_000)
+    ROUTING_SCHEDULER_INTERVAL_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(300_000),
+    // When true, the failover walker auto-appends peer entries with the
+    // same Model.name on OpenAI-family providers (apiStyle openai_chat /
+    // openai_responses) after each explicit chain entry. Off by default
+    // — enable when you have the same model surfaced by multiple
+    // OpenAI-compatible providers and want a 429 on one to hop to the
+    // peer without hand-writing the chain.
+    CROSS_PROVIDER_FALLBACK: z.coerce.boolean().default(false)
   })
   // Any other keys we don't know about — keep them, don't drop them.
   .catchall(JsonValueSchema)
@@ -136,6 +143,7 @@ export const ConfigSchema = z.object({
   ROUTER_MODE: z.enum(['scenario', 'preference', 'quota-aware']).optional(),
   ROUTER_SHADOW: z.enum(['off', 'preference', 'quota-aware']).optional(),
   ROUTER_ROLLOUT_PCT: z.number().int().min(0).max(100).optional(),
+  CROSS_PROVIDER_FALLBACK: z.boolean().optional(),
   // Active persona lives on Router.persona (RouterConfigSchema), not as a
   // top-level field. The persona library stays top-level.
   Personas: z.array(PersonaSchema).default([])

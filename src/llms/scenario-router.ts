@@ -27,12 +27,20 @@
 
 import type { FlatRouter } from '@/schemas'
 import { isSessionInRollout } from '../services/routing-scheduler/rollout'
+import { getRoutingSnapshot } from '../services/routing-scheduler/state'
 import { logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
 import { applyProactiveFailover } from './scenario-router/failover'
 import { selectModel } from './scenario-router/model-selection'
+import { expandChainWithPeers, type HealthinessLookup } from './scenario-router/peer-fallback'
 import { applyGlobalSystemPrompt, resolveActivePersonaPrompt } from './scenario-router/persona'
 import { getProjectRouter } from './scenario-router/project-config'
-import type { RouterConfig, RouterContext, RouterRequest, RouterRequestBody } from './scenario-router/types'
+import type {
+  ConfigProvider,
+  RouterConfig,
+  RouterContext,
+  RouterRequest,
+  RouterRequestBody
+} from './scenario-router/types'
 import type { TokenizeRequest } from './tokenizers/base'
 
 // Read the runtime mode + rollout knobs from process.env once per
@@ -53,6 +61,36 @@ const readRolloutPct = (): number => {
   if (raw < 0) return 0
   if (raw > 100) return 100
   return raw
+}
+const readCrossProviderFallback = (): boolean => process.env.CROSS_PROVIDER_FALLBACK === 'true'
+
+// Route resolver-side view of the quota-aware scheduler's published
+// weight snapshot. Wraps `getRoutingSnapshot()` so peer-fallback can
+// order peers by healthiness without importing the snapshot type. A
+// missing snapshot (scheduler off, cold-start) collapses to `undefined`
+// per target, which peer-fallback treats as an average score.
+const healthinessLookup: HealthinessLookup = (target) => {
+  const snapshot = getRoutingSnapshot()
+  return snapshot?.weights.get(target)?.healthiness
+}
+
+// Build the enriched (primary + fallbacks + peerTargets) triple the
+// downstream failover paths consume. Split out of routeScenario so that
+// hot path stays under the biome cognitive-complexity budget and unit
+// tests exercising peer expansion can reach the helper directly.
+const applyPeerFallback = (
+  model: string,
+  fallbacks: readonly string[],
+  ctx: RouterContext
+): { primary: string; fallbacks: string[]; peerTargets: ReadonlySet<string> } => {
+  const providers = ctx.config.get<ConfigProvider[]>('providers', [])
+  const expanded = expandChainWithPeers(model, fallbacks, providers, healthinessLookup, readCrossProviderFallback())
+  // expanded.chain is constructed as [model, ...] so [0] is always the
+  // primary; the guarded fallback documents the invariant for readers
+  // and satisfies noNonNullAssertion / no-??-fallback lint rules.
+  const firstEntry = expanded.chain[0]
+  const primary = firstEntry === undefined ? model : firstEntry
+  return { primary, fallbacks: expanded.chain.slice(1), peerTargets: expanded.peerTargets }
 }
 
 export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas'
@@ -169,17 +207,24 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
       }
     }
 
+    // Cross-provider peer expansion runs BEFORE proactive failover so
+    // both the pre-send walker and the reactive chain walker see the
+    // same enriched chain. Off by default — the envelope toggle gates
+    // the whole feature and returns the explicit chain unchanged.
+    const enriched = applyPeerFallback(model, fallbacks, ctx)
+
     req.body.model = applyProactiveFailover(
-      model,
+      enriched.primary,
       scenarioResult.scenarioType,
-      fallbacks,
+      enriched.fallbacks,
       tokenCount,
       ctx.config,
       req.log
     )
     req.scenarioType = scenarioResult.scenarioType
     req.isSubagent = scenarioResult.isSubagent
-    req.resolvedFallbacks = fallbacks
+    req.resolvedFallbacks = enriched.fallbacks
+    req.resolvedPeerTargets = enriched.peerTargets
 
     // Append the active persona's prompt to user-facing routes. AFTER
     // subagent-tag handling (done inside selectModel) so it composes

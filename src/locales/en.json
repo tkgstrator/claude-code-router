@@ -233,7 +233,9 @@
     "router_shadow": "Shadow selector",
     "router_shadow_help": "Run a second selector alongside the primary and log its would-be decision without affecting routing. Useful for validating a new mode before flipping.",
     "router_rollout_pct": "Rollout %",
-    "router_rollout_pct_help": "Percentage of sessions the non-scenario mode applies to; the rest stay on the scenario router. Sessions are hash-bucketed so the same session always lands in the same bucket."
+    "router_rollout_pct_help": "Percentage of sessions the non-scenario mode applies to; the rest stay on the scenario router. Sessions are hash-bucketed so the same session always lands in the same bucket.",
+    "cross_provider_fallback": "Cross-provider fallback (OpenAI family)",
+    "cross_provider_fallback_help": "After each fallback chain entry, auto-inject peer entries with the same model name on OpenAI-family providers (openai_chat / openai_responses). A 429 on codex,gpt-5.6-luna will hop to openai,gpt-5.6-luna without hand-writing the chain. Peer entries also bypass the same-auth-mode gate so a subscription primary can fall over to an api_key peer."
   },
   "transformers": {
     "title": "Custom Transformers",

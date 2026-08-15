@@ -56,7 +56,8 @@ function SettingsForm({ config }: { config: Config }) {
       CUSTOM_ROUTER_PATH: config.CUSTOM_ROUTER_PATH,
       ROUTER_MODE: config.ROUTER_MODE ?? 'scenario',
       ROUTER_SHADOW: config.ROUTER_SHADOW ?? 'off',
-      ROUTER_ROLLOUT_PCT: config.ROUTER_ROLLOUT_PCT ?? 100
+      ROUTER_ROLLOUT_PCT: config.ROUTER_ROLLOUT_PCT ?? 100,
+      CROSS_PROVIDER_FALLBACK: config.CROSS_PROVIDER_FALLBACK ?? false
     }
   })
 
@@ -308,6 +309,22 @@ function SettingsForm({ config }: { config: Config }) {
                     </FormControl>
                     <p className='text-muted-foreground text-xs'>{t('toplevel.router_rollout_pct_help')}</p>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='CROSS_PROVIDER_FALLBACK'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between'>
+                    <div className='space-y-0.5'>
+                      <FormLabel>{t('toplevel.cross_provider_fallback')}</FormLabel>
+                      <p className='text-muted-foreground text-xs'>{t('toplevel.cross_provider_fallback_help')}</p>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
                   </FormItem>
                 )}
               />

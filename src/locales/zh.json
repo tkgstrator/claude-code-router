@@ -233,7 +233,9 @@
     "router_shadow": "影子选择器",
     "router_shadow_help": "在主选择器旁并行运行第二个选择器,仅记录其决策,不影响实际路由。用于切换前的验证。",
     "router_rollout_pct": "灰度百分比",
-    "router_rollout_pct_help": "非 scenario 模式适用的会话比例;其余仍走 scenario。会话按 hash 分桶,同一会话始终落到同一桶。"
+    "router_rollout_pct_help": "非 scenario 模式适用的会话比例;其余仍走 scenario。会话按 hash 分桶,同一会话始终落到同一桶。",
+    "cross_provider_fallback": "跨提供商回退 (OpenAI 系)",
+    "cross_provider_fallback_help": "在每个回退链条目之后,自动插入同名模型的 OpenAI 系提供商 (openai_chat / openai_responses) 条目。例如 codex,gpt-5.6-luna 遇到 429 时,即使未手写链也会自动回退到 openai,gpt-5.6-luna。自动插入的对等条目还会绕过同 auth_mode 限制,因此 subscription 主可以回退到 api_key 提供商。"
   },
   "transformers": {
     "title": "自定义转换器",

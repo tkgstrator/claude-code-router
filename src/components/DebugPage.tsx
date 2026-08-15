@@ -3,6 +3,7 @@ import type { editor } from 'monaco-editor'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import dayjs from '@/lib/dayjs'
 import { requestHistoryDB } from '@/lib/db'
@@ -11,6 +12,7 @@ import { parseLogData } from '@/lib/debug/parse-log-data'
 import { JsonEditorPanel } from './debug/JsonEditorPanel'
 import { type ResponseData, ResponseViewer } from './debug/ResponseViewer'
 import { RequestHistoryDrawer } from './RequestHistoryDrawer'
+import { SelectCombobox } from './SelectCombobox'
 
 export function DebugPage() {
   const navigate = useNavigate()
@@ -202,23 +204,22 @@ export function DebugPage() {
               <div className='flex gap-4 items-end'>
                 <div className='w-32'>
                   <label className='block text-sm font-medium mb-1'>Method</label>
-                  <select
-                    className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
+                  <SelectCombobox
+                    options={[
+                      { label: 'GET', value: 'GET' },
+                      { label: 'POST', value: 'POST' },
+                      { label: 'PUT', value: 'PUT' },
+                      { label: 'DELETE', value: 'DELETE' },
+                      { label: 'PATCH', value: 'PATCH' }
+                    ]}
                     value={requestData.method}
-                    onChange={(e) => setRequestData((prev) => ({ ...prev, method: e.target.value }))}
-                  >
-                    <option value='GET'>GET</option>
-                    <option value='POST'>POST</option>
-                    <option value='PUT'>PUT</option>
-                    <option value='DELETE'>DELETE</option>
-                    <option value='PATCH'>PATCH</option>
-                  </select>
+                    onChange={(v) => setRequestData((prev) => ({ ...prev, method: v }))}
+                  />
                 </div>
                 <div className='flex-1'>
                   <label className='block text-sm font-medium mb-1'>URL</label>
-                  <input
+                  <Input
                     type='text'
-                    className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
                     value={requestData.url}
                     onChange={(e) => setRequestData((prev) => ({ ...prev, url: e.target.value }))}
                     placeholder='https://api.example.com/endpoint'

@@ -53,7 +53,8 @@ export const ENVELOPE_ENV_KEYS = [
   // scheduler tick loop reads its interval once at boot).
   'ROUTER_MODE',
   'ROUTER_SHADOW',
-  'ROUTER_ROLLOUT_PCT'
+  'ROUTER_ROLLOUT_PCT',
+  'CROSS_PROVIDER_FALLBACK'
 ] as const
 export type EnvelopeEnvKey = (typeof ENVELOPE_ENV_KEYS)[number]
 

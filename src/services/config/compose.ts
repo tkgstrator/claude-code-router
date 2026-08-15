@@ -9,6 +9,7 @@ import { RouteRuleSchema } from '@/schemas'
 import type { ConfigEnvelope, ScenarioKey } from '@/shared'
 import { getPrismaClient } from '../../db/client'
 import {
+  type ApiStyle,
   AuthMode,
   type Model as DbModel,
   type Provider as DbProvider,
@@ -136,6 +137,8 @@ export const toProvider = (p: ProviderWithModels): Provider => {
       m.manualTier === 'fable' || m.manualTier === 'opus' || m.manualTier === 'sonnet' || m.manualTier === 'haiku'
   )
   const modelManualTiers = Object.fromEntries(withManualTier.map((m) => [m.name, m.manualTier]))
+  const withApiStyle = p.models.filter((m): m is DbModel & { apiStyle: ApiStyle } => m.apiStyle !== null)
+  const modelApiStyles = Object.fromEntries(withApiStyle.map((m) => [m.name, m.apiStyle]))
   const withReasoningEffort = p.models.filter(
     (m): m is DbModel & { reasoningEffort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' } =>
       m.reasoningEffort === 'none' ||
@@ -154,12 +157,14 @@ export const toProvider = (p: ProviderWithModels): Provider => {
     // DB value verbatim: null when unset. Never coerced to ''.
     api_key: p.apiKey,
     auth_mode: p.authMode,
+    api_style: p.apiStyle,
     models: p.models.map((m) => m.name),
     ...(deprecatedModels.length > 0 ? { deprecatedModels } : {}),
     ...(tested.length > 0 ? { modelTestStatus } : {}),
     ...(withContext.length > 0 ? { modelContextWindows } : {}),
     ...(withPrice.length > 0 ? { modelPrices } : {}),
     ...(withManualTier.length > 0 ? { modelManualTiers } : {}),
+    ...(withApiStyle.length > 0 ? { modelApiStyles } : {}),
     ...(withReasoningEffort.length > 0 ? { modelReasoningEfforts } : {}),
     // transformer is stored as JSONB; we re-derive _disabledModels from
     // Model.enabled so the UI sees the DB truth (the column on disk no
