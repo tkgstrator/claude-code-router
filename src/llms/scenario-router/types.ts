@@ -58,6 +58,12 @@ export type RouterRequest = {
   // rule-selected primary walks the rule-owned chain instead of the
   // scenario default.
   resolvedFallbacks?: string[]
+  // Subset of `resolvedFallbacks` that was auto-injected by the cross-
+  // provider peer expander (peer-fallback.ts). buildFailoverChain reads
+  // this to bypass its same-auth_mode gate on peer entries — the user
+  // opted into cross-auth-mode failover when they enabled the toggle.
+  // Empty / absent means no peer injection happened.
+  resolvedPeerTargets?: ReadonlySet<string>
   // Set by the quota-aware dispatcher when every candidate in the
   // preference chain failed the selector's gates AND the profile's
   // `exhaustedBehavior` is '429'. Non-null value is the number of
@@ -81,6 +87,16 @@ export type ConfigProvider = {
   // skip it too or the chain walker hits "provider not found; skipping".
   api_key?: string | null
   auth_mode?: string
+  // Provider-level request wire format, mirrored from the DB. Absent on
+  // legacy fixtures that predate the field; peer-fallback treats undefined
+  // as "unknown, exclude" so a fresh provider never gets picked as a
+  // cross-provider peer until the DB seeds populate it.
+  api_style?: 'openai_chat' | 'openai_responses' | 'anthropic' | 'gemini'
+  // Per-model apiStyle override, emitted by compose.ts alongside the
+  // provider-level api_style. Only present for models whose column is
+  // non-null (codex-family). Peer-fallback prefers the per-model value
+  // over the provider-level default when present.
+  modelApiStyles?: Record<string, 'openai_chat' | 'openai_responses' | 'anthropic' | 'gemini'>
   // Per-model context window (tokens), emitted by compose.ts. Used by the
   // capability gate so failover never lands on a model that cannot hold
   // the request. Absent entry = unknown window = allow (conservative).

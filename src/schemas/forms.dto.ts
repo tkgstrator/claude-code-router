@@ -32,7 +32,8 @@ export const SettingsFormSchema = z.object({
   CUSTOM_ROUTER_PATH: z.string().default(''),
   ROUTER_MODE: z.enum(['scenario', 'preference', 'quota-aware']).default('scenario'),
   ROUTER_SHADOW: z.enum(['off', 'preference', 'quota-aware']).default('off'),
-  ROUTER_ROLLOUT_PCT: z.number().int().min(0).max(100).default(100)
+  ROUTER_ROLLOUT_PCT: z.number().int().min(0).max(100).default(100),
+  CROSS_PROVIDER_FALLBACK: z.boolean().default(false)
 })
 export type SettingsFormInput = z.input<typeof SettingsFormSchema>
 export type SettingsFormOutput = z.output<typeof SettingsFormSchema>

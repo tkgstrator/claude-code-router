@@ -1,11 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/figtree";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/noto-sans";
-@import "@fontsource-variable/playfair-display";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -70,6 +67,13 @@
   --font-heading: var(--font-sans);
 
   --font-sans: 'Inter Variable', sans-serif;
+
+  /* Tailwind's `font-mono` utility resolves to this — code, model IDs,
+     kbd, and any inline mono spans. Pairs tonally with Inter (same
+     x-height family) so a routing card's `gpt-5.6-terra` chip sits
+     against its Inter label without the jarring browser-default
+     Courier/Menlo swap. Variable font, one axis, ~40 KB. */
+  --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
   --radius-2xl: calc(var(--radius) * 1.8);
 

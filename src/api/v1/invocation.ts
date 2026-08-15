@@ -124,6 +124,12 @@ export interface RoutePlan {
   // chain. buildFailoverChain reads this rather than re-looking-up so
   // the reactive path walks the same chain the proactive path did.
   fallbacks: readonly string[]
+  // Subset of `fallbacks` auto-injected by the cross-provider peer
+  // expander. buildFailoverChain reads this to bypass the same-auth_mode
+  // gate on peer entries — the user opted into cross-auth-mode failover
+  // when they enabled CROSS_PROVIDER_FALLBACK. Empty when the toggle
+  // is off or no peers were injected.
+  peerTargets: ReadonlySet<string>
   path: string
   search: string
 }
@@ -222,6 +228,7 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     // catch-all. buildFailoverChain reads this directly so the reactive
     // path walks the same chain the proactive path did.
     fallbacks: Array.isArray(routeReq.resolvedFallbacks) ? routeReq.resolvedFallbacks : [],
+    peerTargets: routeReq.resolvedPeerTargets ?? new Set<string>(),
     path,
     search: url.search
   }
@@ -341,6 +348,12 @@ export function buildFailoverChain(plan: RoutePlan, ctx: LlmsContext): string[] 
     if (seen.has(m)) return false
     seen.add(m)
     if (m === plan.primaryModel) return true
+    // Peer entries auto-injected by the cross-provider expander skip the
+    // auth_mode gate: the user opted into cross-auth-mode failover when
+    // they enabled CROSS_PROVIDER_FALLBACK, so a subscription primary
+    // may hop to an api_key peer of the same model. Explicit fallbacks
+    // still respect the gate below.
+    if (plan.peerTargets.has(m)) return true
     const name = providerNameOf(m)
     // Same-mode fallbacks only when primary auth_mode is known.
     // Unknown-auth providers (e.g. typo'd fallback entries) pass through
