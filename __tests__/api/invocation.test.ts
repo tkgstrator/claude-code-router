@@ -25,6 +25,7 @@ const plan = (over: Partial<RoutePlan>): RoutePlan =>
     primaryModel: 'codex,gpt-5.6-luna',
     isSubagent: false,
     fallbacks: [],
+    peerTargets: new Set<string>(),
     path: '/v1/messages',
     search: '',
     ...over
@@ -57,5 +58,51 @@ test('buildFailoverChain: same-provider fallbacks pass through (intra-account re
 
 test('buildFailoverChain: an empty fallback chain leaves just the primary', () => {
   const chain = buildFailoverChain(plan({ fallbacks: [] }), ctx)
+  expect(chain).toEqual(['codex,gpt-5.6-luna'])
+})
+
+test('buildFailoverChain: peer-injected entries bypass the same-auth_mode gate', () => {
+  // codex (subscription) is the primary and openai (api_key) is the
+  // peer-injected fallback for the same model. The auth_mode gate would
+  // normally strip the api_key peer, but plan.peerTargets tells the
+  // walker this entry was cross-provider auto-injected (user opted in
+  // via CROSS_PROVIDER_FALLBACK) and it must pass through.
+  const providersWithOpenai = [
+    { name: 'codex', auth_mode: 'subscription', models: ['gpt-5.6-luna'] },
+    { name: 'openai', auth_mode: 'api_key', models: ['gpt-5.6-luna'] }
+  ]
+  const ctxWithOpenai: Ctx = {
+    config: new ConfigStore({ Router: {}, providers: providersWithOpenai })
+  } as unknown as Ctx
+  const chain = buildFailoverChain(
+    plan({
+      fallbacks: ['openai,gpt-5.6-luna'],
+      peerTargets: new Set(['openai,gpt-5.6-luna'])
+    }),
+    ctxWithOpenai
+  )
+  expect(chain).toEqual(['codex,gpt-5.6-luna', 'openai,gpt-5.6-luna'])
+})
+
+test('buildFailoverChain: explicit (non-peer) mixed-auth_mode entry is still stripped', () => {
+  // Same providers, same primary — but this time the openai entry is
+  // NOT in peerTargets (user hand-configured it as an explicit fallback
+  // without enabling cross-provider fallback). The auth_mode gate must
+  // still apply so subscription-first users don't silently roll onto a
+  // paid api_key provider.
+  const providersWithOpenai = [
+    { name: 'codex', auth_mode: 'subscription', models: ['gpt-5.6-luna'] },
+    { name: 'openai', auth_mode: 'api_key', models: ['gpt-5.6-luna'] }
+  ]
+  const ctxWithOpenai: Ctx = {
+    config: new ConfigStore({ Router: {}, providers: providersWithOpenai })
+  } as unknown as Ctx
+  const chain = buildFailoverChain(
+    plan({
+      fallbacks: ['openai,gpt-5.6-luna'],
+      peerTargets: new Set<string>()
+    }),
+    ctxWithOpenai
+  )
   expect(chain).toEqual(['codex,gpt-5.6-luna'])
 })
