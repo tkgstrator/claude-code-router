@@ -9,7 +9,7 @@ import { type Provider, ProviderSchema } from '@/schemas'
 import { getPrismaClient } from '../../db/client'
 import { ModelTestStatus, type PrismaClient } from '../../generated/prisma/client'
 import { resetLlmsContext } from '../../llms'
-import { applyProviders } from './apply'
+import { applyProviderRow } from './apply'
 import { toProvider } from './compose'
 import { syncToConfigFile } from './sync-to-disk'
 
@@ -29,7 +29,19 @@ export async function upsertProvider(incoming: Provider): Promise<{ provider: Pr
   const warnings: string[] = []
   const prisma = getPrismaClient()
   await prisma.$transaction(async (tx) => {
-    await applyProviders(tx, [parsed], warnings)
+    // Fetch the pre-image only for THIS provider (the row-level helper
+    // needs the prior model.enabled map for its enabled-flip
+    // reconciliation). Do NOT call applyProviders here — that path
+    // starts with deleteRemovedProviders, which sees the single-element
+    // incoming list and deletes every other provider (and their
+    // SubAccount rows via onDelete: Cascade) as "no longer listed".
+    // That cascade wiped OAuth credentials on a routine PATCH before
+    // this was split.
+    const prevProvider = await tx.provider.findUnique({
+      where: { name: parsed.name },
+      include: { models: true }
+    })
+    await applyProviderRow(tx, parsed, prevProvider ?? undefined, warnings)
   })
   await syncToConfigFile()
   resetLlmsContext()

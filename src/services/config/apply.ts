@@ -20,7 +20,7 @@ import { pruneUnsetEnvelopePaths } from './sync-to-disk'
 
 export { apiKeyForStorage, buildStoredTransformer, parseSlot } from './apply/fields'
 export { syncDeprecationFlags } from './apply/model-rows'
-export { applyProviders } from './apply/providers'
+export { applyProviderRow, applyProviders } from './apply/providers'
 
 // Prisma 7 hangs the transaction-client type off the namespace export.
 export type Tx = Prisma.TransactionClient
