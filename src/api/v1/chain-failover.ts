@@ -111,7 +111,7 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
       err = caught
     }
 
-    const forwarded = forwardUpstreamError(err, errorShapeForPath(plan.path))
+    const forwarded = forwardUpstreamError(err, errorShapeForPath(plan.path), inv.provider.name)
     if (!forwarded) {
       ctx.log.error({ err }, 'pipeline error')
       return { kind: 'done', response: errorResponse(c, err) }

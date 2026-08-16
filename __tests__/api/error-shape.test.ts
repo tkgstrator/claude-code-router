@@ -134,3 +134,63 @@ describe('buildErrorEnvelope — Anthropic shape', () => {
     })
   })
 })
+
+// `via` — the chained-CCR-diagnostics knob. Without it, an outer CCR
+// forwarding an inner CCR's 401 gives the operator no way to tell which
+// hop rejected the request; the literal 'Invalid or missing API key.
+// Send it as Authorization: Bearer <key>.' collides byte-for-byte with
+// the local gate's wording.
+describe('buildErrorEnvelope — via provider tag', () => {
+  test('OpenAI shape prepends [via <name>] to the message', () => {
+    const env = buildErrorEnvelope({
+      shape: 'openai',
+      status: 401,
+      from: {
+        error: {
+          message: 'Invalid or missing API key. Send it as Authorization: Bearer <key>.',
+          type: 'invalid_request_error',
+          code: 'invalid_api_key',
+          param: null
+        }
+      },
+      via: 'openai'
+    })
+    const error = env.error as Record<string, unknown>
+    expect(error.message).toBe(
+      '[via openai] Invalid or missing API key. Send it as Authorization: Bearer <key>.'
+    )
+    // Classifiers still surface — the tag is a message-only prefix.
+    expect(error.type).toBe('invalid_request_error')
+    expect(error.code).toBe('invalid_api_key')
+  })
+
+  test('Anthropic shape prepends the tag too', () => {
+    const env = buildErrorEnvelope({
+      shape: 'anthropic',
+      status: 429,
+      from: { detail: 'rate limit' },
+      via: 'codex'
+    })
+    expect(env).toEqual({
+      type: 'error',
+      error: { type: 'rate_limit_error', message: '[via codex] rate limit' }
+    })
+  })
+
+  test('is idempotent — a message already tagged with the same provider is not double-wrapped', () => {
+    const env = buildErrorEnvelope({
+      shape: 'openai',
+      status: 500,
+      from: '[via openai] boom',
+      via: 'openai'
+    })
+    expect((env.error as Record<string, unknown>).message).toBe('[via openai] boom')
+  })
+
+  test('empty / missing via leaves the message untouched', () => {
+    const env = buildErrorEnvelope({ shape: 'openai', status: 500, from: 'boom' })
+    expect((env.error as Record<string, unknown>).message).toBe('boom')
+    const withEmpty = buildErrorEnvelope({ shape: 'openai', status: 500, from: 'boom', via: '' })
+    expect((withEmpty.error as Record<string, unknown>).message).toBe('boom')
+  })
+})
