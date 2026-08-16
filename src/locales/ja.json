@@ -183,7 +183,6 @@
     "output": "出力 / 1M",
     "cost_hint": "100万トークンあたりの USD、ベース価格・目安",
     "cost_hint_subscription": "100万トークンあたりの USD(参考値)・課金は月額プランでトークン課金ではありません",
-    "deprecated": "非推奨",
     "test_all_title": "接続テスト",
     "test_all_desc": "実際に推論リクエストを送って疎通を確認します。対象を選んでください。",
     "test_all_all": "すべてテスト",
