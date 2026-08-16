@@ -10,6 +10,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
+import { UPSTREAM_URL_SYMBOL } from '../../llms/pipeline/provider-send'
 import { buildErrorEnvelope, type ErrorShape, parseUpstreamBody } from './error-shape'
 
 // sendToProvider throws an HTTPException with the exact message
@@ -44,6 +45,15 @@ export function forwardUpstreamError(err: unknown, shape: ErrorShape = 'anthropi
   const envelope = buildErrorEnvelope({ shape, status, from: parsed, via })
   const headers: Record<string, string> = { 'content-type': 'application/json' }
   if (via !== undefined && via.length > 0) headers['x-ccr-upstream'] = via
+  // Surface the actual outbound URL (query-stripped) when the pipeline
+  // attached it to the exception. Closes the "provider.api_base_url says
+  // api.openai.com but the client sees a CCR-shaped 401 in return" gap:
+  // a transformer / overlay rewriting `config.url` will now show its
+  // real target on the response instead of the operator having to grep
+  // debug logs.
+  // biome-ignore plugin: symbol-keyed property attached by sendToProvider is not part of HTTPException's declared type; the cast is the read-side of the same contract the pipeline writes.
+  const upstreamUrl = (err as unknown as Record<symbol, unknown>)[UPSTREAM_URL_SYMBOL]
+  if (typeof upstreamUrl === 'string' && upstreamUrl.length > 0) headers['x-ccr-upstream-url'] = upstreamUrl
   return new Response(JSON.stringify(envelope), { status, headers })
 }
 
