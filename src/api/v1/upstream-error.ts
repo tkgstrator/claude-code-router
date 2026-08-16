@@ -25,18 +25,26 @@ const PROVIDER_ERR_RE = /^Error from provider\([^)]*:\s*(\d+)\):\s*([\s\S]*)$/
 // `{type:'error',error:{...}}`. Returns null when the error is not the
 // provider-shaped one (caller should treat as a pipeline error and
 // surface a generic 5xx).
-export function forwardUpstreamError(err: unknown, shape: ErrorShape = 'anthropic'): Response | null {
+//
+// `via` names the CCR provider the upstream error came through, so the
+// wire response can advertise it back to the client. Without this the
+// classic "two CCRs chained" case is unreadable: the outer CCR forwards
+// the inner CCR's literal 401 verbatim, and the operator can't tell
+// which CCR rejected the request — the wording matches CCR's own gate.
+// Surfaces on the response as:
+//   - header `x-ccr-upstream: <name>` (machine-readable)
+//   - message prefix `[via <name>] ` (visible in SDK error toString())
+export function forwardUpstreamError(err: unknown, shape: ErrorShape = 'anthropic', via?: string): Response | null {
   if (!(err instanceof HTTPException)) return null
   const message = err.message
   const m = message.match(PROVIDER_ERR_RE)
   if (!m) return null
   const status = Number(m[1]) || err.status || 502
   const parsed = parseUpstreamBody(m[2])
-  const envelope = buildErrorEnvelope({ shape, status, from: parsed })
-  return new Response(JSON.stringify(envelope), {
-    status,
-    headers: { 'content-type': 'application/json' }
-  })
+  const envelope = buildErrorEnvelope({ shape, status, from: parsed, via })
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (via !== undefined && via.length > 0) headers['x-ccr-upstream'] = via
+  return new Response(JSON.stringify(envelope), { status, headers })
 }
 
 // Upstream statuses that mean "this model can't serve right now, move to

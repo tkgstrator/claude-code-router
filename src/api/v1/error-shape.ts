@@ -128,17 +128,35 @@ export interface BuildErrorEnvelopeInput {
   // Either a plain string message or a parsed upstream body — the
   // helper unwraps the latter via `extractUpstream`.
   from: string | Record<string, unknown> | unknown
+  // Provider name the upstream error came through, when the caller
+  // knows it. Prepended to the visible message as `[via <name>] ` so a
+  // chained-CCR 401 (whose literal 'Invalid or missing API key. Send it
+  // as Authorization: Bearer <key>.' collides with the local gate's
+  // wording byte-for-byte) tells the operator which CCR rejected. Absent
+  // for callers that didn't resolve to a specific provider yet.
+  via?: string
+}
+
+// Prepend `[via <name>] ` to a message once. Idempotent — nested CCRs
+// each add their own hop, but re-forwarding the same envelope in the
+// same layer would not double-tag. Returns the original message when
+// `via` is empty / undefined.
+function withVia(message: string, via: string | undefined): string {
+  if (via === undefined || via.length === 0) return message
+  const tag = `[via ${via}] `
+  return message.startsWith(tag) ? message : tag + message
 }
 
 // Compose the shape-appropriate error envelope. Returns the parsed body
 // (as an object) — callers construct the `Response` themselves so they
 // keep control of headers (x-request-id, content-type, Retry-After).
-export function buildErrorEnvelope({ shape, status, from }: BuildErrorEnvelopeInput): Record<string, unknown> {
+export function buildErrorEnvelope({ shape, status, from, via }: BuildErrorEnvelopeInput): Record<string, unknown> {
   const extracted = typeof from === 'string' ? { message: from } : extractUpstream(from)
+  const message = withVia(extracted.message, via)
   if (shape === 'openai') {
     const envelope: Record<string, unknown> = {
       error: {
-        message: extracted.message,
+        message,
         type: openaiTypeForStatus(status, extracted.type),
         param: extracted.param ?? null,
         code: extracted.code ?? null
@@ -150,7 +168,7 @@ export function buildErrorEnvelope({ shape, status, from }: BuildErrorEnvelopeIn
     type: 'error',
     error: {
       type: anthropicTypeForStatus(status, extracted.type),
-      message: extracted.message
+      message
     }
   }
 }

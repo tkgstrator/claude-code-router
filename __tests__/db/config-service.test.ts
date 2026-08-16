@@ -339,11 +339,44 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
   })
 
-  test('omitting API_TIMEOUT_MS from payload removes it from disk', async () => {
+  test('omitting API_TIMEOUT_MS from payload preserves the disk value (merge, not overwrite)', async () => {
+    // applyUiConfig now merges the incoming envelope on top of the raw
+    // disk envelope so a partial POST does not wipe fields it did not
+    // send. Previously the second write would drop API_TIMEOUT_MS from
+    // disk because writeConfigFile only saw the incoming keys and
+    // rewrote the whole file — the same overwrite that used to null
+    // APIKEY out of a "single-toggle" POST. Explicit clearing of a
+    // scalar envelope field goes through the CRUD endpoint that owns
+    // it (or requires a nulling payload) rather than being encoded as
+    // "absent from a general /api/config POST".
     await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key', API_TIMEOUT_MS: 30000 })
     await applyUiConfig({ Providers: [], Router: {}, APIKEY: 'test-key' })
     const ui = await composeUiConfig()
-    expect(ui.API_TIMEOUT_MS).toBeUndefined()
+    expect(ui.API_TIMEOUT_MS).toBe(30000)
+  })
+
+  test('partial POST preserves envelope scalars the payload does not send (APIKEY, PORT, HOST)', async () => {
+    // Regression: a curl-style single-key write
+    // `POST /api/config {"CROSS_PROVIDER_FALLBACK":true}` used to
+    // clobber every other envelope scalar on disk — the disk file was
+    // rewritten from just the payload keys — and in particular wiped
+    // APIKEY, locking the caller out of the server on the next request.
+    await applyUiConfig({
+      Providers: [],
+      Router: {},
+      APIKEY: 'sensitive-key',
+      PORT: 3499,
+      HOST: '0.0.0.0'
+    })
+    // Partial POST touching only a novel envelope scalar. Historically
+    // this dropped APIKEY / PORT / HOST because the disk file was
+    // overwritten with only the incoming keys.
+    await applyUiConfig({ CROSS_PROVIDER_FALLBACK: true })
+    const ui = await composeUiConfig()
+    expect(ui.APIKEY).toBe('sensitive-key')
+    expect(ui.PORT).toBe(3499)
+    expect(ui.HOST).toBe('0.0.0.0')
+    expect(ui.CROSS_PROVIDER_FALLBACK).toBe(true)
   })
 
   test('LOG_LEVEL change round-trips through apply then compose (no stale env overlay)', async () => {
