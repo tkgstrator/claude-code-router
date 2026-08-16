@@ -212,6 +212,19 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // same enriched chain. Off by default — the envelope toggle gates
     // the whole feature and returns the explicit chain unchanged.
     const enriched = applyPeerFallback(model, fallbacks, ctx)
+    // Emit one info line per request that actually got peers appended so
+    // an operator can audit "did the toggle fire, and to what?" without
+    // reading the raw chain from the failover-walker debug logs.
+    if (enriched.peerTargets.size > 0) {
+      req.log.info(
+        {
+          primary: enriched.primary,
+          peersInjected: Array.from(enriched.peerTargets),
+          chainSize: enriched.fallbacks.length + 1
+        },
+        '[cross-provider-fallback] injected same-model peers into chain'
+      )
+    }
 
     req.body.model = applyProactiveFailover(
       enriched.primary,

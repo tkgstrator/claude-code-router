@@ -3,6 +3,7 @@ import { Maximize } from 'lucide-react'
 import type { editor } from 'monaco-editor'
 import type { MutableRefObject } from 'react'
 import { Button } from '@/components/ui/button'
+import { MONACO_FONT_FAMILY } from '@/lib/monaco-font'
 
 interface JsonEditorPanelProps {
   label: string
@@ -53,6 +54,7 @@ export function JsonEditorPanel({
           options={{
             minimap: { enabled: isFullscreen },
             scrollBeyondLastLine: false,
+            fontFamily: MONACO_FONT_FAMILY,
             fontSize: 14,
             lineNumbers: 'on',
             wordWrap: 'on',
