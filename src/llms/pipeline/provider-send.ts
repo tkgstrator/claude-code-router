@@ -14,6 +14,7 @@ import { fetchProvider } from '../provider-fetch'
 import type { ResolvedProvider } from '../registry/provider'
 import type { Transformer } from '../transformers/base'
 import { captureAssistantMessage, extractLastUserContent } from './message-capture'
+import { shouldStripInboundHeader } from './request-chain'
 import { resolveSessionId } from './session-id'
 import type { PipelineDeps } from './types'
 import { captureUsage } from './usage-extraction'
@@ -119,13 +120,13 @@ async function applyBypassAuth(
 
   const inboundHeaders: Record<string, string | undefined> = config.headers !== undefined ? { ...config.headers } : {}
   if (auth.config?.headers) {
-    // Drop every case variant of inbound auth headers before merging
-    // the transformer's upstream auth — otherwise inbound lowercase
-    // `authorization` lingers and Headers.set() (case-insensitive)
-    // can pick the wrong value.
+    // Drop inbound headers that must not reach the upstream (client
+    // auth, Cloudflare / proxy trail, host, hop-by-hop) before merging
+    // the transformer's upstream auth. Reuses the same predicate the
+    // request-chain bypass path uses so the two entry points can't
+    // silently drift on which headers get through.
     for (const k of Object.keys(inboundHeaders)) {
-      const lower = k.toLowerCase()
-      if (lower === 'authorization' || lower === 'x-api-key') delete inboundHeaders[k]
+      if (shouldStripInboundHeader(k)) delete inboundHeaders[k]
     }
     Object.assign(inboundHeaders, auth.config.headers)
     delete inboundHeaders.host
