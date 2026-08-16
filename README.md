@@ -151,6 +151,7 @@ Boot-time scalars and disk-resident objects live here. Environment-variable inte
 | `CLAUDE_PATH` | Path to the `claude` executable |
 | `NON_INTERACTIVE_MODE` | Set `true` for Docker / CI environments to prevent stdin hangs |
 | `CUSTOM_ROUTER_PATH` | Absolute path to a custom JavaScript router module |
+| `CROSS_PROVIDER_FALLBACK` | `true` to auto-append same-`Model.name` peer entries on other OpenAI-family providers (`openai_chat` / `openai_responses`) after every failover chain entry. Peer entries also bypass the same-`auth_mode` gate, so a subscription primary (codex) can fall over to an api_key peer (openai) without a hand-written chain. Off by default. See "Cross-provider peer fallback" below. |
 
 ### Providers, Models, and Router (database)
 
@@ -180,6 +181,18 @@ Beyond the scenario triggers above, the router grades each request and walks an 
 - **Multi-account balancing** — when more than one SubAccount on the same Claude provider is enabled, the session router picks the one with the most weekly headroom (furthest behind its linear drain target) and sticks subsequent requests in the session to that account.
 
 Decisions are logged structurally: the winning hop carries `{ from, to, scenario, marginPct, tokenCount, trace }`, and a dead-chain warning fires when every candidate is rejected so the operator can see what was tried and why (`rate-limited` / `capability` / `malformed` / `kept`).
+
+### Cross-provider peer fallback
+
+When the same `Model.name` is served by more than one OpenAI-compatible provider (a common setup: `gpt-5.6-luna` on both the subscription `codex` provider and an api_key `openai` provider), enabling `CROSS_PROVIDER_FALLBACK` on the Settings page (or via the env var) tells the router to **auto-inject the peer entries into every failover chain** — no need to duplicate the fallbacks by hand per scenario.
+
+- **Scope** — only providers whose `apiStyle` is `openai_chat` or `openai_responses` are considered peers. Anthropic and Gemini providers are never mixed in because their wire formats differ.
+- **Ordering** — peers appear directly after the entry that pulled them in, sorted by the quota-aware scheduler's healthiness score (highest first). Unknown scores collapse to a neutral 0.5.
+- **Dedup** — an explicitly configured fallback wins. If you already listed `openai,gpt-5.6-luna` in the chain, the expander does not add a duplicate.
+- **`auth_mode` bypass** — peer-injected entries skip the "primary and fallback must share `auth_mode`" gate. Turning the toggle on is an explicit opt-in to letting a subscription (codex) primary fall over onto an api_key (openai) peer of the same model. Explicit fallbacks you wrote by hand still respect the gate.
+- **Observability** — every request that gets peers appended emits `[cross-provider-fallback] injected same-model peers into chain` with the primary, the peer list, and the resulting chain size.
+
+The toggle is off by default so existing setups behave exactly as before.
 
 ### Personas
 

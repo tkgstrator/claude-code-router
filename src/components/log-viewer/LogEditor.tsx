@@ -1,4 +1,5 @@
 import Editor from '@monaco-editor/react'
+import { MONACO_FONT_FAMILY } from '@/lib/monaco-font'
 
 interface LogEditorProps {
   value: string
@@ -18,6 +19,7 @@ export function LogEditor({ value, isDark, onMount }: LogEditorProps) {
         theme={isDark ? 'vs-dark' : 'vs'}
         options={{
           minimap: { enabled: true },
+          fontFamily: MONACO_FONT_FAMILY,
           fontSize: 14,
           scrollBeyondLastLine: false,
           automaticLayout: true,
