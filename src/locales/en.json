@@ -183,7 +183,6 @@
     "output": "Output / 1M",
     "cost_hint": "USD per 1M tokens, base tier — rough guide",
     "cost_hint_subscription": "USD per 1M tokens (reference) — billed by your monthly plan, not per token",
-    "deprecated": "deprecated",
     "test_all_title": "Connection test",
     "test_all_desc": "Sends a real inference request to verify connectivity. Choose what to test.",
     "test_all_all": "Test all",

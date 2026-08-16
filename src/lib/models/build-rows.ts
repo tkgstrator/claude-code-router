@@ -23,24 +23,31 @@ export function buildModelRows(providers: Provider[], planByProvider: Record<str
     const deprecatedSet = new Set(provider.deprecatedModels ?? [])
     const ctxMap = provider.modelContextWindows ?? {}
     const priceMap = provider.modelPrices ?? {}
-    return models.map((model) => {
+    // Deprecated models are dropped from the dashboard entirely — an
+    // operator who wants to route to one still can via the Router
+    // editor, but the browsing surface stays a short list of things
+    // that are currently offered. Prior behaviour surfaced them with a
+    // "deprecated" badge, which cluttered the table without adding
+    // decision value the operator could act on from this screen.
+    return models.flatMap((model) => {
+      if (deprecatedSet.has(model)) return []
       const key = `${providerName},${model}`
       const enabled = !disabledList.includes(model)
-      const deprecated = deprecatedSet.has(model)
       // DB-only prices, mirroring how contextWindow is sourced. No static
       // price fallback — a model absent from modelPrices shows "—".
       const price = priceMap[model]
-      return {
-        provider: providerName,
-        model,
-        key,
-        enabled,
-        isSubscription,
-        deprecated,
-        contextWindow: ctxMap[model],
-        inputPer1M: price?.inputPer1M,
-        outputPer1M: price?.outputPer1M
-      }
+      return [
+        {
+          provider: providerName,
+          model,
+          key,
+          enabled,
+          isSubscription,
+          contextWindow: ctxMap[model],
+          inputPer1M: price?.inputPer1M,
+          outputPer1M: price?.outputPer1M
+        }
+      ]
     })
   })
 }

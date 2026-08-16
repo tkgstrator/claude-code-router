@@ -6,7 +6,6 @@ export interface ModelRow {
   key: string
   enabled: boolean
   isSubscription: boolean
-  deprecated: boolean
   contextWindow?: number
   // USD/1M prices straight from the DB (scraped/seeded) via the config
   // payload — no static-bundle fallback. null = vendor publishes no price
