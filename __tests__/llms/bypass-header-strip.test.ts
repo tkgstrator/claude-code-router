@@ -108,4 +108,107 @@ describe('processRequestTransformers — bypass mode header strip', () => {
     // that reaches the upstream in that path.
     expect(config.headers).toBeUndefined()
   })
+
+  // A remote CCR fronted by Cloudflare receives cf-* / cdn-loop /
+  // x-forwarded-* headers on every inbound request. Forwarding them to
+  // api.openai.com (also Cloudflare-fronted) triggered CF's loop
+  // detection → 403 HTML back to the client. The strip below is what
+  // separates "model test passes but SDK 403s" from a working request.
+  test('strips Cloudflare / proxy trail headers so a CF-fronted upstream does not reject as a loop', async () => {
+    const { config } = await processRequestTransformers(
+      inputWithHeaders({
+        'cf-ray': '9abc1234-KIX',
+        'cf-connecting-ip': '203.0.113.5',
+        'cf-visitor': '{"scheme":"https"}',
+        'cf-ipcountry': 'JP',
+        'cdn-loop': 'cloudflare',
+        'x-forwarded-for': '203.0.113.5',
+        'x-forwarded-proto': 'https',
+        'x-real-ip': '203.0.113.5',
+        via: '1.1 example.net',
+        forwarded: 'for=203.0.113.5;proto=https',
+        'content-type': 'application/json'
+      }),
+      true
+    )
+    // Every proxy-trail header is gone.
+    expect(config.headers?.['cf-ray']).toBeUndefined()
+    expect(config.headers?.['cf-connecting-ip']).toBeUndefined()
+    expect(config.headers?.['cf-visitor']).toBeUndefined()
+    expect(config.headers?.['cf-ipcountry']).toBeUndefined()
+    expect(config.headers?.['cdn-loop']).toBeUndefined()
+    expect(config.headers?.['x-forwarded-for']).toBeUndefined()
+    expect(config.headers?.['x-forwarded-proto']).toBeUndefined()
+    expect(config.headers?.['x-real-ip']).toBeUndefined()
+    expect(config.headers?.via).toBeUndefined()
+    expect(config.headers?.forwarded).toBeUndefined()
+    // Non-trail headers still pass through.
+    expect(config.headers?.['content-type']).toBe('application/json')
+  })
+
+  test('strips inbound Host so undici cannot leak the CCR domain into the upstream request', async () => {
+    // api.openai.com routes by Host; a stale `Host: llm.tkgstrator.work`
+    // spread onto the upstream call would earn a 403 by itself.
+    const { config } = await processRequestTransformers(
+      inputWithHeaders({ Host: 'llm.tkgstrator.work', 'content-type': 'application/json' }),
+      true
+    )
+    expect(config.headers?.Host).toBeUndefined()
+    expect(config.headers?.host).toBeUndefined()
+  })
+
+  test('strips any x-forwarded-* variant, not just the well-known ones', async () => {
+    const { config } = await processRequestTransformers(
+      inputWithHeaders({
+        'x-forwarded-host': 'llm.tkgstrator.work',
+        'x-forwarded-port': '443',
+        'x-forwarded-server': 'edge-42',
+        keep: 'me'
+      }),
+      true
+    )
+    expect(config.headers?.['x-forwarded-host']).toBeUndefined()
+    expect(config.headers?.['x-forwarded-port']).toBeUndefined()
+    expect(config.headers?.['x-forwarded-server']).toBeUndefined()
+    expect(config.headers?.keep).toBe('me')
+  })
+
+  test('strips any cf-* variant (Cloudflare adds several beyond the common four)', async () => {
+    const { config } = await processRequestTransformers(
+      inputWithHeaders({
+        'cf-request-id': 'r-1',
+        'cf-worker': 'w-2',
+        'cf-warp-tag-id': 't-3',
+        keep: 'me'
+      }),
+      true
+    )
+    expect(config.headers?.['cf-request-id']).toBeUndefined()
+    expect(config.headers?.['cf-worker']).toBeUndefined()
+    expect(config.headers?.['cf-warp-tag-id']).toBeUndefined()
+    expect(config.headers?.keep).toBe('me')
+  })
+})
+
+describe('shouldStripInboundHeader', () => {
+  test('exact matches are case-insensitive', async () => {
+    const { shouldStripInboundHeader } = await import('../../src/llms/pipeline/request-chain')
+    expect(shouldStripInboundHeader('Content-Length')).toBe(true)
+    expect(shouldStripInboundHeader('CONTENT-LENGTH')).toBe(true)
+    expect(shouldStripInboundHeader('content-length')).toBe(true)
+  })
+
+  test('prefixes catch every casing variant', async () => {
+    const { shouldStripInboundHeader } = await import('../../src/llms/pipeline/request-chain')
+    expect(shouldStripInboundHeader('Cf-Ray')).toBe(true)
+    expect(shouldStripInboundHeader('CF-CONNECTING-IP')).toBe(true)
+    expect(shouldStripInboundHeader('X-Forwarded-For')).toBe(true)
+  })
+
+  test('non-listed headers pass through', async () => {
+    const { shouldStripInboundHeader } = await import('../../src/llms/pipeline/request-chain')
+    expect(shouldStripInboundHeader('content-type')).toBe(false)
+    expect(shouldStripInboundHeader('user-agent')).toBe(false)
+    expect(shouldStripInboundHeader('anthropic-version')).toBe(false)
+  })
 })

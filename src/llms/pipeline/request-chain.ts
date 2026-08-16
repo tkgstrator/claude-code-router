@@ -13,6 +13,60 @@ import type { ResolvedProviderTransformer } from '../registry/provider'
 import type { Transformer } from '../transformers/base'
 import type { PipelineInput } from './types'
 
+// Inbound headers that MUST NOT reach the upstream provider on the
+// bypass path. Buckets:
+//
+//  Hop-by-hop / encoding — content-length is re-serialised by
+//  fetchProvider; accept-encoding is stripped because CCR's fetch
+//  auto-decompresses, and forwarding the inbound value causes the
+//  upstream to send a compressed body that Bun decompresses while its
+//  content-encoding header lingers, which triggers a double-decompress
+//  ZlibError on the Claude Code client side.
+//
+//  Client-auth — authorization / x-api-key carry the client's CCR
+//  APIKEY. Forwarding them causes the upstream to see the CCR key as
+//  its Bearer instead of provider.api_key; buildRequestHeaders sets
+//  the correct provider Bearer first, but a lowercase inbound
+//  `authorization` spread on top overrides it and OpenAI then 400s
+//  with "Incorrect API key".
+//
+//  Proxy trail — host and every Cloudflare / X-Forwarded-* header the
+//  front tier stamps on the request. Two failure modes drove the wider
+//  strip:
+//    - `Host: llm.tkgstrator.work` (the inbound Host) survives the
+//      spread and reaches api.openai.com, which SNI-routes on Host —
+//      the mismatch alone earns a 403.
+//    - `cf-*` / `cdn-loop: cloudflare` on requests hitting another
+//      Cloudflare-fronted upstream trip CF's loop / replay detection
+//      and get returned as 403 Forbidden from cloudflare (HTML), not
+//      the vendor's own error body.
+//  Model test's probeInference builds its own tiny header set so it
+//  never had these; the pipeline's bypass path did, and that is why
+//  "test passes, real request 403s" showed up only against remote CCRs
+//  behind a Cloudflare front (local dev is direct, so cf-* is absent
+//  and the same bug never fired).
+const STRIP_INBOUND_EXACT = new Set([
+  'content-length',
+  'accept-encoding',
+  'authorization',
+  'x-api-key',
+  'host',
+  'x-real-ip',
+  'cdn-loop',
+  'forwarded',
+  'via'
+])
+const STRIP_INBOUND_PREFIXES = ['cf-', 'x-forwarded-']
+
+export function shouldStripInboundHeader(name: string): boolean {
+  const lower = name.toLowerCase()
+  if (STRIP_INBOUND_EXACT.has(lower)) return true
+  for (const prefix of STRIP_INBOUND_PREFIXES) {
+    if (lower.startsWith(prefix)) return true
+  }
+  return false
+}
+
 export function shouldBypass(
   providerTx: ResolvedProviderTransformer | undefined,
   transformer: Transformer,
@@ -80,35 +134,9 @@ export async function processRequestTransformers(
   let config: TransformerConfig = {}
 
   if (bypass) {
-    // Strip hop-by-hop and client-negotiation headers that must not be
-    // forwarded to the upstream provider:
-    //  - content-length: the body will be re-serialised by fetchProvider
-    //  - accept-encoding: CCR's fetch handles its own decompression; passing
-    //    the inbound value causes the upstream to return a compressed body
-    //    that Bun auto-decompresses, but the content-encoding header lingers
-    //    in the response and triggers a double-decompress ZlibError on the
-    //    Claude Code client side.
-    //  - authorization / x-api-key: these are CCR's own inbound-auth gate
-    //    (the client's CCR APIKEY). Forwarding them causes the upstream to
-    //    receive the CCR APIKEY as its Bearer instead of provider.api_key
-    //    — buildRequestHeaders sets the correct provider Bearer first, but
-    //    the inbound `authorization` (lowercase) spread on top would override
-    //    it, and OpenAI upstream then 400s with "Incorrect API key".
-    //    mergeAuthAndPassthroughHeaders already strips these when an
-    //    OAuth transformer's auth() returns headers; do the same here so
-    //    bypass providers without an auth-returning transformer (openai
-    //    api_key in single-use bypass) don't leak the inbound key.
     const headers: Record<string, string | undefined> = { ...input.headers }
     for (const key of Object.keys(headers)) {
-      const lower = key.toLowerCase()
-      if (
-        lower === 'content-length' ||
-        lower === 'accept-encoding' ||
-        lower === 'authorization' ||
-        lower === 'x-api-key'
-      ) {
-        delete headers[key]
-      }
+      if (shouldStripInboundHeader(key)) delete headers[key]
     }
     config = { headers }
     return { requestBody, config }
