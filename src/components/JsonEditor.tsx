@@ -8,6 +8,7 @@ import { useConfig } from '@/components/ConfigProvider'
 import { PageContainer, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
+import { MONACO_FONT_FAMILY } from '@/lib/monaco-font'
 
 export function JsonEditor() {
   const { t } = useTranslation()
@@ -108,6 +109,7 @@ export function JsonEditor() {
           theme={isDark ? 'vs-dark' : 'vs'}
           options={{
             minimap: { enabled: true },
+            fontFamily: MONACO_FONT_FAMILY,
             fontSize: 14,
             scrollBeyondLastLine: false,
             automaticLayout: true,
