@@ -28,6 +28,13 @@
  *     / ~/.codex/auth.json object) and upserts the SubAccount directly,
  *     bypassing the OAuth dance entirely.
  *
+ *   POST /api/oauth/export-credentials   (gated by APIKEY)
+ *     Symmetric to import-credentials — decrypts the ACTIVE SubAccount's
+ *     tokens for the given kind and returns them in the on-disk file
+ *     shape (claudeAiOauth wrapper for claude, tokens {access_token,
+ *     refresh_token, id_token} for codex), so the payload round-trips
+ *     straight back through import-credentials on another CCR host.
+ *
  * Pending flows live in a process-memory map (PoC scope). CSRF
  * protection is the single-use `state` token issued at /initiate;
  * /callback validates against that and rejects unknown / expired
@@ -36,6 +43,7 @@
  */
 
 import { Hono } from 'hono'
+import { getPrismaClient } from '../../db/client'
 import { logger } from '../../logger'
 import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../schemas/llm-oauth.dto'
 import { buildClaudeAuthorizeUrl, CLAUDE_SCOPES, exchangeClaudeCode } from '../../services/claude-oauth-service'
@@ -47,6 +55,8 @@ import {
   generateState,
   storePendingFlow
 } from '../../services/oauth-flow-service'
+import { providersForKind } from '../../services/subscription-account-sync/persist'
+import { getActiveSubAccountAuth } from '../../services/subscription-account-sync/read'
 import { recordClaudeOAuthAccount, recordCodexOAuthAccount } from '../../services/subscription-account-sync-service'
 
 export const oauthRoute = new Hono()
@@ -260,4 +270,93 @@ oauthRoute.post('/api/oauth/import-credentials', async (c) => {
   }
 
   return c.json({ success: false as const, error: `Unsupported provider "${body.provider}".` }, 400)
+})
+
+// Symmetric to import-credentials: decrypt the ACTIVE SubAccount's
+// tokens for the given kind and return them in the ~/.claude/.credentials.json
+// / ~/.codex/auth.json wire shape — the exact bytes import-credentials
+// accepts, so a backup taken from this endpoint round-trips into another
+// CCR (or the on-disk CLI file) without hand-editing.
+//
+// Response carries Content-Disposition: attachment with a stable
+// filename so a browser download prompt fires; XHR / SDK callers keep
+// the JSON body untouched. Cache-control: no-store because the body is
+// secret material.
+//
+// Only the active account is exported — the same one the proxy hot path
+// would use for outbound OAuth calls right now.
+oauthRoute.post('/api/oauth/export-credentials', async (c) => {
+  const body = await c.req.json<{ provider: string }>().catch(() => ({ provider: '' }))
+  if (body.provider !== 'claude' && body.provider !== 'codex') {
+    return c.json({ success: false as const, error: `Unsupported provider "${body.provider}".` }, 400)
+  }
+  const kind: 'claude' | 'codex' = body.provider
+  const prisma = getPrismaClient()
+  const kindProviders = await providersForKind(prisma, kind)
+  if (kindProviders.length === 0) {
+    return c.json({ success: false as const, error: `No subscription provider registered for "${kind}".` }, 404)
+  }
+
+  // Walk every provider that matches this vendor kind (usually one:
+  // claude-code / codex). Take the first one that has a live active
+  // account with a non-empty access token — that's what the proxy would
+  // use right now.
+  for (const p of kindProviders) {
+    const auth = await getActiveSubAccountAuth(p.name, prisma)
+    if (!auth || !auth.accessToken) continue
+
+    if (kind === 'claude') {
+      const sub = await prisma.subAccount.findUnique({
+        where: { id: auth.subAccountId },
+        select: { scopes: true }
+      })
+      const rawScopes: unknown = sub?.scopes
+      const scopes: string[] = Array.isArray(rawScopes)
+        ? rawScopes.filter((s): s is string => typeof s === 'string')
+        : []
+      const file = {
+        claudeAiOauth: {
+          accessToken: auth.accessToken,
+          refreshToken: auth.refreshToken ?? '',
+          expiresAt: auth.expiresAt ? auth.expiresAt.valueOf() : null,
+          scopes
+        }
+      }
+      c.header('content-disposition', 'attachment; filename="claude-credentials.json"')
+      c.header('cache-control', 'no-store')
+      return c.json(file, 200)
+    }
+
+    // codex: id_token is REQUIRED for re-import (CodexCredentialsFileSchema
+    // rejects empty). Fail loudly rather than emit a payload that will
+    // 400 on import — a missing id_token in the DB means the SubAccount
+    // was created before the field was captured, and the operator has
+    // to re-OAuth to get a usable export.
+    if (!auth.idToken) {
+      logger.warn(
+        { provider: p.name, subAccountId: auth.subAccountId },
+        '[oauth] export-credentials: id_token missing on stored codex account; re-authenticate to refresh'
+      )
+      return c.json(
+        {
+          success: false as const,
+          error:
+            'Stored codex account has no id_token to export (created before it was captured). Re-authenticate via Settings → Providers → Connect and retry.'
+        },
+        409
+      )
+    }
+    const file = {
+      tokens: {
+        access_token: auth.accessToken,
+        refresh_token: auth.refreshToken ?? '',
+        id_token: auth.idToken
+      }
+    }
+    c.header('content-disposition', 'attachment; filename="codex-auth.json"')
+    c.header('cache-control', 'no-store')
+    return c.json(file, 200)
+  }
+
+  return c.json({ success: false as const, error: `No active subscription account for "${kind}".` }, 404)
 })
