@@ -127,6 +127,27 @@ const createDefaultConfig = async (): Promise<ConfigEnvelope> => {
   return ConfigEnvelopeSchema.parse(overlayEnvOnRaw(raw))
 }
 
+/**
+ * Read the disk config file as a raw parsed object — no schema defaults
+ * applied, no env overlay, no on-disk repair. Returns `{}` when the file
+ * is missing or unparseable so callers can treat "no disk state" and "no
+ * matching keys" identically. Consumed by `applyUiConfig` to merge a
+ * partial UI payload onto disk without losing keys the payload omitted;
+ * do NOT use for runtime reads — use `readConfigFile()` for those.
+ */
+export const readRawConfigFile = async (): Promise<Record<string, unknown>> => {
+  try {
+    const raw = await fs.readFile(CONFIG_FILE, 'utf-8')
+    const parsed: unknown = JSON5.parse(raw)
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+    return {}
+  } catch {
+    return {}
+  }
+}
+
 export const readConfigFile = async (): Promise<ConfigEnvelope> => {
   try {
     const raw = await fs.readFile(CONFIG_FILE, 'utf-8')

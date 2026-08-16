@@ -15,7 +15,7 @@ import { resetLlmsContext } from '../../llms'
 import { syncLoggerFromEnv } from '../../logger'
 import { applyProviders } from './apply/providers'
 import { applyRouter } from './apply/router'
-import { applyEnvelopeToEnv, writeConfigFile } from './envelope'
+import { applyEnvelopeToEnv, readRawConfigFile, writeConfigFile } from './envelope'
 import { pruneUnsetEnvelopePaths } from './sync-to-disk'
 
 export { apiKeyForStorage, buildStoredTransformer, parseSlot } from './apply/fields'
@@ -88,10 +88,22 @@ export async function applyUiConfig(payload: Record<string, unknown>): Promise<A
   // failing the file write after a DB commit is no worse than failing
   // the DB write after a file write — and the file is the smaller of
   // the two surfaces.
+  //
+  // Merge onto the raw disk envelope so a partial POST (single-key
+  // edit, or a CRUD handler that only touches one scalar) preserves
+  // everything the payload did not send. Before this, `writeConfigFile`
+  // received only the incoming envelope keys and clobbered every other
+  // scalar on disk — APIKEY, PORT, LOG, etc. — because it rewrites the
+  // whole file. `readRawConfigFile` returns `{}` when the file is
+  // missing so a first-run boot still writes fresh state instead of
+  // failing here.
+  //
   // Don't persist null / '' for the optional path scalars — drop the
   // key so "unset" stays absent on disk (composeUiConfig re-derives
   // null). A real value is written through unchanged.
-  const envelopeToWrite = pruneUnsetEnvelopePaths(envelope)
+  const { Providers: _p, providers: _lower, Router: _r, ...diskEnvelope } = await readRawConfigFile()
+  const mergedEnvelope = { ...diskEnvelope, ...envelope }
+  const envelopeToWrite = pruneUnsetEnvelopePaths(mergedEnvelope)
   await writeConfigFile({
     ...envelopeToWrite,
     ...(incomingProviders !== undefined ? { Providers: incomingProviders } : {}),
