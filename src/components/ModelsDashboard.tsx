@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -272,16 +271,7 @@ export function ModelsDashboard() {
                         {row.provider}
                       </span>
                     </td>
-                    <td className='px-6 py-2 font-mono text-xs text-foreground'>
-                      <span className='inline-flex items-center gap-2'>
-                        {row.model}
-                        {row.deprecated && (
-                          <Badge variant='outline' className='border-amber-300 bg-amber-50 text-[10px] text-amber-700'>
-                            {t('models.deprecated')}
-                          </Badge>
-                        )}
-                      </span>
-                    </td>
+                    <td className='px-6 py-2 font-mono text-xs text-foreground'>{row.model}</td>
                     <td className='px-6 py-2 whitespace-nowrap text-right text-xs text-muted-foreground'>
                       {row.inputPer1M != null ? (
                         <span title={t(row.isSubscription ? 'models.cost_hint_subscription' : 'models.cost_hint')}>
