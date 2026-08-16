@@ -37,6 +37,22 @@ export async function sendToProvider(
   const reqLog = deps.log.child({ reqId })
   const startedAt = Date.now()
 
+  // Info-level heartbeat when a transformer rewrote `config.url` away
+  // from the provider's declared api_base_url — the exact gap that lets
+  // an outbound request land on a different host than the operator sees
+  // in /api/config. Silent when the two match. Query-stripped both sides
+  // so a Gemini `?key=` never leaks into logs.
+  if (outConfig.url !== undefined) {
+    const declared = stripUrlSecrets(provider.api_base_url)
+    const actual = stripUrlSecrets(url)
+    if (declared !== actual) {
+      reqLog.info(
+        { provider: provider.name, declared, actual },
+        `[upstream_url_rewritten] ${provider.name}: ${declared} → ${actual}`
+      )
+    }
+  }
+
   const headers = buildRequestHeaders(provider, outConfig)
 
   logRequest(reqLog, provider, body, url, bypass)
@@ -57,7 +73,7 @@ export async function sendToProvider(
   const durationMs = Date.now() - startedAt
 
   if (!response.ok) {
-    await handleProviderError(response, provider, transformer, body, durationMs, reqLog)
+    await handleProviderError(response, provider, transformer, body, durationMs, url, reqLog)
   }
 
   logResponse(reqLog, provider, body, response.status, durationMs)
@@ -181,24 +197,53 @@ function logResponse(log: Logger, provider: ResolvedProvider, body: unknown, sta
   )
 }
 
+// Symbol key used to attach the resolved outbound URL to an HTTPException
+// so `forwardUpstreamError` can surface it back to the client as
+// `x-ccr-upstream-url`. Symbol-keyed (not a plain field) so a caller
+// enumerating the exception's own keys never sees it.
+export const UPSTREAM_URL_SYMBOL = Symbol.for('ccr.upstreamUrl')
+
+// Strip query params from an outbound URL before it lands in logs or a
+// response header. Gemini authenticates via `?key=<apiKey>` on the URL,
+// so echoing the search string would leak the api key onto every 4xx
+// response. Path + host is the diagnostic bit — the query never is.
+export function stripUrlSecrets(url: URL | string): string {
+  try {
+    const u = typeof url === 'string' ? new URL(url) : url
+    return `${u.origin}${u.pathname}`
+  } catch {
+    // Malformed input — return the original string sans anything past
+    // the first '?' so we don't leak a key even in the degenerate path.
+    const s = String(url)
+    const q = s.indexOf('?')
+    return q >= 0 ? s.slice(0, q) : s
+  }
+}
+
 async function handleProviderError(
   response: Response,
   provider: ResolvedProvider,
   transformer: Transformer,
   body: unknown,
   durationMs: number,
+  url: URL | string,
   log: Logger
 ): Promise<never> {
   const errorText = await response.text()
   const isSubscription = transformer.name.endsWith('-oauth')
   const view = viewPipelineBody(body)
   const model = view.model !== undefined ? view.model : 'unknown'
+  const safeUrl = stripUrlSecrets(url)
 
   // KEEP this message byte-for-byte: v1/route.ts has a regex
   // (PROVIDER_ERR_RE) that parses "Error from provider(<name>,<model>:
   // <status>): <rawBody>" to forward the genuine upstream error to
   // Claude Code verbatim.
   const message = `Error from provider(${provider.name},${model}: ${response.status}): ${errorText}`
+  // Include the actual outbound URL in the error log so operators can
+  // distinguish provider.api_base_url (what the config says) from the
+  // URL CCR really posted to (which a custom transformer or overlay may
+  // have rewritten via config.url).
   log.error(
     {
       type: 'response',
@@ -206,6 +251,7 @@ async function handleProviderError(
       model,
       status: response.status,
       durationMs,
+      url: safeUrl,
       body: tryParseJson(errorText)
     },
     `[provider_response_error] ${message}`
@@ -222,5 +268,11 @@ async function handleProviderError(
   }
   // biome-ignore plugin: HTTPException's status param is typed as a closed union of supported codes;
   // upstream returns arbitrary HTTP codes which we forward verbatim, so the cast is the only path.
-  throw new HTTPException(response.status as never, { message })
+  const exc = new HTTPException(response.status as never, { message })
+  // Attach the safe outbound URL so forwardUpstreamError can echo it on
+  // the client-facing response header. Symbol-keyed to keep it off the
+  // exception's enumerable surface — matches the `via` provider tag
+  // plumbing without changing the throw contract other callers depend on.
+  ;(exc as unknown as Record<symbol, unknown>)[UPSTREAM_URL_SYMBOL] = safeUrl
+  throw exc
 }
