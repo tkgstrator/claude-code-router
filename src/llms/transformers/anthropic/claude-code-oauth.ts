@@ -92,21 +92,6 @@ function keepSignedBlock(block: unknown): boolean {
   return typeof signature === 'string' && signature.length > 0
 }
 
-// Strip an inbound top-level `thinking` block unless the caller opted
-// into extended thinking. Recent Claude Code builds send
-// `thinking: { type: "disabled" }` to explicitly turn thinking off, but
-// Anthropic rejects any type other than `enabled` with a 400
-// ("thinking.type.disabled is not supported for this model. Thinking
-// defaults to adaptive mode when not specified"). Omitting the field
-// entirely gives the same behaviour the client intended (no extended
-// thinking), so drop everything except an explicit `enabled` request.
-// Exported for unit testing.
-export function stripDisabledThinking(req: { thinking?: unknown }): void {
-  if (typeof req.thinking !== 'object' || req.thinking === null) return
-  const thinkingType = Reflect.get(req.thinking, 'type')
-  if (thinkingType !== 'enabled') delete req.thinking
-}
-
 export class ClaudeCodeOauthTransformer extends OAuthTransformer {
   readonly name = 'claude-code-oauth'
   readonly endPoint = '/v1/messages'
@@ -164,7 +149,15 @@ export class ClaudeCodeOauthTransformer extends OAuthTransformer {
       })
     }
 
-    stripDisabledThinking(req)
+    // `thinking` is forwarded verbatim. Anthropic accepts `enabled`
+    // and `disabled` today (verified empirically against
+    // api.anthropic.com/v1/messages with claude-sonnet-4-5); shapes it
+    // does not accept (`adaptive`, unknown values) 400 back to the
+    // client, which is the correct feedback signal. CCR previously
+    // stripped `disabled` here as a compat shim for an older Anthropic
+    // that 400'd it — the shim silently converted the caller's
+    // opt-OUT into a server-side adaptive default, so the model burned
+    // thinking tokens on requests the user explicitly opted out of.
 
     return {
       body: req,

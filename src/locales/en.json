@@ -668,7 +668,7 @@
     "title": "Router Preferences",
     "description": "Ordered chain the quota-aware router walks. Top entry is tried first; live weight and remaining budget come from the scheduler snapshot.",
     "chain": "Preference chain",
-    "emptyScenario": "No entries in this scenario yet.",
+    "emptyScenario": "No entries configured — requests will pass through to the model the client asked for.",
     "addDialog": {
       "title": "Add model to preference chain",
       "description": "Add a model to the {{scenario}} chain. Pick a provider first, then choose one of its models.",
@@ -686,6 +686,10 @@
       "webSearch": "Web Search",
       "image": "Image"
     },
+    "kind": {
+      "agent": "Agent",
+      "subagent": "Subagent"
+    },
     "constraints": "Constraints",
     "subagentTiers": "Subagent tiers",
     "budget": "budget",
@@ -702,6 +706,10 @@
     "exhaustedBehaviorHelpPassthrough": "passthrough: fall back to the client's originally requested model without touching the preference chain.",
     "noSchedulerData": "Live weight and budget are unavailable — the quota-aware scheduler is not running.",
     "longContextThresholdHelp": "Requests whose input token count exceeds this fall into the longContext chain.",
+    "longContextThresholdAuto": "Auto",
+    "longContextThresholdAutoHelp": "Automatically use 70% of the default agent primary's context window as the threshold.",
+    "longContextThresholdAutoResolved": "Effective: {{value}} tokens (70% of {{model}})",
+    "longContextThresholdAutoUnresolved": "Effective: {{value}} tokens (fallback — no context window known for the default model)",
     "columnWeight": "Weight",
     "columnBudget": "Budget",
     "saved": "Preferences saved",

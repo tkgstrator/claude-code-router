@@ -12,7 +12,7 @@
 import { describe, expect, test } from 'bun:test'
 import { HTTPException } from 'hono/http-exception'
 import { UPSTREAM_URL_SYMBOL, stripUrlSecrets } from '../../src/llms/pipeline/provider-send'
-import { forwardUpstreamError } from '../../src/api/v1/upstream-error'
+import { forwardUpstreamError, isInsufficientQuota, isRateLimited } from '../../src/api/v1/upstream-error'
 
 // Reproduce the exception shape sendToProvider throws on upstream error:
 // the `Error from provider(...)` message wrap plus the symbol-keyed
@@ -85,5 +85,42 @@ describe('forwardUpstreamError — via + x-ccr-upstream-url headers', () => {
     // biome-ignore plugin: intentional out-of-shape input for negative test.
     const err = new HTTPException(500 as never, { message: 'unrelated error' })
     expect(forwardUpstreamError(err, 'openai', 'openai')).toBeNull()
+  })
+})
+
+describe('isInsufficientQuota', () => {
+  // Real-shape OpenAI 429 body captured from prod when a project hits
+  // its enforced spend limit. The router must distinguish this from an
+  // ephemeral rate-limit tick so the chain walker can mark the whole
+  // provider exhausted and skip the ~5 minutes of same-provider
+  // fallbacks that otherwise pile up before AbortSignal.timeout fires.
+  const QUOTA_BODY = JSON.stringify({
+    error: {
+      message: 'Your project has reached its configured enforced spend limit.',
+      type: 'insufficient_quota',
+      code: 'insufficient_quota'
+    }
+  })
+
+  test('detects OpenAI insufficient_quota 429 (permanent spend-cap)', () => {
+    const err = makeUpstreamException(429, 'openai', 'gpt-5.6-luna', QUOTA_BODY)
+    expect(isInsufficientQuota(err)).toBe(true)
+    // Still counts as rate-limited so the base failover path still fires.
+    expect(isRateLimited(err)).toBe(true)
+  })
+
+  test('rejects a plain rate_limit 429 (ephemeral)', () => {
+    const body = JSON.stringify({ error: { message: 'slow down', type: 'rate_limit_exceeded' } })
+    const err = makeUpstreamException(429, 'openai', 'gpt-5.6-luna', body)
+    expect(isInsufficientQuota(err)).toBe(false)
+  })
+
+  test('rejects a 429 with a malformed body (safe default = false)', () => {
+    const err = makeUpstreamException(429, 'openai', 'gpt-5.6-luna', 'not json')
+    expect(isInsufficientQuota(err)).toBe(false)
+  })
+
+  test('rejects non-HTTPException errors', () => {
+    expect(isInsufficientQuota(new Error('boom'))).toBe(false)
   })
 })

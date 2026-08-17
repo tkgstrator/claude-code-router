@@ -36,7 +36,7 @@ const emptyRoute = (): { primary: null; fallbacks: []; rules: [] } => ({
 export const emptyRouter = (): Router => ({
   default: { agent: emptyRoute(), subagent: emptyRoute() },
   think: { agent: emptyRoute(), subagent: emptyRoute() },
-  longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: 128_000 },
+  longContext: { agent: emptyRoute(), subagent: emptyRoute(), threshold: null },
   webSearch: { agent: emptyRoute(), subagent: emptyRoute() },
   image: { agent: emptyRoute(), subagent: emptyRoute() },
   persona: null

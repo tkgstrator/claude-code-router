@@ -69,8 +69,20 @@ export const ScenarioRouterConfigSchema = z.object({
   agentRules: RulesMapSchema.optional(),
   /** Subagent-route predicated rule stacks keyed by scenario. */
   subagentRules: RulesMapSchema.optional(),
-  /** Token threshold above which a request gets routed to longContext. */
-  longContextThreshold: z.number().optional(),
+  /**
+   * Token threshold above which a request gets routed to longContext.
+   * `null` (or absent) means "auto" — the runtime derives the effective
+   * value from `defaultAgentContextWindow` × LONG_CONTEXT_AUTO_RATIO.
+   */
+  longContextThreshold: z.number().nullable().optional(),
+  /**
+   * Default agent primary's context window (tokens), populated by
+   * context.ts when it flattens the main Router. Per-project override
+   * files leave this absent — the auto-threshold path falls back to
+   * the manual 128k default when neither an override threshold nor a
+   * window is available.
+   */
+  defaultAgentContextWindow: z.number().positive().nullable().optional(),
   /**
    * Name of the active persona for this router (looked up in the
    * top-level Personas library). Optional so an existing per-project /

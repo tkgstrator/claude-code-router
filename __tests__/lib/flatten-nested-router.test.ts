@@ -80,8 +80,19 @@ test('flattenNestedRouter maps every route/scenario to the right flat slot', () 
       image: []
     },
     longContextThreshold: 123_456,
+    defaultAgentContextWindow: null,
     persona: 'pirate'
   })
+})
+
+test('flattenNestedRouter carries defaultAgentContextWindow through from opts', () => {
+  const flat = flattenNestedRouter(nested, { defaultAgentContextWindow: 200_000 })
+  expect(flat.defaultAgentContextWindow).toBe(200_000)
+})
+
+test('flattenNestedRouter clamps a non-positive contextWindow to null', () => {
+  const flat = flattenNestedRouter(nested, { defaultAgentContextWindow: 0 })
+  expect(flat.defaultAgentContextWindow).toBe(null)
 })
 
 test('flattenNestedRouter preserves per-scenario rules on both kinds', () => {

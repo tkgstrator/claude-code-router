@@ -81,8 +81,13 @@ function normalizeScenario(raw: unknown): {
   }
 }
 
-function numberOr(raw: unknown, fallback: number): number {
-  return typeof raw === 'number' ? raw : fallback
+// Longcontext threshold rides as `number | null` on the wire; null means
+// "auto" (the runtime derives an effective value from the default
+// agent primary's contextWindow). numberOrNull collapses anything that
+// isn't a number to null so a missing/invalid field lands on auto
+// rather than silently pinning 128k.
+function numberOrNull(raw: unknown): number | null {
+  return typeof raw === 'number' ? raw : null
 }
 
 // Build the nested Config['Router'] from the raw wire object. Each
@@ -98,7 +103,7 @@ function normalizeRouter(raw: unknown): Config['Router'] {
   return {
     default: normalizeScenario(get('default')),
     think: normalizeScenario(get('think')),
-    longContext: { ...normalizeScenario(longContextRaw), threshold: numberOr(Reflect.get(lcObj, 'threshold'), 128000) },
+    longContext: { ...normalizeScenario(longContextRaw), threshold: numberOrNull(Reflect.get(lcObj, 'threshold')) },
     webSearch: normalizeScenario(get('webSearch')),
     image: normalizeScenario(get('image')),
     persona: typeof persona === 'string' && persona !== '' ? persona : undefined
@@ -191,7 +196,7 @@ const emptyConfig = (): Config => ({
   Router: {
     default: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     think: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
-    longContext: { agent: emptyRouteTarget(), subagent: emptyRouteTarget(), threshold: 128000 },
+    longContext: { agent: emptyRouteTarget(), subagent: emptyRouteTarget(), threshold: null },
     webSearch: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     image: { agent: emptyRouteTarget(), subagent: emptyRouteTarget() },
     persona: undefined

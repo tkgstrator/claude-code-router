@@ -668,7 +668,7 @@
     "title": "ルーター優先順位",
     "description": "quota-aware ルーターが順に辿る優先順位チェーンです。先頭のエントリから試行され、ライブの weight と残り予算はスケジューラのスナップショットから取得されます。",
     "chain": "優先順位チェーン",
-    "emptyScenario": "このシナリオにはまだエントリがありません。",
+    "emptyScenario": "エントリ未設定 — クライアントがリクエストしたモデルへそのままパススルーします。",
     "addDialog": {
       "title": "優先順位チェーンにモデルを追加",
       "description": "{{scenario}} のチェーンにモデルを追加します。まずプロバイダーを選び、次にそのプロバイダーのモデルを選択してください。",
@@ -686,6 +686,10 @@
       "webSearch": "Web 検索",
       "image": "画像"
     },
+    "kind": {
+      "agent": "エージェント",
+      "subagent": "サブエージェント"
+    },
     "constraints": "制約",
     "subagentTiers": "サブエージェント tier",
     "budget": "予算",
@@ -702,6 +706,10 @@
     "exhaustedBehaviorHelpPassthrough": "passthrough: 優先順位チェーンを無視し、クライアントが元々指定したモデルへそのまま流します。",
     "noSchedulerData": "ライブの weight / 予算は表示できません — quota-aware スケジューラが動作していません。",
     "longContextThresholdHelp": "入力トークン数がこの値を超えると longContext チェーンにルーティングされます。",
+    "longContextThresholdAuto": "自動",
+    "longContextThresholdAutoHelp": "default レーン primary モデルのコンテキストウィンドウの 70% を閾値として自動計算します。",
+    "longContextThresholdAutoResolved": "実効値: {{value}} tokens ({{model}} の 70%)",
+    "longContextThresholdAutoUnresolved": "実効値: {{value}} tokens (default モデルの contextWindow 未取得のためフォールバック)",
     "columnWeight": "Weight",
     "columnBudget": "予算",
     "saved": "優先順位を保存しました",
