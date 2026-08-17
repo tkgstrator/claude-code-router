@@ -58,11 +58,6 @@ export function RoutingPresetEditor() {
     }
   }, [id, t])
 
-  const personas = useMemo(
-    () => (config === null ? [] : config.Personas.map((p) => ({ id: p.id === undefined ? '' : p.id, name: p.name }))),
-    [config]
-  )
-
   const onSave = useCallback(
     async (router: RouterConfig) => {
       if (preset === null) return { ok: false, message: 'preset not loaded' }
@@ -146,7 +141,7 @@ export function RoutingPresetEditor() {
           {t('router.presetApplyToLive')}
         </Button>
       </PageHeader>
-      <RoutingEditor initialRouter={preset.config} personas={personas} onSave={onSave} editable />
+      <RoutingEditor initialRouter={preset.config} onSave={onSave} editable />
 
       <Dialog open={applyConfirmOpen} onOpenChange={setApplyConfirmOpen}>
         <DialogContent className='sm:max-w-md'>

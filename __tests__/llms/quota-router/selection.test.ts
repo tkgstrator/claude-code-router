@@ -2,35 +2,32 @@ import { expect, test } from 'bun:test'
 import type { PreferenceConstraints, RouterPreferenceEntry } from '../../../src/schemas'
 import { selectByPreference } from '../../../src/llms/quota-router/selection'
 
+// Strict tier constraint: both directional gates OFF, so only same-tier
+// candidates match the requested tier. Replaces the pre-Phase 2h
+// per-tier `sonnetTierRespect` / `haikuTierRespect` design.
 const CONSTRAINTS_STRICT: PreferenceConstraints = {
-  sonnetTierRespect: true,
-  haikuTierRespect: true,
+  allowEscalation: false,
+  allowDemotion: false,
   quotaSkipPct: 100,
   errorRateSkipPct: 0.5,
   minHealthSamples: 5
 }
 
+// Loose tier constraint: both directional gates ON, tier becomes a
+// hint (every candidate matches). Same as the schema defaults.
 const CONSTRAINTS_LOOSE: PreferenceConstraints = {
   ...CONSTRAINTS_STRICT,
-  sonnetTierRespect: false,
-  haikuTierRespect: false
+  allowEscalation: true,
+  allowDemotion: true
 }
 
-const entry = (
-  priority: number,
-  target: string,
-  overrides: Partial<RouterPreferenceEntry> = {}
-): RouterPreferenceEntry => ({
+const entry = (priority: number, target: string, overrides: Partial<RouterPreferenceEntry> = {}): RouterPreferenceEntry => ({
   priority,
   target,
-  enabled: overrides.enabled ?? true,
-  subagentTiers: overrides.subagentTiers ?? []
+  enabled: overrides.enabled ?? true
 })
 
-const ALL_HEALTHY: Pick<
-  Parameters<typeof selectByPreference>[0],
-  'isExhausted' | 'errorRate'
-> = {
+const ALL_HEALTHY: Pick<Parameters<typeof selectByPreference>[0], 'isExhausted' | 'errorRate'> = {
   isExhausted: () => false,
   errorRate: () => 0
 }
@@ -54,10 +51,7 @@ test('picks the first passing entry as primary and rest as fallbacks', () => {
 
 test('skips disabled entries and records the reason', () => {
   const result = selectByPreference({
-    entries: [
-      entry(1, 'claude-code,claude-fable-5', { enabled: false }),
-      entry(2, 'claude-code,claude-opus-5')
-    ],
+    entries: [entry(1, 'claude-code,claude-fable-5', { enabled: false }), entry(2, 'claude-code,claude-opus-5')],
     constraints: CONSTRAINTS_STRICT,
     requestedTier: undefined,
     isSubagent: false,
@@ -67,7 +61,10 @@ test('skips disabled entries and records the reason', () => {
   expect(result.skipped).toContainEqual({ target: 'claude-code,claude-fable-5', reason: 'disabled' })
 })
 
-test('sonnet request stays on sonnet under strict tier respect', () => {
+test('sonnet request with both directional gates OFF stays on sonnet-tier candidates', () => {
+  // fable and opus are ABOVE sonnet → escalation → blocked
+  // haiku would be BELOW sonnet → demotion → blocked
+  // only sonnet passes.
   const result = selectByPreference({
     entries: [
       entry(1, 'claude-code,claude-fable-5'),
@@ -80,10 +77,10 @@ test('sonnet request stays on sonnet under strict tier respect', () => {
     ...ALL_HEALTHY
   })
   expect(result.primary).toBe('claude-code,claude-sonnet-5')
-  expect(result.skipped.map((s) => s.reason)).toEqual(['tier_mismatch_agent', 'tier_mismatch_agent'])
+  expect(result.skipped.map((s) => s.reason)).toEqual(['tier_mismatch', 'tier_mismatch'])
 })
 
-test('sonnet request with loose respect walks the full chain', () => {
+test('sonnet request with both directional gates ON walks the full chain', () => {
   const result = selectByPreference({
     entries: [
       entry(1, 'claude-code,claude-fable-5'),
@@ -99,43 +96,65 @@ test('sonnet request with loose respect walks the full chain', () => {
   expect(result.skipped).toEqual([])
 })
 
-test('subagent call restricts to entry.subagentTiers when non-empty', () => {
+test('sonnet request with only allowEscalation on: fable/opus in, haiku out', () => {
+  // allowEscalation: true → upper-tier candidates admissible
+  // allowDemotion: false → lower-tier candidates blocked
   const result = selectByPreference({
     entries: [
-      entry(1, 'claude-code,claude-fable-5', { subagentTiers: ['sonnet', 'haiku'] }),
-      entry(2, 'claude-code,claude-opus-5', { subagentTiers: ['sonnet', 'haiku'] }),
-      entry(3, 'claude-code,claude-sonnet-5', { subagentTiers: ['sonnet', 'haiku'] })
+      entry(1, 'claude-code,claude-haiku-4-5'),
+      entry(2, 'claude-code,claude-sonnet-5'),
+      entry(3, 'claude-code,claude-opus-5')
     ],
-    constraints: CONSTRAINTS_STRICT,
-    requestedTier: undefined,
-    isSubagent: true,
+    constraints: { ...CONSTRAINTS_STRICT, allowEscalation: true, allowDemotion: false },
+    requestedTier: 'sonnet',
+    isSubagent: false,
     ...ALL_HEALTHY
   })
   expect(result.primary).toBe('claude-code,claude-sonnet-5')
-  expect(result.skipped.map((s) => s.reason)).toEqual(['tier_mismatch_subagent', 'tier_mismatch_subagent'])
+  // haiku demotion blocked; sonnet + opus admissible (sonnet earlier in
+  // the chain wins, opus becomes a fallback).
+  expect(result.fallbacks).toEqual(['claude-code,claude-opus-5'])
+  expect(result.skipped.map((s) => s.reason)).toEqual(['tier_mismatch'])
 })
 
-test('subagent call with empty subagentTiers accepts every candidate', () => {
+test('sonnet request with only allowDemotion on: haiku in, fable/opus out', () => {
+  const result = selectByPreference({
+    entries: [
+      entry(1, 'claude-code,claude-opus-5'),
+      entry(2, 'claude-code,claude-sonnet-5'),
+      entry(3, 'claude-code,claude-haiku-4-5')
+    ],
+    constraints: { ...CONSTRAINTS_STRICT, allowEscalation: false, allowDemotion: true },
+    requestedTier: 'sonnet',
+    isSubagent: false,
+    ...ALL_HEALTHY
+  })
+  // opus escalation blocked; sonnet + haiku pass.
+  expect(result.primary).toBe('claude-code,claude-sonnet-5')
+  expect(result.fallbacks).toEqual(['claude-code,claude-haiku-4-5'])
+  expect(result.skipped.map((s) => s.reason)).toEqual(['tier_mismatch'])
+})
+
+test('directional gates apply symmetrically to any requested tier (haiku request)', () => {
   const result = selectByPreference({
     entries: [
       entry(1, 'claude-code,claude-fable-5'),
-      entry(2, 'claude-code,claude-opus-5')
+      entry(2, 'claude-code,claude-opus-5'),
+      entry(3, 'claude-code,claude-sonnet-5'),
+      entry(4, 'claude-code,claude-haiku-4-5')
     ],
     constraints: CONSTRAINTS_STRICT,
-    requestedTier: undefined,
-    isSubagent: true,
+    requestedTier: 'haiku',
+    isSubagent: false,
     ...ALL_HEALTHY
   })
-  expect(result.primary).toBe('claude-code,claude-fable-5')
-  expect(result.matched).toBe(true)
+  // Every non-haiku candidate is escalation from haiku → blocked.
+  expect(result.primary).toBe('claude-code,claude-haiku-4-5')
 })
 
 test('exhausted candidates are skipped and demoted', () => {
   const result = selectByPreference({
-    entries: [
-      entry(1, 'claude-code,claude-fable-5'),
-      entry(2, 'claude-code,claude-opus-5')
-    ],
+    entries: [entry(1, 'claude-code,claude-fable-5'), entry(2, 'claude-code,claude-opus-5')],
     constraints: CONSTRAINTS_STRICT,
     requestedTier: undefined,
     isSubagent: false,
@@ -148,10 +167,7 @@ test('exhausted candidates are skipped and demoted', () => {
 
 test('error rate at or above errorRateSkipPct skips the candidate', () => {
   const result = selectByPreference({
-    entries: [
-      entry(1, 'claude-code,claude-fable-5'),
-      entry(2, 'claude-code,claude-opus-5')
-    ],
+    entries: [entry(1, 'claude-code,claude-fable-5'), entry(2, 'claude-code,claude-opus-5')],
     constraints: CONSTRAINTS_STRICT,
     requestedTier: undefined,
     isSubagent: false,
@@ -189,7 +205,10 @@ test('all-fail returns primary=null and matched=false', () => {
   expect(result.matched).toBe(false)
 })
 
-test('malformed target skipped on tier mismatch when respect is strict', () => {
+test('malformed target is admissible (unknown tier falls through the tier gate)', () => {
+  // Unknown-tier candidates can't be classified as escalation or
+  // demotion — the alternative would evict every third-party model
+  // the operator explicitly configured. So they pass the gate.
   const result = selectByPreference({
     entries: [entry(1, 'malformed'), entry(2, 'claude-code,claude-sonnet-5')],
     constraints: CONSTRAINTS_STRICT,
@@ -197,9 +216,7 @@ test('malformed target skipped on tier mismatch when respect is strict', () => {
     isSubagent: false,
     ...ALL_HEALTHY
   })
-  // The malformed target's tier is unknown → strict sonnet respect
-  // rejects it and picks the real sonnet entry.
-  expect(result.primary).toBe('claude-code,claude-sonnet-5')
+  expect(result.primary).toBe('malformed')
 })
 
 test('empty chain returns no primary', () => {
@@ -214,13 +231,21 @@ test('empty chain returns no primary', () => {
   expect(result.matched).toBe(false)
 })
 
-test('opus request has no respect knob — any tier is accepted', () => {
-  const result = selectByPreference({
+test('opus request with strict tier: sonnet is demotion, blocked; sonnet in loose passes', () => {
+  const strict = selectByPreference({
     entries: [entry(1, 'claude-code,claude-sonnet-5'), entry(2, 'claude-code,claude-opus-5')],
     constraints: CONSTRAINTS_STRICT,
     requestedTier: 'opus',
     isSubagent: false,
     ...ALL_HEALTHY
   })
-  expect(result.primary).toBe('claude-code,claude-sonnet-5')
+  expect(strict.primary).toBe('claude-code,claude-opus-5')
+  const loose = selectByPreference({
+    entries: [entry(1, 'claude-code,claude-sonnet-5'), entry(2, 'claude-code,claude-opus-5')],
+    constraints: CONSTRAINTS_LOOSE,
+    requestedTier: 'opus',
+    isSubagent: false,
+    ...ALL_HEALTHY
+  })
+  expect(loose.primary).toBe('claude-code,claude-sonnet-5')
 })

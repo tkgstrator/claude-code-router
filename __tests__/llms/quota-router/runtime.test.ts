@@ -78,7 +78,7 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
       entriesByScenario: {
         ...emptyChains,
         think: {
-          agent: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] }],
+          agent: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true }],
           subagent: []
         }
       },
@@ -110,7 +110,7 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
       entriesByScenario: {
         ...emptyChains,
         think: {
-          agent: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] }],
+          agent: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true }],
           subagent: []
         }
       },
@@ -148,7 +148,7 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
       entriesByScenario: {
         ...emptyChains,
         default: {
-          agent: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] }],
+          agent: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true }],
           subagent: []
         }
       },
@@ -190,7 +190,7 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
         ...emptyChains,
         default: {
           agent: [],
-          subagent: [{ priority: 1, target: 'claude-code,claude-haiku-4-5', enabled: true, subagentTiers: [] }]
+          subagent: [{ priority: 1, target: 'claude-code,claude-haiku-4-5', enabled: true }]
         }
       },
       constraints: null

@@ -35,11 +35,6 @@ export function RoutingLiveEditor() {
   const { showToast } = useOutletContext<ShellOutletContext>()
   const [renaming, setRenaming] = useState(false)
 
-  const personas = useMemo(
-    () => (config === null ? [] : config.Personas.map((p) => ({ id: p.id === undefined ? '' : p.id, name: p.name }))),
-    [config]
-  )
-
   const onSave = useCallback(
     async (router: RouterConfig) => {
       if (config === null) return { ok: false, message: t('app.config_saved_failed') }
@@ -92,7 +87,7 @@ export function RoutingLiveEditor() {
         <RenameControl currentName={liveName} onRename={onRename} disabled={renaming} />
         <LiveBadge />
       </PageHeader>
-      <RoutingEditor initialRouter={config.Router} personas={personas} onSave={onSave} editable />
+      <RoutingEditor initialRouter={config.Router} onSave={onSave} editable />
     </PageContainer>
   )
 }

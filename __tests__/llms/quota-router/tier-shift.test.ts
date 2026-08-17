@@ -4,9 +4,10 @@
  * When runtime.ts detects an over-paced requested tier it sets
  * allowedTiersOverride to {requested, tierBelow(requested)}; when the
  * requested tier is under-paced it sets {requested, tierAbove(requested)}.
- * selection.ts then evaluates the chain with that widened set — a
- * lower-tier candidate is admissible even though sonnetTierRespect etc.
- * would otherwise reject it.
+ * selection.ts then evaluates the chain with that widened set — the
+ * override takes precedence over the escalation/demotion constraint
+ * gates so a lower-tier candidate is admissible even under strict
+ * (both gates OFF) tier settings.
  */
 
 import { expect, test } from 'bun:test'
@@ -14,8 +15,8 @@ import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry }
 import { selectByPreference } from '../../../src/llms/quota-router/selection'
 
 const STRICT: PreferenceConstraints = {
-  sonnetTierRespect: true,
-  haikuTierRespect: true,
+  allowEscalation: false,
+  allowDemotion: false,
   quotaSkipPct: 100,
   errorRateSkipPct: 0.5,
   minHealthSamples: 5,
@@ -33,7 +34,6 @@ const entry = (
   priority,
   target,
   enabled: overrides.enabled ?? true,
-  subagentTiers: overrides.subagentTiers ?? [],
   resolvedTier
 })
 
@@ -46,7 +46,7 @@ const CHAIN: readonly RouterPreferenceEntry[] = [
 
 const HEALTHY = { isExhausted: () => false, errorRate: () => 0 }
 
-test('sonnet request with strict respect + no override → sonnet only', () => {
+test('sonnet request with strict tier + no override → sonnet only', () => {
   const result = selectByPreference({
     entries: CHAIN,
     constraints: STRICT,
@@ -71,10 +71,7 @@ test('sonnet request with downshift override → sonnet or haiku', () => {
   expect(result.primary).toBe('claude-code,claude-sonnet-5')
   expect(result.fallbacks).toEqual(['claude-code,claude-haiku-5'])
   // Fable / Opus rejected via the pace-widened tier filter.
-  expect(result.skipped.map((s) => s.target)).toEqual([
-    'claude-code,claude-fable-5',
-    'claude-code,claude-opus-5'
-  ])
+  expect(result.skipped.map((s) => s.target)).toEqual(['claude-code,claude-fable-5', 'claude-code,claude-opus-5'])
 })
 
 test('sonnet request with downshift override + exhausted sonnet → falls to haiku', () => {
@@ -105,8 +102,8 @@ test('sonnet request with upshift override → sonnet or opus, primary is opus (
   expect(result.fallbacks).toEqual(['claude-code,claude-sonnet-5'])
 })
 
-test('override takes precedence over sonnetTierRespect=false looseness', () => {
-  const loose: PreferenceConstraints = { ...STRICT, sonnetTierRespect: false, haikuTierRespect: false }
+test('override takes precedence over the loose escalation/demotion gates', () => {
+  const loose: PreferenceConstraints = { ...STRICT, allowEscalation: true, allowDemotion: true }
   const result = selectByPreference({
     entries: CHAIN,
     constraints: loose,
@@ -115,25 +112,7 @@ test('override takes precedence over sonnetTierRespect=false looseness', () => {
     allowedTiersOverride: new Set<RequestedModelTier>(['sonnet', 'haiku']),
     ...HEALTHY
   })
-  // Even though the respect flags are off (would otherwise allow any
-  // tier), the override caps admissibility at sonnet+haiku only.
+  // Even though the constraints would otherwise let every tier
+  // through, the override caps admissibility at sonnet+haiku only.
   expect(result.primary).toBe('claude-code,claude-sonnet-5')
-})
-
-test('subagent calls do not use allowedTiersOverride (subagentTiers filter runs instead)', () => {
-  // Runtime never sets the override for subagent calls, but even if a
-  // caller passed one the subagent branch bypasses tierMatchesAgent
-  // entirely — assert the chain is still filtered by subagentTiers.
-  const result = selectByPreference({
-    entries: [
-      entry(1, 'claude-code,claude-fable-5', 'fable', { subagentTiers: ['haiku'] }),
-      entry(2, 'claude-code,claude-haiku-5', 'haiku', { subagentTiers: ['haiku'] })
-    ],
-    constraints: STRICT,
-    requestedTier: 'haiku',
-    isSubagent: true,
-    allowedTiersOverride: new Set<RequestedModelTier>(['haiku', 'sonnet']),
-    ...HEALTHY
-  })
-  expect(result.primary).toBe('claude-code,claude-haiku-5')
 })

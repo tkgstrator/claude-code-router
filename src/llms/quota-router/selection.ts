@@ -35,6 +35,13 @@
 import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry } from '@/schemas'
 import { tierOf } from '../scenario-router/model-selection'
 
+// Fable = 0 (top / most capable), haiku = 3 (bottom / cheapest).
+// A candidate with a SMALLER index than the requested tier is
+// "escalation" (client asked for a cheaper tier, offering a pricier
+// one); a LARGER index is "demotion" (client asked for a pricier tier,
+// offering a cheaper one). Mirrors the ordering in quota-router/runtime.ts.
+const TIER_ORDER: readonly RequestedModelTier[] = ['fable', 'opus', 'sonnet', 'haiku']
+
 export interface PreferenceSelectorInput {
   entries: readonly RouterPreferenceEntry[]
   constraints: PreferenceConstraints
@@ -81,28 +88,25 @@ export interface PreferenceSelection {
   skipped: { target: string; reason: SkipReason }[]
 }
 
-export type SkipReason =
-  | 'disabled'
-  | 'tier_mismatch_agent'
-  | 'tier_mismatch_subagent'
-  | 'exhausted'
-  | 'error_rate'
-  | 'context_too_small'
+export type SkipReason = 'disabled' | 'tier_mismatch' | 'exhausted' | 'error_rate' | 'context_too_small'
 
-// Tier match for AGENT calls: the constraint knobs (sonnetTierRespect,
-// haikuTierRespect) express "client asked for tier X, honour that or
-// escalate to a higher tier?". Open Question 1 decision is strict:
-// same-tier only when the respect flag is on. Client tiers other than
-// sonnet/haiku (opus/fable) don't have a respect knob — those callers
-// accept any tier so the preference author has full control.
+// Tier match: two directional gates on the constraints. A candidate
+// with a smaller TIER_ORDER index than the requested tier is an
+// "escalation" (client asked for a cheaper tier, offering a pricier
+// one); a larger index is a "demotion" (client asked for a pricier
+// tier, offering a cheaper one). Same-tier candidates are always
+// admissible. Unknown tiers (candidate name doesn't match any of
+// fable/opus/sonnet/haiku, no manualTier override, requested tier
+// unclassifiable) fall through as admissible — the alternative would
+// evict every third-party model the operator explicitly configured.
 //
 // Pace-aware widening: when `allowedTiersOverride` is provided the
-// runtime has already decided which tiers should be admissible for
-// this request based on the requested tier's current paceRatio. It
-// takes precedence over the respect flags — the whole point of the
-// override is to relax the strict same-tier gate for a well-defined
-// reason (burn slack budget / cool down over-paced tier).
-const tierMatchesAgent = (
+// runtime has already decided which tiers are admissible based on the
+// requested tier's current paceRatio. It takes precedence over the
+// escalation/demotion gates — the whole point of the override is to
+// relax the tier constraint for a well-defined reason (burn slack
+// budget / cool down over-paced tier).
+const tierMatches = (
   candidateTier: RequestedModelTier | undefined,
   requestedTier: RequestedModelTier | undefined,
   constraints: PreferenceConstraints,
@@ -111,20 +115,13 @@ const tierMatchesAgent = (
   if (allowedTiersOverride !== undefined && requestedTier !== undefined) {
     return candidateTier !== undefined && allowedTiersOverride.has(candidateTier)
   }
-  if (requestedTier === 'sonnet' && constraints.sonnetTierRespect) return candidateTier === 'sonnet'
-  if (requestedTier === 'haiku' && constraints.haikuTierRespect) return candidateTier === 'haiku'
-  return true
-}
-
-// Tier match for SUBAGENT calls: the entry-level `subagentTiers`
-// filter (Open Question 11 decision). Empty list = no restriction;
-// non-empty = candidate must be in the list. The requested tier is
-// ignored for subagent routing because the tag's PRESENCE selects the
-// subagent route (its value is unused).
-const tierMatchesSubagent = (candidateTier: RequestedModelTier | undefined, entry: RouterPreferenceEntry): boolean => {
-  if (entry.subagentTiers.length === 0) return true
-  if (candidateTier === undefined) return false
-  return entry.subagentTiers.includes(candidateTier)
+  if (candidateTier === undefined || requestedTier === undefined) return true
+  if (candidateTier === requestedTier) return true
+  const candidateIdx = TIER_ORDER.indexOf(candidateTier)
+  const requestedIdx = TIER_ORDER.indexOf(requestedTier)
+  if (candidateIdx < 0 || requestedIdx < 0) return true
+  if (candidateIdx < requestedIdx) return constraints.allowEscalation
+  return constraints.allowDemotion
 }
 
 // Extract the model name from a "providerName,modelName" target so
@@ -157,13 +154,8 @@ export function selectByPreference(input: PreferenceSelectorInput): PreferenceSe
       entry.resolvedTier === null || entry.resolvedTier === undefined ? undefined : entry.resolvedTier
     const candidateTier = overrideTier ?? inferredTier
 
-    if (input.isSubagent) {
-      if (!tierMatchesSubagent(candidateTier, entry)) {
-        skipped.push({ target: entry.target, reason: 'tier_mismatch_subagent' })
-        continue
-      }
-    } else if (!tierMatchesAgent(candidateTier, input.requestedTier, input.constraints, input.allowedTiersOverride)) {
-      skipped.push({ target: entry.target, reason: 'tier_mismatch_agent' })
+    if (!tierMatches(candidateTier, input.requestedTier, input.constraints, input.allowedTiersOverride)) {
+      skipped.push({ target: entry.target, reason: 'tier_mismatch' })
       continue
     }
 

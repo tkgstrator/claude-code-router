@@ -96,15 +96,15 @@ const activeTargetSet = (providers: readonly ProviderModelIndex[]): Set<string> 
 }
 
 interface ConstraintsForm {
-  sonnetTierRespect: boolean
-  haikuTierRespect: boolean
+  allowEscalation: boolean
+  allowDemotion: boolean
   minWeightPct: number
   exhaustedBehavior: '429' | 'passthrough'
 }
 
 const CONSTRAINT_DEFAULTS: ConstraintsForm = {
-  sonnetTierRespect: true,
-  haikuTierRespect: true,
+  allowEscalation: true,
+  allowDemotion: true,
   minWeightPct: 1,
   exhaustedBehavior: '429'
 }
@@ -112,8 +112,8 @@ const CONSTRAINT_DEFAULTS: ConstraintsForm = {
 const readConstraints = (raw: Record<string, unknown> | null): ConstraintsForm => {
   const out: ConstraintsForm = { ...CONSTRAINT_DEFAULTS }
   if (raw === null) return out
-  if (typeof raw.sonnetTierRespect === 'boolean') out.sonnetTierRespect = raw.sonnetTierRespect
-  if (typeof raw.haikuTierRespect === 'boolean') out.haikuTierRespect = raw.haikuTierRespect
+  if (typeof raw.allowEscalation === 'boolean') out.allowEscalation = raw.allowEscalation
+  if (typeof raw.allowDemotion === 'boolean') out.allowDemotion = raw.allowDemotion
   if (typeof raw.minWeightPct === 'number') out.minWeightPct = raw.minWeightPct
   if (raw.exhaustedBehavior === '429' || raw.exhaustedBehavior === 'passthrough') {
     out.exhaustedBehavior = raw.exhaustedBehavior
@@ -135,12 +135,6 @@ const emptyByScenario = (): PreferenceEntriesByScenarioWire => ({
 })
 
 const SCHEDULER_POLL_MS = 30_000
-
-// Sentinel for the persona Select's "no persona" option. Radix Select
-// rejects an empty string value, so we map absence to this literal and
-// translate back to `undefined` at write time. Same sentinel the
-// RoutingEditor uses so the two persona pickers stay symmetric.
-const PERSONA_NONE = '__none__'
 
 // Fallback shown in the manual editor when the operator flips off
 // "Auto" without a stored threshold — matches the runtime's ultimate
@@ -196,13 +190,6 @@ export function RouterPreferences() {
     initialThreshold ?? DEFAULT_LONG_CONTEXT_THRESHOLD
   )
   const [thresholdBaseline, setThresholdBaseline] = useState<number | null>(initialThreshold)
-  // Persona also lives on Router (not on the preference constraints
-  // blob), so we mirror + patch it the same way as the threshold.
-  // Empty / undefined on the wire reads as "no persona".
-  const initialPersona: string | null =
-    typeof config?.Router.persona === 'string' && config.Router.persona !== '' ? config.Router.persona : null
-  const [persona, setPersona] = useState<string | null>(initialPersona)
-  const [personaBaseline, setPersonaBaseline] = useState<string | null>(initialPersona)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scheduler, setScheduler] = useState<RoutingSchedulerStateResponse | null>(null)
@@ -223,9 +210,6 @@ export function RouterPreferences() {
     setLongContextThreshold(v)
     setThresholdBaseline(v)
     if (typeof v === 'number') setManualThresholdMemo(v)
-    const p = typeof config.Router.persona === 'string' && config.Router.persona !== '' ? config.Router.persona : null
-    setPersona(p)
-    setPersonaBaseline(p)
   }, [config])
 
   useEffect(() => {
@@ -325,20 +309,6 @@ export function RouterPreferences() {
     [mutateActive]
   )
 
-  const toggleSubagentTier = useCallback(
-    (idx: number, tier: Tier) => {
-      mutateActive((prev) =>
-        prev.map((e, i) => {
-          if (i !== idx) return e
-          const has = e.subagentTiers.includes(tier)
-          const next = has ? e.subagentTiers.filter((x) => x !== tier) : [...e.subagentTiers, tier]
-          return { ...e, subagentTiers: next }
-        })
-      )
-    },
-    [mutateActive]
-  )
-
   const openAddDialog = useCallback(() => {
     setAddProvider('')
     setAddModel('')
@@ -350,7 +320,7 @@ export function RouterPreferences() {
     const target = `${addProvider},${addModel}`
     mutateActive((prev) => {
       if (prev.some((e) => e.target === target)) return prev
-      return [...prev, { priority: prev.length + 1, target, enabled: true, subagentTiers: [] }]
+      return [...prev, { priority: prev.length + 1, target, enabled: true }]
     })
     setAddDialogOpen(false)
     setAddProvider('')
@@ -363,29 +333,24 @@ export function RouterPreferences() {
       const outcome = await api.putRouterPreferences({
         entriesByScenario: byScenario,
         constraints: {
-          sonnetTierRespect: constraints.sonnetTierRespect,
-          haikuTierRespect: constraints.haikuTierRespect,
+          allowEscalation: constraints.allowEscalation,
+          allowDemotion: constraints.allowDemotion,
           minWeightPct: constraints.minWeightPct,
           exhaustedBehavior: constraints.exhaustedBehavior
         }
       })
-      // Threshold and persona are edited on this page but live on the
-      // Router (not on the preference constraints blob) — patch them
-      // via /api/config only when the user actually changed one, so
-      // unrelated fields on the Router stay untouched and a no-op
-      // Save doesn't churn config.json. `null` is the wire
-      // representation of "auto" for threshold and "no persona" for
-      // persona.
+      // Threshold is edited on this page but lives on Router.longContext,
+      // not on the preference constraints blob — patch it via /api/config
+      // only when the user actually changed it, so unrelated Router fields
+      // stay untouched and a no-op Save doesn't churn config.json. `null`
+      // is the wire representation of "auto".
       const nextThreshold = longContextThreshold === null || longContextThreshold > 0 ? longContextThreshold : null
-      const thresholdChanged = nextThreshold !== thresholdBaseline
-      const personaChanged = persona !== personaBaseline
-      if (config !== null && (thresholdChanged || personaChanged)) {
+      if (config !== null && nextThreshold !== thresholdBaseline) {
         await api.updateConfig({
           ...config,
           Router: {
             ...config.Router,
-            longContext: { ...config.Router.longContext, threshold: nextThreshold },
-            persona: persona ?? undefined
+            longContext: { ...config.Router.longContext, threshold: nextThreshold }
           }
         })
         await reloadConfig()
@@ -401,18 +366,7 @@ export function RouterPreferences() {
     } finally {
       setSaving(false)
     }
-  }, [
-    byScenario,
-    constraints,
-    config,
-    longContextThreshold,
-    thresholdBaseline,
-    persona,
-    personaBaseline,
-    reloadConfig,
-    showToast,
-    t
-  ])
+  }, [byScenario, constraints, config, longContextThreshold, thresholdBaseline, reloadConfig, showToast, t])
 
   if (loading) {
     return (
@@ -434,38 +388,6 @@ export function RouterPreferences() {
         {scheduler !== null && scheduler.tickAt === null && (
           <p className='text-muted-foreground text-xs'>{t('routerPreferences.noSchedulerData')}</p>
         )}
-
-        {/* Persona lives on the Router (not the preference blob) but is
-            edited here so the operator can pick the whole routing +
-            persona pairing in one place. Mirrors the RoutingEditor's
-            selector; both write to Router.persona through /api/config. */}
-        <div className='flex items-center gap-3'>
-          <Label htmlFor='routerPreferencesPersona' className='text-xs text-muted-foreground'>
-            {t('router.persona')}
-          </Label>
-          <Select value={persona ?? PERSONA_NONE} onValueChange={(v) => setPersona(v === PERSONA_NONE ? null : v)}>
-            <SelectTrigger
-              id='routerPreferencesPersona'
-              size='sm'
-              aria-label={t('router.persona')}
-              className='h-8 w-56 text-xs'
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={PERSONA_NONE}>{t('router.personaNone')}</SelectItem>
-              {(config?.Personas ?? [])
-                .filter(
-                  (p): p is { id: string; name: string; prompt: string } => typeof p.id === 'string' && p.id !== ''
-                )
-                .map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
 
         <div className='flex flex-wrap gap-1 border-b'>
           {SCENARIOS.map((s) => {
@@ -546,7 +468,11 @@ export function RouterPreferences() {
                     min={1}
                     step={1000}
                     className='w-32 text-right tabular-nums'
-                    value={longContextThreshold ?? ''}
+                    // Auto mode: show the computed autoValue in the
+                    // disabled field so the operator sees what the
+                    // runtime will actually use instead of a blank box.
+                    // Manual mode: bind to the local state value.
+                    value={isAuto ? autoValue : (longContextThreshold ?? '')}
                     disabled={isAuto}
                     onChange={(e) => {
                       const v = e.target.valueAsNumber
@@ -702,26 +628,6 @@ export function RouterPreferences() {
                           </Button>
                         </div>
                       </div>
-                      <div className='flex items-center gap-1.5 pl-10 text-xs'>
-                        <span className='text-muted-foreground'>{t('routerPreferences.subagentTiers')}</span>
-                        {TIERS.map((tier) => {
-                          const on = entry.subagentTiers.includes(tier)
-                          return (
-                            <button
-                              key={tier}
-                              type='button'
-                              className={
-                                on
-                                  ? 'rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary'
-                                  : 'rounded bg-muted/60 px-1.5 py-0.5 text-muted-foreground hover:bg-muted'
-                              }
-                              onClick={() => toggleSubagentTier(idx, tier)}
-                            >
-                              {tier}
-                            </button>
-                          )
-                        })}
-                      </div>
                     </div>
                   )
                 })}
@@ -808,22 +714,22 @@ export function RouterPreferences() {
           <h2 className='font-medium text-sm'>{t('routerPreferences.constraints')}</h2>
           <div className='flex items-start justify-between gap-4 border-b py-3'>
             <div className='min-w-0 flex-1 space-y-0.5'>
-              <Label>{t('routerPreferences.sonnetTierRespect')}</Label>
-              <p className='text-muted-foreground text-xs'>{t('routerPreferences.sonnetTierRespectHelp')}</p>
+              <Label>{t('routerPreferences.allowEscalation')}</Label>
+              <p className='text-muted-foreground text-xs'>{t('routerPreferences.allowEscalationHelp')}</p>
             </div>
             <Switch
-              checked={constraints.sonnetTierRespect}
-              onCheckedChange={(v) => setConstraints((c) => ({ ...c, sonnetTierRespect: v }))}
+              checked={constraints.allowEscalation}
+              onCheckedChange={(v) => setConstraints((c) => ({ ...c, allowEscalation: v }))}
             />
           </div>
           <div className='flex items-start justify-between gap-4 border-b py-3'>
             <div className='min-w-0 flex-1 space-y-0.5'>
-              <Label>{t('routerPreferences.haikuTierRespect')}</Label>
-              <p className='text-muted-foreground text-xs'>{t('routerPreferences.haikuTierRespectHelp')}</p>
+              <Label>{t('routerPreferences.allowDemotion')}</Label>
+              <p className='text-muted-foreground text-xs'>{t('routerPreferences.allowDemotionHelp')}</p>
             </div>
             <Switch
-              checked={constraints.haikuTierRespect}
-              onCheckedChange={(v) => setConstraints((c) => ({ ...c, haikuTierRespect: v }))}
+              checked={constraints.allowDemotion}
+              onCheckedChange={(v) => setConstraints((c) => ({ ...c, allowDemotion: v }))}
             />
           </div>
           <div className='flex items-start justify-between gap-4 border-b py-3'>

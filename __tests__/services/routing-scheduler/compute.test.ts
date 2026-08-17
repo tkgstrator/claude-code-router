@@ -44,8 +44,7 @@ const stateOf = (
   preferences: entries.map((e, i) => ({
     priority: i + 1,
     target: e.target,
-    enabled: e.enabled ?? true,
-    subagentTiers: []
+    enabled: e.enabled ?? true
   })),
   candidates: new Map(candidates.map((c) => [c.target, c])),
   previousWeights: null,
