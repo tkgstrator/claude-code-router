@@ -26,9 +26,21 @@ export const accessLog: MiddlewareHandler = async (c, next) => {
   await next()
   const durationMs = Date.now() - startedAt
   const status = c.res.status
-  const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info'
+  const level = pickAccessLogLevel(c.req.method, c.req.path, status)
   logger[level](
     { reqId, method: c.req.method, path: c.req.path, status, durationMs },
     `${c.req.method} ${c.req.path} ${status} ${durationMs}ms`
   )
+}
+
+// Pick the pino level per request. Successful UI polling GETs on
+// /api/* (dashboard views hitting /api/logs, /api/sessions, /api/config,
+// etc. every few seconds) drown out /v1/* traffic when logged at info,
+// so demote 2xx/3xx /api/* GETs to debug. Non-GET methods, /v1/*, and
+// anything ≥ 400 stay at info/warn/error where they were.
+function pickAccessLogLevel(method: string, path: string, status: number): 'error' | 'warn' | 'info' | 'debug' {
+  if (status >= 500) return 'error'
+  if (status >= 400) return 'warn'
+  if (method === 'GET' && path.startsWith('/api/')) return 'debug'
+  return 'info'
 }

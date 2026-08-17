@@ -72,11 +72,18 @@ async function buildLlmsContext(): Promise<LlmsContext> {
   // and the two scalar knobs), so flatten it here — the single boundary
   // where nested config crosses into the runtime ConfigStore. Per-project
   // override files are already flat.
+  // Resolve the default agent primary's context window so the flat
+  // runtime router carries a concrete capacity for the auto-threshold
+  // path in classifyScenario. Reads from cfg.Providers rather than the
+  // registry so the lookup stays a pure pre-registry step. Null when
+  // the primary is unset or the model has no scraped contextWindow.
+  const defaultAgentContextWindow = resolveDefaultAgentContextWindow(cfg.Providers, cfg.Router.default.agent.primary)
+
   const config = new ConfigStore({
     ...cfg,
     Providers: providersWithAuth,
     providers: providersWithAuth,
-    Router: flattenNestedRouter(cfg.Router)
+    Router: flattenNestedRouter(cfg.Router, { defaultAgentContextWindow })
   })
 
   // 3. Transformer registry — instantiate the 6 supported transformers.
@@ -129,6 +136,23 @@ function toProviderConfigShapes(providers: Provider[]): ProviderConfigShape[] {
 }
 
 // ─── Subscription overlay collection ───────────────────────────────────
+
+// Resolve a "provider,model" pointer to its declared contextWindow via
+// the provider list. Returns null when the pointer is unset / malformed,
+// the provider is unknown, or the vendor never published a window for
+// the model. Used by the flat-router assembly above to hand
+// classifyScenario a concrete capacity for the auto-threshold path.
+function resolveDefaultAgentContextWindow(providers: Provider[], primary: string | null): number | null {
+  if (typeof primary !== 'string' || primary === '') return null
+  const comma = primary.indexOf(',')
+  if (comma <= 0) return null
+  const providerName = primary.slice(0, comma)
+  const modelName = primary.slice(comma + 1)
+  const provider = providers.find((p) => p.name === providerName)
+  if (!provider?.modelContextWindows) return null
+  const window = provider.modelContextWindows[modelName]
+  return typeof window === 'number' && window > 0 ? window : null
+}
 
 async function collectActiveAccountPaths(): Promise<Map<string, string>> {
   const subscriptions = await getSubscriptionsInfo()

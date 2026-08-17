@@ -668,7 +668,7 @@
     "title": "路由器优先级",
     "description": "quota-aware 路由器按顺序遍历的优先级链。首条条目优先尝试；实时的 weight 和剩余预算来自调度器快照。",
     "chain": "优先级链",
-    "emptyScenario": "此场景暂无条目。",
+    "emptyScenario": "未配置条目 — 请求将直通到客户端指定的模型。",
     "addDialog": {
       "title": "向优先级链添加模型",
       "description": "向 {{scenario}} 链添加模型。请先选择供应商，然后选择其模型。",
@@ -686,6 +686,10 @@
       "webSearch": "Web 搜索",
       "image": "图片"
     },
+    "kind": {
+      "agent": "Agent",
+      "subagent": "Subagent"
+    },
     "constraints": "约束",
     "subagentTiers": "子代理 tier",
     "budget": "预算",
@@ -702,6 +706,10 @@
     "exhaustedBehaviorHelpPassthrough": "passthrough: 跳过优先级链，直接使用客户端原本请求的模型。",
     "noSchedulerData": "无法显示实时 weight / 预算 — quota-aware 调度器未在运行。",
     "longContextThresholdHelp": "输入 token 数超过此阈值的请求会走 longContext 链。",
+    "longContextThresholdAuto": "自动",
+    "longContextThresholdAutoHelp": "自动使用 default 通道 primary 模型上下文窗口的 70% 作为阈值。",
+    "longContextThresholdAutoResolved": "实际值: {{value}} tokens ({{model}} 的 70%)",
+    "longContextThresholdAutoUnresolved": "实际值: {{value}} tokens (未获取到 default 模型的 contextWindow, 使用回退值)",
     "columnWeight": "Weight",
     "columnBudget": "预算",
     "saved": "优先级已保存",

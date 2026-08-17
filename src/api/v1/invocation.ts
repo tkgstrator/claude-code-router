@@ -234,6 +234,26 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
   }
 }
 
+// Resolve a bare model name (no "provider," prefix) by scanning the
+// provider registry for a provider that lists this model. Returns the
+// provider name on a unique match, null when the model is unknown, or
+// null with a warning when multiple providers host it (ambiguous —
+// can't pick without operator intent). Callers use this to pass a
+// bare-model request through to the sole hosting provider when the
+// scenario router had no primary configured for the request.
+function providerHostingModel(ctx: LlmsContext, bareModel: string): string | null {
+  const hosts: string[] = []
+  for (const p of ctx.providers.getAll()) {
+    if (Array.isArray(p.models) && p.models.includes(bareModel)) hosts.push(p.name)
+  }
+  if (hosts.length === 0) return null
+  if (hosts.length > 1) {
+    ctx.log.warn({ model: bareModel, hosts }, 'passthrough: bare model is ambiguous across providers; skipping')
+    return null
+  }
+  return hosts[0]
+}
+
 // Resolve one "provider,model" string into a ready-to-run invocation, or
 // null when the model can't be used (malformed string / unknown
 // provider) — the caller skips a null and moves to the next chain entry.
@@ -242,8 +262,28 @@ export function resolveInvocationForModel(
   modelString: string,
   ctx: LlmsContext
 ): ResolvedInvocation | null {
-  const [providerName, ...rest] = modelString.split(',')
-  const model = rest.join(',')
+  let providerName: string | undefined
+  let model: string
+  const commaIdx = modelString.indexOf(',')
+  if (commaIdx > 0) {
+    providerName = modelString.slice(0, commaIdx)
+    model = modelString.slice(commaIdx + 1)
+  } else {
+    // Bare model (no "provider," prefix): the scenario router had no
+    // primary configured and left `req.body.model` untouched, so the
+    // failover chain contains just the raw model name the client asked
+    // for. Look it up in the provider registry — a unique host acts as
+    // the pass-through target; ambiguous / unknown models still fall
+    // through to the malformed-input branch below.
+    const host = providerHostingModel(ctx, modelString)
+    if (host !== null) {
+      providerName = host
+      model = modelString
+      ctx.log.info({ model, provider: providerName }, 'passthrough: bare model resolved to provider')
+    } else {
+      model = ''
+    }
+  }
   if (!providerName || model.length === 0) {
     ctx.log.warn({ modelString }, 'failover: malformed provider,model; skipping')
     return null

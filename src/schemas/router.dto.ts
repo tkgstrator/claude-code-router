@@ -126,11 +126,16 @@ const scenarioBase = {
 export const ScenarioRouteSchema = z.object({ ...scenarioBase }).openapi('ScenarioRoute')
 
 // `longContext` additionally carries the token threshold above which a
-// request is classified into the longContext lane.
+// request is classified into the longContext lane. `null` means "auto":
+// the runtime computes an effective threshold from the default agent
+// primary's contextWindow (× LONG_CONTEXT_AUTO_RATIO) so it tracks the
+// selected default model automatically. A number pins the threshold
+// manually, which the auto path falls back to when no contextWindow is
+// available.
 export const LongContextScenarioRouteSchema = z
   .object({
     ...scenarioBase,
-    threshold: z.number().int().positive().default(128000)
+    threshold: z.number().int().positive().nullable().default(null)
   })
   .openapi('LongContextScenarioRoute')
 
@@ -202,6 +207,14 @@ export type FlatFallbackMap = Record<ScenarioKey, string[]>
 // context.ts flattens it here before handing it to the runtime
 // ConfigStore, so the runtime read-sites stay flat and per-project
 // override files (already flat) need no adapter.
+//
+// `longContextThreshold` is `null` when the operator picked "auto":
+// model-selection.ts derives the effective value from
+// `defaultAgentContextWindow` (× LONG_CONTEXT_AUTO_RATIO) so it tracks
+// the selected default model. `defaultAgentContextWindow` is populated
+// by the sole caller that has cfg.Providers available (context.ts);
+// per-project override files leave it null and inherit the manual
+// fallback (128k) whenever auto also can't resolve.
 export interface FlatRouter {
   agent: FlatRouteMap
   subagent: FlatRouteMap
@@ -209,7 +222,8 @@ export interface FlatRouter {
   subagentFallbacks: FlatFallbackMap
   agentRules: FlatRulesMap
   subagentRules: FlatRulesMap
-  longContextThreshold: number
+  longContextThreshold: number | null
+  defaultAgentContextWindow: number | null
   persona: string | null
 }
 
@@ -221,8 +235,16 @@ export type RouteRule = z.infer<typeof RouteRuleSchema>
 
 // Flatten the nested wire Router into the runtime's flat shape. Pure —
 // the sole boundary where the nested config crosses into the pipeline.
-export function flattenNestedRouter(router: Router): FlatRouter {
+// `opts.defaultAgentContextWindow` is a caller-resolved capacity of the
+// default agent primary (context.ts looks it up in cfg.Providers); when
+// absent it stays null and the runtime auto-threshold path falls back
+// to the manual 128k constant.
+export function flattenNestedRouter(router: Router, opts?: { defaultAgentContextWindow?: number | null }): FlatRouter {
   const persona = typeof router.persona === 'string' ? router.persona : null
+  const defaultAgentContextWindow =
+    typeof opts?.defaultAgentContextWindow === 'number' && opts.defaultAgentContextWindow > 0
+      ? opts.defaultAgentContextWindow
+      : null
   return {
     agent: {
       default: router.default.agent.primary,
@@ -267,6 +289,7 @@ export function flattenNestedRouter(router: Router): FlatRouter {
       image: router.image.subagent.rules
     },
     longContextThreshold: router.longContext.threshold,
+    defaultAgentContextWindow,
     persona
   }
 }

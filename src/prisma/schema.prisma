@@ -33,6 +33,16 @@ enum ScenarioKey {
   image
 }
 
+// Which caller lane a RouterPreferenceEntry participates in. Main-agent
+// traffic (no <CCR-SUBAGENT-MODEL> tag) reads the `agent` chain;
+// requests carrying the tag read the `subagent` chain. Kept as an enum
+// so a future third lane (e.g. "batch") is one migration away instead
+// of a boolean flag flip.
+enum RouterPreferenceKind {
+  agent
+  subagent
+}
+
 // Outcome of the last real-inference connectivity test for a Model.
 //   - unknown: never tested (or test reset)
 //   - ok:      the vendor returned a successful minimal completion
@@ -353,8 +363,16 @@ model RouterPreferenceEntry {
   // owns an independent chain (default / think / longContext /
   // webSearch / image).
   scenario      ScenarioKey             @default(default)
-  // 1 = most preferred. Unique per (profile, scenario) so each
-  // scenario's chain has a total ordering independent of the others.
+  // Which caller lane this entry participates in — `agent` for main-
+  // agent traffic, `subagent` for requests carrying a
+  // <CCR-SUBAGENT-MODEL> tag. Split from the pre-A design (a single
+  // chain plus per-entry `subagentTiers` filter) so operators can
+  // reorder subagent independently of agent. Existing rows are
+  // backfilled to `agent` by the migration.
+  kind          RouterPreferenceKind    @default(agent)
+  // 1 = most preferred. Unique per (profile, scenario, kind) so each
+  // (scenario, kind) chain has a total ordering independent of the
+  // others.
   priority      Int
   modelId       String
   model         Model                   @relation(fields: [modelId], references: [id], onDelete: Cascade)
@@ -362,17 +380,15 @@ model RouterPreferenceEntry {
   // the model from selection — "temporarily drop Fable" without
   // reordering the chain.
   enabled       Boolean                 @default(true)
-  // Subagent-only tier filter. When the array is empty, all tiers
-  // participate (agent-equivalent behaviour); when populated, subagent
-  // calls only see candidates whose tier is in the list. Enables
-  // "subagent は sonnet/haiku のみ" without splitting the whole
-  // preference into two lists. Stored as String[] holding
-  // RequestedModelTier values ('fable' | 'opus' | 'sonnet' | 'haiku').
+  // Deprecated as of the (scenario, kind) split — kept as a nullable
+  // column so pre-migration data survives, but the runtime selector
+  // no longer consults it. New writes leave it empty. Will be dropped
+  // in a follow-up migration once no reader references it.
   subagentTiers String[]                @default([])
 
-  @@unique([profileId, scenario, priority])
+  @@unique([profileId, scenario, kind, priority])
   @@index([profileId])
-  @@index([profileId, scenario])
+  @@index([profileId, scenario, kind])
 }
 
 // Saved snapshots of the Router config (the same nested shape that

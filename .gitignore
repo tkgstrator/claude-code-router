@@ -50,3 +50,4 @@ ccr-auth/
 /*.png
 .playwright-mcp/
 screenshots/
+logs/

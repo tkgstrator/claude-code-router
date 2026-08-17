@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { stripDisabledThinking, withClaudeCodeIdentity } from '../../../src/llms/transformers/anthropic/claude-code-oauth'
+import { withClaudeCodeIdentity } from '../../../src/llms/transformers/anthropic/claude-code-oauth'
 
 const IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
@@ -204,36 +204,3 @@ describe('system passed as a plain string equal to the identity', () => {
   })
 })
 
-// ─── stripDisabledThinking ──────────────────────────────────────────────────
-
-describe('stripDisabledThinking', () => {
-  test('drops thinking when type is "disabled"', () => {
-    const req: { thinking?: unknown } = { thinking: { type: 'disabled' } }
-    stripDisabledThinking(req)
-    expect(req.thinking).toBeUndefined()
-  })
-
-  test('drops thinking when type is any unrecognised value', () => {
-    const req: { thinking?: unknown } = { thinking: { type: 'auto' } }
-    stripDisabledThinking(req)
-    expect(req.thinking).toBeUndefined()
-  })
-
-  test('preserves thinking when type is "enabled"', () => {
-    const req: { thinking?: unknown } = { thinking: { type: 'enabled', budget_tokens: 4096 } }
-    stripDisabledThinking(req)
-    expect(req.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
-  })
-
-  test('is a no-op when thinking is undefined', () => {
-    const req: { thinking?: unknown } = {}
-    stripDisabledThinking(req)
-    expect('thinking' in req).toBe(false)
-  })
-
-  test('is a no-op when thinking is null', () => {
-    const req: { thinking?: unknown } = { thinking: null }
-    stripDisabledThinking(req)
-    expect(req.thinking).toBeNull()
-  })
-})

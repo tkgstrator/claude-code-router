@@ -140,11 +140,26 @@ export interface QuotaAwareSelection {
 }
 
 export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput): Promise<QuotaAwareSelection> {
-  const chain = await loadPreferenceChain(input.scenario)
+  // Per-kind chain lookup: `agent` for main-agent traffic, `subagent`
+  // for requests carrying a <CCR-SUBAGENT-MODEL> tag. The two chains
+  // are ordered independently in the DB, so the same scenario can
+  // route very differently based on the caller lane.
+  const kind = input.isSubagent ? 'subagent' : 'agent'
+  const chain = await loadPreferenceChain(input.scenario, kind)
   const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(chain.constraints ?? {})
   const constraints: QuotaAwareConstraints = constraintsParsed.success
     ? constraintsParsed.data
     : QuotaAwareConstraintsSchema.parse({})
+  // Not-configured shortcut: an empty preference chain for this scenario
+  // means the operator hasn't set up quota-aware routing here. Treat that
+  // as "no opinion" and pass through to the scenario router's answer,
+  // ignoring `exhaustedBehavior: '429'` — the 429 branch is meant for
+  // real chains whose candidates are all currently gated, not for the
+  // "nothing to route" case. Without this, a fresh install with
+  // ROUTER_MODE=quota-aware but no chain entries 429s every request.
+  if (chain.entries.length === 0) {
+    return { selection: { primary: null, fallbacks: [], matched: false, skipped: [] }, retryAfterSec: null }
+  }
   const l4Constraints: PreferenceConstraints = constraints
   const requestedTier = input.requestedModel ? tierOf(input.requestedModel) : undefined
   // Pace-based widening only applies to agent calls — subagent tag

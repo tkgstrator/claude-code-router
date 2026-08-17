@@ -368,12 +368,25 @@ export interface RouterPreferenceEntryWire {
   priority: number
   target: string
   enabled: boolean
+  // Deprecated post kind-split — kept in the wire type so a legacy
+  // client that still sends it can round-trip. The server ignores it
+  // for routing decisions (kind now controls the agent/subagent split).
   subagentTiers: Array<'fable' | 'opus' | 'sonnet' | 'haiku'>
 }
 
 export type PreferenceScenarioKey = 'default' | 'think' | 'longContext' | 'webSearch' | 'image'
+export type PreferenceKind = 'agent' | 'subagent'
 
-export type PreferenceEntriesByScenarioWire = Record<PreferenceScenarioKey, RouterPreferenceEntryWire[]>
+// Each scenario carries two independent ordered chains: `agent` for
+// main-agent traffic, `subagent` for requests carrying a
+// <CCR-SUBAGENT-MODEL> tag. Both are always present so the UI can
+// render an empty tab without a "missing" branch.
+export interface PreferenceEntriesByKindWire {
+  agent: RouterPreferenceEntryWire[]
+  subagent: RouterPreferenceEntryWire[]
+}
+
+export type PreferenceEntriesByScenarioWire = Record<PreferenceScenarioKey, PreferenceEntriesByKindWire>
 
 export interface RouterPreferenceProfileWire {
   entriesByScenario: PreferenceEntriesByScenarioWire

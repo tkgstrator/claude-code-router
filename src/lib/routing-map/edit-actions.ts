@@ -112,7 +112,10 @@ export function moveFallback(
 
 // Scenario-scoped scalar knobs live on their owning scenario, so these
 // use concrete keys (not a computed scenario) to stay type-safe.
-export function setLongContextThreshold(router: RouterConfig, threshold: number): RouterConfig {
+// `null` means "auto" — the runtime derives the threshold from the
+// default agent primary's context window at classify time; a positive
+// number pins the threshold manually.
+export function setLongContextThreshold(router: RouterConfig, threshold: number | null): RouterConfig {
   return { ...router, longContext: { ...router.longContext, threshold } }
 }
 

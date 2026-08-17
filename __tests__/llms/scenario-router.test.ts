@@ -207,6 +207,49 @@ test('selectModel: thinking field wins over the effort/tier escalation', () => {
   expect(out).toEqual({ model: 'anthropic,claude-think', scenarioType: 'think', isSubagent: false, fallbacks: [] })
 })
 
+test('selectModel: thinking:{type:"disabled"} stays on the default lane (regression: was truthy, routed to think)', () => {
+  // Claude Code sends `{type: 'disabled'}` on every non-Plan-Mode
+  // request. Before the fix, the classifier treated the object as
+  // truthy and silently routed all traffic to the `think` slot — a
+  // large silent cost regression on any config where `think` points
+  // at Opus. `{type: 'disabled'}` must NOT trigger the think lane.
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus', think: 'anthropic,claude-think' }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-sonnet-4-5', thinking: { type: 'disabled' } }),
+    1000,
+    router,
+    config
+  )
+  expect(out.scenarioType).toBe('default')
+  expect(out.model).toBe('anthropic,claude-sonnet')
+})
+
+test('selectModel: thinking:{type:"adaptive"} routes to think (newer Claude Code opus/sonnet builds)', () => {
+  // Opus 4-7 / Sonnet 4-6 send `{type: 'adaptive'}` — the client
+  // explicitly opts into adaptive thinking (the model decides at
+  // runtime whether to think). Distinct from omitting the field:
+  // Anthropic falls back to adaptive server-side on absence, but
+  // the router treats presence with a non-disabled type as the
+  // client's opt-in signal. The router must not accidentally
+  // exclude adaptive when tightening the disabled-truthy bug —
+  // {enabled, adaptive} both route to think.
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus', think: 'anthropic,claude-think' }
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const out = selectModel(
+    makeReq({ model: 'claude-opus-4-7', thinking: { type: 'adaptive' } }),
+    1000,
+    router,
+    config
+  )
+  expect(out.scenarioType).toBe('think')
+  expect(out.model).toBe('anthropic,claude-think')
+})
+
 test('selectModel: size-based longContext still wins when the request exceeds the threshold', () => {
   const router = {
     agent: { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus' },
@@ -220,6 +263,58 @@ test('selectModel: size-based longContext still wins when the request exceeds th
     config
   )
   expect(out).toEqual({ model: 'anthropic,claude-opus', scenarioType: 'longContext', isSubagent: false, fallbacks: [] })
+})
+
+test('selectModel: auto threshold uses 70% of the default primary contextWindow when longContextThreshold is null', () => {
+  // Auto path: null threshold + a 200k default primary window → the
+  // effective threshold is floor(200_000 * 0.7) = 140_000. A request
+  // just under the auto value stays on `default`; a request above it
+  // rolls to longContext.
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus' },
+    longContextThreshold: null,
+    defaultAgentContextWindow: 200_000
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const under = selectModel(
+    makeReq({ model: 'claude-sonnet-future', output_config: { effort: 'low' } }),
+    139_000,
+    router,
+    config
+  )
+  expect(under.scenarioType).toBe('default')
+  const over = selectModel(
+    makeReq({ model: 'claude-sonnet-future', output_config: { effort: 'low' } }),
+    141_000,
+    router,
+    config
+  )
+  expect(over.scenarioType).toBe('longContext')
+})
+
+test('selectModel: auto threshold falls back to 128k when no defaultAgentContextWindow is available', () => {
+  // Per-project override files never populate defaultAgentContextWindow;
+  // in that case the auto path degrades to the historical 128k fallback
+  // so behaviour matches the pre-auto default exactly.
+  const router = {
+    agent: { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus' },
+    longContextThreshold: null
+  }
+  const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
+  const under = selectModel(
+    makeReq({ model: 'claude-sonnet-future', output_config: { effort: 'low' } }),
+    127_000,
+    router,
+    config
+  )
+  expect(under.scenarioType).toBe('default')
+  const over = selectModel(
+    makeReq({ model: 'claude-sonnet-future', output_config: { effort: 'low' } }),
+    130_000,
+    router,
+    config
+  )
+  expect(over.scenarioType).toBe('longContext')
 })
 
 test('selectModel: a rule matching a haiku glob overrides the default primary (was: haiku → background)', () => {
@@ -383,6 +478,15 @@ test('selectModel: `thinking: true` predicate matches only when body.thinking is
   expect(withThinking.model).toBe('anthropic,claude-think')
   const withoutThinking = selectModel(makeReq({ model: 'x' }), 1000, router, config)
   expect(withoutThinking.model).toBe('anthropic,claude-sonnet')
+  // Regression: {type:'disabled'} is truthy as an object but the
+  // predicate must read it as "thinking is off" (Claude Code sends
+  // this shape on every non-Plan-Mode request).
+  const withDisabledThinking = selectModel(makeReq({ model: 'x', thinking: { type: 'disabled' } }), 1000, router, config)
+  expect(withDisabledThinking.model).toBe('anthropic,claude-sonnet')
+  // {type:'adaptive'} is what newer Claude Code (opus 4-7, sonnet 4-6)
+  // sends — thinking-capable, must match the rule the same as 'enabled'.
+  const withAdaptiveThinking = selectModel(makeReq({ model: 'x', thinking: { type: 'adaptive' } }), 1000, router, config)
+  expect(withAdaptiveThinking.model).toBe('anthropic,claude-think')
 })
 
 test('selectModel: minTokens/maxTokens predicates bracket the request size', () => {

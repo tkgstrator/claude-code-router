@@ -129,17 +129,37 @@ export const RouterPreferenceEntrySchema = z
   .openapi('RouterPreferenceEntry')
 export type RouterPreferenceEntry = z.infer<typeof RouterPreferenceEntrySchema>
 
-// Per-scenario map of preference chains. Every scenario key is
-// present on the wire so the UI can render an empty tab without a
-// special "missing scenario" branch. The selector picks the chain
-// matching the incoming request's classified scenario.
+// Preference kinds — mirrors the RouterPreferenceKind Prisma enum.
+// `agent` is the main-agent chain (no <CCR-SUBAGENT-MODEL> tag);
+// `subagent` is the chain requests carrying the tag route through.
+export const PreferenceKindSchema = z.enum(['agent', 'subagent'])
+export type PreferenceKind = z.infer<typeof PreferenceKindSchema>
+
+// Per-kind chains inside one scenario — an agent chain and a subagent
+// chain that are ordered independently. Both keys are always present on
+// the wire so the UI can render an empty sub-tab without a "missing"
+// branch.
+export const PreferenceEntriesByKindSchema = z
+  .object({
+    agent: z.array(RouterPreferenceEntrySchema).default([]),
+    subagent: z.array(RouterPreferenceEntrySchema).default([])
+  })
+  .openapi('PreferenceEntriesByKind')
+export type PreferenceEntriesByKind = z.infer<typeof PreferenceEntriesByKindSchema>
+
+// Per-scenario map of preference chains. Every scenario key is present
+// on the wire so the UI can render an empty tab without a special
+// "missing scenario" branch. Each scenario now owns TWO ordered chains
+// (agent + subagent) rather than a single shared chain — the selector
+// picks the chain matching the incoming request's classified scenario
+// AND its caller kind.
 export const PreferenceEntriesByScenarioSchema = z
   .object({
-    default: z.array(RouterPreferenceEntrySchema).default([]),
-    think: z.array(RouterPreferenceEntrySchema).default([]),
-    longContext: z.array(RouterPreferenceEntrySchema).default([]),
-    webSearch: z.array(RouterPreferenceEntrySchema).default([]),
-    image: z.array(RouterPreferenceEntrySchema).default([])
+    default: PreferenceEntriesByKindSchema.default({ agent: [], subagent: [] }),
+    think: PreferenceEntriesByKindSchema.default({ agent: [], subagent: [] }),
+    longContext: PreferenceEntriesByKindSchema.default({ agent: [], subagent: [] }),
+    webSearch: PreferenceEntriesByKindSchema.default({ agent: [], subagent: [] }),
+    image: PreferenceEntriesByKindSchema.default({ agent: [], subagent: [] })
   })
   .openapi('PreferenceEntriesByScenario')
 export type PreferenceEntriesByScenario = z.infer<typeof PreferenceEntriesByScenarioSchema>
