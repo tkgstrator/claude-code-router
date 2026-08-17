@@ -562,12 +562,12 @@ export function RouterPreferences() {
             )
           })()}
 
-        {/* Agent / Subagent sub-tabs inside the active scenario. The two
-            lanes have independent ordered chains, so switching here
-            swaps the entire list below (add / reorder / enable operate
-            on the current kind). Count per kind matches the raw active
-            chain length after the same active-model gate. */}
-        <div className='flex items-center gap-1 rounded-md bg-muted p-0.5'>
+        {/* Agent / Subagent sub-tabs inside the active scenario. Same
+            underlined-tab styling as the scenario row above so the two
+            selectors read as siblings of the same tab family. Switching
+            here swaps the list below; add / reorder / enable operate on
+            the current (scenario, kind) chain. */}
+        <div className='flex flex-wrap gap-1 border-b'>
           {(['agent', 'subagent'] as const).map((k) => {
             const kindCount = byScenario[activeScenario][k].filter((e) => activeModelTargets.has(e.target)).length
             const active = activeKind === k
@@ -578,8 +578,8 @@ export function RouterPreferences() {
                 onClick={() => setActiveKind(k)}
                 className={
                   active
-                    ? 'rounded-sm bg-background px-3 py-1 text-xs font-medium shadow-sm'
-                    : 'rounded-sm px-3 py-1 text-xs text-muted-foreground hover:text-foreground'
+                    ? '-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium'
+                    : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
                 }
               >
                 {t(`routerPreferences.kind.${k}`)}
