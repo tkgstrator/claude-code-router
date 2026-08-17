@@ -168,30 +168,32 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
   // reapplied by the selector at request time.
   const seenTargets = new Set<string>()
   for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
-    for (const entry of preferences.entriesByScenario[scenario]) {
-      if (seenTargets.has(entry.target)) continue
-      seenTargets.add(entry.target)
-      const info = modelIndex.get(entry.target)
-      if (info === undefined) {
+    for (const kind of ['agent', 'subagent'] as const) {
+      for (const entry of preferences.entriesByScenario[scenario][kind]) {
+        if (seenTargets.has(entry.target)) continue
+        seenTargets.add(entry.target)
+        const info = modelIndex.get(entry.target)
+        if (info === undefined) {
+          candidates.set(entry.target, {
+            target: entry.target,
+            providerName: '',
+            modelName: '',
+            accounts: [],
+            errorRate: 0,
+            contextWindow: null
+          })
+          continue
+        }
+        const modelName = entry.target.slice(info.providerName.length + 1)
         candidates.set(entry.target, {
           target: entry.target,
-          providerName: '',
-          modelName: '',
-          accounts: [],
-          errorRate: 0,
-          contextWindow: null
+          providerName: info.providerName,
+          modelName,
+          accounts: accountsByProvider.get(info.providerName) ?? [],
+          errorRate: 0, // Phase 2e will fill from the model-health tracker
+          contextWindow: info.contextWindow
         })
-        continue
       }
-      const modelName = entry.target.slice(info.providerName.length + 1)
-      candidates.set(entry.target, {
-        target: entry.target,
-        providerName: info.providerName,
-        modelName,
-        accounts: accountsByProvider.get(info.providerName) ?? [],
-        errorRate: 0, // Phase 2e will fill from the model-health tracker
-        contextWindow: info.contextWindow
-      })
     }
   }
 
@@ -233,14 +235,16 @@ export async function runSchedulerTickForTest(prismaOverride?: PrismaClient): Pr
     // Rank uses the best (lowest) priority the target holds anywhere.
     const seen = new Map<string, { priority: number; enabled: boolean; subagentTiers: string[] }>()
     for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
-      for (const entry of preferences.entriesByScenario[scenario]) {
-        const prev = seen.get(entry.target)
-        if (prev === undefined || entry.priority < prev.priority) {
-          seen.set(entry.target, {
-            priority: entry.priority,
-            enabled: entry.enabled || (prev?.enabled ?? false),
-            subagentTiers: entry.subagentTiers.map((t) => t)
-          })
+      for (const kind of ['agent', 'subagent'] as const) {
+        for (const entry of preferences.entriesByScenario[scenario][kind]) {
+          const prev = seen.get(entry.target)
+          if (prev === undefined || entry.priority < prev.priority) {
+            seen.set(entry.target, {
+              priority: entry.priority,
+              enabled: entry.enabled || (prev?.enabled ?? false),
+              subagentTiers: entry.subagentTiers.map((t) => t)
+            })
+          }
         }
       }
     }

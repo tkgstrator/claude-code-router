@@ -140,7 +140,12 @@ export interface QuotaAwareSelection {
 }
 
 export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput): Promise<QuotaAwareSelection> {
-  const chain = await loadPreferenceChain(input.scenario)
+  // Per-kind chain lookup: `agent` for main-agent traffic, `subagent`
+  // for requests carrying a <CCR-SUBAGENT-MODEL> tag. The two chains
+  // are ordered independently in the DB, so the same scenario can
+  // route very differently based on the caller lane.
+  const kind = input.isSubagent ? 'subagent' : 'agent'
+  const chain = await loadPreferenceChain(input.scenario, kind)
   const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(chain.constraints ?? {})
   const constraints: QuotaAwareConstraints = constraintsParsed.success
     ? constraintsParsed.data

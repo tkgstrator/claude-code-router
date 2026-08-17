@@ -189,13 +189,16 @@ export async function getRouterUtilization(sinceHours: number, prisma?: PrismaCl
     loadPerAccount(client),
     loadRouterPreferences(client)
   ])
-  // Union across scenarios: an entry counts as "in the chain" if it
-  // appears in any scenario. Enabled aggregates via OR so a target
-  // disabled in one scenario but active in another still counts.
+  // Union across (scenario, kind): an entry counts as "in the chain" if
+  // it appears in any (scenario, kind) chain. Enabled aggregates via OR
+  // so a target disabled in one place but active in another still
+  // counts. Both the agent and subagent lanes contribute.
   const seen = new Map<string, boolean>()
   for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
-    for (const e of preferences.entriesByScenario[scenario]) {
-      seen.set(e.target, (seen.get(e.target) ?? false) || e.enabled)
+    for (const kind of ['agent', 'subagent'] as const) {
+      for (const e of preferences.entriesByScenario[scenario][kind]) {
+        seen.set(e.target, (seen.get(e.target) ?? false) || e.enabled)
+      }
     }
   }
   const suggestions = detectSuggestions({

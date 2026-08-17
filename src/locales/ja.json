@@ -686,6 +686,10 @@
       "webSearch": "Web 検索",
       "image": "画像"
     },
+    "kind": {
+      "agent": "エージェント",
+      "subagent": "サブエージェント"
+    },
     "constraints": "制約",
     "subagentTiers": "サブエージェント tier",
     "budget": "予算",

@@ -88,37 +88,44 @@ test('RouterPreferenceEntrySchema rejects unknown tier values in subagentTiers',
 })
 
 test('RouterPreferenceProfileSchema accepts an empty per-scenario map with null constraints', () => {
+  // Every scenario/kind pair defaults to an empty array so the UI can
+  // render an empty tab without a "missing" branch. Both `agent` and
+  // `subagent` sub-chains are always present.
   const parsed = RouterPreferenceProfileSchema.parse({ entriesByScenario: {} })
-  expect(parsed.entriesByScenario.default).toEqual([])
-  expect(parsed.entriesByScenario.think).toEqual([])
-  expect(parsed.entriesByScenario.longContext).toEqual([])
-  expect(parsed.entriesByScenario.webSearch).toEqual([])
-  expect(parsed.entriesByScenario.image).toEqual([])
+  for (const s of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
+    expect(parsed.entriesByScenario[s].agent).toEqual([])
+    expect(parsed.entriesByScenario[s].subagent).toEqual([])
+  }
   expect(parsed.constraints).toBeNull()
 })
 
-test('RouterPreferenceProfileSchema round-trips populated per-scenario chains', () => {
+test('RouterPreferenceProfileSchema round-trips populated per-(scenario, kind) chains', () => {
+  // Split by kind: agent chain and subagent chain are ordered
+  // independently under each scenario key. Same target may appear in
+  // both without conflict.
   const input = {
     entriesByScenario: {
-      default: [
-        { priority: 1, target: 'claude-code,claude-sonnet-5', enabled: true, subagentTiers: [] }
-      ],
-      think: [
-        { priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] },
-        {
-          priority: 2,
-          target: 'claude-code,claude-fable-5',
-          enabled: true,
-          subagentTiers: ['sonnet', 'haiku']
-        }
-      ]
+      default: {
+        agent: [{ priority: 1, target: 'claude-code,claude-sonnet-5', enabled: true, subagentTiers: [] }],
+        subagent: [{ priority: 1, target: 'claude-code,claude-haiku-4-5', enabled: true, subagentTiers: [] }]
+      },
+      think: {
+        agent: [
+          { priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] },
+          { priority: 2, target: 'claude-code,claude-fable-5', enabled: true, subagentTiers: [] }
+        ],
+        subagent: []
+      }
     },
     constraints: { exhaustedBehavior: '429' }
   }
   const parsed = RouterPreferenceProfileSchema.parse(input)
-  expect(parsed.entriesByScenario.default).toHaveLength(1)
-  expect(parsed.entriesByScenario.think).toHaveLength(2)
-  expect(parsed.entriesByScenario.longContext).toEqual([])
-  expect(parsed.entriesByScenario.think[1].subagentTiers).toEqual(['sonnet', 'haiku'])
+  expect(parsed.entriesByScenario.default.agent).toHaveLength(1)
+  expect(parsed.entriesByScenario.default.subagent).toHaveLength(1)
+  expect(parsed.entriesByScenario.default.subagent[0].target).toBe('claude-code,claude-haiku-4-5')
+  expect(parsed.entriesByScenario.think.agent).toHaveLength(2)
+  expect(parsed.entriesByScenario.think.subagent).toEqual([])
+  expect(parsed.entriesByScenario.longContext.agent).toEqual([])
+  expect(parsed.entriesByScenario.longContext.subagent).toEqual([])
   expect(parsed.constraints).toEqual({ exhaustedBehavior: '429' })
 })

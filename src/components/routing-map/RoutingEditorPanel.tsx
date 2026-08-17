@@ -11,7 +11,7 @@ import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui-ext/input'
 import {
   connectModel,
   disconnectModel,

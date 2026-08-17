@@ -7,17 +7,25 @@
  * Writes happen inside a single `prisma.$transaction` so entries are
  * always a total-order replacement (no partial state).
  *
- * Per-scenario chains: each `ScenarioKey` owns an independent priority
- * chain. The wire shape carries an `entriesByScenario` object with a
- * key for every scenario so the UI can render an empty tab without
- * hitting a "missing scenario" branch.
+ * Per-scenario / per-kind chains: each `(ScenarioKey, RouterPreferenceKind)`
+ * pair owns an independent priority chain. The wire shape carries an
+ * `entriesByScenario` object with a key for every scenario, each mapping
+ * to `{ agent: [], subagent: [] }` so the UI can render an empty
+ * sub-tab without hitting a "missing" branch.
  */
 
 import { getPrismaClient } from '../db/client'
-import { Prisma, type PrismaClient, type ScenarioKey as PrismaScenarioKey } from '../generated/prisma/client'
+import {
+  Prisma,
+  type PrismaClient,
+  type RouterPreferenceKind as PrismaKind,
+  type ScenarioKey as PrismaScenarioKey
+} from '../generated/prisma/client'
 import { logger } from '../logger'
 import type {
+  PreferenceEntriesByKind,
   PreferenceEntriesByScenario,
+  PreferenceKind,
   RouterPreferenceEntry,
   RouterPreferenceProfile,
   ScenarioKey
@@ -27,9 +35,11 @@ import type {
 // adding a new ScenarioKey in Prisma requires touching this file too
 // (the tsc failure is the reminder).
 const ALL_SCENARIOS: readonly ScenarioKey[] = ['default', 'think', 'longContext', 'webSearch', 'image']
+const ALL_KINDS: readonly PreferenceKind[] = ['agent', 'subagent']
 
 interface DbEntryRow {
   scenario: PrismaScenarioKey
+  kind: PrismaKind
   priority: number
   enabled: boolean
   subagentTiers: string[]
@@ -70,17 +80,19 @@ const dbEntryToWire = (row: DbEntryRow): RouterPreferenceEntry => {
   }
 }
 
+const emptyByKind = (): PreferenceEntriesByKind => ({ agent: [], subagent: [] })
+
 const emptyEntriesByScenario = (): PreferenceEntriesByScenario => ({
-  default: [],
-  think: [],
-  longContext: [],
-  webSearch: [],
-  image: []
+  default: emptyByKind(),
+  think: emptyByKind(),
+  longContext: emptyByKind(),
+  webSearch: emptyByKind(),
+  image: emptyByKind()
 })
 
 // Load the singleton profile with entries in priority order, grouped
-// by scenario. Returns an empty per-scenario map + null constraints
-// when the seed row hasn't been created yet.
+// by scenario then by kind. Returns an empty per-scenario map + null
+// constraints when the seed row hasn't been created yet.
 export async function loadRouterPreferences(
   prisma: PrismaClient = getPrismaClient()
 ): Promise<RouterPreferenceProfile> {
@@ -88,7 +100,7 @@ export async function loadRouterPreferences(
     where: { key: 'live' },
     include: {
       entries: {
-        orderBy: [{ scenario: 'asc' }, { priority: 'asc' }],
+        orderBy: [{ scenario: 'asc' }, { kind: 'asc' }, { priority: 'asc' }],
         include: { model: { include: { provider: true } } }
       }
     }
@@ -96,8 +108,9 @@ export async function loadRouterPreferences(
   const entriesByScenario = emptyEntriesByScenario()
   if (profile !== null) {
     for (const row of profile.entries) {
-      const key: ScenarioKey = row.scenario
-      entriesByScenario[key].push(dbEntryToWire(row))
+      const scenario: ScenarioKey = row.scenario
+      const kind: PreferenceKind = row.kind
+      entriesByScenario[scenario][kind].push(dbEntryToWire(row))
     }
   }
   const constraints =
@@ -111,14 +124,15 @@ export async function loadRouterPreferences(
 }
 
 // Helper the selector uses at request time — pick the chain for a
-// single scenario. Loads the whole profile then returns one slice;
-// the caller is expected to already need `constraints` anyway.
+// single (scenario, kind). Loads the whole profile then returns one
+// slice; the caller is expected to already need `constraints` anyway.
 export async function loadPreferenceChain(
   scenario: ScenarioKey,
+  kind: PreferenceKind,
   prisma: PrismaClient = getPrismaClient()
 ): Promise<{ entries: readonly RouterPreferenceEntry[]; constraints: Record<string, unknown> | null }> {
   const profile = await loadRouterPreferences(prisma)
-  return { entries: profile.entriesByScenario[scenario], constraints: profile.constraints }
+  return { entries: profile.entriesByScenario[scenario][kind], constraints: profile.constraints }
 }
 
 interface ApplyOutcome {
@@ -128,6 +142,7 @@ interface ApplyOutcome {
 
 interface ResolvedInsert {
   scenario: ScenarioKey
+  kind: PreferenceKind
   modelId: string
   enabled: boolean
   subagentTiers: string[]
@@ -137,6 +152,7 @@ interface ResolvedInsert {
 async function resolveEntries(
   prisma: PrismaClient,
   scenario: ScenarioKey,
+  kind: PreferenceKind,
   entries: readonly RouterPreferenceEntry[],
   warnings: string[]
 ): Promise<ResolvedInsert[]> {
@@ -144,7 +160,7 @@ async function resolveEntries(
   for (const entry of entries) {
     const parts = entry.target.split(',')
     if (parts.length !== 2 || parts[0].length === 0 || parts[1].length === 0) {
-      warnings.push(`Dropped ${scenario} preference entry with malformed target "${entry.target}".`)
+      warnings.push(`Dropped ${scenario}/${kind} preference entry with malformed target "${entry.target}".`)
       continue
     }
     const [providerName, modelName] = parts
@@ -153,11 +169,12 @@ async function resolveEntries(
       select: { id: true }
     })
     if (model === null) {
-      warnings.push(`Dropped ${scenario} preference entry: unknown model "${entry.target}".`)
+      warnings.push(`Dropped ${scenario}/${kind} preference entry: unknown model "${entry.target}".`)
       continue
     }
     out.push({
       scenario,
+      kind,
       modelId: model.id,
       enabled: entry.enabled,
       subagentTiers: entry.subagentTiers.map((t) => t),
@@ -167,20 +184,23 @@ async function resolveEntries(
   return out.sort((a, b) => a.originalPriority - b.originalPriority)
 }
 
-// Replace every scenario's chain atomically. Priorities normalise to
-// dense 1..N per scenario. Any target that doesn't resolve to a Model
-// row is dropped with a warning so a stale entry from an earlier UI
-// session doesn't fail the whole apply.
+// Replace every (scenario, kind) chain atomically. Priorities normalise
+// to dense 1..N per (scenario, kind). Any target that doesn't resolve
+// to a Model row is dropped with a warning so a stale entry from an
+// earlier UI session doesn't fail the whole apply.
 export async function applyRouterPreferences(
   input: RouterPreferenceProfile,
   prisma: PrismaClient = getPrismaClient()
 ): Promise<ApplyOutcome> {
   const warnings: string[] = []
-  const resolvedPerScenario = new Map<ScenarioKey, ResolvedInsert[]>()
+  const resolvedPerChain = new Map<string, ResolvedInsert[]>()
+  const chainKey = (scenario: ScenarioKey, kind: PreferenceKind): string => `${scenario}::${kind}`
   for (const scenario of ALL_SCENARIOS) {
-    const entries = input.entriesByScenario[scenario]
-    const resolved = await resolveEntries(prisma, scenario, entries, warnings)
-    resolvedPerScenario.set(scenario, resolved)
+    for (const kind of ALL_KINDS) {
+      const entries = input.entriesByScenario[scenario][kind]
+      const resolved = await resolveEntries(prisma, scenario, kind, entries, warnings)
+      resolvedPerChain.set(chainKey(scenario, kind), resolved)
+    }
   }
 
   const constraintsWrite: Prisma.InputJsonValue | typeof Prisma.DbNull =
@@ -192,22 +212,25 @@ export async function applyRouterPreferences(
       update: { constraints: constraintsWrite },
       create: { key: 'live', constraints: constraintsWrite }
     })
-    // Total-order replacement across every scenario in one shot so
-    // callers can't observe a partial chain mid-write.
+    // Total-order replacement across every (scenario, kind) chain in
+    // one shot so callers can't observe a partial chain mid-write.
     await tx.routerPreferenceEntry.deleteMany({ where: { profileId: profile.id } })
     const flat: Prisma.RouterPreferenceEntryCreateManyInput[] = []
     for (const scenario of ALL_SCENARIOS) {
-      const rows = resolvedPerScenario.get(scenario) ?? []
-      rows.forEach((r, idx) => {
-        flat.push({
-          profileId: profile.id,
-          scenario: r.scenario,
-          priority: idx + 1,
-          modelId: r.modelId,
-          enabled: r.enabled,
-          subagentTiers: r.subagentTiers
+      for (const kind of ALL_KINDS) {
+        const rows = resolvedPerChain.get(chainKey(scenario, kind)) ?? []
+        rows.forEach((r, idx) => {
+          flat.push({
+            profileId: profile.id,
+            scenario: r.scenario,
+            kind: r.kind,
+            priority: idx + 1,
+            modelId: r.modelId,
+            enabled: r.enabled,
+            subagentTiers: r.subagentTiers
+          })
         })
-      })
+      }
     }
     if (flat.length > 0) {
       await tx.routerPreferenceEntry.createMany({ data: flat })

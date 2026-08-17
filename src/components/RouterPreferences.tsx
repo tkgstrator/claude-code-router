@@ -27,10 +27,10 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui-ext/input'
 import {
   api,
   type PreferenceEntriesByScenarioWire,
@@ -121,12 +121,17 @@ const readConstraints = (raw: Record<string, unknown> | null): ConstraintsForm =
   return out
 }
 
+const emptyByKind = (): { agent: RouterPreferenceEntryWire[]; subagent: RouterPreferenceEntryWire[] } => ({
+  agent: [],
+  subagent: []
+})
+
 const emptyByScenario = (): PreferenceEntriesByScenarioWire => ({
-  default: [],
-  think: [],
-  longContext: [],
-  webSearch: [],
-  image: []
+  default: emptyByKind(),
+  think: emptyByKind(),
+  longContext: emptyByKind(),
+  webSearch: emptyByKind(),
+  image: emptyByKind()
 })
 
 const SCHEDULER_POLL_MS = 30_000
@@ -202,6 +207,9 @@ export function RouterPreferences() {
   const [saving, setSaving] = useState(false)
   const [scheduler, setScheduler] = useState<RoutingSchedulerStateResponse | null>(null)
   const [activeScenario, setActiveScenario] = useState<PreferenceScenarioKey>('default')
+  // Which caller lane the tab currently edits — every mutation
+  // (add/remove/reorder/enable) applies to `byScenario[activeScenario][activeKind]`.
+  const [activeKind, setActiveKind] = useState<'agent' | 'subagent'>('agent')
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addProvider, setAddProvider] = useState<string>('')
   const [addModel, setAddModel] = useState<string>('')
@@ -264,8 +272,8 @@ export function RouterPreferences() {
   // model would otherwise sit in the list with no way to route to it).
   const activeModelTargets = useMemo(() => activeTargetSet(providerIndex), [providerIndex])
   const activeTargets = useMemo(
-    () => new Set(byScenario[activeScenario].map((e) => e.target)),
-    [byScenario, activeScenario]
+    () => new Set(byScenario[activeScenario][activeKind].map((e) => e.target)),
+    [byScenario, activeScenario, activeKind]
   )
   const modelsForAddProvider = useMemo(() => {
     const p = providerIndex.find((x) => x.name === addProvider)
@@ -278,13 +286,16 @@ export function RouterPreferences() {
     return m
   }, [scheduler])
 
-  const activeEntries = byScenario[activeScenario]
+  const activeEntries = byScenario[activeScenario][activeKind]
 
   const mutateActive = useCallback(
     (fn: (prev: RouterPreferenceEntryWire[]) => RouterPreferenceEntryWire[]) => {
-      setByScenario((prev) => ({ ...prev, [activeScenario]: fn(prev[activeScenario]) }))
+      setByScenario((prev) => ({
+        ...prev,
+        [activeScenario]: { ...prev[activeScenario], [activeKind]: fn(prev[activeScenario][activeKind]) }
+      }))
     },
-    [activeScenario]
+    [activeScenario, activeKind]
   )
 
   const move = useCallback(
@@ -462,7 +473,12 @@ export function RouterPreferences() {
             // raw entry count — a scenario whose four rows all point at
             // since-disabled models should not read "4" while the tab
             // itself renders empty.
-            const count = byScenario[s].filter((e) => activeModelTargets.has(e.target)).length
+            // Count both kinds so a scenario badge reflects total configured
+            // routing regardless of which kind sub-tab the operator lands on.
+            const count = (['agent', 'subagent'] as const).reduce(
+              (acc, k) => acc + byScenario[s][k].filter((e) => activeModelTargets.has(e.target)).length,
+              0
+            )
             const active = activeScenario === s
             return (
               <button
@@ -545,6 +561,33 @@ export function RouterPreferences() {
               </div>
             )
           })()}
+
+        {/* Agent / Subagent sub-tabs inside the active scenario. The two
+            lanes have independent ordered chains, so switching here
+            swaps the entire list below (add / reorder / enable operate
+            on the current kind). Count per kind matches the raw active
+            chain length after the same active-model gate. */}
+        <div className='flex items-center gap-1 rounded-md bg-muted p-0.5'>
+          {(['agent', 'subagent'] as const).map((k) => {
+            const kindCount = byScenario[activeScenario][k].filter((e) => activeModelTargets.has(e.target)).length
+            const active = activeKind === k
+            return (
+              <button
+                key={k}
+                type='button'
+                onClick={() => setActiveKind(k)}
+                className={
+                  active
+                    ? 'rounded-sm bg-background px-3 py-1 text-xs font-medium shadow-sm'
+                    : 'rounded-sm px-3 py-1 text-xs text-muted-foreground hover:text-foreground'
+                }
+              >
+                {t(`routerPreferences.kind.${k}`)}
+                <span className='ml-2 text-muted-foreground tabular-nums'>{kindCount}</span>
+              </button>
+            )
+          })}
+        </div>
 
         <section className='space-y-2'>
           {(() => {

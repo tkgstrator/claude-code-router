@@ -686,6 +686,10 @@
       "webSearch": "Web 搜索",
       "image": "图片"
     },
+    "kind": {
+      "agent": "Agent",
+      "subagent": "Subagent"
+    },
     "constraints": "约束",
     "subagentTiers": "子代理 tier",
     "budget": "预算",

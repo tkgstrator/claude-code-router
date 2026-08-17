@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SelectCombobox as Combobox } from '@/components/SelectCombobox'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui-ext/input'
 import { Label } from '@/components/ui/label'
 import {
   addProviderTransformerParam,

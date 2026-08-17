@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ColorPicker } from '@/components/ui/color-picker'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui-ext/input'
 import { Label } from '@/components/ui/label'
 import type { StatusLineModuleConfig } from '@/types'
 import { IconSearchInput } from './IconSearchInput'

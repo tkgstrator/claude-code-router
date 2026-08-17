@@ -686,6 +686,10 @@
       "webSearch": "Web Search",
       "image": "Image"
     },
+    "kind": {
+      "agent": "Agent",
+      "subagent": "Subagent"
+    },
     "constraints": "Constraints",
     "subagentTiers": "Subagent tiers",
     "budget": "budget",

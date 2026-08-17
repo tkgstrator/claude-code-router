@@ -14,7 +14,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui-ext/input'
 import { api } from '@/lib/api'
 import { TransformerFormSchema, type TransformerFormValues } from '@/schemas/forms.dto'
 import { useConfig } from './ConfigProvider'
