@@ -12,8 +12,8 @@ import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry }
 import { selectByPreference } from '../../../src/llms/quota-router/selection'
 
 const STRICT: PreferenceConstraints = {
-  sonnetTierRespect: true,
-  haikuTierRespect: true,
+  allowEscalation: false,
+  allowDemotion: false,
   quotaSkipPct: 100,
   errorRateSkipPct: 0.5,
   minHealthSamples: 5,
@@ -31,7 +31,6 @@ const entry = (
   priority,
   target,
   enabled: overrides.enabled ?? true,
-  subagentTiers: overrides.subagentTiers ?? [],
   resolvedTier
 })
 

@@ -42,7 +42,6 @@ interface DbEntryRow {
   kind: PrismaKind
   priority: number
   enabled: boolean
-  subagentTiers: string[]
   model: { name: string; manualTier: string | null; provider: { name: string } }
 }
 
@@ -52,8 +51,6 @@ const narrowTier = (raw: string | null | undefined): CanonicalTier | null => {
   if (raw === null || raw === undefined) return null
   return ALLOWED_TIERS.has(raw) ? (raw as CanonicalTier) : null
 }
-const narrowSubagentTiers = (raw: string[]): RouterPreferenceEntry['subagentTiers'] =>
-  raw.flatMap((t) => (ALLOWED_TIERS.has(t) ? [t as CanonicalTier] : []))
 
 // Name-inference fallback that mirrors the private tierOf() in
 // scenario-router/model-selection.ts. Duplicated here (rather than
@@ -75,7 +72,6 @@ const dbEntryToWire = (row: DbEntryRow): RouterPreferenceEntry => {
     priority: row.priority,
     target: `${row.model.provider.name},${row.model.name}`,
     enabled: row.enabled,
-    subagentTiers: narrowSubagentTiers(row.subagentTiers),
     resolvedTier: resolved
   }
 }
@@ -145,7 +141,6 @@ interface ResolvedInsert {
   kind: PreferenceKind
   modelId: string
   enabled: boolean
-  subagentTiers: string[]
   originalPriority: number
 }
 
@@ -177,7 +172,6 @@ async function resolveEntries(
       kind,
       modelId: model.id,
       enabled: entry.enabled,
-      subagentTiers: entry.subagentTiers.map((t) => t),
       originalPriority: entry.priority
     })
   }
@@ -226,8 +220,7 @@ export async function applyRouterPreferences(
             kind: r.kind,
             priority: idx + 1,
             modelId: r.modelId,
-            enabled: r.enabled,
-            subagentTiers: r.subagentTiers
+            enabled: r.enabled
           })
         })
       }

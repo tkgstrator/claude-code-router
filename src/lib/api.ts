@@ -368,10 +368,6 @@ export interface RouterPreferenceEntryWire {
   priority: number
   target: string
   enabled: boolean
-  // Deprecated post kind-split — kept in the wire type so a legacy
-  // client that still sends it can round-trip. The server ignores it
-  // for routing decisions (kind now controls the agent/subagent split).
-  subagentTiers: Array<'fable' | 'opus' | 'sonnet' | 'haiku'>
 }
 
 export type PreferenceScenarioKey = 'default' | 'think' | 'longContext' | 'webSearch' | 'image'

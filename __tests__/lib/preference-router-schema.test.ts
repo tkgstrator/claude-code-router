@@ -8,8 +8,13 @@ import {
 
 test('PreferenceConstraintsSchema fills every knob with a documented default', () => {
   const parsed = PreferenceConstraintsSchema.parse({})
-  expect(parsed.sonnetTierRespect).toBe(true)
-  expect(parsed.haikuTierRespect).toBe(true)
+  // The two directional tier gates default to `true` — every
+  // candidate participates unless the operator narrows the gate.
+  // These replaced the older per-tier `sonnetTierRespect` /
+  // `haikuTierRespect` design that only covered sonnet/haiku
+  // upward escalation.
+  expect(parsed.allowEscalation).toBe(true)
+  expect(parsed.allowDemotion).toBe(true)
   expect(parsed.quotaSkipPct).toBe(100)
   expect(parsed.errorRateSkipPct).toBe(0.5)
   expect(parsed.minHealthSamples).toBe(5)
@@ -18,7 +23,8 @@ test('PreferenceConstraintsSchema fills every knob with a documented default', (
 test('QuotaAwareConstraintsSchema inherits L4 defaults and adds quota-aware knobs', () => {
   const parsed = QuotaAwareConstraintsSchema.parse({})
   // inherited
-  expect(parsed.sonnetTierRespect).toBe(true)
+  expect(parsed.allowEscalation).toBe(true)
+  expect(parsed.allowDemotion).toBe(true)
   // added
   expect(parsed.healthinessThreshold).toBeCloseTo(0.05)
   expect(parsed.minWeightPct).toBe(1)
@@ -34,11 +40,13 @@ test('QuotaAwareConstraintsSchema inherits L4 defaults and adds quota-aware knob
 
 test('QuotaAwareConstraintsSchema honours user overrides', () => {
   const parsed = QuotaAwareConstraintsSchema.parse({
-    sonnetTierRespect: false,
+    allowEscalation: false,
     healthinessThreshold: 0.2,
     exhaustedBehavior: 'passthrough'
   })
-  expect(parsed.sonnetTierRespect).toBe(false)
+  expect(parsed.allowEscalation).toBe(false)
+  // untouched directional gate stays on
+  expect(parsed.allowDemotion).toBe(true)
   expect(parsed.healthinessThreshold).toBeCloseTo(0.2)
   expect(parsed.exhaustedBehavior).toBe('passthrough')
   // untouched knob still defaults
@@ -54,37 +62,17 @@ test('QuotaAwareConstraintsSchema rejects out-of-range values', () => {
   expect(() => QuotaAwareConstraintsSchema.parse({ exhaustedBehavior: 'other' })).toThrow()
 })
 
-test('RouterPreferenceEntrySchema defaults enabled true and subagentTiers []', () => {
+test('RouterPreferenceEntrySchema defaults enabled true', () => {
   const parsed = RouterPreferenceEntrySchema.parse({
     priority: 1,
     target: 'claude-code,claude-fable-5'
   })
   expect(parsed.enabled).toBe(true)
-  expect(parsed.subagentTiers).toEqual([])
-})
-
-test('RouterPreferenceEntrySchema accepts subagentTiers filter', () => {
-  const parsed = RouterPreferenceEntrySchema.parse({
-    priority: 1,
-    target: 'claude-code,claude-sonnet-5',
-    subagentTiers: ['sonnet', 'haiku']
-  })
-  expect(parsed.subagentTiers).toEqual(['sonnet', 'haiku'])
 })
 
 test('RouterPreferenceEntrySchema rejects a non-positive priority', () => {
-  expect(() =>
-    RouterPreferenceEntrySchema.parse({ priority: 0, target: 'a,b' })
-  ).toThrow()
-  expect(() =>
-    RouterPreferenceEntrySchema.parse({ priority: -1, target: 'a,b' })
-  ).toThrow()
-})
-
-test('RouterPreferenceEntrySchema rejects unknown tier values in subagentTiers', () => {
-  expect(() =>
-    RouterPreferenceEntrySchema.parse({ priority: 1, target: 'a,b', subagentTiers: ['gpt'] })
-  ).toThrow()
+  expect(() => RouterPreferenceEntrySchema.parse({ priority: 0, target: 'a,b' })).toThrow()
+  expect(() => RouterPreferenceEntrySchema.parse({ priority: -1, target: 'a,b' })).toThrow()
 })
 
 test('RouterPreferenceProfileSchema accepts an empty per-scenario map with null constraints', () => {
@@ -106,13 +94,13 @@ test('RouterPreferenceProfileSchema round-trips populated per-(scenario, kind) c
   const input = {
     entriesByScenario: {
       default: {
-        agent: [{ priority: 1, target: 'claude-code,claude-sonnet-5', enabled: true, subagentTiers: [] }],
-        subagent: [{ priority: 1, target: 'claude-code,claude-haiku-4-5', enabled: true, subagentTiers: [] }]
+        agent: [{ priority: 1, target: 'claude-code,claude-sonnet-5', enabled: true }],
+        subagent: [{ priority: 1, target: 'claude-code,claude-haiku-4-5', enabled: true }]
       },
       think: {
         agent: [
-          { priority: 1, target: 'claude-code,claude-opus-5', enabled: true, subagentTiers: [] },
-          { priority: 2, target: 'claude-code,claude-fable-5', enabled: true, subagentTiers: [] }
+          { priority: 1, target: 'claude-code,claude-opus-5', enabled: true },
+          { priority: 2, target: 'claude-code,claude-fable-5', enabled: true }
         ],
         subagent: []
       }
