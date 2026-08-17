@@ -25,17 +25,28 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
     await teardownPrisma()
   })
 
-  test('empty per-scenario chain returns no primary + default 30s Retry-After', async () => {
+  test('empty per-scenario chain passes through regardless of exhaustedBehavior (not-configured shortcut)', async () => {
+    // An empty preference chain means the operator hasn't set up
+    // quota-aware routing for this scenario. Treat that as "no
+    // opinion" and pass through to the scenario router's answer,
+    // ignoring `exhaustedBehavior: '429'` — the 429 branch is meant
+    // for real chains whose candidates are all currently gated, not
+    // for the "nothing to route" case. Without this, a fresh install
+    // with ROUTER_MODE=quota-aware but no chain entries 429s every
+    // request instead of falling through to the scenario router.
     const out = await resolveQuotaAwareSelection({
       requestedModel: 'claude-opus-5',
       isSubagent: false,
       scenario: 'default'
     })
     expect(out.selection.primary).toBeNull()
-    expect(out.retryAfterSec).toBe(30)
+    expect(out.retryAfterSec).toBeNull()
   })
 
-  test('passthrough constraint suppresses Retry-After even when the chain is empty', async () => {
+  test('passthrough constraint on an empty chain also passes through', async () => {
+    // Same outcome via the constraints route — kept as a distinct
+    // case so the empty-chain shortcut and the explicit
+    // exhaustedBehavior:passthrough branch both stay covered.
     await applyRouterPreferences({
       entriesByScenario: emptyChains,
       constraints: { exhaustedBehavior: 'passthrough' }
@@ -78,7 +89,7 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
     expect(out.retryAfterSec).toBeNull()
   })
 
-  test('a scenario without a chain still returns null primary + default Retry-After', async () => {
+  test('a scenario without its own chain still passes through (empty-chain shortcut wins)', async () => {
     const prisma = getPrismaClient()
     const provider = await prisma.provider.create({
       data: {
@@ -105,5 +116,7 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
       scenario: 'default'
     })
     expect(out.selection.primary).toBeNull()
+    // Empty chain in this scenario → passthrough (no Retry-After).
+    expect(out.retryAfterSec).toBeNull()
   })
 })
