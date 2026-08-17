@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui-ext/input'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui-ext/input'
 import { api } from '@/lib/api'
 import { useConfig } from './ConfigProvider'
 

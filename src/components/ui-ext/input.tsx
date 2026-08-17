@@ -14,6 +14,10 @@
  */
 
 import type * as React from 'react'
+// biome-ignore plugin: import rename is the only mechanism to shadow the
+// shadcn-managed `Input` export while re-exposing our compacted wrapper
+// under the same name; the plugin's `as`-avoidance rule targets value-
+// level type assertions, not import specifiers.
 import { Input as BaseInput } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 

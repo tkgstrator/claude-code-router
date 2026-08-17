@@ -1,8 +1,8 @@
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui-ext/input'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui-ext/input'
 import { applyProviderFieldChange } from '@/lib/providers/provider-edits'
 import type { Provider } from '@/types'
 
