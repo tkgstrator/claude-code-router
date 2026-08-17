@@ -18,7 +18,12 @@
 
 import type { Context } from 'hono'
 import { type LlmsContext, subscriptionKindOf } from '../../llms'
-import { isAccountExhausted, markAccountExhausted, markModelExhausted } from '../../services/failover-state'
+import {
+  isAccountExhausted,
+  markAccountExhausted,
+  markModelExhausted,
+  markProviderExhausted
+} from '../../services/failover-state'
 import { recordModelFailure, recordModelSuccess } from '../../services/routing-scheduler/model-health'
 import { getActiveAccountForSession, releaseAccountForSession } from '../../services/session-account-router'
 import {
@@ -31,7 +36,7 @@ import {
 import { getSubAccountTokensForKind } from '../../services/subscription-account-sync-service'
 import { errorShapeForPath } from './error-shape'
 import { type ResolvedInvocation, type RoutePlan, resolveInvocationForModel } from './invocation'
-import { forwardUpstreamError, isRateLimited } from './upstream-error'
+import { forwardUpstreamError, isInsufficientQuota, isRateLimited } from './upstream-error'
 
 // Hard cap on account rotations within a single chain entry. Each rotate
 // already requires an inbound 429 + an account-exhaustion mark, so a
@@ -122,6 +127,25 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
     if (!isRateLimited(err)) return { kind: 'done', response: forwarded }
 
     lastForwarded = forwarded
+
+    // OpenAI's `insufficient_quota` is a permanent project spend-cap
+    // breach, not an ephemeral rate-limit tick — retrying any sibling
+    // model on the same provider will also 429, and the pipeline can
+    // burn minutes ping-ponging through the fallback chain until the
+    // outbound fetch abort-timer fires (observed in prod: 5+ min hangs
+    // → 500). Mark the whole PROVIDER exhausted (default cooldown)
+    // so isModelExhausted's provider-scope OR short-circuits every
+    // remaining chain entry pointing at it, and advance to the next
+    // provider in the chain immediately.
+    if (isInsufficientQuota(err)) {
+      markProviderExhausted(inv.provider.name)
+      ctx.log.warn(
+        { provider: inv.provider.name, model: inv.request.model, scenario: plan.scenarioType },
+        'insufficient_quota; marking provider exhausted and failing over'
+      )
+      return { kind: 'next', forwarded: lastForwarded }
+    }
+
     if (await tryRotateAccount(chain, inv, triedAccounts)) continue
 
     // Provider has no rotatable accounts left (or this isn't a

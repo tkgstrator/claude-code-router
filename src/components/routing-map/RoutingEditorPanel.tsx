@@ -247,18 +247,35 @@ export function RoutingEditorPanel({
         (readOnly ? (
           <div className='flex items-center justify-between gap-2'>
             <span className='text-xs text-muted-foreground'>{t('router.longContextThreshold')}</span>
-            <span className='font-mono text-xs tabular-nums'>{router.longContext.threshold}</span>
+            <span className='font-mono text-xs tabular-nums'>
+              {router.longContext.threshold === null ? 'auto' : router.longContext.threshold}
+            </span>
           </div>
         ) : (
           <div className='flex items-center justify-between gap-2'>
             <span className='text-xs text-muted-foreground'>{t('router.longContextThreshold')}</span>
-            <Input
-              type='number'
-              aria-label={t('router.longContextThreshold')}
-              className='h-7 w-24 text-xs'
-              value={router.longContext.threshold}
-              onChange={(e) => onChange(setLongContextThreshold(router, e.target.valueAsNumber))}
-            />
+            <div className='flex items-center gap-2'>
+              <label className='flex items-center gap-1 text-xs text-muted-foreground'>
+                <input
+                  type='checkbox'
+                  className='h-3 w-3'
+                  checked={router.longContext.threshold === null}
+                  onChange={(e) => onChange(setLongContextThreshold(router, e.target.checked ? null : 128000))}
+                />
+                {t('routerPreferences.longContextThresholdAuto')}
+              </label>
+              <Input
+                type='number'
+                aria-label={t('router.longContextThreshold')}
+                className='h-7 w-24 text-xs'
+                value={router.longContext.threshold ?? ''}
+                disabled={router.longContext.threshold === null}
+                onChange={(e) => {
+                  const v = e.target.valueAsNumber
+                  onChange(setLongContextThreshold(router, Number.isFinite(v) && v > 0 ? v : null))
+                }}
+              />
+            </div>
           </div>
         ))}
     </div>

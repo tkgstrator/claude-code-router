@@ -70,6 +70,7 @@ interface WireProviderForIndex {
   enabled?: boolean
   models?: readonly string[]
   transformer?: unknown
+  modelContextWindows?: Record<string, number>
 }
 
 const collectProviderIndex = (providers: readonly WireProviderForIndex[]): ProviderModelIndex[] => {
@@ -130,7 +131,44 @@ const emptyByScenario = (): PreferenceEntriesByScenarioWire => ({
 
 const SCHEDULER_POLL_MS = 30_000
 
+// Sentinel for the persona Select's "no persona" option. Radix Select
+// rejects an empty string value, so we map absence to this literal and
+// translate back to `undefined` at write time. Same sentinel the
+// RoutingEditor uses so the two persona pickers stay symmetric.
+const PERSONA_NONE = '__none__'
+
+// Fallback shown in the manual editor when the operator flips off
+// "Auto" without a stored threshold — matches the runtime's ultimate
+// fallback in effectiveLongContextThreshold so a naive Save doesn't
+// silently change routing behaviour.
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 128000
+
+// Fraction of the default agent primary's context window used by the
+// auto path. Mirrors LONG_CONTEXT_AUTO_RATIO in
+// src/llms/scenario-router/model-selection.ts so the caption reflects
+// what the runtime will actually compute — bump them together if the
+// ratio ever changes.
+const LONG_CONTEXT_AUTO_RATIO = 0.7
+
+// Look up a "provider,model" primary in the config's provider list and
+// return { model, contextWindow } — with contextWindow null when the
+// vendor didn't publish a value. Used to render the auto-threshold
+// caption; the runtime does the same resolution via cfg.Providers in
+// context.ts.
+const resolveDefaultPrimaryWindow = (
+  primary: string | null,
+  providers: readonly WireProviderForIndex[]
+): { modelName: string; contextWindow: number | null } | null => {
+  if (typeof primary !== 'string' || primary === '') return null
+  const comma = primary.indexOf(',')
+  if (comma <= 0) return null
+  const providerName = primary.slice(0, comma)
+  const modelName = primary.slice(comma + 1)
+  const provider = providers.find((p) => p.name === providerName)
+  if (!provider) return null
+  const window = provider.modelContextWindows?.[modelName]
+  return { modelName, contextWindow: typeof window === 'number' && window > 0 ? window : null }
+}
 
 export function RouterPreferences() {
   const { t } = useTranslation()
@@ -142,10 +180,24 @@ export function RouterPreferences() {
   // on the preference constraints blob), so we mirror it in local
   // state and PATCH it via /api/config on Save when it changed. The
   // scenario classifier reads this value to decide when a request
-  // qualifies as long-context.
-  const initialThreshold = config?.Router.longContext.threshold ?? DEFAULT_LONG_CONTEXT_THRESHOLD
-  const [longContextThreshold, setLongContextThreshold] = useState<number>(initialThreshold)
-  const [thresholdBaseline, setThresholdBaseline] = useState<number>(initialThreshold)
+  // qualifies as long-context. `null` means "auto" — the runtime
+  // derives the effective value from the default agent primary's
+  // contextWindow; the manual input remembers its last numeric value so
+  // toggling Auto off returns the operator to a sensible starting point
+  // instead of a blank / 0 field.
+  const initialThreshold = config?.Router.longContext.threshold ?? null
+  const [longContextThreshold, setLongContextThreshold] = useState<number | null>(initialThreshold)
+  const [manualThresholdMemo, setManualThresholdMemo] = useState<number>(
+    initialThreshold ?? DEFAULT_LONG_CONTEXT_THRESHOLD
+  )
+  const [thresholdBaseline, setThresholdBaseline] = useState<number | null>(initialThreshold)
+  // Persona also lives on Router (not on the preference constraints
+  // blob), so we mirror + patch it the same way as the threshold.
+  // Empty / undefined on the wire reads as "no persona".
+  const initialPersona: string | null =
+    typeof config?.Router.persona === 'string' && config.Router.persona !== '' ? config.Router.persona : null
+  const [persona, setPersona] = useState<string | null>(initialPersona)
+  const [personaBaseline, setPersonaBaseline] = useState<string | null>(initialPersona)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scheduler, setScheduler] = useState<RoutingSchedulerStateResponse | null>(null)
@@ -159,9 +211,13 @@ export function RouterPreferences() {
   // skip the /api/config round-trip when the user didn't touch it.
   useEffect(() => {
     if (config === null) return
-    const v = config.Router.longContext.threshold ?? DEFAULT_LONG_CONTEXT_THRESHOLD
+    const v = config.Router.longContext.threshold ?? null
     setLongContextThreshold(v)
     setThresholdBaseline(v)
+    if (typeof v === 'number') setManualThresholdMemo(v)
+    const p = typeof config.Router.persona === 'string' && config.Router.persona !== '' ? config.Router.persona : null
+    setPersona(p)
+    setPersonaBaseline(p)
   }, [config])
 
   useEffect(() => {
@@ -302,16 +358,23 @@ export function RouterPreferences() {
           exhaustedBehavior: constraints.exhaustedBehavior
         }
       })
-      // Threshold is edited on this page but lives on Router.longContext,
-      // not on the preference constraints blob — patch it via /api/config
-      // only when the user actually changed it, so unrelated fields on the
-      // Router stay untouched and a no-op Save doesn't churn config.json.
-      if (config !== null && longContextThreshold !== thresholdBaseline && Number.isFinite(longContextThreshold)) {
+      // Threshold and persona are edited on this page but live on the
+      // Router (not on the preference constraints blob) — patch them
+      // via /api/config only when the user actually changed one, so
+      // unrelated fields on the Router stay untouched and a no-op
+      // Save doesn't churn config.json. `null` is the wire
+      // representation of "auto" for threshold and "no persona" for
+      // persona.
+      const nextThreshold = longContextThreshold === null || longContextThreshold > 0 ? longContextThreshold : null
+      const thresholdChanged = nextThreshold !== thresholdBaseline
+      const personaChanged = persona !== personaBaseline
+      if (config !== null && (thresholdChanged || personaChanged)) {
         await api.updateConfig({
           ...config,
           Router: {
             ...config.Router,
-            longContext: { ...config.Router.longContext, threshold: longContextThreshold }
+            longContext: { ...config.Router.longContext, threshold: nextThreshold },
+            persona: persona ?? undefined
           }
         })
         await reloadConfig()
@@ -327,7 +390,18 @@ export function RouterPreferences() {
     } finally {
       setSaving(false)
     }
-  }, [byScenario, constraints, config, longContextThreshold, thresholdBaseline, reloadConfig, showToast, t])
+  }, [
+    byScenario,
+    constraints,
+    config,
+    longContextThreshold,
+    thresholdBaseline,
+    persona,
+    personaBaseline,
+    reloadConfig,
+    showToast,
+    t
+  ])
 
   if (loading) {
     return (
@@ -349,6 +423,38 @@ export function RouterPreferences() {
         {scheduler !== null && scheduler.tickAt === null && (
           <p className='text-muted-foreground text-xs'>{t('routerPreferences.noSchedulerData')}</p>
         )}
+
+        {/* Persona lives on the Router (not the preference blob) but is
+            edited here so the operator can pick the whole routing +
+            persona pairing in one place. Mirrors the RoutingEditor's
+            selector; both write to Router.persona through /api/config. */}
+        <div className='flex items-center gap-3'>
+          <Label htmlFor='routerPreferencesPersona' className='text-xs text-muted-foreground'>
+            {t('router.persona')}
+          </Label>
+          <Select value={persona ?? PERSONA_NONE} onValueChange={(v) => setPersona(v === PERSONA_NONE ? null : v)}>
+            <SelectTrigger
+              id='routerPreferencesPersona'
+              size='sm'
+              aria-label={t('router.persona')}
+              className='h-8 w-56 text-xs'
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={PERSONA_NONE}>{t('router.personaNone')}</SelectItem>
+              {(config?.Personas ?? [])
+                .filter(
+                  (p): p is { id: string; name: string; prompt: string } => typeof p.id === 'string' && p.id !== ''
+                )
+                .map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className='flex flex-wrap gap-1 border-b'>
           {SCENARIOS.map((s) => {
@@ -376,29 +482,69 @@ export function RouterPreferences() {
           })}
         </div>
 
-        {activeScenario === 'longContext' && (
-          <div className='flex items-start justify-between gap-4 border-b py-3'>
-            <div className='min-w-0 flex-1 space-y-0.5'>
-              <Label htmlFor='longContextThreshold'>{t('router.longContextThreshold')}</Label>
-              <p className='text-muted-foreground text-xs'>{t('routerPreferences.longContextThresholdHelp')}</p>
-            </div>
-            <div className='flex items-center gap-2'>
-              <Input
-                id='longContextThreshold'
-                type='number'
-                min={1}
-                step={1000}
-                className='w-32 text-right tabular-nums'
-                value={longContextThreshold}
-                onChange={(e) => {
-                  const v = e.target.valueAsNumber
-                  if (Number.isFinite(v)) setLongContextThreshold(v)
-                }}
-              />
-              <span className='text-muted-foreground text-xs'>tokens</span>
-            </div>
-          </div>
-        )}
+        {activeScenario === 'longContext' &&
+          (() => {
+            const isAuto = longContextThreshold === null
+            const defaultPrimary = config?.Router.default.agent.primary ?? null
+            const resolved = resolveDefaultPrimaryWindow(defaultPrimary, config?.Providers ?? [])
+            const autoValue =
+              resolved?.contextWindow !== undefined && resolved?.contextWindow !== null
+                ? Math.floor(resolved.contextWindow * LONG_CONTEXT_AUTO_RATIO)
+                : DEFAULT_LONG_CONTEXT_THRESHOLD
+            const autoCaption = resolved?.contextWindow
+              ? t('routerPreferences.longContextThresholdAutoResolved', {
+                  value: autoValue.toLocaleString(),
+                  model: resolved.modelName
+                })
+              : t('routerPreferences.longContextThresholdAutoUnresolved', {
+                  value: autoValue.toLocaleString()
+                })
+            return (
+              <div className='flex items-start justify-between gap-4 border-b py-3'>
+                <div className='min-w-0 flex-1 space-y-0.5'>
+                  <Label htmlFor='longContextThreshold'>{t('router.longContextThreshold')}</Label>
+                  <p className='text-muted-foreground text-xs'>{t('routerPreferences.longContextThresholdHelp')}</p>
+                  {isAuto && <p className='text-muted-foreground text-xs'>{autoCaption}</p>}
+                </div>
+                <div className='flex items-center gap-3'>
+                  <div className='flex items-center gap-2'>
+                    <Switch
+                      id='longContextThresholdAuto'
+                      checked={isAuto}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setLongContextThreshold(null)
+                        } else {
+                          setLongContextThreshold(manualThresholdMemo)
+                        }
+                      }}
+                      aria-label={t('routerPreferences.longContextThresholdAuto')}
+                    />
+                    <Label htmlFor='longContextThresholdAuto' className='text-xs font-normal'>
+                      {t('routerPreferences.longContextThresholdAuto')}
+                    </Label>
+                  </div>
+                  <Input
+                    id='longContextThreshold'
+                    type='number'
+                    min={1}
+                    step={1000}
+                    className='w-32 text-right tabular-nums'
+                    value={longContextThreshold ?? ''}
+                    disabled={isAuto}
+                    onChange={(e) => {
+                      const v = e.target.valueAsNumber
+                      if (Number.isFinite(v) && v > 0) {
+                        setLongContextThreshold(v)
+                        setManualThresholdMemo(v)
+                      }
+                    }}
+                  />
+                  <span className='text-muted-foreground text-xs'>tokens</span>
+                </div>
+              </div>
+            )
+          })()}
 
         <section className='space-y-2'>
           {(() => {

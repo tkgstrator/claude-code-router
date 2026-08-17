@@ -23,10 +23,64 @@ import type { ConfigStore } from '../registry/config'
 import type { RouterConfig, RouterRequest, RouterRequestBody } from './types'
 
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 128_000
+// Fraction of the default agent primary's contextWindow used as the
+// effective auto-threshold. Leaves 30% headroom for the response and
+// the CCR wrapper overhead so a request landing just under the model's
+// hard ceiling still fits when the reply lands. Not user-configurable
+// yet — flipped to a config knob once we have signal it isn't a fit.
+const LONG_CONTEXT_AUTO_RATIO = 0.7
+
+// Resolve the effective longContext threshold from the flat runtime
+// router. A configured numeric threshold wins outright; when null
+// (auto) the effective value is the default agent primary's
+// contextWindow scaled by LONG_CONTEXT_AUTO_RATIO; when that is also
+// unresolved (no default primary, no scraped contextWindow), fall back
+// to the historical DEFAULT_LONG_CONTEXT_THRESHOLD so the classifier
+// never sees a NaN / 0.
+export function effectiveLongContextThreshold(router: RouterConfig | undefined): number {
+  const manual = router?.longContextThreshold
+  if (typeof manual === 'number' && manual > 0) return manual
+  const window = router?.defaultAgentContextWindow
+  if (typeof window === 'number' && window > 0) return Math.floor(window * LONG_CONTEXT_AUTO_RATIO)
+  return DEFAULT_LONG_CONTEXT_THRESHOLD
+}
 
 // Which route within a scenario a request uses: `agent` for normal /
 // main-agent traffic, `subagent` when a <CCR-SUBAGENT-MODEL> tag is present.
 type RouteKind = 'agent' | 'subagent'
+
+// Whether the request opts INTO extended thinking. Anthropic's
+// `thinking` field carries a `type` discriminator with three real
+// values observed in Claude Code traffic:
+//   - 'enabled'  → explicit budget request (older builds, haiku)
+//   - 'adaptive' → newer builds (opus 4-7, sonnet 4-6) explicitly
+//                  choose adaptive so the model decides at runtime
+//                  whether (and how much) to think. Distinct from
+//                  omitting the field entirely: an absent `thinking`
+//                  falls back to adaptive on Anthropic's side but
+//                  isn't an explicit client-intent signal.
+//   - 'disabled' → the caller explicitly opted OUT of thinking
+// The router treats `thinking` as a client-intent signal: the field
+// being present with a non-disabled discriminator means the client
+// asked to be routed as a thinking request. Omitting the field is
+// NOT an opt-in even though Anthropic will still run adaptive server-
+// side — cheap default traffic (Bash judger, tool calls, cache reads)
+// omits the field and must land on the default lane. Boolean-truthy
+// on the object routes 'disabled' to the think lane (wrong — Claude
+// Code sends 'disabled' on every non-Plan-Mode request, silently
+// redirecting cheap default traffic onto the expensive think slot).
+// Checking `type !== 'disabled'` matches the pre-fix routing for
+// 'enabled'/'adaptive' while excluding 'disabled'. A field that
+// isn't an object at all (or a discriminator that isn't a string)
+// is treated as "not thinking" — same as the boolean check for
+// those shapes.
+function isThinkingEnabled(body: RouterRequestBody): boolean {
+  const t = body.thinking
+  if (t === null || typeof t !== 'object') return false
+  const type: unknown = Reflect.get(t, 'type')
+  if (typeof type !== 'string') return false
+  return type !== 'disabled'
+}
 
 // Effort levels Claude Code sends in `output_config.effort`. The router
 // reads this as a "how heavy is this work" hint to bias toward the
@@ -190,7 +244,7 @@ function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
     if (tier === undefined || !when.requestedTier.includes(tier)) return false
   }
   if (when.requestedModel !== undefined && !globMatch(when.requestedModel, req.body.model)) return false
-  if (when.thinking !== undefined && Boolean(req.body.thinking) !== when.thinking) return false
+  if (when.thinking !== undefined && isThinkingEnabled(req.body) !== when.thinking) return false
   if (when.minTokens !== undefined && tokenCount < when.minTokens) return false
   if (when.maxTokens !== undefined && tokenCount > when.maxTokens) return false
   if (when.hasTool !== undefined && !hasMatchingTool(req.body.tools, when.hasTool)) return false
@@ -247,8 +301,7 @@ function classifyScenario(
   router: RouterConfig | undefined,
   kind: RouteKind
 ): ScenarioType {
-  const threshold =
-    typeof router?.longContextThreshold === 'number' ? router.longContextThreshold : DEFAULT_LONG_CONTEXT_THRESHOLD
+  const threshold = effectiveLongContextThreshold(router)
 
   // Long context by size — token count exceeds threshold.
   if (tokenCount > threshold && primaryFor(router, kind, 'longContext') !== undefined) {
@@ -272,8 +325,13 @@ function classifyScenario(
     return 'webSearch'
   }
 
-  // `thinking` field present → think model.
-  if (req.body.thinking && primaryFor(router, kind, 'think') !== undefined) {
+  // `thinking` opts into the think lane when `type` is 'enabled'
+  // (explicit budget) or 'adaptive' (model decides). Claude Code
+  // sends `{type: 'disabled'}` on every non-Plan-Mode request, so a
+  // boolean check on `req.body.thinking` alone silently routes cheap
+  // default traffic through the expensive `think` slot (Opus in most
+  // configs). isThinkingEnabled excludes 'disabled' specifically.
+  if (isThinkingEnabled(req.body) && primaryFor(router, kind, 'think') !== undefined) {
     req.log.info({ thinking: req.body.thinking }, 'Using think model')
     return 'think'
   }

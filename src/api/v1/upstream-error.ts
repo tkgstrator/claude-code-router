@@ -70,6 +70,28 @@ export function isRateLimited(err: unknown): boolean {
   return FAILOVER_STATUSES.has(status)
 }
 
+// OpenAI (and any vendor that follows its error taxonomy) uses
+// `error.type = "insufficient_quota"` to signal a permanent project
+// spend-cap breach — the account will keep 429ing until the operator
+// raises the limit or the billing period rolls. Distinct from an
+// ephemeral rate-limit tick: retrying the same model or a sibling
+// model on the same provider will not recover, so the chain walker
+// should mark the whole PROVIDER exhausted rather than attempting the
+// next fallback pointing at it. Parses through the same
+// PROVIDER_ERR_RE shape as isRateLimited so we don't re-invent
+// upstream-message parsing.
+export function isInsufficientQuota(err: unknown): boolean {
+  if (!(err instanceof HTTPException)) return false
+  const m = err.message.match(PROVIDER_ERR_RE)
+  if (!m) return false
+  const body = parseUpstreamBody(m[2])
+  if (body === null || typeof body !== 'object') return false
+  const errorObj: unknown = Reflect.get(body, 'error')
+  if (errorObj === null || typeof errorObj !== 'object') return false
+  const type: unknown = Reflect.get(errorObj, 'type')
+  return type === 'insufficient_quota'
+}
+
 // ─── Effort-level retry helpers ─────────────────────────────────────────
 
 // Canonical effort ordering low→high; used to rank the "supported

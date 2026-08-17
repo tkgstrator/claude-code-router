@@ -104,10 +104,15 @@ function formatTokenCount(n: number): string {
 
 // Scenario-scoped caption shown on the node under the label. Currently only
 // longContext carries one — the token threshold the request must exceed to
-// take this lane. Other scenarios have no meaningful summary at this scale.
+// take this lane. `null` threshold means "auto"; the concrete value is
+// resolved at runtime from the default primary's context window, so the
+// node just labels the mode. Other scenarios have no meaningful summary
+// at this scale.
 function scenarioNote(scenario: EditScenario, router: RouterConfig): string | undefined {
-  if (scenario === 'longContext') return `≥ ${formatTokenCount(router.longContext.threshold)} tok`
-  return undefined
+  if (scenario !== 'longContext') return undefined
+  const t = router.longContext.threshold
+  if (t === null) return 'auto'
+  return `≥ ${formatTokenCount(t)} tok`
 }
 
 export interface PersonaOption {
