@@ -668,7 +668,7 @@
     "title": "路由器优先级",
     "description": "quota-aware 路由器按顺序遍历的优先级链。首条条目优先尝试；实时的 weight 和剩余预算来自调度器快照。",
     "chain": "优先级链",
-    "emptyScenario": "此场景暂无条目。",
+    "emptyScenario": "未配置条目 — 请求将直通到客户端指定的模型。",
     "addDialog": {
       "title": "向优先级链添加模型",
       "description": "向 {{scenario}} 链添加模型。请先选择供应商，然后选择其模型。",

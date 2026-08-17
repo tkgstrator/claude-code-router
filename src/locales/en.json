@@ -668,7 +668,7 @@
     "title": "Router Preferences",
     "description": "Ordered chain the quota-aware router walks. Top entry is tried first; live weight and remaining budget come from the scheduler snapshot.",
     "chain": "Preference chain",
-    "emptyScenario": "No entries in this scenario yet.",
+    "emptyScenario": "No entries configured — requests will pass through to the model the client asked for.",
     "addDialog": {
       "title": "Add model to preference chain",
       "description": "Add a model to the {{scenario}} chain. Pick a provider first, then choose one of its models.",
