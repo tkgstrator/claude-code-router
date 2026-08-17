@@ -380,11 +380,6 @@ model RouterPreferenceEntry {
   // the model from selection — "temporarily drop Fable" without
   // reordering the chain.
   enabled       Boolean                 @default(true)
-  // Deprecated as of the (scenario, kind) split — kept as a nullable
-  // column so pre-migration data survives, but the runtime selector
-  // no longer consults it. New writes leave it empty. Will be dropped
-  // in a follow-up migration once no reader references it.
-  subagentTiers String[]                @default([])
 
   @@unique([profileId, scenario, kind, priority])
   @@index([profileId])

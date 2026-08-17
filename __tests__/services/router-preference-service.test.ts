@@ -62,8 +62,8 @@ describeOrSkip('router-preference-service (DB)', () => {
     })
     const outcome = await applyRouterPreferences({
       entriesByScenario: only('think', 'agent', [
-        { priority: 1, target: 'anthropic,claude-fable-5', enabled: true, subagentTiers: [] },
-        { priority: 2, target: 'anthropic,claude-opus-5', enabled: true, subagentTiers: [] }
+        { priority: 1, target: 'anthropic,claude-fable-5', enabled: true },
+        { priority: 2, target: 'anthropic,claude-opus-5', enabled: true }
       ]),
       constraints: { exhaustedBehavior: '429' }
     })
@@ -95,12 +95,12 @@ describeOrSkip('router-preference-service (DB)', () => {
       entriesByScenario: {
         default: {
           agent: [
-            { priority: 1, target: 'anthropic,opus-5', enabled: true, subagentTiers: [] },
-            { priority: 2, target: 'anthropic,sonnet-5', enabled: true, subagentTiers: [] }
+            { priority: 1, target: 'anthropic,opus-5', enabled: true },
+            { priority: 2, target: 'anthropic,sonnet-5', enabled: true }
           ],
           subagent: [
             // Subagent flips the priority: sonnet-first for cheaper subagent calls.
-            { priority: 1, target: 'anthropic,sonnet-5', enabled: true, subagentTiers: [] }
+            { priority: 1, target: 'anthropic,sonnet-5', enabled: true }
           ]
         },
         think: { agent: [], subagent: [] },
@@ -133,18 +133,18 @@ describeOrSkip('router-preference-service (DB)', () => {
     await applyRouterPreferences({
       entriesByScenario: {
         default: {
-          agent: [{ priority: 1, target: 'anthropic,sonnet-5', enabled: true, subagentTiers: [] }],
+          agent: [{ priority: 1, target: 'anthropic,sonnet-5', enabled: true }],
           subagent: []
         },
         think: {
           agent: [
-            { priority: 1, target: 'anthropic,opus-5', enabled: true, subagentTiers: [] },
-            { priority: 2, target: 'anthropic,fable-5', enabled: true, subagentTiers: [] }
+            { priority: 1, target: 'anthropic,opus-5', enabled: true },
+            { priority: 2, target: 'anthropic,fable-5', enabled: true }
           ],
           subagent: []
         },
         longContext: {
-          agent: [{ priority: 1, target: 'anthropic,fable-5', enabled: true, subagentTiers: [] }],
+          agent: [{ priority: 1, target: 'anthropic,fable-5', enabled: true }],
           subagent: []
         },
         webSearch: { agent: [], subagent: [] },
@@ -166,7 +166,7 @@ describeOrSkip('router-preference-service (DB)', () => {
     await prisma.model.create({ data: { providerId: provider.id, name: 'sonnet-5', enabled: true } })
     await applyRouterPreferences({
       entriesByScenario: only('default', 'agent', [
-        { priority: 1, target: 'anthropic,sonnet-5', enabled: true, subagentTiers: [] }
+        { priority: 1, target: 'anthropic,sonnet-5', enabled: true }
       ]),
       constraints: null
     })
@@ -192,9 +192,9 @@ describeOrSkip('router-preference-service (DB)', () => {
     })
     await applyRouterPreferences({
       entriesByScenario: only('default', 'agent', [
-        { priority: 20, target: 'anthropic,c', enabled: true, subagentTiers: [] },
-        { priority: 5, target: 'anthropic,a', enabled: true, subagentTiers: [] },
-        { priority: 10, target: 'anthropic,b', enabled: true, subagentTiers: [] }
+        { priority: 20, target: 'anthropic,c', enabled: true },
+        { priority: 5, target: 'anthropic,a', enabled: true },
+        { priority: 10, target: 'anthropic,b', enabled: true }
       ]),
       constraints: null
     })
@@ -215,9 +215,9 @@ describeOrSkip('router-preference-service (DB)', () => {
     await prisma.model.create({ data: { providerId: provider.id, name: 'claude-opus-5', enabled: true } })
     const outcome = await applyRouterPreferences({
       entriesByScenario: only('think', 'subagent', [
-        { priority: 1, target: 'anthropic,claude-opus-5', enabled: true, subagentTiers: [] },
-        { priority: 2, target: 'anthropic,claude-nonexistent', enabled: true, subagentTiers: [] },
-        { priority: 3, target: 'malformed', enabled: true, subagentTiers: [] }
+        { priority: 1, target: 'anthropic,claude-opus-5', enabled: true },
+        { priority: 2, target: 'anthropic,claude-nonexistent', enabled: true },
+        { priority: 3, target: 'malformed', enabled: true }
       ]),
       constraints: null
     })
@@ -242,7 +242,7 @@ describeOrSkip('router-preference-service (DB)', () => {
     await prisma.model.create({ data: { providerId: provider.id, name: 'x', enabled: true } })
     await applyRouterPreferences({
       entriesByScenario: only('default', 'agent', [
-        { priority: 1, target: 'anthropic,x', enabled: true, subagentTiers: [] }
+        { priority: 1, target: 'anthropic,x', enabled: true }
       ]),
       constraints: { staleQuotaFactor: 0.5 }
     })

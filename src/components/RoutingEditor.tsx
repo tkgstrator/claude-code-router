@@ -4,9 +4,11 @@
  * read-only (just shows the wiring). When true it becomes interactive:
  * drag a scenario handle onto a model to wire it (primary, then
  * fallbacks), reconnect or delete edges (right-click / Delete key /
- * reconnect-to-empty), and a side panel + persona select + Save persist
- * the changes via api.updateConfig. No traffic overlay — the Routing Map
- * is purely for viewing and editing the routing config.
+ * reconnect-to-empty), and a side panel + Save persist the changes via
+ * api.updateConfig. Persona activation lives on the Personas page (one
+ * canonical picker) and is no longer duplicated here. No traffic
+ * overlay — the Routing Map is purely for viewing and editing the
+ * routing config.
  */
 
 import '@xyflow/react/dist/style.css'
@@ -20,17 +22,9 @@ import { type ConnectionChoice, ConnectionChoiceDialog } from '@/components/rout
 import { editNodeTypes, type ModelEditNodeType, type ScenarioEditNodeType } from '@/components/routing-map/edit-nodes'
 import { RoutingEditorPanel } from '@/components/routing-map/RoutingEditorPanel'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEnabledModelOptions } from '@/hooks/use-enabled-model-options'
 import { modelNameOf } from '@/lib/router/fallback-slots'
-import {
-  addRule,
-  connectModel,
-  disconnectModel,
-  emptyRule,
-  removeRule,
-  setPersona
-} from '@/lib/routing-map/edit-actions'
+import { addRule, connectModel, disconnectModel, emptyRule, removeRule } from '@/lib/routing-map/edit-actions'
 import {
   buildEditGraph,
   EDIT_SCENARIOS,
@@ -45,9 +39,6 @@ import type { ShellOutletContext } from './AppShell'
 type AppEditNode = ScenarioEditNodeType | ModelEditNodeType
 
 const isEditScenario = (s: string): s is EditScenario => EDIT_SCENARIOS.some((x) => x === s)
-
-// Radix Select needs a non-empty value; this sentinel maps to "no persona".
-const PERSONA_NONE = '__none__'
 
 // Edge color encodes the ORIGIN (catch-all vs rule) and the ROLE
 // (primary vs fallback). Rule-owned edges get a distinctive blue so
@@ -115,27 +106,18 @@ function scenarioNote(scenario: EditScenario, router: RouterConfig): string | un
   return `≥ ${formatTokenCount(t)} tok`
 }
 
-export interface PersonaOption {
-  id: string
-  name: string
-}
-
 export interface RoutingEditorProps {
   // Seed value for the editor's draft state; the editor re-mounts (via
   // React key) when this needs to be re-seeded from outside.
   initialRouter: RouterConfig
-  // Personas offered in the persona selector. Empty array → the selector
-  // still renders (with "None") so the user can clear a stale persona,
-  // but no library entries appear.
-  personas: PersonaOption[]
   // Persist the draft. Return `ok: false` and the editor surfaces the
   // message as an error toast; return `ok: true` for a success toast.
   onSave: (router: RouterConfig) => Promise<{ ok: boolean; message?: string }>
-  // Read-only view: no persona selector, no Save button, no edit gestures.
+  // Read-only view: no Save button, no edit gestures.
   editable: boolean
 }
 
-export function RoutingEditor({ initialRouter, personas, onSave, editable }: RoutingEditorProps) {
+export function RoutingEditor({ initialRouter, onSave, editable }: RoutingEditorProps) {
   const { t } = useTranslation()
   const { showToast } = useOutletContext<ShellOutletContext>()
   const { resolvedTheme } = useTheme()
@@ -150,7 +132,6 @@ export function RoutingEditor({ initialRouter, personas, onSave, editable }: Rou
   const [saving, setSaving] = useState(false)
 
   const modelKeys = useMemo(() => modelOptions.map((o) => o.value), [modelOptions])
-  const personaValue = router.persona === undefined || router.persona === '' ? PERSONA_NONE : router.persona
   const graph = useMemo(() => buildEditGraph(router, modelKeys), [router, modelKeys])
 
   const modelLabel = useCallback(
@@ -412,26 +393,7 @@ export function RoutingEditor({ initialRouter, personas, onSave, editable }: Rou
   return (
     <div className='relative flex min-h-0 flex-1 flex-col'>
       {editable && (
-        <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-3 py-1.5'>
-          <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-            <span>{t('router.persona')}</span>
-            <Select
-              value={personaValue}
-              onValueChange={(v) => setRouter(setPersona(router, v === PERSONA_NONE ? undefined : v))}
-            >
-              <SelectTrigger size='sm' aria-label={t('router.persona')} className='h-7 w-40 text-xs'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={PERSONA_NONE}>{t('router.personaNone')}</SelectItem>
-                {personas.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className='flex shrink-0 items-center justify-end gap-3 border-b px-3 py-1.5'>
           <Button type='button' size='sm' onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className='h-3.5 w-3.5 animate-spin' aria-hidden='true' />}
             {t('app.save')}

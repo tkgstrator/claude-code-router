@@ -12,8 +12,8 @@ import type { QuotaAwareConstraints } from '../../../src/schemas'
 import type { AccountQuotaState, ModelCandidateState, SchedulerInputState } from '../../../src/services/routing-scheduler/types'
 
 const DEFAULT_CONSTRAINTS: QuotaAwareConstraints = {
-  sonnetTierRespect: true,
-  haikuTierRespect: true,
+  allowEscalation: false,
+  allowDemotion: false,
   quotaSkipPct: 100,
   errorRateSkipPct: 0.5,
   minHealthSamples: 5,
@@ -68,7 +68,7 @@ const runCompute = (
   const now = 1_000_000_000_000
   const input: SchedulerInputState = {
     now,
-    preferences: [{ priority: 1, target: 'claude-code,claude-fable-5', enabled: true, subagentTiers: [] }],
+    preferences: [{ priority: 1, target: 'claude-code,claude-fable-5', enabled: true }],
     candidates: candidateOverrides(now),
     previousWeights: null,
     constraints: { ...DEFAULT_CONSTRAINTS, ...constraintOverrides },

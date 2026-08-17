@@ -233,7 +233,7 @@ export async function runSchedulerTickForTest(prismaOverride?: PrismaClient): Pr
     // chain for compute purposes: the snapshot exposes one weight per
     // unique target and the selector reapplies per-scenario ordering.
     // Rank uses the best (lowest) priority the target holds anywhere.
-    const seen = new Map<string, { priority: number; enabled: boolean; subagentTiers: string[] }>()
+    const seen = new Map<string, { priority: number; enabled: boolean }>()
     for (const scenario of ['default', 'think', 'longContext', 'webSearch', 'image'] as const) {
       for (const kind of ['agent', 'subagent'] as const) {
         for (const entry of preferences.entriesByScenario[scenario][kind]) {
@@ -241,8 +241,7 @@ export async function runSchedulerTickForTest(prismaOverride?: PrismaClient): Pr
           if (prev === undefined || entry.priority < prev.priority) {
             seen.set(entry.target, {
               priority: entry.priority,
-              enabled: entry.enabled || (prev?.enabled ?? false),
-              subagentTiers: entry.subagentTiers.map((t) => t)
+              enabled: entry.enabled || (prev?.enabled ?? false)
             })
           }
         }
@@ -253,8 +252,7 @@ export async function runSchedulerTickForTest(prismaOverride?: PrismaClient): Pr
       .map(([target, v], i) => ({
         priority: i + 1,
         target,
-        enabled: v.enabled,
-        subagentTiers: v.subagentTiers as ('fable' | 'opus' | 'sonnet' | 'haiku')[]
+        enabled: v.enabled
       }))
     const input: SchedulerInputState = {
       now,

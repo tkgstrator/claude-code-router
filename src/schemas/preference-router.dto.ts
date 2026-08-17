@@ -28,12 +28,23 @@ export const RequestedModelTierSchema = z.enum(REQUESTED_MODEL_TIERS)
 // field defaults so a null/absent constraints JSONB parses cleanly.
 export const PreferenceConstraintsSchema = z
   .object({
-    // Client asked for sonnet — must the candidate also be sonnet-tier?
-    // `true` = strict (Open Question 1 decision); `false` allows an
-    // upgrade to a higher tier when sonnet is exhausted.
-    sonnetTierRespect: z.boolean().default(true),
-    // Client asked for haiku — restrict to haiku-tier only.
-    haikuTierRespect: z.boolean().default(true),
+    // Two directional tier-substitution gates, replacing the previous
+    // per-tier `sonnetTierRespect` / `haikuTierRespect` design that only
+    // covered upward escalation of sonnet/haiku requests. Now
+    // symmetric and universal:
+    //   - `allowEscalation`: a candidate whose tier is ABOVE the
+    //     requested tier (e.g. opus candidate for a sonnet request)
+    //     matches when true. `false` pins requests to same-or-lower
+    //     tiers only.
+    //   - `allowDemotion`: a candidate whose tier is BELOW the
+    //     requested tier (e.g. haiku candidate for a sonnet request)
+    //     matches when true. `false` pins requests to same-or-higher
+    //     tiers only.
+    // With both true (default), tier is a hint but not a gate — every
+    // candidate participates. With both false, only same-tier
+    // candidates ever match.
+    allowEscalation: z.boolean().default(true),
+    allowDemotion: z.boolean().default(true),
     // Skip a candidate when its cached usage percentage is >= this
     // threshold (0-100). Reads through the existing `getCachedUsagePct`
     // shim so the L4 selector can gate without waiting for the
@@ -119,7 +130,6 @@ export const RouterPreferenceEntrySchema = z
     priority: z.number().int().positive(),
     target: z.string().nonempty(),
     enabled: z.boolean().default(true),
-    subagentTiers: z.array(RequestedModelTierSchema).default([]),
     // Server-populated on read (loadPreferenceChain resolves it from
     // Model.manualTier ?? tierOf(name)). Optional on the wire because
     // legacy clients don't send it and the apply path ignores it —
