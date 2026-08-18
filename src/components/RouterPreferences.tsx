@@ -546,8 +546,8 @@ export function RouterPreferences() {
                     <span className='flex-1' />
                     <span className='w-14 text-right'>{t('routerPreferences.columnWeight')}</span>
                     <span className='w-14 text-right'>{t('routerPreferences.columnBudget')}</span>
-                    <span className='w-11 shrink-0' />
-                    <span className='w-24 shrink-0' />
+                    <span className='w-8 shrink-0' />
+                    <span className='w-[84px] shrink-0' />
                   </div>
                 )}
                 {visible.map(({ entry, idx }, visIdx) => {
