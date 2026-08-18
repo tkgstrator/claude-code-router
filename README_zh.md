@@ -16,7 +16,7 @@
 - **多提供商支持** — 连接 API Key 型提供商（Anthropic、OpenAI、DeepSeek、Gemini、Groq、OpenRouter 等）或订阅型提供商（Claude Code OAuth、OpenAI Codex）。
 - **订阅监控** — 追踪速率限制窗口，比较实际 API 费用与订阅费用。
 - **用量与成本仪表板** — 按提供商和模型细分的费用明细及每日费用图表。
-- **请求历史** — 浏览和重放过去的 LLM 请求。
+- **请求历史** — 浏览过去的会话，包含每个请求的统计信息和已归档的对话记录。
 - **Web 管理界面** — 完整的浏览器端配置管理，无需手动编辑 JSON。
 - **转换器管道** — 内置和自定义转换器将 Anthropic 格式请求适配至各提供商 API。
 - **自定义 JavaScript 路由器** — 实现超出六个内置场景的任意路由逻辑。
@@ -38,7 +38,7 @@ Web 界面（默认在端口 **3456** 提供服务）让您全面掌控路由器
 | **Personas** | 管理命名系统提示的人格库（新增、编辑、删除）|
 | **Subscriptions** | 监控速率限制窗口，比较订阅费用与 API 支出 |
 | **Usage** | 按提供商和模型细分的 API 费用及时序图表 |
-| **History** | 浏览历史请求日志 |
+| **Sessions** | 浏览过去的会话；深入查看每个请求的日志和已归档的对话 |
 | **Settings** | 配置主机、端口、代理、日志、状态栏和 API Key |
 
 ![Providers 页面](docs/images/screenshot-providers.webp)
@@ -336,7 +336,7 @@ REDIS_URL=redis://redis:6379
 
 ```shell
 bun run db:migrate
-bun run dev         # Vite 开发服务器（端口 16173）
+bun run dev         # Vite 开发服务器（端口 16175）
 ```
 
 ### 构建

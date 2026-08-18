@@ -21,6 +21,7 @@ import { RouterUtilization } from '@/components/RouterUtilization'
 import { RoutingLibrary } from '@/components/RoutingLibrary'
 import { RoutingLiveEditor } from '@/components/RoutingLiveEditor'
 import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
+import { SessionDetailPage } from '@/components/SessionDetail'
 import { SessionsPage } from '@/components/Sessions'
 import { SettingsPage } from '@/components/SettingsPage'
 import { Subscriptions } from '@/components/Subscriptions'
@@ -71,6 +72,7 @@ export const router = createBrowserRouter([
           { path: '/usage', element: fullHeight(<Usage />) },
           { path: '/cost', element: fullHeight(<ApiCost />) },
           { path: '/sessions', element: fullHeight(<SessionsPage />) },
+          { path: '/sessions/:sessionId', element: fullHeight(<SessionDetailPage />) },
           { path: '/personas', element: fullHeight(<Personas />) },
           { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
           { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
