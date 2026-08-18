@@ -65,6 +65,19 @@ function looksLikePermissionGate(text: string): boolean {
   return /Stage 1 does NOT apply user intent/.test(text)
 }
 
+// React keys for rendered blocks. Blocks carry no id of their own, so derive
+// one from kind + a short content prefix. The position is folded in because
+// identical blocks can repeat within one message (e.g. two copies of the same
+// image) and duplicate keys are a React error; position is stable here since
+// blocks are derived deterministically from persisted content.
+export function blockKey(messageId: string, position: number, block: NormalisedBlock): string {
+  if (block.kind === 'text') return `${messageId}:${position}:t:${block.text.slice(0, 32)}`
+  if (block.kind === 'system_text') return `${messageId}:${position}:s:${block.text.slice(0, 32)}`
+  if (block.kind === 'tool_use') return `${messageId}:${position}:u:${block.name}:${block.input.slice(0, 32)}`
+  if (block.kind === 'tool_result') return `${messageId}:${position}:r:${block.text.slice(0, 32)}`
+  return `${messageId}:${position}:x:${block.text.slice(0, 32)}`
+}
+
 export function normaliseContent(content: unknown): NormalisedBlock[] {
   if (typeof content === 'string') return [{ kind: 'text', text: content }]
   if (!Array.isArray(content)) return [{ kind: 'raw', text: safeJson(content) }]

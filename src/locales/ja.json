@@ -554,6 +554,12 @@
       "claudeCode": "Claude Code",
       "api": "API"
     },
+    "range": {
+      "h6": "6時間",
+      "h24": "24時間",
+      "d7": "7日",
+      "all": "すべて"
+    },
     "detail": {
       "provider": "プロバイダー",
       "model": "モデル",
@@ -580,7 +586,10 @@
       "hide_details": "詳細を隠す",
       "system_block": "システムブロック",
       "show_developer": "開発者ビューを表示",
-      "hide_developer": "開発者ビューを隠す"
+      "hide_developer": "開発者ビューを隠す",
+      "back": "戻る",
+      "load_older": "以前のメッセージを読み込む",
+      "not_found": "セッションが見つかりません"
     }
   },
   "presets": {

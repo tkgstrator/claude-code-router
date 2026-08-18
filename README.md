@@ -16,7 +16,7 @@
 - **Multi-provider support** — connect API-key providers (Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, …) or subscription-based providers (Claude Code OAuth, OpenAI Codex).
 - **Subscription monitoring** — track rate-limit windows and compare actual API spend against subscription cost.
 - **Usage & cost dashboard** — per-provider and per-model cost breakdown with daily cost charts.
-- **Request history** — browse and replay past LLM requests.
+- **Request history** — browse past sessions with per-request stats and archived conversation transcripts.
 - **Web management UI** — full browser-based configuration; no manual JSON editing required.
 - **Transformer pipeline** — built-in and custom transformers adapt Anthropic-format requests to each provider's API.
 - **Custom JavaScript router** — implement any routing logic beyond the six built-in scenarios.
@@ -38,7 +38,7 @@ The web UI (served on port **3456** by default) gives you full control over ever
 | **Personas** | Manage a library of named system prompts; create, edit, or delete personas |
 | **Subscriptions** | Monitor rate-limit windows and subscription cost vs. API spend |
 | **Usage** | API cost breakdown by provider and model with time-series charts |
-| **History** | Browse past request logs |
+| **Sessions** | Browse past sessions; drill into per-request logs and the archived conversation |
 | **Settings** | Configure host, port, proxy, logging, status line, and API key |
 
 ![Providers page](docs/images/screenshot-providers.webp)
@@ -408,7 +408,7 @@ REDIS_URL=redis://redis:6379
 
 ```shell
 bun run db:migrate
-bun run dev         # Vite dev server on port 16173
+bun run dev         # Vite dev server on port 16175
 ```
 
 ### Build

@@ -1,6 +1,7 @@
 import { Archive, Layers, MessagesSquare, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { PageContainer, PageContent, PageHeader } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { api, type InboundType, type SessionSummary } from '@/lib/api'
@@ -33,18 +34,23 @@ function fmtSessionRange(firstAt: string, lastAt: string): string {
 // URL parameters are noise for a per-user preference this transient.
 type InboundFilter = 'all' | InboundType
 
+// How far back the session list reaches. 0 = no time filter (the server
+// treats sinceHours=0 as "all history").
+type RangeHours = 6 | 24 | 168 | 0
+
 export function SessionsPage() {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [inboundFilter, setInboundFilter] = useState<InboundFilter>('all')
+  const [rangeHours, setRangeHours] = useState<RangeHours>(6)
 
-  const load = useCallback(async (filter: InboundFilter) => {
+  const load = useCallback(async (filter: InboundFilter, range: RangeHours) => {
     setLoading(true)
     try {
       const res = await api.getRequestLogSessions({
         limit: 100,
-        sinceHours: 6,
+        sinceHours: range,
         inboundType: filter === 'all' ? undefined : filter
       })
       setSessions(res.sessions)
@@ -56,8 +62,8 @@ export function SessionsPage() {
   }, [])
 
   useEffect(() => {
-    load(inboundFilter)
-  }, [load, inboundFilter])
+    load(inboundFilter, rangeHours)
+  }, [load, inboundFilter, rangeHours])
 
   // SSE: patch the session list in-place whenever a new RequestLog is
   // written. Fetching only the affected session's summary keeps the grid
@@ -108,10 +114,17 @@ export function SessionsPage() {
     { key: 'openai', label: t('sessions.filter.api') }
   ]
 
+  const rangeOptions: readonly { key: RangeHours; label: string }[] = [
+    { key: 6, label: t('sessions.range.h6') },
+    { key: 24, label: t('sessions.range.h24') },
+    { key: 168, label: t('sessions.range.d7') },
+    { key: 0, label: t('sessions.range.all') }
+  ]
+
   return (
     <PageContainer>
       <PageHeader fluid title={t('sessions.title')}>
-        <Button variant='outline' onClick={() => load(inboundFilter)} disabled={loading}>
+        <Button variant='outline' onClick={() => load(inboundFilter, rangeHours)} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           {t('sessions.refresh')}
         </Button>
@@ -122,7 +135,7 @@ export function SessionsPage() {
       </PageHeader>
 
       <PageContent fluid>
-        <div className='mb-4 flex flex-wrap gap-1 border-b'>
+        <div className='mb-4 flex flex-wrap items-center gap-1 border-b'>
           {filterOptions.map((o) => {
             const active = inboundFilter === o.key
             return (
@@ -140,6 +153,25 @@ export function SessionsPage() {
               </button>
             )
           })}
+          <div className='ml-auto flex items-center gap-0.5 pb-1'>
+            {rangeOptions.map((o) => {
+              const active = rangeHours === o.key
+              return (
+                <button
+                  key={o.key}
+                  type='button'
+                  onClick={() => setRangeHours(o.key)}
+                  className={
+                    active
+                      ? 'rounded bg-muted px-2 py-1 text-xs font-medium text-foreground tabular-nums'
+                      : 'rounded px-2 py-1 text-xs text-muted-foreground tabular-nums hover:bg-muted/50 hover:text-foreground'
+                  }
+                >
+                  {o.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
         {loading && sessions.length === 0 ? (
           <div className='flex flex-1 items-center justify-center text-sm text-muted-foreground'>
@@ -173,7 +205,10 @@ function SessionCard({ session }: { session: SessionSummary }) {
   const hasPreview = session.preview !== null && session.preview.length > 0
   const badge = inboundBadgeLabel(t, session.inboundType)
   return (
-    <div className='group space-y-3 border-l-2 border-transparent px-3 py-3 transition-colors hover:border-primary hover:bg-muted/50'>
+    <Link
+      to={`/sessions/${encodeURIComponent(session.sessionId)}`}
+      className='group block space-y-3 border-l-2 border-transparent px-3 py-3 transition-colors hover:border-primary hover:bg-muted/50'
+    >
       {/* Header row: date + total cost */}
       <div className='flex items-start justify-between gap-2'>
         <div className='min-w-0'>
@@ -242,6 +277,6 @@ function SessionCard({ session }: { session: SessionSummary }) {
       >
         {hasPreview ? session.preview : t('sessions.preview_empty')}
       </p>
-    </div>
+    </Link>
   )
 }
