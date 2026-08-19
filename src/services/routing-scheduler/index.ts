@@ -96,6 +96,35 @@ const windowFromDb = (
   }
 }
 
+// Length of the scoped weekly window Anthropic publishes for Fable —
+// same 7 days as the account-wide weekly (the collector writes account
+// weekly as CLAUDE_WEEKLY_SECONDS). Kept local to avoid pulling the
+// collector's constants into the scheduler entry-point.
+const SCOPED_WEEKLY_MS = 7 * 24 * 60 * 60 * 1000
+
+// Extract the Fable scoped weekly window from `SubAccountQuota.scopedWindows`.
+// The collector writes `{ <modelSlug>: { used, limit, resetAt } }` (see
+// `scopedWindowsFor` in collector.ts); we look up the `fable` slug and
+// hydrate a QuotaWindowState. Any parse/shape mismatch collapses to
+// undefined so a corrupt row still yields a working snapshot.
+const fableFromScoped = (raw: unknown): QuotaWindowState | undefined => {
+  if (raw === null || typeof raw !== 'object') return undefined
+  const entry = (raw as Record<string, unknown>).fable
+  if (entry === undefined || entry === null || typeof entry !== 'object') return undefined
+  const rec = entry as Record<string, unknown>
+  const used = typeof rec.used === 'number' ? rec.used : null
+  const limit = typeof rec.limit === 'number' ? rec.limit : null
+  if (used === null || limit === null) return undefined
+  const resetAtRaw = rec.resetAt
+  const resetAt =
+    typeof resetAtRaw === 'string' && resetAtRaw !== ''
+      ? dayjs(resetAtRaw).isValid()
+        ? dayjs(resetAtRaw).valueOf()
+        : null
+      : null
+  return { used, limit, resetAt, windowLengthMs: SCOPED_WEEKLY_MS }
+}
+
 interface LoadedState {
   candidates: Map<string, ModelCandidateState>
   accounts: AccountQuotaView[]
@@ -139,6 +168,7 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
           : windowFromDb(q.fiveHourUsed, q.fiveHourLimit, q.fiveHourResetAt, q.fiveHourWindowSeconds)
       const weekly =
         q === null ? undefined : windowFromDb(q.weeklyUsed, q.weeklyLimit, q.weeklyResetAt, q.weeklyWindowSeconds)
+      const scopedFable = q === null ? undefined : fableFromScoped(q.scopedWindows)
       const refreshedAt = q?.quotaRefreshedAt ? q.quotaRefreshedAt.valueOf() : null
       accts.push({
         subAccountId: a.id,
@@ -146,6 +176,7 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
         providerName: p.name,
         fiveHour,
         weekly,
+        scopedFable,
         refreshedAt
       })
       accountViews.push({

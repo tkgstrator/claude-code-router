@@ -21,6 +21,7 @@ const account = (
   kind: overrides.kind ?? 'claude',
   fiveHour: overrides.fiveHour,
   weekly: overrides.weekly,
+  scopedFable: overrides.scopedFable,
   refreshedAt: overrides.refreshedAt ?? NOW
 })
 

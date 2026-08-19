@@ -64,6 +64,21 @@ const accountBudget = (acct: AccountQuotaState): number | null => {
   return Math.min(five, week)
 }
 
+// Fable has its own weekly rate limit that Anthropic reports separately
+// (`weekly_scoped[fable]`), independent of the account-wide 5h / weekly
+// counters that gate Claude Code as a whole. For Fable candidates, that
+// scoped window IS the budget — the account-wide limits belong to Opus /
+// Sonnet traffic, and mixing them would demote Fable every time regular
+// Claude Code usage climbed. Falls back to `accountBudget` when the
+// upstream hasn't reported a scoped window yet (fresh account, non-Fable
+// plan), so the pipeline still yields a working number.
+const isFableTarget = (candidate: ModelCandidateState): boolean => candidate.modelName.toLowerCase().includes('fable')
+
+const accountBudgetFor = (acct: AccountQuotaState, useScopedFable: boolean): number | null => {
+  if (useScopedFable && acct.scopedFable !== undefined) return remainingRatio(acct.scopedFable)
+  return accountBudget(acct)
+}
+
 const accountStale = (acct: AccountQuotaState, now: number, ttlMs: number): boolean => {
   if (acct.refreshedAt === null) return false // cold-start = not stale (see unknown handling)
   return now - acct.refreshedAt > STALE_MULTIPLIER * ttlMs
@@ -82,6 +97,7 @@ interface BudgetView {
 }
 
 const modelBudget = (candidate: ModelCandidateState, now: number, ttlMs: number): BudgetView => {
+  const useScopedFable = isFableTarget(candidate)
   let best: number | null = null
   let unknownAccounts = 0
   let staleAccounts = 0
@@ -94,7 +110,7 @@ const modelBudget = (candidate: ModelCandidateState, now: number, ttlMs: number)
       staleAccounts += 1
       continue
     }
-    const b = accountBudget(acct)
+    const b = accountBudgetFor(acct, useScopedFable)
     if (b === null) {
       unknownAccounts += 1
       continue
@@ -107,9 +123,13 @@ const modelBudget = (candidate: ModelCandidateState, now: number, ttlMs: number)
 // Earliest resetAt across the candidate's accounts (used for the
 // resetSoon downweight). Null when no reset is known.
 const earliestReset = (candidate: ModelCandidateState): number | null => {
+  const useScopedFable = isFableTarget(candidate)
   let earliest: number | null = null
   for (const acct of candidate.accounts) {
-    const cands: (number | null)[] = [acct.fiveHour?.resetAt ?? null, acct.weekly?.resetAt ?? null]
+    const cands: (number | null)[] =
+      useScopedFable && acct.scopedFable !== undefined
+        ? [acct.scopedFable.resetAt]
+        : [acct.fiveHour?.resetAt ?? null, acct.weekly?.resetAt ?? null]
     for (const c of cands) {
       if (c === null) continue
       if (earliest === null || c < earliest) earliest = c
@@ -179,14 +199,20 @@ interface CandidatePace {
   windowElapsedRatio: number | null
 }
 const candidatePace = (candidate: ModelCandidateState, now: number, ttlMs: number): CandidatePace => {
+  const useScopedFable = isFableTarget(candidate)
   let worstPace: number | null = null
   let earliestElapsed: number | null = null
   for (const acct of candidate.accounts) {
     if (!accountKnown(acct)) continue
     if (accountStale(acct, now, ttlMs)) continue
-    const wp5h = acct.fiveHour === undefined ? null : windowPace(acct.fiveHour, now)
-    const wpWk = acct.weekly === undefined ? null : windowPace(acct.weekly, now)
-    for (const wp of [wp5h, wpWk]) {
+    const paces: (WindowPace | null)[] =
+      useScopedFable && acct.scopedFable !== undefined
+        ? [windowPace(acct.scopedFable, now)]
+        : [
+            acct.fiveHour === undefined ? null : windowPace(acct.fiveHour, now),
+            acct.weekly === undefined ? null : windowPace(acct.weekly, now)
+          ]
+    for (const wp of paces) {
       if (wp === null) continue
       if (worstPace === null || wp.paceRatio > worstPace) worstPace = wp.paceRatio
       if (earliestElapsed === null || wp.elapsedRatio < earliestElapsed) earliestElapsed = wp.elapsedRatio
