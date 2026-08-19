@@ -52,14 +52,21 @@ const account = (
     windowLengthMs
   },
   weekly: undefined,
+  scopedFable: undefined,
   refreshedAt: refreshedAtMs
 })
 
-const candidate = (target: string, acct: AccountQuotaState): ModelCandidateState => ({
-  target,
-  accounts: [acct],
-  errorRate: 0
-})
+const candidate = (target: string, acct: AccountQuotaState): ModelCandidateState => {
+  const [providerName, modelName] = target.split(',') as [string, string]
+  return {
+    target,
+    providerName,
+    modelName,
+    accounts: [acct],
+    errorRate: 0,
+    contextWindow: null
+  }
+}
 
 const runCompute = (
   candidateOverrides: (now: number) => Map<string, ModelCandidateState>,
@@ -107,6 +114,7 @@ describe('computeWeights — paceRatio propagation', () => {
         providerName: 'claude-code',
         fiveHour: { used: 0, limit: 100, resetAt: null, windowLengthMs: null },
         weekly: undefined,
+        scopedFable: undefined,
         refreshedAt: now
       }
       return new Map([['claude-code,claude-fable-5', candidate('claude-code,claude-fable-5', acct)]])
