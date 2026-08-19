@@ -389,7 +389,7 @@ export function RouterPreferences() {
           <p className='text-muted-foreground text-xs'>{t('routerPreferences.noSchedulerData')}</p>
         )}
 
-        <div className='flex flex-wrap gap-1 border-b'>
+        <div className='flex gap-1 border-b'>
           {SCENARIOS.map((s) => {
             // Count what the user will actually see on this tab, not the
             // raw entry count — a scenario whose four rows all point at
@@ -409,8 +409,8 @@ export function RouterPreferences() {
                 onClick={() => setActiveScenario(s)}
                 className={
                   active
-                    ? '-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium'
-                    : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
+                    ? '-mb-px max-w-40 flex-1 border-b-2 border-primary px-3 py-2 text-center text-sm font-medium'
+                    : '-mb-px max-w-40 flex-1 border-b-2 border-transparent px-3 py-2 text-center text-sm text-muted-foreground hover:text-foreground'
                 }
               >
                 {t(`routerPreferences.scenario.${s}`)}
@@ -493,7 +493,7 @@ export function RouterPreferences() {
             selectors read as siblings of the same tab family. Switching
             here swaps the list below; add / reorder / enable operate on
             the current (scenario, kind) chain. */}
-        <div className='flex flex-wrap gap-1 border-b'>
+        <div className='flex gap-1 border-b'>
           {(['agent', 'subagent'] as const).map((k) => {
             const kindCount = byScenario[activeScenario][k].filter((e) => activeModelTargets.has(e.target)).length
             const active = activeKind === k
@@ -504,8 +504,8 @@ export function RouterPreferences() {
                 onClick={() => setActiveKind(k)}
                 className={
                   active
-                    ? '-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium'
-                    : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
+                    ? '-mb-px max-w-40 flex-1 border-b-2 border-primary px-3 py-2 text-center text-sm font-medium'
+                    : '-mb-px max-w-40 flex-1 border-b-2 border-transparent px-3 py-2 text-center text-sm text-muted-foreground hover:text-foreground'
                 }
               >
                 {t(`routerPreferences.kind.${k}`)}
@@ -527,10 +527,6 @@ export function RouterPreferences() {
             const visible = activeEntries
               .map((entry, idx) => ({ entry, idx }))
               .filter(({ entry }) => activeModelTargets.has(entry.target))
-            // Only reserve the weight / budget columns when the scheduler
-            // is actually publishing snapshots — otherwise every row would
-            // waste horizontal space on two em-dash placeholders.
-            const hasLiveData = scheduler !== null && scheduler.tickAt !== null
             if (visible.length === 0) {
               return (
                 <div className='border-y px-3 py-4 text-sm text-muted-foreground'>
@@ -540,16 +536,14 @@ export function RouterPreferences() {
             }
             return (
               <div className='divide-y border-y'>
-                {hasLiveData && (
-                  <div className='flex items-center gap-3 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground'>
-                    <span className='w-7 shrink-0' />
-                    <span className='flex-1' />
-                    <span className='w-14 text-right'>{t('routerPreferences.columnWeight')}</span>
-                    <span className='w-14 text-right'>{t('routerPreferences.columnBudget')}</span>
-                    <span className='w-8 shrink-0' />
-                    <span className='w-[84px] shrink-0' />
-                  </div>
-                )}
+                <div className='flex items-center gap-3 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground'>
+                  <span className='w-7 shrink-0' />
+                  <span className='flex-1' />
+                  <span className='w-14 text-right'>{t('routerPreferences.columnWeight')}</span>
+                  <span className='w-14 text-right'>{t('routerPreferences.columnBudget')}</span>
+                  <span className='w-8 shrink-0' />
+                  <span className='w-[84px] shrink-0' />
+                </div>
                 {visible.map(({ entry, idx }, visIdx) => {
                   const badge = weightByTarget.get(entry.target)
                   const weightPct = badge === undefined ? null : Math.round(badge.weight * 100)
@@ -581,16 +575,12 @@ export function RouterPreferences() {
                             <span className='truncate text-muted-foreground text-xs'>{providerName}</span>
                           )}
                         </div>
-                        {hasLiveData && (
-                          <>
-                            <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
-                              {weightPct !== null ? `${weightPct}%` : '—'}
-                            </span>
-                            <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
-                              {badge?.budget != null ? `${badge.budget}%` : '—'}
-                            </span>
-                          </>
-                        )}
+                        <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
+                          {weightPct !== null ? `${weightPct}%` : '—'}
+                        </span>
+                        <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
+                          {badge?.budget != null ? `${badge.budget}%` : '—'}
+                        </span>
                         <Switch
                           checked={entry.enabled}
                           onCheckedChange={(next) => setEnabled(idx, next)}

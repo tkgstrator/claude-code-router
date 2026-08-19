@@ -30,6 +30,13 @@ export interface AccountQuotaState {
   // an upstream call has never succeeded.
   fiveHour: QuotaWindowState | undefined
   weekly: QuotaWindowState | undefined
+  // Fable-specific 7-day scoped window when the upstream reports one.
+  // Anthropic emits per-model `weekly_scoped` entries only for Fable
+  // today (Opus / Sonnet share the account-wide weekly), so the
+  // scheduler carries a single dedicated slot rather than a generic
+  // map. Undefined when the account has never observed the scoped
+  // limit — the compute step falls back to fiveHour / weekly then.
+  scopedFable: QuotaWindowState | undefined
   // When the collector last wrote a value for this account. Null for
   // a cold-start account that has never been polled. Used together
   // with `constraints.staleQuotaFactor` and `unknownBudgetPolicy`.
