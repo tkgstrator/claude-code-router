@@ -95,7 +95,13 @@ const ensureFreshCodexToken = async (
       }
     })
     return rotated.access_token
-  } catch {
+  } catch (err) {
+    // Silent-catch hid rotation-race and prisma-write faults for months
+    // — the only observed symptom was users being asked to re-import
+    // codex auth.json every expiry. Log the failure so it stops being
+    // invisible; the fallback still returns the existing access token
+    // so the caller's own 401 path (recordAuthStatus) keeps working.
+    logger.warn({ subAccountId, err }, '[profile-sync] codex token refresh failed, using existing access token')
     return accessToken
   }
 }
