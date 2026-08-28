@@ -309,6 +309,26 @@ export function RouterPreferences() {
     [mutateActive]
   )
 
+  // Per-entry escalation / demotion overrides — flipping the switch
+  // writes an explicit boolean onto the row so the selector's
+  // `entryAllowEscalation ?? constraints.allowEscalation` fallback stops
+  // inheriting the global. The row starts pre-toggled to the current
+  // effective value (entry.allow* if set, otherwise the global) so an
+  // operator can see today's behaviour at a glance and only touch what
+  // needs to change.
+  const setEntryEscalation = useCallback(
+    (idx: number, allowEscalation: boolean) => {
+      mutateActive((prev) => prev.map((e, i) => (i === idx ? { ...e, allowEscalation } : e)))
+    },
+    [mutateActive]
+  )
+  const setEntryDemotion = useCallback(
+    (idx: number, allowDemotion: boolean) => {
+      mutateActive((prev) => prev.map((e, i) => (i === idx ? { ...e, allowDemotion } : e)))
+    },
+    [mutateActive]
+  )
+
   const openAddDialog = useCallback(() => {
     setAddProvider('')
     setAddModel('')
@@ -541,6 +561,8 @@ export function RouterPreferences() {
                   <span className='flex-1' />
                   <span className='w-14 text-right'>{t('routerPreferences.columnWeight')}</span>
                   <span className='w-14 text-right'>{t('routerPreferences.columnBudget')}</span>
+                  <span className='w-10 text-center'>{t('routerPreferences.columnEscalation')}</span>
+                  <span className='w-10 text-center'>{t('routerPreferences.columnDemotion')}</span>
                   <span className='w-8 shrink-0' />
                   <span className='w-[84px] shrink-0' />
                 </div>
@@ -581,6 +603,42 @@ export function RouterPreferences() {
                         <span className='w-14 text-right text-muted-foreground text-xs tabular-nums'>
                           {badge?.budget != null ? `${badge.budget}%` : '—'}
                         </span>
+                        {(() => {
+                          // Effective values seed the row's toggles so an
+                          // untouched entry reflects today's global gate. The
+                          // moment the operator flips the switch we write an
+                          // explicit boolean and stop inheriting.
+                          const effEsc =
+                            entry.allowEscalation !== undefined ? entry.allowEscalation : constraints.allowEscalation
+                          const effDem =
+                            entry.allowDemotion !== undefined ? entry.allowDemotion : constraints.allowDemotion
+                          return (
+                            <>
+                              <span className='flex w-10 justify-center'>
+                                <Switch
+                                  checked={effEsc}
+                                  onCheckedChange={(next) => setEntryEscalation(idx, next)}
+                                  aria-label={t(
+                                    effEsc
+                                      ? 'routerPreferences.entryAllowEscalationOn'
+                                      : 'routerPreferences.entryAllowEscalationOff'
+                                  )}
+                                />
+                              </span>
+                              <span className='flex w-10 justify-center'>
+                                <Switch
+                                  checked={effDem}
+                                  onCheckedChange={(next) => setEntryDemotion(idx, next)}
+                                  aria-label={t(
+                                    effDem
+                                      ? 'routerPreferences.entryAllowDemotionOn'
+                                      : 'routerPreferences.entryAllowDemotionOff'
+                                  )}
+                                />
+                              </span>
+                            </>
+                          )
+                        })()}
                         <Switch
                           checked={entry.enabled}
                           onCheckedChange={(next) => setEnabled(idx, next)}

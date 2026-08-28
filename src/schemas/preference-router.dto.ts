@@ -130,6 +130,15 @@ export const RouterPreferenceEntrySchema = z
     priority: z.number().int().positive(),
     target: z.string().nonempty(),
     enabled: z.boolean().default(true),
+    // Per-entry tier-substitution overrides. When set they take
+    // precedence over the global `constraints.allowEscalation` /
+    // `allowDemotion` for THIS candidate only, letting operators pin
+    // "Fable never as a substitute for Sonnet, but Opus may be" without
+    // flipping the constraint for every row. Undefined = inherit the
+    // global constraint (backwards-compatible with pre-2026-08 payloads
+    // that only carried the two global flags).
+    allowEscalation: z.boolean().optional(),
+    allowDemotion: z.boolean().optional(),
     // Server-populated on read (loadPreferenceChain resolves it from
     // Model.manualTier ?? tierOf(name)). Optional on the wire because
     // legacy clients don't send it and the apply path ignores it —

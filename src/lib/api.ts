@@ -368,6 +368,10 @@ export interface RouterPreferenceEntryWire {
   priority: number
   target: string
   enabled: boolean
+  // Optional per-entry override of the global escalation / demotion
+  // gates. Undefined = inherit the global constraint.
+  allowEscalation?: boolean
+  allowDemotion?: boolean
 }
 
 export type PreferenceScenarioKey = 'default' | 'think' | 'longContext' | 'webSearch' | 'image'

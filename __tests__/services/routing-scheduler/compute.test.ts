@@ -22,6 +22,7 @@ const account = (
   fiveHour: overrides.fiveHour,
   weekly: overrides.weekly,
   scopedFable: overrides.scopedFable,
+  planWeight: overrides.planWeight ?? 1,
   refreshedAt: overrides.refreshedAt ?? NOW
 })
 
@@ -265,4 +266,65 @@ test('candidate missing from state map yields no_quota_kind and zero weight', ()
   const ghost = result.weights.find((w) => w.target === 'ghost,model')
   expect(ghost?.reasons).toContain('no_quota_kind')
   expect(ghost?.weight).toBe(0)
+})
+
+test('modelBudget averages remaining ratio across peer accounts', () => {
+  // Three same-plan accounts at 100% / 50% / 0% remaining on the 5h
+  // window. The pool budget must be the plain average (50%), NOT the
+  // max (100%) — the "single account wins" bug this test exercises used
+  // to publish 100% whenever any peer still had headroom, hiding an
+  // exhausted majority.
+  const result = computeWeights(
+    stateOf(
+      [{ target: 'claude-code,opus-5' }],
+      [
+        candidate('claude-code,opus-5', {
+          accounts: [
+            account('a', 'claude-code', {
+              fiveHour: { used: 0, limit: 100, resetAt: null, windowLengthMs: null }
+            }),
+            account('b', 'claude-code', {
+              fiveHour: { used: 50, limit: 100, resetAt: null, windowLengthMs: null }
+            }),
+            account('c', 'claude-code', {
+              fiveHour: { used: 100, limit: 100, resetAt: null, windowLengthMs: null }
+            })
+          ]
+        })
+      ]
+    )
+  )
+  const opus = result.weights.find((w) => w.target === 'claude-code,opus-5')
+  expect(opus?.remainingBudgetPct).toBe(50)
+})
+
+test('modelBudget weights peer accounts by planWeight (Pro=1, Max=5, Max20=20)', () => {
+  // Pro 100%, Max 50%, Max20 0% — the Max20 account is 20x the size of
+  // the Pro account, so its 0% should dominate. Expected weighted mean:
+  // (1.0*1 + 0.5*5 + 0.0*20) / (1+5+20) = 3.5 / 26 ≈ 0.1346 → 13%.
+  const result = computeWeights(
+    stateOf(
+      [{ target: 'claude-code,opus-5' }],
+      [
+        candidate('claude-code,opus-5', {
+          accounts: [
+            account('pro', 'claude-code', {
+              planWeight: 1,
+              fiveHour: { used: 0, limit: 100, resetAt: null, windowLengthMs: null }
+            }),
+            account('max', 'claude-code', {
+              planWeight: 5,
+              fiveHour: { used: 50, limit: 100, resetAt: null, windowLengthMs: null }
+            }),
+            account('max20', 'claude-code', {
+              planWeight: 20,
+              fiveHour: { used: 100, limit: 100, resetAt: null, windowLengthMs: null }
+            })
+          ]
+        })
+      ]
+    )
+  )
+  const opus = result.weights.find((w) => w.target === 'claude-code,opus-5')
+  expect(opus?.remainingBudgetPct).toBe(13)
 })

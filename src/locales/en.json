@@ -725,6 +725,12 @@
     "longContextThresholdAutoUnresolved": "Effective: {{value}} tokens (fallback — no context window known for the default model)",
     "columnWeight": "Weight",
     "columnBudget": "Budget",
+    "columnEscalation": "Esc",
+    "columnDemotion": "Dem",
+    "entryAllowEscalationOn": "Escalation to this model allowed",
+    "entryAllowEscalationOff": "Escalation to this model blocked",
+    "entryAllowDemotionOn": "Demotion to this model allowed",
+    "entryAllowDemotionOff": "Demotion to this model blocked",
     "saved": "Preferences saved",
     "saveFailed": "Failed to save preferences",
     "editTiers": "Edit tiers"

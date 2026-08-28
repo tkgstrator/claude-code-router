@@ -725,6 +725,12 @@
     "longContextThresholdAutoUnresolved": "实际值: {{value}} tokens (未获取到 default 模型的 contextWindow, 使用回退值)",
     "columnWeight": "Weight",
     "columnBudget": "预算",
+    "columnEscalation": "Esc",
+    "columnDemotion": "Dem",
+    "entryAllowEscalationOn": "允许向该模型升级",
+    "entryAllowEscalationOff": "禁止向该模型升级",
+    "entryAllowDemotionOn": "允许向该模型降级",
+    "entryAllowDemotionOff": "禁止向该模型降级",
     "saved": "优先级已保存",
     "saveFailed": "保存优先级失败",
     "editTiers": "编辑 tier"

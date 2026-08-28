@@ -37,6 +37,12 @@ export interface AccountQuotaState {
   // map. Undefined when the account has never observed the scoped
   // limit — the compute step falls back to fiveHour / weekly then.
   scopedFable: QuotaWindowState | undefined
+  // Plan capacity multiplier (Pro=1, Max=5, Max20=20). Used by
+  // `modelBudget` to weight each account's remaining-budget ratio when
+  // averaging across the accounts backing a candidate model — a Max20
+  // account at 0% should drag the pool budget down more than a Pro
+  // account at 0% would. Defaults to 1 for unknown/free plans.
+  planWeight: number
   // When the collector last wrote a value for this account. Null for
   // a cold-start account that has never been polled. Used together
   // with `constraints.staleQuotaFactor` and `unknownBudgetPolicy`.
@@ -51,9 +57,10 @@ export interface ModelCandidateState {
   target: string
   providerName: string
   modelName: string
-  // Which accounts serve this target. Selecting `max(budget)` across
-  // this list matches the session-account-router's "route to the
-  // freshest account" behaviour.
+  // Which accounts serve this target. The budget aggregator averages
+  // remaining-ratio across this list weighted by each account's
+  // planWeight so a small full account cannot mask a large exhausted
+  // peer.
   accounts: readonly AccountQuotaState[]
   // Recent 5-min error rate (0-1). Callers back this with the Phase 2e
   // model-health tracker; a fresh model with no samples yet is passed

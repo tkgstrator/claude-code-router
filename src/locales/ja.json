@@ -725,6 +725,12 @@
     "longContextThresholdAutoUnresolved": "実効値: {{value}} tokens (default モデルの contextWindow 未取得のためフォールバック)",
     "columnWeight": "Weight",
     "columnBudget": "予算",
+    "columnEscalation": "Esc",
+    "columnDemotion": "Dem",
+    "entryAllowEscalationOn": "このモデルへのエスカレーションを許可",
+    "entryAllowEscalationOff": "このモデルへのエスカレーションを禁止",
+    "entryAllowDemotionOn": "このモデルへのデモーションを許可",
+    "entryAllowDemotionOff": "このモデルへのデモーションを禁止",
     "saved": "優先順位を保存しました",
     "saveFailed": "優先順位の保存に失敗しました",
     "editTiers": "tier を編集"

@@ -10,6 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception'
 import { type OauthCredentials, OauthSubscriptionAuthBlockSchema, type RuntimeProvider } from '@/schemas'
+import { logger } from '../../logger'
 import { resolveAccountForSession } from '../../services/session-account-router'
 import { updateSubAccountAccessToken } from '../../services/subscription-account-sync-service'
 import { Transformer } from './base'
@@ -103,9 +104,18 @@ export abstract class OAuthTransformer extends Transformer {
           expiresAt: next.expiresAt
         })
         return next.accessToken
-      } catch {
+      } catch (err) {
         // Refresh failures fall back to the existing access token; the
         // upstream call will likely 401 and the user re-authenticates.
+        // Log the failure so operators can tell "refresh path is broken"
+        // from "user genuinely revoked" — the silent-catch that lived
+        // here for months hid rotation-race + prisma-write faults
+        // completely, so the only signal was users being asked to
+        // re-import auth.json on every expiry.
+        logger.warn(
+          { subAccountId: auth.subAccountId, err },
+          '[oauth-base] on-demand token refresh failed, falling back to existing access token'
+        )
         return auth.accessToken
       } finally {
         refreshInFlight.delete(auth.subAccountId)

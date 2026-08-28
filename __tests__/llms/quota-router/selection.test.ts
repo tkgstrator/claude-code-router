@@ -24,7 +24,9 @@ const CONSTRAINTS_LOOSE: PreferenceConstraints = {
 const entry = (priority: number, target: string, overrides: Partial<RouterPreferenceEntry> = {}): RouterPreferenceEntry => ({
   priority,
   target,
-  enabled: overrides.enabled ?? true
+  enabled: overrides.enabled ?? true,
+  allowEscalation: overrides.allowEscalation,
+  allowDemotion: overrides.allowDemotion
 })
 
 const ALL_HEALTHY: Pick<Parameters<typeof selectByPreference>[0], 'isExhausted' | 'errorRate'> = {
@@ -133,6 +135,60 @@ test('sonnet request with only allowDemotion on: haiku in, fable/opus out', () =
   expect(result.primary).toBe('claude-code,claude-sonnet-5')
   expect(result.fallbacks).toEqual(['claude-code,claude-haiku-4-5'])
   expect(result.skipped.map((s) => s.reason)).toEqual(['tier_mismatch'])
+})
+
+test('per-entry allowEscalation=false blocks a candidate even when the global gate allows it', () => {
+  // Global allows escalation, but this single Fable row opts out —
+  // request sonnet, fable is escalation → blocked for THIS row only.
+  const result = selectByPreference({
+    entries: [
+      entry(1, 'claude-code,claude-fable-5', { allowEscalation: false }),
+      entry(2, 'claude-code,claude-opus-5'),
+      entry(3, 'claude-code,claude-sonnet-5')
+    ],
+    constraints: CONSTRAINTS_LOOSE,
+    requestedTier: 'sonnet',
+    isSubagent: false,
+    ...ALL_HEALTHY
+  })
+  // Fable blocked by its own flag; opus still admissible via the global.
+  expect(result.primary).toBe('claude-code,claude-opus-5')
+  expect(result.skipped).toContainEqual({ target: 'claude-code,claude-fable-5', reason: 'tier_mismatch' })
+})
+
+test('per-entry allowEscalation=true admits a candidate even when the global gate blocks it', () => {
+  // Global forbids escalation; this Opus row opts in — request sonnet,
+  // opus is escalation → admissible for THIS row only.
+  const result = selectByPreference({
+    entries: [
+      entry(1, 'claude-code,claude-fable-5'),
+      entry(2, 'claude-code,claude-opus-5', { allowEscalation: true }),
+      entry(3, 'claude-code,claude-sonnet-5')
+    ],
+    constraints: CONSTRAINTS_STRICT,
+    requestedTier: 'sonnet',
+    isSubagent: false,
+    ...ALL_HEALTHY
+  })
+  // Fable still blocked (no per-entry override); Opus in via its flag.
+  expect(result.primary).toBe('claude-code,claude-opus-5')
+  expect(result.skipped).toContainEqual({ target: 'claude-code,claude-fable-5', reason: 'tier_mismatch' })
+})
+
+test('per-entry allowDemotion overrides the global demotion gate', () => {
+  // Global forbids demotion; the Haiku row opts in.
+  const result = selectByPreference({
+    entries: [
+      entry(1, 'claude-code,claude-sonnet-5'),
+      entry(2, 'claude-code,claude-haiku-4-5', { allowDemotion: true })
+    ],
+    constraints: CONSTRAINTS_STRICT,
+    requestedTier: 'sonnet',
+    isSubagent: false,
+    ...ALL_HEALTHY
+  })
+  expect(result.primary).toBe('claude-code,claude-sonnet-5')
+  expect(result.fallbacks).toEqual(['claude-code,claude-haiku-4-5'])
 })
 
 test('directional gates apply symmetrically to any requested tier (haiku request)', () => {
