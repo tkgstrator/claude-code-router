@@ -90,27 +90,34 @@ export interface PreferenceSelection {
 
 export type SkipReason = 'disabled' | 'tier_mismatch' | 'exhausted' | 'error_rate' | 'context_too_small'
 
-// Tier match: two directional gates on the constraints. A candidate
-// with a smaller TIER_ORDER index than the requested tier is an
-// "escalation" (client asked for a cheaper tier, offering a pricier
-// one); a larger index is a "demotion" (client asked for a pricier
-// tier, offering a cheaper one). Same-tier candidates are always
-// admissible. Unknown tiers (candidate name doesn't match any of
-// fable/opus/sonnet/haiku, no manualTier override, requested tier
-// unclassifiable) fall through as admissible — the alternative would
-// evict every third-party model the operator explicitly configured.
+// Tier match: two directional gates. A candidate with a smaller
+// TIER_ORDER index than the requested tier is an "escalation" (client
+// asked for a cheaper tier, offering a pricier one); a larger index is
+// a "demotion" (client asked for a pricier tier, offering a cheaper
+// one). Same-tier candidates are always admissible. Unknown tiers
+// (candidate name doesn't match any of fable/opus/sonnet/haiku, no
+// manualTier override, requested tier unclassifiable) fall through as
+// admissible — the alternative would evict every third-party model the
+// operator explicitly configured.
+//
+// Precedence: per-entry `entryAllowEscalation` / `entryAllowDemotion`
+// win when set (undefined = inherit the global constraint), so an
+// operator can allow Opus-for-Sonnet without also allowing Fable-for-
+// Sonnet even though both live in the same chain.
 //
 // Pace-aware widening: when `allowedTiersOverride` is provided the
 // runtime has already decided which tiers are admissible based on the
 // requested tier's current paceRatio. It takes precedence over the
-// escalation/demotion gates — the whole point of the override is to
-// relax the tier constraint for a well-defined reason (burn slack
-// budget / cool down over-paced tier).
+// escalation/demotion gates (per-entry included) — the whole point of
+// the override is to relax the tier constraint for a well-defined
+// reason (burn slack budget / cool down over-paced tier).
 const tierMatches = (
   candidateTier: RequestedModelTier | undefined,
   requestedTier: RequestedModelTier | undefined,
   constraints: PreferenceConstraints,
-  allowedTiersOverride: ReadonlySet<RequestedModelTier> | undefined
+  allowedTiersOverride: ReadonlySet<RequestedModelTier> | undefined,
+  entryAllowEscalation: boolean | undefined,
+  entryAllowDemotion: boolean | undefined
 ): boolean => {
   if (allowedTiersOverride !== undefined && requestedTier !== undefined) {
     return candidateTier !== undefined && allowedTiersOverride.has(candidateTier)
@@ -120,8 +127,10 @@ const tierMatches = (
   const candidateIdx = TIER_ORDER.indexOf(candidateTier)
   const requestedIdx = TIER_ORDER.indexOf(requestedTier)
   if (candidateIdx < 0 || requestedIdx < 0) return true
-  if (candidateIdx < requestedIdx) return constraints.allowEscalation
-  return constraints.allowDemotion
+  if (candidateIdx < requestedIdx) {
+    return entryAllowEscalation !== undefined ? entryAllowEscalation : constraints.allowEscalation
+  }
+  return entryAllowDemotion !== undefined ? entryAllowDemotion : constraints.allowDemotion
 }
 
 // Extract the model name from a "providerName,modelName" target so
@@ -154,7 +163,16 @@ export function selectByPreference(input: PreferenceSelectorInput): PreferenceSe
       entry.resolvedTier === null || entry.resolvedTier === undefined ? undefined : entry.resolvedTier
     const candidateTier = overrideTier ?? inferredTier
 
-    if (!tierMatches(candidateTier, input.requestedTier, input.constraints, input.allowedTiersOverride)) {
+    if (
+      !tierMatches(
+        candidateTier,
+        input.requestedTier,
+        input.constraints,
+        input.allowedTiersOverride,
+        entry.allowEscalation,
+        entry.allowDemotion
+      )
+    ) {
       skipped.push({ target: entry.target, reason: 'tier_mismatch' })
       continue
     }
