@@ -24,6 +24,7 @@ import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
 import { type QuotaAwareConstraints, QuotaAwareConstraintsSchema } from '../../schemas'
 import { loadRouterPreferences } from '../router-preference-service'
+import { planCapacityWeight } from '../subscription-account-sync/pricing'
 import { refreshQuotaSnapshots } from './collector'
 import { computeWeights } from './compute'
 import {
@@ -177,6 +178,7 @@ async function loadCandidateState(prisma: PrismaClient): Promise<LoadedState> {
         fiveHour,
         weekly,
         scopedFable,
+        planWeight: planCapacityWeight(a.plan, a.rateLimitTier),
         refreshedAt
       })
       accountViews.push({

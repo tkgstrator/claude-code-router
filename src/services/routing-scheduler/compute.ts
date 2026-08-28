@@ -86,10 +86,15 @@ const accountStale = (acct: AccountQuotaState, now: number, ttlMs: number): bool
 
 const accountKnown = (acct: AccountQuotaState): boolean => acct.fiveHour !== undefined || acct.weekly !== undefined
 
-// Aggregate budget for a candidate model: max across usable accounts.
-// Matches session-account-router's "route to the account with the
-// most headroom" behaviour. Returns { value, unknownAccounts,
-// staleAccounts } so `computeWeights` can attach reasons.
+// Aggregate budget for a candidate model: capacity-weighted average of
+// each usable account's remaining ratio. session-account-router picks
+// the account with the highest required burn-rate (drain-first), not
+// max-headroom, so a Fable-scoped 100% account cannot mask a same-plan
+// 0% peer — the pool's true remaining is the average, and weighting by
+// plan capacity (Pro=1 / Max=5 / Max20=20) keeps a large exhausted
+// account from being washed out by a tiny full one. Returns { value,
+// unknownAccounts, staleAccounts } so `computeWeights` can attach
+// reasons.
 interface BudgetView {
   value: number | null
   unknownAccounts: number
@@ -98,7 +103,8 @@ interface BudgetView {
 
 const modelBudget = (candidate: ModelCandidateState, now: number, ttlMs: number): BudgetView => {
   const useScopedFable = isFableTarget(candidate)
-  let best: number | null = null
+  let weightedSum = 0
+  let weightTotal = 0
   let unknownAccounts = 0
   let staleAccounts = 0
   for (const acct of candidate.accounts) {
@@ -115,9 +121,12 @@ const modelBudget = (candidate: ModelCandidateState, now: number, ttlMs: number)
       unknownAccounts += 1
       continue
     }
-    if (best === null || b > best) best = b
+    const w = acct.planWeight > 0 ? acct.planWeight : 1
+    weightedSum += b * w
+    weightTotal += w
   }
-  return { value: best, unknownAccounts, staleAccounts }
+  const value = weightTotal > 0 ? weightedSum / weightTotal : null
+  return { value, unknownAccounts, staleAccounts }
 }
 
 // Earliest resetAt across the candidate's accounts (used for the
