@@ -22,8 +22,10 @@ import {
   type ScenarioType,
   type Transformer
 } from '../../llms'
-import { isModelExhausted } from '../../services/failover-state'
+import { isLongContextDenied, isModelExhausted } from '../../services/failover-state'
+import { getActiveAccountForSession } from '../../services/session-account-router'
 import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
+import { prepareSubscriptionBetas } from './subscription-betas'
 
 // ─── Reasoning-effort normalisation ────────────────────────────────────
 
@@ -62,25 +64,15 @@ function normalizeEffort(body: Record<string, unknown>, model: string): void {
 
 // ─── Anthropic subscription beta header reshape ────────────────────────
 
-const OAUTH_BETA = 'oauth-2025-04-20'
-
-// Reshape `anthropic-beta` for the subscription (OAuth) path:
-//  - drop `context-1m-*`: on a non-1M subscription, opting into 1M
-//    rate_limits every request even a tiny "say pong"; degrade to 200K.
-//  - ensure OAUTH_BETA is present so premium models route to the
-//    subscription allotment instead of org-disabled overage.
-function prepareSubscriptionBetas(headers: Record<string, string>): void {
-  const raw = headers['anthropic-beta']
-  const tokens =
-    typeof raw === 'string'
-      ? raw
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : []
-  const kept = tokens.filter((t) => !t.startsWith('context-1m'))
-  if (!kept.includes(OAUTH_BETA)) kept.push(OAUTH_BETA)
-  headers['anthropic-beta'] = kept.join(',')
+// Resolve whether the target this request is about to hit has already
+// been refused the long-context entitlement. The sticky session→account
+// map is consulted so the answer is account-scoped whenever the pipeline
+// has picked one; without a session header it falls back to the coarser
+// provider-level mark.
+function longContextDeniedFor(headers: Record<string, string>, providerName: string): boolean {
+  const sessionId = headers['x-claude-code-session-id']
+  const account = typeof sessionId === 'string' && sessionId.length > 0 ? getActiveAccountForSession(sessionId) : null
+  return isLongContextDenied(providerName, account)
 }
 
 // ─── Endpoint transformer index ────────────────────────────────────────
@@ -322,9 +314,10 @@ export function resolveInvocationForModel(
   const transformer: Transformer = swapped !== undefined ? swapped : plan.defaultTransformer
 
   // Subscription path: subscriptions route through *-oauth transformers.
-  // Reshape the anthropic-beta header (drop context-1m, add oauth beta).
+  // Reshape the anthropic-beta header (add oauth beta; drop context-1m
+  // only when this provider/account is known to lack the entitlement).
   if (typeof soleUseName === 'string' && soleUseName.endsWith('-oauth')) {
-    prepareSubscriptionBetas(headers)
+    prepareSubscriptionBetas(headers, longContextDeniedFor(headers, providerName))
   }
 
   const request: PipelineRequest = {

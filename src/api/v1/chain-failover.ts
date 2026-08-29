@@ -21,6 +21,7 @@ import { type LlmsContext, subscriptionKindOf } from '../../llms'
 import {
   isAccountExhausted,
   markAccountExhausted,
+  markLongContextDenied,
   markModelExhausted,
   markProviderExhausted
 } from '../../services/failover-state'
@@ -36,7 +37,7 @@ import {
 import { getSubAccountTokensForKind } from '../../services/subscription-account-sync-service'
 import { errorShapeForPath } from './error-shape'
 import { type ResolvedInvocation, type RoutePlan, resolveInvocationForModel } from './invocation'
-import { forwardUpstreamError, isInsufficientQuota, isRateLimited } from './upstream-error'
+import { forwardUpstreamError, isInsufficientQuota, isLongContextGate, isRateLimited } from './upstream-error'
 
 // Hard cap on account rotations within a single chain entry. Each rotate
 // already requires an inbound 429 + an account-exhaustion mark, so a
@@ -84,7 +85,7 @@ export type ChainEntryOutcome = { kind: 'done'; response: Response } | { kind: '
 // the same subscription provider — and report whether to return now or
 // advance.
 export async function attemptChainEntry(chain: ChainCtx, model: string): Promise<ChainEntryOutcome> {
-  const { c, ctx, plan, attempt, errorResponse } = chain
+  const { c, ctx, plan, sessionId, attempt, errorResponse } = chain
 
   // Per-chain-entry account rotation state. A subscription provider can
   // carry multiple sub-accounts; a 5h rate-limit on one of them must
@@ -94,6 +95,10 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
   // plus at most MAX_ACCOUNT_ROTATIONS rotations.
   const triedAccounts = new Set<string>()
   let lastForwarded: Response | null = null
+  // The long-context gate is a one-shot learning step per chain entry:
+  // once the beta is dropped and marked, a second gate refusal would
+  // mean something other than the beta is at fault, so don't loop on it.
+  let longContextRetried = false
 
   for (let rotation = 0; rotation <= MAX_ACCOUNT_ROTATIONS; rotation++) {
     const inv = resolveInvocationForModel(plan, model, ctx)
@@ -120,6 +125,24 @@ export async function attemptChainEntry(chain: ChainCtx, model: string): Promise
     if (!forwarded) {
       ctx.log.error({ err }, 'pipeline error')
       return { kind: 'done', response: errorResponse(c, err) }
+    }
+
+    // Long-context gate: this plan can't serve the context-1m beta the
+    // client opted into. Nothing else about the request is wrong, so
+    // record the refusal and retry the SAME model/account — the next
+    // resolveInvocationForModel rebuilds headers and prepareSubscriptionBetas
+    // now strips the token. Failing over here would abandon a healthy
+    // primary over a header, and surfacing the 429 would show the user a
+    // quota error for a request that never hit a quota.
+    if (!longContextRetried && isLongContextGate(err)) {
+      longContextRetried = true
+      const deniedAccount = sessionId === null ? null : getActiveAccountForSession(sessionId)
+      markLongContextDenied(inv.provider.name, deniedAccount)
+      ctx.log.warn(
+        { provider: inv.provider.name, model: inv.request.model, subAccountId: deniedAccount },
+        'long-context gate; dropping context-1m beta and retrying the same target'
+      )
+      continue
     }
 
     // Non-rate-limit upstream errors (auth, bad request, ...) surface
