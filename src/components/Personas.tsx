@@ -63,7 +63,12 @@ export function Personas() {
     try {
       await api.updateConfig({
         ...config,
-        Router: { ...config.Router, persona: activeDraft ?? undefined }
+        // Explicit null, never undefined: JSON.stringify drops undefined
+        // keys, and the server distinguishes "clear the persona" from
+        // "this save didn't touch the persona" by whether the key is
+        // present at all (`'persona' in Router` in splitPayload). Sending
+        // undefined made deselecting silently re-persist the old value.
+        Router: { ...config.Router, persona: activeDraft }
       })
       await reloadConfig()
       showToast(t('personas.saved_success'), 'success')
