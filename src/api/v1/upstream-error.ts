@@ -92,6 +92,26 @@ export function isInsufficientQuota(err: unknown): boolean {
   return type === 'insufficient_quota'
 }
 
+// Anthropic's long-context billing gate. Claude Code opts into the 1M
+// window with a `context-1m-*` anthropic-beta token; on a plan without
+// the long-context entitlement EVERY request is refused with "Extra
+// usage is required for long context requests" — even a tiny "say
+// pong". Only the beta is at fault, so this is kept distinct from an
+// ordinary rate-limit tick: the caller drops that one token and retries
+// the SAME model/account rather than failing over to a fallback, which
+// would abandon a perfectly healthy primary. Matched on 400/429 because
+// the gate is a billing refusal that upstreams have shaped both ways.
+const LONG_CONTEXT_GATE_RE = /extra usage is required for long context|long context request/i
+const LONG_CONTEXT_GATE_STATUSES = new Set([400, 429])
+
+export function isLongContextGate(err: unknown): boolean {
+  if (!(err instanceof HTTPException)) return false
+  const m = err.message.match(PROVIDER_ERR_RE)
+  if (!m) return false
+  if (!LONG_CONTEXT_GATE_STATUSES.has(Number(m[1]))) return false
+  return LONG_CONTEXT_GATE_RE.test(m[2])
+}
+
 // ─── Effort-level retry helpers ─────────────────────────────────────────
 
 // Canonical effort ordering low→high; used to rank the "supported

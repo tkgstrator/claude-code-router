@@ -2,6 +2,14 @@ node_modules
 .env
 .env.*
 !.env.example
+
+# Local dev secrets in the wrangler/Cloudflare convention. Same class as
+# .env — holds live credentials — but it was never ignored, so it showed
+# up as an untracked file that any `git add -A` (or an automated commit
+# hook) would happily stage.
+.dev.vars
+.dev.vars.*
+
 log.txt
 .idea
 dist

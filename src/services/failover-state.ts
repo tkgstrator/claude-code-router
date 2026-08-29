@@ -121,3 +121,49 @@ export const isModelExhausted = (providerName: string, modelName: string): boole
 // clearProviderExhaustion.
 export const clearModelExhaustion = (providerName: string, modelName: string): void =>
   modelMap.clear(modelKey(providerName, modelName))
+
+// ─── Long-context (context-1m) entitlement ─────────────────────────────
+
+// How long a long-context refusal is trusted before the beta is probed
+// again. Unlike a rate-limit window this records an *entitlement* the
+// upstream refused, which only changes when the user's plan changes —
+// so the TTL is long enough to avoid re-429ing on every request, and
+// short enough that a plan upgrade is picked up the next day without a
+// restart.
+const LONG_CONTEXT_DENIAL_TTL_MS = 24 * 60 * 60_000
+
+const longContextMap = createExhaustionMap()
+
+// Account-scoped keys pair a provider with one sub-account so a plan
+// without the long-context entitlement doesn't speak for its peers —
+// the same provider can carry a 1M account and a non-1M account.
+const longContextKey = (providerName: string, subAccountId: string): string => `${providerName}##${subAccountId}`
+
+const hasAccount = (subAccountId?: string | null): subAccountId is string =>
+  typeof subAccountId === 'string' && subAccountId.length > 0
+
+// Record that this provider / sub-account refused the context-1m beta.
+// Marked against the account when one is known, otherwise against the
+// provider as a whole (the accountless overlay path).
+export const markLongContextDenied = (providerName: string, subAccountId?: string | null): void =>
+  longContextMap.mark(
+    hasAccount(subAccountId) ? longContextKey(providerName, subAccountId) : providerName,
+    Date.now() + LONG_CONTEXT_DENIAL_TTL_MS
+  )
+
+// True when either this sub-account OR its enclosing provider is known
+// to lack the long-context entitlement. The two scopes OR together for
+// the same reason isModelExhausted does it: a coarse provider-level
+// mark (learned before any account was known) still applies to every
+// account under it.
+export const isLongContextDenied = (providerName: string, subAccountId?: string | null): boolean =>
+  (hasAccount(subAccountId) && longContextMap.is(longContextKey(providerName, subAccountId))) ||
+  longContextMap.is(providerName)
+
+// Drop a long-context denial so the beta is probed again on the next
+// request (plan upgrade, or to reset state between tests). Clears the
+// provider-level mark too when no account is given.
+export const clearLongContextDenial = (providerName: string, subAccountId?: string | null): void => {
+  if (hasAccount(subAccountId)) longContextMap.clear(longContextKey(providerName, subAccountId))
+  else longContextMap.clear(providerName)
+}
