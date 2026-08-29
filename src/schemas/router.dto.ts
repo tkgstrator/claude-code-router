@@ -178,7 +178,11 @@ export const RouterConfigSchema = z.object({
   longContext: LongContextScenarioRouteSchema,
   webSearch: ScenarioRouteSchema,
   image: ScenarioRouteSchema,
-  persona: z.string().nonempty().optional(),
+  // Nullable, not just optional: composeUiConfig emits `persona: null`
+  // when nothing is active, and the UI sends null back to clear it.
+  // Typing this as `string | undefined` is what pushed Personas.tsx into
+  // sending `undefined`, which JSON.stringify strips.
+  persona: z.string().nonempty().nullable().optional(),
   custom: z.unknown().optional()
 })
 export type RouterConfig = z.infer<typeof RouterConfigSchema>
