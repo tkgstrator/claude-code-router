@@ -64,9 +64,11 @@ const LONG_CONTEXT_GATE = /extra usage is required for long context|long context
  * hide a real routing/auth bug (the same plan demonstrably serves
  * these models to the live Claude Code, so a 429 here is never a
  * genuine quota limit). A long-context 429 ("Extra usage is required
- * for long context requests") gets a sharper message — it's the
- * regression guard for the context-1m beta strip on subscription
- * routing — but it still fails like every other 429.
+ * for long context requests") gets a sharper message: the router is
+ * supposed to absorb that refusal itself — mark the account as lacking
+ * the entitlement, drop the context-1m beta, and retry the same target
+ * — so seeing one out here means the reactive retry never fired and the
+ * gate reached the client.
  */
 export async function smokeSubscriptionModel(model: string): Promise<string> {
   const res = await sendMessage({
@@ -79,7 +81,7 @@ export async function smokeSubscriptionModel(model: string): Promise<string> {
     const body = await res.text();
     if (LONG_CONTEXT_GATE.test(body)) {
       throw new Error(
-        `${model}: long-context 429 regressed — context-1m beta is reaching Anthropic again. HTTP ${res.status}: ${body}`
+        `${model}: long-context gate reached the client — the reactive context-1m retry did not fire. HTTP ${res.status}: ${body}`
       );
     }
     throw new Error(`${model}: HTTP ${res.status}: ${body}`);
