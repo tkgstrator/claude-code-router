@@ -44,6 +44,11 @@ export type RouterRequest = {
   // expects. Absent for pre-existing test callers that predate this
   // hook — treated as "unknown, apply everything" for backward-compat.
   inboundPath?: string
+  // A per-client override for which RouterPreferenceProfile this request
+  // routes through, from the AccessToken that authenticated it. Wins
+  // over the inbound surface's own profile; absent means use the
+  // surface's.
+  profileKeyOverride?: string
   scenarioType?: ScenarioType
   tokenCount?: number
   // Set by selectModel: true when the request carried a

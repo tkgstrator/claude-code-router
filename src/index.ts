@@ -3,7 +3,8 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
 import { ZodError } from 'zod'
 import { accessLog } from './api/access-log'
-import { apiKeyAuth, openaiBearerAuth } from './api/api-key-auth'
+import { accessTokensRoute } from './api/access-tokens/route'
+import { adminAuth, openaiProxyAuth, proxyAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
 import { healthRoute } from './api/health/route'
@@ -110,16 +111,16 @@ app.route('/', healthRoute)
 
 app.use('/api/*', accessLog)
 app.use('/v1/*', accessLog)
-app.use('/api/*', apiKeyAuth)
+app.use('/api/*', adminAuth)
 // OpenAI-compat inbound endpoints: reject `x-api-key` (the Anthropic
 // convention Claude Code sends) so operators aren't tempted to reuse the
 // same key across two auth conventions. Registered BEFORE the /v1/*
 // catch-all so it wins for these paths; the wildcard still covers
 // /v1/messages for Claude Code.
-app.use('/v1/chat/completions', openaiBearerAuth)
-app.use('/v1/responses', openaiBearerAuth)
-app.use('/v1/models', openaiBearerAuth)
-app.use('/v1/*', apiKeyAuth)
+app.use('/v1/chat/completions', openaiProxyAuth)
+app.use('/v1/responses', openaiProxyAuth)
+app.use('/v1/models', openaiProxyAuth)
+app.use('/v1/*', proxyAuth)
 
 app.onError((err, c) => {
   if (err instanceof ZodError) {
@@ -169,6 +170,7 @@ app.route('/', solverInputRoute)
 app.route('/', overviewRoute)
 app.route('/', inboundSurfacesRoute)
 app.route('/', identityRoute)
+app.route('/', accessTokensRoute)
 app.route('/', routingRulesTestRoute)
 app.route('/', storageRoute)
 app.route('/', oauthRoute)

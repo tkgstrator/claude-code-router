@@ -436,6 +436,8 @@ export interface InboundSurfaceWire {
 export interface IdentityResponse {
   mode: 'cloudflare_access' | 'token'
   email: string | null
+  // False means /api/* is gated by the single bootstrap token alone.
+  accessConfigured: boolean
 }
 
 export interface OverviewSurfaceTraffic {

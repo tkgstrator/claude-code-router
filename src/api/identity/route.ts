@@ -1,23 +1,30 @@
 /**
- * GET /api/identity — who the edge says is calling.
+ * GET /api/identity — who the edge verified is calling.
  *
- * DISPLAY ONLY. This endpoint reports an identity for the sidebar; it is
- * not an authentication decision and nothing may gate on its output. The
- * `Cf-Access-*` headers it reads are trivially forgeable by anything that
- * can reach the origin directly, which is exactly why the real gate is
- * (a) Cloudflare Access at the edge and (b) the API-key middleware that
- * already guards every /api route including this one.
+ * Unlike the first cut of this endpoint, the answer is now verified
+ * rather than reported: `adminAuth` has already checked the Access
+ * assertion's signature, issuer and audience before this handler runs,
+ * and stashed the email it carried. A forged `Cf-Access-*` header does
+ * not reach here — the request is rejected upstream.
  *
- * Verifying the Access JWT against the team JWKS — and thereby making this
- * a trustworthy claim — is Phase 3.5 of the Rialto plan.
+ * `mode` says which door the caller actually came through, which is the
+ * thing an operator wants to see before exposing the tunnel: `token`
+ * means Access is not in front (or was bypassed via the bootstrap
+ * token), `cloudflare_access` means a verified human.
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import '../context'
+import { readAccessConfig } from '../../services/cloudflare-access'
 
 const ResponseSchema = z
   .object({
     mode: z.enum(['cloudflare_access', 'token']),
-    email: z.string().nonempty().nullable()
+    email: z.string().nonempty().nullable(),
+    // Whether ACCESS_TEAM_DOMAIN + ACCESS_AUD are both set. False means
+    // every /api/* request is gated by the single bootstrap token, which
+    // is worth saying plainly on a deployment that is about to be public.
+    accessConfigured: z.boolean()
   })
   .openapi('IdentityResponse')
 
@@ -29,19 +36,18 @@ identityRoute.openapi(
     path: '/api/identity',
     responses: {
       200: {
-        description: 'Display-only identity for the shell footer',
+        description: 'The verified caller identity for this request',
         content: { 'application/json': { schema: ResponseSchema } }
       }
     }
   }),
   (c) => {
-    const email = c.req.header('cf-access-authenticated-user-email')
-    const assertion = c.req.header('cf-access-jwt-assertion')
-    const viaAccess = typeof assertion === 'string' && assertion.length > 0
+    const email = c.get('accessEmail')
     return c.json(
       {
-        mode: viaAccess ? ('cloudflare_access' as const) : ('token' as const),
-        email: typeof email === 'string' && email.length > 0 ? email : null
+        mode: typeof email === 'string' ? ('cloudflare_access' as const) : ('token' as const),
+        email: typeof email === 'string' && email.length > 0 ? email : null,
+        accessConfigured: readAccessConfig() !== null
       },
       200
     )

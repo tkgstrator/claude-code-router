@@ -107,6 +107,10 @@ export const PipelineRequestSchema = z.object({
   // `InboundSurface.id` slug. Finer than `inboundType`, which cannot
   // tell /v1/chat/completions from /v1/responses.
   surface: z.enum(['anthropic-messages', 'openai-chat', 'openai-responses', 'gemini-generate']).optional(),
+  // Which AccessToken authenticated the request, so Activity can answer
+  // "which client burned this". Absent when the envelope bootstrap
+  // token was used.
+  accessTokenId: z.string().nonempty().optional(),
   sessionId: z.string().nonempty().optional(),
   tokenCount: z.number().optional()
 })

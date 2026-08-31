@@ -48,6 +48,7 @@ export async function captureUsage(
   const isSubagent = context.req?.isSubagent === true
   const inboundType = context.req?.inboundType
   const surface = context.req?.surface
+  const accessTokenId = context.req?.accessTokenId
 
   await deps.recordUsage?.({
     sessionId,
@@ -57,6 +58,7 @@ export async function captureUsage(
     scenario: scenario !== undefined ? scenario : null,
     inboundType: inboundType !== undefined ? inboundType : null,
     surface: surface !== undefined ? surface : null,
+    accessTokenId: accessTokenId !== undefined ? accessTokenId : null,
     isSubagent,
     inputTokens: tokens.rawInput,
     outputTokens: tokens.outputTokens,

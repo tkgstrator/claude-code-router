@@ -13,6 +13,7 @@
  */
 
 import type { Context } from 'hono'
+import '../context'
 import { type PipelineRequest, type Provider, RecordSchema } from '@/schemas'
 import {
   type LlmsContext,
@@ -125,6 +126,9 @@ export interface RoutePlan {
   peerTargets: ReadonlySet<string>
   path: string
   search: string
+  // The AccessToken that authenticated this request, when one did.
+  // Recorded on RequestLog so Activity can attribute spend to a client.
+  accessTokenId?: string
 }
 
 // A single model's fully-resolved invocation, ready for the pipeline.
@@ -151,6 +155,11 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
   // may swap it per-model if the routed-to provider has a bypass single-use.
   const defaultTransformer: Transformer = transformersByName.values().next().value!
 
+  // Set by the /v1 auth middleware when an issued token authenticated
+  // the call. Absent for the envelope bootstrap token.
+  const token = c.get('accessToken')
+  const tokenId = token?.id
+
   const bodyParsed = RecordSchema.safeParse(await c.req.json().catch(() => ({})))
   if (!bodyParsed.success) {
     return c.json(buildErrorEnvelope({ shape, status: 400, from: 'Request body must be a JSON object' }), 400)
@@ -176,7 +185,12 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     // (persona injection etc.) so OpenAI-compat callers on
     // /v1/chat/completions and /v1/responses get the exact request
     // they sent rather than one enriched for Claude Code.
-    inboundPath: path
+    inboundPath: path,
+    // A token may pin its client to a named preference chain, which
+    // then wins over the surface's own profile. This is the point of
+    // per-client tokens: a CI runner on cost-first while interactive
+    // traffic keeps the default.
+    profileKeyOverride: token?.profileKey === null ? undefined : token?.profileKey
   }
   await routeScenario(routeReq, { config: ctx.config, tokenizers: ctx.tokenizers })
   const scenarioType: ScenarioType = routeReq.scenarioType !== undefined ? routeReq.scenarioType : 'default'
@@ -223,7 +237,8 @@ export async function buildRoutePlan(c: Context, ctx: LlmsContext): Promise<Resp
     fallbacks: Array.isArray(routeReq.resolvedFallbacks) ? routeReq.resolvedFallbacks : [],
     peerTargets: routeReq.resolvedPeerTargets ?? new Set<string>(),
     path,
-    search: url.search
+    search: url.search,
+    accessTokenId: tokenId
   }
 }
 
@@ -331,7 +346,8 @@ export function resolveInvocationForModel(
     requestedModel: plan.requestedModel,
     isSubagent: plan.isSubagent,
     inboundType: inboundTypeForSurface(plan.path),
-    surface: surfaceForPath(plan.path)?.id
+    surface: surfaceForPath(plan.path)?.id,
+    accessTokenId: plan.accessTokenId
   }
 
   return { body, headers, request, provider, transformer }

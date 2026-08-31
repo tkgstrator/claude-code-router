@@ -478,6 +478,39 @@ model Message {
 // Per-LLM-request stats: one row per upstream call that reaches the provider.
 // Stored for the History view (model, tokens, cost, cache).
 // No message content is ever stored here.
+// A credential a client presents to /v1/*.
+//
+// Replaces the single envelope APIKEY for machine traffic. The plaintext
+// is shown once at issue time and never stored — only its sha256 — so a
+// database read cannot hand out working credentials. `prefix` is the
+// visible first characters, enough to tell two tokens apart in a list
+// without being enough to use.
+//
+// Scoping is the reason this is a table rather than a longer key:
+// `surface` pins a token to one inbound surface, and `profileKey` runs
+// that client's traffic through a named preference chain — a CI token on
+// cost-first while interactive traffic stays on the default.
+model AccessToken {
+  id           String    @id @default(cuid())
+  name         String
+  tokenHash    String    @unique
+  prefix       String
+  // InboundSurface.id this token may call. Null = every surface.
+  surface      String?
+  // RouterPreferenceProfile.key this token's traffic routes through.
+  // Null = the surface's own profile.
+  profileKey   String?
+  lastUsedAt   DateTime?
+  requestCount Int       @default(0)
+  expiresAt    DateTime?
+  // Set rather than deleted, so a revoked token's RequestLog rows keep
+  // pointing at something that says who they belonged to.
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([revokedAt])
+}
+
 // Per-surface routing behaviour.
 //
 // One row per InboundSurface the operator has overridden; a surface with
@@ -525,6 +558,13 @@ model RequestLog {
   // and Overview / Activity break traffic down per surface. Null on rows
   // written before this landed (untracked, not backfillable).
   surface          String?
+  // Which AccessToken served the request, when one did. Null for
+  // traffic authenticated by the envelope bootstrap token and for rows
+  // written before tokens existed. Not a foreign key: a token may be
+  // deleted outright, and losing the attribution is worse than keeping
+  // a dangling id that still tells you the requests came from one
+  // client.
+  accessTokenId    String?
   inputTokens      Int      @default(0)
   outputTokens     Int      @default(0)
   cacheReadTokens  Int      @default(0)

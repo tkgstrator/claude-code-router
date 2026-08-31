@@ -153,11 +153,13 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // session falls into the rollout bucket. Outside the bucket
     // (or when preferences resolve to nothing) we fall back to the
     // scenario router's output so behaviour degrades gracefully.
-    // Which preference profile this request's surface points at. A
-    // surface with no override resolves to the default profile, so this
-    // is the previous single-profile behaviour unless someone changed it.
+    // Which preference profile this request routes through. The token
+    // that authenticated the call wins when it names one — that is what
+    // makes per-client routing possible — otherwise the inbound
+    // surface's profile applies, which is the default for everyone.
     const surface = await resolveSurfaceForPath(req.inboundPath)
-    const profileKey = surface === undefined ? undefined : surface.profileKey
+    const surfaceProfile = surface === undefined ? undefined : surface.profileKey
+    const profileKey = req.profileKeyOverride !== undefined ? req.profileKeyOverride : surfaceProfile
 
     let model = scenarioResult.model
     let fallbacks: string[] = scenarioResult.fallbacks

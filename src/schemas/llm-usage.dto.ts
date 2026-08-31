@@ -90,6 +90,9 @@ export const UsageRecordSchema = z.object({
   // surfaces, which `inboundType` collapses into one bucket. Null for
   // pre-migration rows and for paths outside the registry.
   surface: z.string().nonempty().nullable(),
+  // Which AccessToken authenticated the request. Null for traffic on the
+  // envelope bootstrap token and for rows predating tokens.
+  accessTokenId: z.string().nonempty().nullable(),
   // Whether the request took the subagent lane (a <CCR-SUBAGENT-MODEL>
   // tag was present). Always known at write — the route builder stamps
   // it before the pipeline runs, so this stays a plain boolean.
