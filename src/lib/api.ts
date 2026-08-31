@@ -362,6 +362,108 @@ class ApiClient {
     const qs = q.toString()
     return this.get<RouterUtilizationResponse>(`/router-utilization${qs ? `?${qs}` : ''}`)
   }
+
+  // Overview screen. One call for the whole summary so its blocks all
+  // describe the same instant.
+  async getOverview(params?: { windowHours?: number }): Promise<OverviewResponse> {
+    const q = new URLSearchParams()
+    if (params?.windowHours != null) q.set('windowHours', String(params.windowHours))
+    const qs = q.toString()
+    return this.get<OverviewResponse>(`/overview${qs ? `?${qs}` : ''}`)
+  }
+
+  // Inbound surfaces + their effective routing mode.
+  async getInboundSurfaces(): Promise<{ surfaces: InboundSurfaceWire[] }> {
+    return this.get<{ surfaces: InboundSurfaceWire[] }>('/inbound-surfaces')
+  }
+
+  async updateInboundSurface(body: {
+    surface: SurfaceId
+    routingMode: RoutingMode
+    profileKey?: string | null
+  }): Promise<{ surfaces: InboundSurfaceWire[] }> {
+    return this.post<{ surfaces: InboundSurfaceWire[] }>('/inbound-surfaces', body)
+  }
+
+  // Display-only identity for the shell footer. Never a gate.
+  async getIdentity(): Promise<IdentityResponse> {
+    return this.get<IdentityResponse>('/identity')
+  }
+}
+
+export type SurfaceId = 'anthropic-messages' | 'openai-chat' | 'openai-responses' | 'gemini-generate'
+export type RoutingMode = 'routed' | 'passthrough'
+
+export interface InboundSurfaceWire {
+  id: SurfaceId
+  path: string
+  client: string
+  inboundType: 'anthropic' | 'openai' | 'gemini'
+  auth: 'x-api-key' | 'bearer' | 'google'
+  errorShape: 'anthropic' | 'openai' | 'google'
+  routingMode: RoutingMode
+  defaultRoutingMode: RoutingMode
+  profileKey: string
+  overridden: boolean
+}
+
+export interface IdentityResponse {
+  mode: 'cloudflare_access' | 'token'
+  email: string | null
+}
+
+export interface OverviewSurfaceTraffic {
+  id: string
+  path: string
+  client: string
+  routingMode: RoutingMode
+  requests: number
+  p50Ms: number | null
+  errorRate: number | null
+}
+
+export interface OverviewSpendRow {
+  label: 'today' | 'week' | 'month' | 'savedBySubscription'
+  usd: number | null
+}
+
+export interface OverviewQuotaRow {
+  subAccountId: string
+  account: string
+  window: string
+  pct: number
+  resetAt: string | null
+}
+
+export interface OverviewFailoverRow {
+  kind: 'rate_limit' | 'weight'
+  tone: 'bad' | 'warn'
+  label: string
+  headline: string
+  detail: string
+  at: string
+}
+
+export interface OverviewRecentSession {
+  sessionId: string
+  surface: string | null
+  model: string
+  turns: number
+  tokens: number
+  costUsd: number | null
+  lastAt: string
+}
+
+export interface OverviewResponse {
+  windowHours: number
+  generatedAt: string
+  providerCount: number
+  enabledModelCount: number
+  surfaces: OverviewSurfaceTraffic[]
+  spend: OverviewSpendRow[]
+  quota: OverviewQuotaRow[]
+  failover: OverviewFailoverRow[]
+  recentSessions: OverviewRecentSession[]
 }
 
 export interface RouterPreferenceEntryWire {

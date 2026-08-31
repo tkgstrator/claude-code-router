@@ -25,20 +25,27 @@
  * than dropped, unknown non-JSON becomes the message string verbatim.
  */
 
+import { surfaceForPath } from '@/llms/inbound/surfaces'
 import { isObject } from '@/llms/utils/guards'
 
 // ─── Shape resolution ─────────────────────────────────────────────────
 
 export type ErrorShape = 'openai' | 'anthropic'
 
-// Endpoints that speak the OpenAI wire format. Anything else (currently
-// only `/v1/messages` in this repo) defaults to the Anthropic shape,
-// which is the pre-existing behaviour that predates the OpenAI-compat
-// surface.
-const OPENAI_INBOUND_PATHS = new Set(['/v1/chat/completions', '/v1/responses', '/v1/models'])
+// `/v1/models` is a catalog read rather than a completion surface, so it
+// is not in the surface registry — but its callers are OpenAI SDKs and it
+// must answer in their envelope, so it stays listed here.
+const EXTRA_OPENAI_PATHS = new Set(['/v1/models'])
 
 export function errorShapeForPath(path: string | undefined): ErrorShape {
-  return typeof path === 'string' && OPENAI_INBOUND_PATHS.has(path) ? 'openai' : 'anthropic'
+  if (typeof path !== 'string') return 'anthropic'
+  if (EXTRA_OPENAI_PATHS.has(path)) return 'openai'
+  const shape = surfaceForPath(path)?.errorShape
+  // The google envelope is a third shape this module does not build yet
+  // (Phase 3). Until then a gemini-surface error answers in the Anthropic
+  // envelope, which is what the pre-registry code did for any unlisted
+  // path — deliberately unchanged behaviour, not a new fallback.
+  return shape === 'openai' ? 'openai' : 'anthropic'
 }
 
 // ─── Wire-body extraction ─────────────────────────────────────────────

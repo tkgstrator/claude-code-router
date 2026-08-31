@@ -22,6 +22,7 @@ import {
   type ScenarioType,
   type Transformer
 } from '../../llms'
+import { inboundTypeForPath, surfaceForPath } from '../../llms/inbound/surfaces'
 import { isLongContextDenied, isModelExhausted } from '../../services/failover-state'
 import { getActiveAccountForSession } from '../../services/session-account-router'
 import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
@@ -329,7 +330,8 @@ export function resolveInvocationForModel(
     scenarioType: plan.scenarioType,
     requestedModel: plan.requestedModel,
     isSubagent: plan.isSubagent,
-    inboundType: inboundTypeFromPath(plan.path)
+    inboundType: inboundTypeForSurface(plan.path),
+    surface: surfaceForPath(plan.path)?.id
   }
 
   return { body, headers, request, provider, transformer }
@@ -338,16 +340,18 @@ export function resolveInvocationForModel(
 const providerNameOf = (modelString: string): string => modelString.split(',')[0]
 const modelNameOf = (modelString: string): string => modelString.split(',').slice(1).join(',')
 
-// Persisted wire-type slug for a /v1 inbound path. `/v1/messages` is
-// the Anthropic surface Claude Code targets; `/v1/chat/completions`
-// and `/v1/responses` are the OpenAI-compat surfaces. Unknown paths
-// (never expected here, but the route helper is generic) return
-// undefined so RequestLog / Session stay null instead of falsely
-// tagging with one bucket.
-function inboundTypeFromPath(path: string): 'anthropic' | 'openai' | undefined {
-  if (path === '/v1/messages') return 'anthropic'
-  if (path === '/v1/chat/completions' || path === '/v1/responses') return 'openai'
-  return undefined
+// Persisted wire-type slug for a /v1 inbound path, from the surface
+// registry. Unknown paths (never expected here, but the route helper is
+// generic) return undefined so RequestLog / Session stay null instead of
+// being falsely bucketed.
+//
+// `PipelineRequest.inboundType` predates the gemini surface and is still
+// the two-value column the History filter reads, so a gemini request
+// records its wire type through `surface` alone until that column is
+// widened.
+function inboundTypeForSurface(path: string): 'anthropic' | 'openai' | undefined {
+  const inbound = inboundTypeForPath(path)
+  return inbound === 'gemini' ? undefined : inbound
 }
 
 // Ordered list of "provider,model" candidates for this request: the

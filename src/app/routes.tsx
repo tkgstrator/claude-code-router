@@ -21,6 +21,8 @@ import { RouterUtilization } from '@/components/RouterUtilization'
 import { RoutingLibrary } from '@/components/RoutingLibrary'
 import { RoutingLiveEditor } from '@/components/RoutingLiveEditor'
 import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
+import { Overview } from '@/components/rialto/Overview'
+import { RialtoShell } from '@/components/rialto/RialtoShell'
 import { SessionDetailPage } from '@/components/SessionDetail'
 import { SessionsPage } from '@/components/Sessions'
 import { SettingsPage } from '@/components/SettingsPage'
@@ -51,6 +53,18 @@ export const router = createBrowserRouter([
             <Login />
           </PublicRoute>
         )
+      },
+      {
+        // Rialto shell (Phase 5). New screens land here one at a time;
+        // the legacy AppShell below keeps serving every route that has
+        // not been rebuilt yet, so the app is usable throughout the
+        // migration rather than only at the end of it.
+        element: (
+          <ProtectedRoute>
+            <RialtoShell />
+          </ProtectedRoute>
+        ),
+        children: [{ path: '/overview', element: <Overview /> }]
       },
       {
         element: (

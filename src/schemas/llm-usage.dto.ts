@@ -85,6 +85,11 @@ export const UsageRecordSchema = z.object({
   // is not possible — the inbound path is not recoverable from stored
   // fields). Persisted on both RequestLog and Session (first-observed).
   inboundType: z.enum(['anthropic', 'openai']).nullable(),
+  // Which inbound surface the request arrived on, as an
+  // `InboundSurface.id` slug. Distinguishes the two OpenAI-compat
+  // surfaces, which `inboundType` collapses into one bucket. Null for
+  // pre-migration rows and for paths outside the registry.
+  surface: z.string().nonempty().nullable(),
   // Whether the request took the subagent lane (a <CCR-SUBAGENT-MODEL>
   // tag was present). Always known at write — the route builder stamps
   // it before the pipeline runs, so this stays a plain boolean.

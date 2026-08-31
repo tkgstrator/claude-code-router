@@ -14,7 +14,7 @@
     {
       "name": "overview",
       "mock": "overview.html",
-      "route": null,
+      "route": "/overview",
       "group": "Top level",
       "note": "New. Summary of the four inbound surfaces, quota, spend, failover."
     },
@@ -30,7 +30,7 @@
       "mock": "routing-passthrough.html",
       "route": null,
       "group": "Routing",
-      "note": "The passthrough half \u2014 today's hardcoded behaviour for chat/completions and responses, made visible and reversible."
+      "note": "The passthrough half — today's hardcoded behaviour for chat/completions and responses, made visible and reversible."
     },
     {
       "name": "routing-map",
@@ -58,7 +58,7 @@
       "mock": "providers-apikey.html",
       "route": null,
       "group": "Providers",
-      "note": "API-key provider detail \u2014 key field, real prices, per-model apiStyle override."
+      "note": "API-key provider detail — key field, real prices, per-model apiStyle override."
     },
     {
       "name": "providers-connect",
@@ -79,7 +79,7 @@
       "mock": "activity-requests.html",
       "route": null,
       "group": "Activity",
-      "note": "Per-request log with Requested \u2192 Sent, matched rule and token attribution."
+      "note": "Per-request log with Requested → Sent, matched rule and token attribution."
     },
     {
       "name": "activity-session",
@@ -121,7 +121,7 @@
       "mock": "settings-personas.html",
       "route": null,
       "group": "Settings",
-      "note": "Absorbs Personas + PersonaView + PersonaEdit \u2014 three routes for one object."
+      "note": "Absorbs Personas + PersonaView + PersonaEdit — three routes for one object."
     },
     {
       "name": "settings-statusline",

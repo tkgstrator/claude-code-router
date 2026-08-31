@@ -26,6 +26,7 @@
  */
 
 import type { FlatRouter } from '@/schemas'
+import { isRoutedPath } from '../services/inbound-surface-service'
 import { isSessionInRollout } from '../services/routing-scheduler/rollout'
 import { getRoutingSnapshot } from '../services/routing-scheduler/state'
 import { logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
@@ -114,15 +115,19 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     if (parts.length > 1) req.sessionId = parts[1]
   }
 
-  // Bypass for OpenAI-compat inbound: /v1/chat/completions and
-  // /v1/responses callers hand-pick their target with `provider,model`
-  // in body.model and expect that exact model to reach upstream — the
-  // scenario map, per-project overrides, rule stack, and quota-aware
-  // selector are all Anthropic-idiom conveniences that would silently
-  // rewrite the caller's choice. Skip the whole selector, leave
+  // Passthrough surfaces: the caller hand-picks its target with
+  // `provider,model` in body.model and expects that exact model to reach
+  // upstream — the scenario map, per-project overrides, rule stack, and
+  // quota-aware selector are all Anthropic-idiom conveniences that would
+  // silently rewrite the caller's choice. Skip the whole selector, leave
   // body.model as-is, and stamp default-scenario metadata so the
   // downstream pipeline has the fields it reads.
-  if (req.inboundPath === '/v1/chat/completions' || req.inboundPath === '/v1/responses') {
+  //
+  // Which surfaces those are is now configuration, not a constant. The
+  // shipped defaults reproduce the previous hardcoded list exactly
+  // (/v1/chat/completions and /v1/responses passthrough, /v1/messages
+  // routed); an operator can flip any surface from the Routing screen.
+  if (!(await isRoutedPath(req.inboundPath))) {
     req.scenarioType = 'default'
     req.isSubagent = false
     req.resolvedFallbacks = []

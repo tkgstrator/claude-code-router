@@ -103,6 +103,10 @@ export const PipelineRequestSchema = z.object({
   // Persisted on RequestLog / Session so the History view can filter
   // by inbound type without re-parsing the path from the payload.
   inboundType: z.enum(['anthropic', 'openai']).optional(),
+  // Which inbound surface the request arrived on, as an
+  // `InboundSurface.id` slug. Finer than `inboundType`, which cannot
+  // tell /v1/chat/completions from /v1/responses.
+  surface: z.enum(['anthropic-messages', 'openai-chat', 'openai-responses', 'gemini-generate']).optional(),
   sessionId: z.string().nonempty().optional(),
   tokenCount: z.number().optional()
 })

@@ -478,6 +478,22 @@ model Message {
 // Per-LLM-request stats: one row per upstream call that reaches the provider.
 // Stored for the History view (model, tokens, cost, cache).
 // No message content is ever stored here.
+// Per-surface routing behaviour.
+//
+// One row per InboundSurface the operator has overridden; a surface with
+// no row uses its descriptor's `defaultRoutingMode`, which keeps the
+// pre-Rialto behaviour (messages routed, everything else passthrough)
+// as the shipped default. `profileKey` selects which
+// RouterPreferenceProfile the surface's chain comes from — null means
+// the shared 'live' profile.
+model InboundSurfaceConfig {
+  id          String   @id @default(cuid())
+  surface     String   @unique
+  routingMode String
+  profileKey  String?
+  updatedAt   DateTime @updatedAt
+}
+
 model RequestLog {
   id               String   @id @default(cuid())
   sessionId        String
@@ -502,6 +518,13 @@ model RequestLog {
   // (untracked). Persisted so the History view can filter by inbound
   // type without re-parsing anything from the payload.
   inboundType      String?
+  // Which inbound surface the request arrived on, as an
+  // `InboundSurface.id` slug (see src/llms/inbound/surfaces.ts). Finer
+  // than `inboundType`: /v1/chat/completions and /v1/responses are both
+  // 'openai' but are separate surfaces with independent routing modes,
+  // and Overview / Activity break traffic down per surface. Null on rows
+  // written before this landed (untracked, not backfillable).
+  surface          String?
   inputTokens      Int      @default(0)
   outputTokens     Int      @default(0)
   cacheReadTokens  Int      @default(0)
@@ -515,6 +538,7 @@ model RequestLog {
   @@index([createdAt])
   @@index([sessionId])
   @@index([provider, model])
+  @@index([surface, createdAt])
 }
 
 // Time series of subscription utilization, captured on an interval so

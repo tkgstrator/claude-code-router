@@ -1,0 +1,105 @@
+/**
+ * GET /api/overview — everything the Overview screen renders.
+ *
+ * One endpoint rather than five, because the screen is a single summary
+ * and five parallel round-trips would let its blocks disagree about which
+ * instant they describe.
+ */
+
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { getOverview } from '../../services/overview-service'
+
+const SurfaceTrafficSchema = z
+  .object({
+    id: z.string().nonempty(),
+    path: z.string().nonempty(),
+    client: z.string().nonempty(),
+    routingMode: z.enum(['routed', 'passthrough']),
+    requests: z.number().int().nonnegative(),
+    p50Ms: z.number().int().nonnegative().nullable(),
+    errorRate: z.number().min(0).max(1).nullable()
+  })
+  .openapi('OverviewSurfaceTraffic')
+
+const SpendSchema = z
+  .object({
+    label: z.enum(['today', 'week', 'month', 'savedBySubscription']),
+    usd: z.number().nullable()
+  })
+  .openapi('OverviewSpend')
+
+const QuotaSchema = z
+  .object({
+    subAccountId: z.string().nonempty(),
+    account: z.string().nonempty(),
+    window: z.string().nonempty(),
+    pct: z.number().min(0).max(100),
+    resetAt: z.string().nonempty().nullable()
+  })
+  .openapi('OverviewQuota')
+
+const FailoverSchema = z
+  .object({
+    kind: z.enum(['rate_limit', 'weight']),
+    tone: z.enum(['bad', 'warn']),
+    label: z.string().nonempty(),
+    headline: z.string().nonempty(),
+    detail: z.string().nonempty(),
+    at: z.string().min(0)
+  })
+  .openapi('OverviewFailover')
+
+const RecentSessionSchema = z
+  .object({
+    sessionId: z.string().nonempty(),
+    surface: z.string().nonempty().nullable(),
+    model: z.string().nonempty(),
+    turns: z.number().int().nonnegative(),
+    tokens: z.number().int().nonnegative(),
+    costUsd: z.number().nullable(),
+    lastAt: z.string().nonempty()
+  })
+  .openapi('OverviewRecentSession')
+
+const ResponseSchema = z
+  .object({
+    windowHours: z.number().int().positive(),
+    generatedAt: z.string().nonempty(),
+    providerCount: z.number().int().nonnegative(),
+    enabledModelCount: z.number().int().nonnegative(),
+    surfaces: z.array(SurfaceTrafficSchema),
+    spend: z.array(SpendSchema),
+    quota: z.array(QuotaSchema),
+    failover: z.array(FailoverSchema),
+    recentSessions: z.array(RecentSessionSchema)
+  })
+  .openapi('OverviewResponse')
+
+export const overviewRoute = new OpenAPIHono()
+
+overviewRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/overview',
+    request: {
+      query: z.object({
+        windowHours: z.coerce
+          .number()
+          .int()
+          .positive()
+          .max(24 * 30)
+          .default(24)
+      })
+    },
+    responses: {
+      200: {
+        description: 'Traffic, spend, quota and failover summary for the requested window',
+        content: { 'application/json': { schema: ResponseSchema } }
+      }
+    }
+  }),
+  async (c) => {
+    const { windowHours } = c.req.valid('query')
+    return c.json(await getOverview(windowHours), 200)
+  }
+)

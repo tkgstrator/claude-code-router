@@ -7,11 +7,14 @@ import { apiKeyAuth, openaiBearerAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
 import { healthRoute } from './api/health/route'
+import { identityRoute } from './api/identity/route'
+import { inboundSurfacesRoute } from './api/inbound-surfaces/route'
 import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
 import { modelTestAllRoute } from './api/models/test-all/route'
 import { oauthRoute } from './api/oauth/route'
+import { overviewRoute } from './api/overview/route'
 import { providerModelRoute } from './api/providers/[name]/models/[model]/route'
 import { providerByNameRoute } from './api/providers/[name]/route'
 import { providersRoute } from './api/providers/route'
@@ -161,6 +164,9 @@ app.route('/', routerPreferencesRoute)
 app.route('/', routerUtilizationRoute)
 app.route('/', routingSchedulerStateRoute)
 app.route('/', solverInputRoute)
+app.route('/', overviewRoute)
+app.route('/', inboundSurfacesRoute)
+app.route('/', identityRoute)
 app.route('/', oauthRoute)
 
 // OpenAI-compat GET /v1/models — mounted BEFORE v1Route so the wildcard
