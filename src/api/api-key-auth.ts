@@ -102,7 +102,10 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
   // A browser on the machine Rialto runs on does not have to
   // authenticate to itself. See local-access.ts for why the test is not
   // simply "is the peer loopback" — with a tunnel in front, it always is.
-  if (isLocalRequest(c)) return next()
+  if (isLocalRequest(c)) {
+    c.set('authVia', 'local')
+    return next()
+  }
 
   const config = readAccessConfig()
   if (config !== null) {
@@ -110,6 +113,7 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
     if (typeof assertion === 'string' && assertion.length > 0) {
       const identity = await verifyAccessJwt(assertion, config)
       if (identity !== null) {
+        c.set('authVia', 'cloudflare_access')
         c.set('accessEmail', identity.email)
         return next()
       }
@@ -126,6 +130,7 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
     const err = unauthorizedResponse('anthropic')
     return c.json(err.body, err.status)
   }
+  c.set('authVia', 'token')
   return next()
 }
 

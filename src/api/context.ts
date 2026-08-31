@@ -9,9 +9,20 @@
 
 import type { ResolvedToken } from '../services/access-token-service'
 
+/**
+ * How an /api request got past the gate.
+ *
+ * Three distinct answers, and the screen that reports them was
+ * conflating two: `local` means no credential was presented or needed,
+ * which is not the same as one having been checked.
+ */
+export type AuthVia = 'local' | 'cloudflare_access' | 'token'
+
 declare module 'hono' {
   interface ContextVariableMap {
-    /** Email from a verified Access assertion. Absent on the token path. */
+    /** Which path admitted this request. */
+    authVia: AuthVia
+    /** Email from a verified Access assertion. Absent on the other paths. */
     accessEmail: string | null
     /** The issued token that authenticated a /v1 call, when one did. */
     accessToken: ResolvedToken

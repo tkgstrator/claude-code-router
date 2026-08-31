@@ -40,21 +40,36 @@ import { type EnvelopeWire, SECRET_MASK } from '@/lib/rialto/settings/envelope'
 
 const ZERO_TRUST_URL = 'https://one.dash.cloudflare.com/'
 
+// Three ways in, and they are not interchangeable. Reporting a local
+// request as "bootstrap token" claimed a credential had been checked
+// when none was presented at all.
+const VIA = {
+  cloudflare_access: {
+    icon: 'ri-shield-check-line text-sm text-emerald-600 dark:text-emerald-400',
+    fallbackLabel: 'verified identity',
+    pill: <Pill tone='ok'>verified</Pill>
+  },
+  local: {
+    icon: 'ri-computer-line text-sm text-muted-foreground',
+    fallbackLabel: 'this machine',
+    pill: <Pill tone='mute'>no credential needed</Pill>
+  },
+  token: {
+    icon: 'ri-key-2-line text-sm text-muted-foreground',
+    fallbackLabel: 'bootstrap token',
+    pill: <Pill tone='mute'>no Access identity</Pill>
+  }
+} as const
+
 function SignedInAs({ identity }: { identity: IdentityResponse | null }) {
   if (identity === null) return <span className='text-[11px] text-muted-foreground'>Checking…</span>
 
-  const viaAccess = identity.mode === 'cloudflare_access'
+  const via = VIA[identity.mode]
   return (
     <div className='flex items-center gap-2'>
-      <i
-        className={
-          viaAccess
-            ? 'ri-shield-check-line text-sm text-emerald-600 dark:text-emerald-400'
-            : 'ri-key-2-line text-sm text-muted-foreground'
-        }
-      />
-      <span className='font-mono text-xs'>{identity.email === null ? 'bootstrap token' : identity.email}</span>
-      {viaAccess ? <Pill tone='ok'>verified</Pill> : <Pill tone='mute'>no Access identity</Pill>}
+      <i className={via.icon} />
+      <span className='font-mono text-xs'>{identity.email === null ? via.fallbackLabel : identity.email}</span>
+      {via.pill}
     </div>
   )
 }

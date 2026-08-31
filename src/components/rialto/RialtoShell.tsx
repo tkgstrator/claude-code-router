@@ -59,19 +59,23 @@ function NavItem({ item }: { item: NavEntry }) {
  * Access) and in the API-key middleware, never in a rendered string.
  */
 function IdentityRow({ identity }: { identity: IdentityResponse | null }) {
-  const authed = identity?.mode === 'cloudflare_access'
+  const mode = identity === null ? null : identity.mode
+  // A local request presents no credential, so labelling it 'token' said
+  // one had been checked when none was.
+  const icon =
+    mode === 'cloudflare_access'
+      ? 'ri-shield-check-line text-emerald-500'
+      : mode === 'local'
+        ? 'ri-computer-line text-muted-foreground'
+        : 'ri-key-2-line text-muted-foreground'
+  const label = mode === 'cloudflare_access' ? 'Access' : mode === 'local' ? 'local' : 'token'
   return (
     <div className='flex items-center gap-2 rounded-md px-2.5 py-2'>
-      <i
-        className={cn(
-          'shrink-0 text-sm leading-none',
-          authed ? 'ri-shield-check-line text-emerald-500' : 'ri-key-2-line text-muted-foreground'
-        )}
-      />
-      <span className='truncate text-xs text-sidebar-foreground/70'>{identity?.email ? identity.email : 'local'}</span>
-      <span className='ml-auto shrink-0 font-mono text-[10px] text-muted-foreground'>
-        {authed ? 'Access' : 'token'}
+      <i className={cn('shrink-0 text-sm leading-none', icon)} />
+      <span className='truncate text-xs text-sidebar-foreground/70'>
+        {identity?.email ? identity.email : 'this machine'}
       </span>
+      <span className='ml-auto shrink-0 font-mono text-[10px] text-muted-foreground'>{label}</span>
     </div>
   )
 }
