@@ -27,7 +27,9 @@ export function SettingsLayout({
   subtitle,
   actions,
   headerNote,
+  headerBadge,
   headerActions,
+  showHeading = true,
   children
 }: {
   active: string
@@ -37,8 +39,16 @@ export function SettingsLayout({
   actions?: ReactNode
   /** The one-line explanation beside the section heading. */
   headerNote?: ReactNode
+  /** Status pill beside the section heading (Access shows one). */
+  headerBadge?: ReactNode
   /** Actions for the section heading row (Restart, Save, …). */
   headerActions?: ReactNode
+  /**
+   * Sections whose own first element is a tab strip (Advanced) open
+   * straight into it — a heading above the strip is not in the design
+   * and would push everything below it out of alignment with the rest.
+   */
+  showHeading?: boolean
   children: ReactNode
 }) {
   const section = SETTINGS_RAIL.find((r) => r.id === active)
@@ -51,11 +61,14 @@ export function SettingsLayout({
           ))}
         </aside>
         <div className='min-w-0 overflow-y-auto'>
-          <div className='flex items-center gap-3 px-6 pt-6 pb-3'>
-            <h2 className='text-sm font-semibold'>{section === undefined ? '' : section.label}</h2>
-            {headerNote ? <span className='text-[11px] text-muted-foreground'>{headerNote}</span> : null}
-            {headerActions ? <div className='ml-auto'>{headerActions}</div> : null}
-          </div>
+          {showHeading ? (
+            <div className='flex items-center gap-3 px-6 pt-6 pb-3'>
+              <h2 className='text-sm font-semibold'>{section === undefined ? '' : section.label}</h2>
+              {headerBadge}
+              {headerNote ? <span className='text-[11px] text-muted-foreground'>{headerNote}</span> : null}
+              {headerActions ? <div className='ml-auto'>{headerActions}</div> : null}
+            </div>
+          ) : null}
           {children}
         </div>
       </div>
