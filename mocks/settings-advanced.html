@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Advanced</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn, railItem, SETTINGS_RAIL, tabs } = window.Shell
+
+// Absorbs DebugPage + JsonEditor + the debug/ sub-components. Two things
+// live here: the raw config document, and a request scratchpad for
+// reproducing a routing decision without a client.
+const CONFIG = `{
+  // Boot scalars. Everything else — providers, models, routing — is
+  // in Postgres and edited from the screens above.
+  HOST: "0.0.0.0",
+  PORT: 3456,
+  RIALTO_TOKEN: "$RIALTO_TOKEN",
+  LOG: true,
+  LOG_LEVEL: "info",
+  API_TIMEOUT_MS: 600000,
+  PROXY_URL: null,
+  NON_INTERACTIVE_MODE: false,
+
+  StatusLine: {
+    modules: [
+      { type: "cwd" },
+      { type: "gitBranch" },
+      { type: "model", color: "#38bdf8", stripProvider: true },
+      { type: "quota", color: "#34d399" },
+      { type: "cost",  color: "#fbbf24" }
+    ]
+  }
+}`
+
+const line = (n, text) => `
+  <div class="flex hover:bg-muted/40">
+    <span class="w-10 shrink-0 select-none py-0.5 pr-3 text-right font-mono text-[11px] tabular-nums text-muted-foreground/50">${n}</span>
+    <span class="min-w-0 flex-1 whitespace-pre py-0.5 font-mono text-[11px]">${text || ' '}</span>
+  </div>`
+
+document.getElementById('root').innerHTML = `
+  <div class="grid h-full grid-cols-[13rem_1fr]">
+
+    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
+      ${SETTINGS_RAIL.map((r) => railItem(r, 'advanced')).join('')}
+    </aside>
+
+    <div class="min-w-0 overflow-y-auto">
+      <div class="flex items-center gap-1 border-b border-border px-6">
+        ${tabs([
+          { id: 'config', label: 'Config document' },
+          { id: 'scratch', label: 'Request scratchpad' },
+          { id: 'health', label: 'Health' }
+        ], 'config')}
+      </div>
+
+      <div class="flex items-center gap-3 border-b border-border px-6 py-3">
+        <span class="font-mono text-[11px] text-muted-foreground">~/.rialto/config.json</span>
+        ${pill('JSON5', 'mute')}
+        ${pill('valid', 'ok')}
+        <span class="text-[11px] text-muted-foreground">3 backups kept</span>
+        <div class="ml-auto flex gap-2">
+          ${btn('Reload', 'ghost', 'ri-refresh-line')}
+          ${btn('Format', 'ghost', 'ri-code-line')}
+          ${btn('Save', 'primary', 'ri-check-line')}
+        </div>
+      </div>
+
+      <div class="border-b border-border py-2">
+        ${CONFIG.split('\\n').map((t, i) => line(i + 1, t.replace(/</g, '&lt;'))).join('')}
+      </div>
+
+      <div class="px-6 py-4">
+        <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+          <i class="ri-information-line mr-1 align-[-1px]"></i>
+          Comments survive round-trips (JSON5) and <span class="font-mono">$VAR</span> is
+          interpolated at boot, so a key can live in the environment rather than this file.
+          Changes here need a restart — the screens above apply live.
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 border-t border-border px-6 pt-5 pb-3">
+        <h2 class="text-sm font-semibold">Danger zone</h2>
+      </div>
+      ${[
+        ['Reset routing', 'Clears every chain, rule and profile back to the seeded defaults. Providers and accounts are kept.'],
+        ['Re-seed model catalog', 'Drops scraped models and prices, then re-runs the seed. Enabled flags are lost.'],
+        ['Purge captured data', 'Deletes every session, message and request log. Usage history and cost totals go with it.']
+      ].map(([label, hint]) => `
+        <div class="grid grid-cols-[1fr_auto] items-center gap-6 border-t border-border/60 px-6 py-4">
+          <div>
+            <div class="text-xs font-medium">${label}</div>
+            <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">${hint}</div>
+          </div>
+          <button class="inline-flex h-8 items-center rounded-md border border-destructive/40 px-3 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10">
+            ${label.split(' ')[0]}
+          </button>
+        </div>`).join('')}
+      <div class="h-10"></div>
+    </div>
+
+  </div>`
+
+renderShell({
+  active: 'settings',
+  title: 'Advanced',
+  subtitle: '~/.rialto/config.json · JSON5',
+  actions: btn('Backups', 'ghost', 'ri-history-line') + btn('Save', 'primary', 'ri-check-line')
+})
+</script>
+</body>
+</html>

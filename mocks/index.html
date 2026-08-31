@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto UI mocks</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+
+// Grouped by the five top-level screens of the new IA, plus the
+// shell-less system routes. `replaces` names the existing components each
+// view absorbs — the point of this review is that nothing was dropped.
+const GROUPS = [
+  {
+    "name": "Top level",
+    "screens": [
+      {
+        "file": "overview.html",
+        "title": "Overview",
+        "replaces": "新規",
+        "why": "4つのinbound面・クォータ・コスト・failoverを1枚で。「いまルーティングがどの面に効いているか」が最初に目に入る。"
+      }
+    ]
+  },
+  {
+    "name": "Routing",
+    "screens": [
+      {
+        "file": "routing.html",
+        "title": "Chain",
+        "replaces": "RouterPreferences / TierEditor / RouterUtilization",
+        "why": "最上位の軸を inbound面 にした。この画面が「設定が messages 専用」問題の解消点。"
+      },
+      {
+        "file": "routing-passthrough.html",
+        "title": "Chain (passthrough)",
+        "replaces": "—",
+        "why": "ルーターが効かない側の表示。今日 chat/completions と responses にハードコードされている挙動を、見えて切り替えられる状態にした。"
+      },
+      {
+        "file": "routing-map.html",
+        "title": "Map",
+        "replaces": "RoutingLibrary / RoutingLiveEditor / RoutingPresetEditor",
+        "why": "グラフの左端に inbound面 の列を足した。旧マップはシナリオから始まっていて、4面のうち3面がグラフに入っていないことを表現できなかった。"
+      },
+      {
+        "file": "routing-rules.html",
+        "title": "Rules",
+        "replaces": "routing-map/RuleEditor",
+        "why": "先勝ちの順序が主役なのでリストを一級にし、編集は右ペイン。テスターを付けた（順序は試さないと分からない）。"
+      }
+    ]
+  },
+  {
+    "name": "Providers",
+    "screens": [
+      {
+        "file": "providers.html",
+        "title": "Subscription",
+        "replaces": "Providers / Subscriptions / ModelsDashboard / Transformers / catalog",
+        "why": "左でプロバイダ、右でアカウントとモデル。transformer 選択欄は廃止し、apiStyle から導出した読み取り専用の Request shape にした。"
+      },
+      {
+        "file": "providers-apikey.html",
+        "title": "API key",
+        "replaces": "EditProviderDialog / ApiKeyModelsSection",
+        "why": "サブスクとは中身が違う（キー欄・実価格・モデル数）ので別モック。価格は in / cached / out を独立列に。"
+      },
+      {
+        "file": "providers-connect.html",
+        "title": "Add provider",
+        "replaces": "ConnectChoiceDialog / ProviderConnectFlow / ImportCredentialsDialog / ManualCallbackDialog / ManageProvidersDialog",
+        "why": "入れ子ダイアログ4枚を3ステップの1画面に。分岐も失敗も表示できる形にした。"
+      }
+    ]
+  },
+  {
+    "name": "Activity",
+    "screens": [
+      {
+        "file": "activity.html",
+        "title": "Sessions",
+        "replaces": "Sessions / Usage / ApiCost",
+        "why": "同じ問いをズーム倍率だけ変えて見ていた画面を、共通フィルタ + タブに統合。"
+      },
+      {
+        "file": "activity-requests.html",
+        "title": "Requests",
+        "replaces": "RequestHistoryDrawer / usage/ModelRoutingSection",
+        "why": "1行=1上流コール。Requested → Sent / 一致したルール / トークン の3列が新規。"
+      },
+      {
+        "file": "activity-session.html",
+        "title": "Session detail",
+        "replaces": "SessionDetail",
+        "why": "右ペインの routing trace が新規。「なぜこのターンがそのモデルに行ったか」がログを読まずに分かる。"
+      },
+      {
+        "file": "activity-logs.html",
+        "title": "Logs",
+        "replaces": "LogViewer / LogFileList / Breadcrumbs / RequestGroupList / LogEditor",
+        "why": "リクエストID単位でグループ化。429 とその後の成功リトライが1つの塊として読める。"
+      }
+    ]
+  },
+  {
+    "name": "Settings",
+    "screens": [
+      {
+        "file": "settings.html",
+        "title": "Server",
+        "replaces": "SettingsPage",
+        "why": "ブート時スカラーとデータの所在。HOME_DIR 移行の告知もここ。"
+      },
+      {
+        "file": "settings-access.html",
+        "title": "Access",
+        "replaces": "新規",
+        "why": "トークンを複数発行し、面とルーティングプロファイルにスコープする。個別失効と帰属が取れる。"
+      },
+      {
+        "file": "settings-logging.html",
+        "title": "Logging",
+        "replaces": "SettingsPage の一部",
+        "why": "ログレベルに加えて、記録内容と保持期間。今は RequestLog / Message が無制限に増える。"
+      },
+      {
+        "file": "settings-personas.html",
+        "title": "Personas",
+        "replaces": "Personas / PersonaView / PersonaEdit",
+        "why": "1つのオブジェクトに3ルートあったのを、リスト+エディタの1画面に。"
+      },
+      {
+        "file": "settings-statusline.html",
+        "title": "Status line",
+        "replaces": "StatusLineConfigDialog + 6コンポーネント",
+        "why": "モーダルを3ペインエディタに。レンダリング結果を見ずにステータスラインは設計できない。"
+      },
+      {
+        "file": "settings-presets.html",
+        "title": "Presets",
+        "replaces": "Presets + 6ダイアログ",
+        "why": "ダイアログの中のダイアログだった入力フォームをインライン化。適用前に差分を出す。"
+      },
+      {
+        "file": "settings-advanced.html",
+        "title": "Advanced",
+        "replaces": "DebugPage / JsonEditor",
+        "why": "生の設定ドキュメントと danger zone。"
+      }
+    ]
+  },
+  {
+    "name": "System",
+    "screens": [
+      {
+        "file": "setup.html",
+        "title": "First run",
+        "replaces": "SetupDialog",
+        "why": "何も分かっていない唯一の瞬間なので、質問の前に Rialto が何かを述べる。"
+      },
+      {
+        "file": "system-states.html",
+        "title": "System states",
+        "replaces": "OauthResultPage / ErrorPage / Login",
+        "why": "OAuth 成功/失敗・Access拒否・404・API到達不可。ログイン画面は無い — Cloudflare Access がエッジで認証するので、アプリはフォームを描画しない。"
+      }
+    ]
+  }
+]
+
+const card = (s) => `
+  <a href="${s.file}" class="block border-l-2 border-l-transparent px-5 py-3.5 transition-colors hover:border-l-foreground hover:bg-muted/50">
+    <div class="flex items-baseline gap-3">
+      <h3 class="text-sm font-medium">${s.title}</h3>
+      <span class="font-mono text-[11px] text-muted-foreground">${s.file}</span>
+      <i class="ri-arrow-right-up-line ml-auto text-sm text-muted-foreground"></i>
+    </div>
+    <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">${s.why}</p>
+    <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground/70">
+      <span class="uppercase tracking-wider">統合元</span> · ${s.replaces}
+    </p>
+  </a>`
+
+const group = (g) => `
+  <section class="mt-8">
+    <div class="flex items-baseline gap-3 border-b border-border px-5 pb-2">
+      <h2 class="text-xs font-semibold uppercase tracking-wider">${g.name}</h2>
+      <span class="font-mono text-[11px] text-muted-foreground">${g.screens.length}</span>
+    </div>
+    ${g.screens.map(card).join('')}
+  </section>`
+
+document.getElementById('root').innerHTML = `
+<div class="mx-auto min-h-screen max-w-3xl px-8 py-12">
+
+  <div class="flex items-center gap-2.5">
+    <div class="flex size-7 items-center justify-center rounded bg-foreground text-background">
+      <i class="ri-route-line text-base leading-none"></i>
+    </div>
+    <h1 class="text-lg font-semibold tracking-tight">Rialto UI mocks</h1>
+    <span class="ml-auto font-mono text-[11px] text-muted-foreground">v3.0.0 draft · 22 views</span>
+  </div>
+
+  <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
+    既存の22ルート + ダイアログ群を、5つのトップレベル画面に集約する提案です。実装前のレビュー用で、
+    データはすべてダミー、操作はできません。プロジェクト本体と同じ Tailwind・同じデザイントークンで
+    ビルドしているので、見た目はそのまま実装ターゲットになります。
+  </p>
+
+  <div class="mt-4 rounded-md border border-border px-4 py-3">
+    <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">確認していただきたい点</div>
+    <ul class="mt-2 space-y-1 text-xs leading-relaxed text-muted-foreground">
+      <li>1. 5画面への集約の粒度（分けすぎ / まとめすぎがないか）</li>
+      <li>2. Routing の最上位軸を「inbound面」にしたこと</li>
+      <li>3. 情報密度（1440×900 で足りているか、詰まりすぎていないか）</li>
+      <li>4. フラット表現（shadcn Card なし、border-l アクセント）で問題ないか</li>
+      <li>5. Providers から transformer 選択欄を外し、読み取り専用の Request shape にしたこと</li>
+      <li>6. 各「統合元」の機能が落ちていないか — 今回いちばん見てほしい点です</li>
+    </ul>
+  </div>
+
+  ${GROUPS.map(group).join('')}
+
+  <div class="mt-10 border-t border-border pt-5 text-[11px] leading-relaxed text-muted-foreground">
+    テーマ:
+    <button id="toggle" class="rounded border border-border px-2 py-0.5 text-foreground transition-colors hover:bg-muted/60">
+      切り替え <span id="toggle-label" class="font-mono opacity-60"></span>
+    </button>
+    <span class="opacity-60">— 選択は全画面に引き継がれます。初期値はOSの設定に従います。</span>
+    <div class="mt-3">
+      計画書: <span class="font-mono">docs/plan/rialto/master-plan.md</span> §5 Phase 5<br>
+      スクショ差分スキル: <span class="font-mono">.claude/skills/ui-mock-diff/SKILL.md</span>
+    </div>
+  </div>
+
+</div>`
+
+const label = document.getElementById('toggle-label')
+const paint = () => { label.textContent = window.Shell.currentTheme() }
+paint()
+document.getElementById('toggle').addEventListener('click', () => {
+  window.Shell.toggleTheme()
+  paint()
+})
+</script>
+</body>
+</html>

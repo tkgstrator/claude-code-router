@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Provider (API key)</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, meter, btn } = window.Shell
+
+// The api_key half of Providers. Differs from the subscription detail in
+// three ways that matter: a key field instead of accounts, real prices
+// instead of "—", and a much longer model list that needs filtering.
+const PROVIDERS = [
+  { id: 'claude-code', label: 'Claude Code', vendor: 'Anthropic', auth: 'subscription', plan: 'Max',    models: '6 / 7',  quota: 71, state: 'live',    active: false },
+  { id: 'codex',       label: 'Codex',       vendor: 'OpenAI',    auth: 'subscription', plan: 'Pro',    models: '1 / 4',  quota: 88, state: 'live',    active: false },
+  { id: 'gemini-cli',  label: 'Gemini CLI',  vendor: 'Google',    auth: 'subscription', plan: 'AI Pro', models: '3 / 5',  quota: 12, state: 'invalid', active: false },
+  { id: 'anthropic',   label: 'Anthropic',   vendor: 'Anthropic', auth: 'api_key', plan: null, models: '4 / 12', quota: null, state: 'live',    active: false },
+  { id: 'openai',      label: 'OpenAI',      vendor: 'OpenAI',    auth: 'api_key', plan: null, models: '5 / 18', quota: null, state: 'live',    active: true },
+  { id: 'google',      label: 'Google',      vendor: 'Google',    auth: 'api_key', plan: null, models: '4 / 9',  quota: null, state: 'live',    active: false },
+  { id: 'deepseek',    label: 'DeepSeek',    vendor: 'DeepSeek',  auth: 'api_key', plan: null, models: '0 / 3',  quota: null, state: 'unknown', active: false }
+]
+const stateTone = { live: 'ok', invalid: 'bad', unknown: 'mute' }
+
+const providerRow = (p) => `
+  <button class="block w-full border-l-2 px-4 py-3 text-left transition-colors ${
+    p.active ? 'border-l-foreground bg-muted/60' : 'border-l-transparent hover:border-l-border hover:bg-muted/50'
+  }">
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-medium">${p.label}</span>
+      ${p.plan ? pill(p.plan, 'info') : ''}
+      <span class="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">${p.models}</span>
+    </div>
+    <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+      <span>${p.auth === 'subscription' ? 'OAuth' : 'API key'}</span>
+      <span class="opacity-40">·</span>
+      <span>${p.vendor}</span>
+      <span class="ml-auto">${pill(p.state, stateTone[p.state])}</span>
+    </div>
+    ${p.quota === null ? '' : `<div class="mt-2">${meter(p.quota)}</div>`}
+  </button>`
+
+// Prices are per 1M tokens, each in its own right-aligned column.
+const MODELS = [
+  { name: 'gpt-5.5',        tier: 'opus',   ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
+  { name: 'gpt-5.4',        tier: 'sonnet', ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
+  { name: 'gpt-5.4-mini',   tier: 'haiku',  ctx: '400k', inp: '$0.250', cache: '$0.0250', out: '$2.00', style: '—',      test: 'ok',      on: true },
+  { name: 'gpt-5.3-codex',  tier: 'opus',   ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: 'responses', test: 'ok',     on: true },
+  { name: 'gpt-5.2',        tier: 'sonnet', ctx: '272k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
+  { name: 'gpt-4.1',        tier: 'sonnet', ctx: '1M',   inp: '$2.00', cache: '$0.500', out: '$8.00', style: '—',        test: 'unknown', on: false, legacy: true },
+  { name: 'gpt-4.1-mini',   tier: 'haiku',  ctx: '1M',   inp: '$0.400', cache: '$0.100', out: '$1.60', style: '—',       test: 'unknown', on: false, legacy: true },
+  { name: 'o3-deep-research', tier: 'opus', ctx: '200k', inp: '$10.0', cache: '$2.50',  out: '$40.0', style: 'responses', test: 'fail',   on: false }
+]
+const testIcon = {
+  ok: '<i class="ri-check-line text-emerald-600 dark:text-emerald-400"></i>',
+  fail: '<i class="ri-close-line text-destructive"></i>',
+  unknown: '<i class="ri-subtract-line text-muted-foreground/50"></i>'
+}
+
+const modelRow = (m) => `
+  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50 ${m.on ? '' : 'opacity-45'}">
+    <td class="py-2.5 pl-6 pr-2">
+      <div class="flex items-center gap-2">
+        <span class="font-mono text-xs">${m.name}</span>
+        ${m.legacy ? pill('legacy', 'mute') : ''}
+      </div>
+    </td>
+    <td class="px-2">${pill(m.tier, 'mute')}</td>
+    <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.ctx}</td>
+    <td class="px-2 text-right font-mono text-xs tabular-nums">${m.inp}</td>
+    <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.cache}</td>
+    <td class="px-2 text-right font-mono text-xs tabular-nums">${m.out}</td>
+    <td class="px-2 font-mono text-[11px] text-muted-foreground">${m.style}</td>
+    <td class="px-2 text-center text-sm leading-none">${testIcon[m.test]}</td>
+    <td class="py-2.5 pl-2 pr-6 text-right">
+      <span class="inline-flex h-4 w-7 items-center rounded-full ${m.on ? 'bg-foreground' : 'bg-muted-foreground/30'} px-0.5 align-middle">
+        <span class="size-3 rounded-full bg-background ${m.on ? 'translate-x-3' : ''}"></span>
+      </span>
+    </td>
+  </tr>`
+
+const models = `
+  <table class="w-full table-fixed">
+    <colgroup><col><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-24"><col class="w-14"><col class="w-16"></colgroup>
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+        <th class="pb-2 pl-6 pr-2 text-left font-medium">Model</th>
+        <th class="px-2 text-left font-medium">Tier</th>
+        <th class="px-2 text-right font-medium">Context</th>
+        <th class="px-2 text-right font-medium">In /1M</th>
+        <th class="px-2 text-right font-medium">Cached</th>
+        <th class="px-2 text-right font-medium">Out /1M</th>
+        <th class="px-2 text-left font-medium">Override</th>
+        <th class="px-2 text-center font-medium">Test</th>
+        <th class="pb-2 pl-2 pr-6 text-right font-medium">On</th>
+      </tr>
+    </thead>
+    <tbody>${MODELS.map(modelRow).join('')}</tbody>
+  </table>`
+
+document.getElementById('root').innerHTML = `
+  <div class="grid h-full grid-cols-[18rem_1fr]">
+
+    <aside class="min-w-0 overflow-y-auto border-r border-border">
+      <div class="flex items-center gap-2 px-4 pt-5 pb-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Subscriptions</h2>
+        <span class="ml-auto font-mono text-[10px] text-muted-foreground">3</span>
+      </div>
+      ${PROVIDERS.filter((p) => p.auth === 'subscription').map(providerRow).join('')}
+      <div class="mt-2 flex items-center gap-2 border-t border-border px-4 pt-5 pb-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">API keys</h2>
+        <span class="ml-auto font-mono text-[10px] text-muted-foreground">4</span>
+      </div>
+      ${PROVIDERS.filter((p) => p.auth === 'api_key').map(providerRow).join('')}
+      <div class="p-4">${btn('Add provider', 'outline', 'ri-add-line')}</div>
+    </aside>
+
+    <div class="min-w-0 overflow-y-auto">
+      <div class="flex items-center gap-3 border-b border-border px-6 py-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-sm font-semibold">OpenAI</h2>
+            ${pill('api key', 'mute')}
+            ${pill('live', 'ok')}
+          </div>
+          <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">https://api.openai.com/v1/chat/completions</p>
+        </div>
+        <div class="ml-auto flex gap-2">
+          ${btn('Test all', 'outline', 'ri-pulse-line')}
+          ${btn('Sync models', 'ghost', 'ri-refresh-line')}
+          ${btn('Remove', 'ghost', 'ri-delete-bin-line')}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 border-b border-border">
+        <div class="border-r border-border">
+          <div class="px-6 pt-5 pb-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Credentials</h3>
+          </div>
+          <div class="space-y-3 px-6 pb-5">
+            <div>
+              <div class="mb-1 text-[11px] text-muted-foreground">API key</div>
+              <div class="flex items-center gap-2">
+                <div class="flex h-8 flex-1 items-center rounded-md border border-border px-3 font-mono text-xs">sk-proj-••••••••••••••••7fA2</div>
+                ${btn('Reveal', 'ghost', 'ri-eye-line')}
+              </div>
+            </div>
+            <div>
+              <div class="mb-1 text-[11px] text-muted-foreground">Base URL</div>
+              <div class="flex h-8 items-center rounded-md border border-border px-3 font-mono text-xs">https://api.openai.com/v1/chat/completions</div>
+            </div>
+            <p class="text-[11px] leading-relaxed text-muted-foreground">
+              Supports <span class="font-mono">$VAR</span> interpolation — the key is read from the
+              environment at boot rather than stored, if you prefer.
+            </p>
+            <p class="text-[11px] leading-relaxed text-muted-foreground">
+              <span class="font-medium text-foreground">Outbound only.</span> This is what Rialto
+              sends to OpenAI. It has nothing to do with the
+              <a href="settings-access.html" class="underline underline-offset-2">access tokens</a>
+              that let your clients into Rialto.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <div class="px-6 pt-5 pb-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Request shape</h3>
+          </div>
+          <div class="px-6 pb-5">
+            <div class="flex items-baseline gap-3 py-1.5">
+              <span class="text-[11px] text-muted-foreground">API style</span>
+              <span class="ml-auto font-mono text-[11px]">openai_chat</span>
+            </div>
+            <div class="flex items-baseline gap-3 py-1.5">
+              <span class="text-[11px] text-muted-foreground">Auth</span>
+              <span class="ml-auto font-mono text-[11px]">Bearer</span>
+            </div>
+            <div class="flex items-baseline gap-3 py-1.5">
+              <span class="text-[11px] text-muted-foreground">Pipeline</span>
+              <span class="ml-auto font-mono text-[11px]">openai</span>
+            </div>
+            <p class="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+              Derived from the API style — not configurable. Codex-family models here override to
+              <span class="font-mono">openai_responses</span>; see the Override column.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 px-6 pt-5 pb-3">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Models</h3>
+        <span class="text-[11px] text-muted-foreground">5 of 18 enabled</span>
+        <div class="ml-auto flex items-center gap-2">
+          <button class="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-muted/60">
+            <span class="text-muted-foreground">Show</span> Enabled + priced
+            <i class="ri-arrow-down-s-line text-sm text-muted-foreground"></i>
+          </button>
+          <div class="flex h-7 w-44 items-center gap-2 rounded-md border border-border px-2.5 text-xs text-muted-foreground">
+            <i class="ri-search-line text-sm"></i> Filter models
+          </div>
+        </div>
+      </div>
+      ${models}
+      <div class="px-6 py-4">
+        <button class="w-full rounded-md border border-dashed border-border py-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50">
+          Show 10 more models
+        </button>
+      </div>
+      <div class="h-6"></div>
+    </div>
+
+  </div>`
+
+renderShell({
+  active: 'providers',
+  title: 'Providers',
+  subtitle: 'OpenAI · API key · 5 of 18 models enabled',
+  actions: btn('Refresh prices', 'ghost', 'ri-price-tag-3-line') + btn('Add provider', 'primary', 'ri-add-line')
+})
+</script>
+</body>
+</html>
