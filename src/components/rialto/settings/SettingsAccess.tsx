@@ -26,7 +26,6 @@ import { Pill, RButton } from '@/components/rialto/primitives'
 import { AccessTokensSection } from '@/components/rialto/settings/access/AccessTokensSection'
 import { GuardsCard } from '@/components/rialto/settings/access/GuardsCard'
 import { SectionHead } from '@/components/rialto/settings/fields'
-import { NotYetAvailable, WarnNotice } from '@/components/rialto/settings/notice'
 import { SettingsField, SettingsLayout } from '@/components/rialto/settings/SettingsLayout'
 import { api, type IdentityResponse, type InboundSurfaceWire } from '@/lib/api'
 import { type EnvelopeWire, SECRET_MASK } from '@/lib/rialto/settings/envelope'
@@ -38,43 +37,40 @@ function SignedInAs({ identity }: { identity: IdentityResponse | null }) {
 
   const viaAccess = identity.mode === 'cloudflare_access'
   return (
-    <div className='space-y-1.5'>
-      <div className='flex items-center gap-2'>
-        <i
-          className={
-            viaAccess
-              ? 'ri-shield-check-line text-sm text-emerald-600 dark:text-emerald-400'
-              : 'ri-key-2-line text-sm text-muted-foreground'
-          }
-        />
-        <span className='font-mono text-xs'>{identity.email === null ? 'bootstrap token' : identity.email}</span>
-        {viaAccess ? <Pill tone='ok'>verified</Pill> : <Pill tone='mute'>no Access identity</Pill>}
-      </div>
-      <div className='text-[11px] leading-relaxed text-muted-foreground'>
-        {viaAccess
-          ? 'The assertion was checked for signature, issuer and audience before this request reached a handler, so a forged header cannot produce this name.'
-          : 'This request authenticated with the shared bootstrap token, so Rialto has no idea which person made it.'}
-      </div>
+    <div className='flex items-center gap-2'>
+      <i
+        className={
+          viaAccess
+            ? 'ri-shield-check-line text-sm text-emerald-600 dark:text-emerald-400'
+            : 'ri-key-2-line text-sm text-muted-foreground'
+        }
+      />
+      <span className='font-mono text-xs'>{identity.email === null ? 'bootstrap token' : identity.email}</span>
+      {viaAccess ? <Pill tone='ok'>verified</Pill> : <Pill tone='mute'>no Access identity</Pill>}
     </div>
   )
 }
 
 /**
- * The exposure statement. Deliberately the loudest thing on the page
- * when Access is off: behind a public tunnel that configuration means
- * one leaked string is full admin access.
+ * The exposure statement.
+ *
+ * One line by design: the mock has nothing in this position, so a block
+ * here displaces the whole page. The sentence that earns the space is
+ * "anyone holding it has full administrative control" — what that covers
+ * is spelled out in the guards card below.
  */
 function ExposureNotice({ identity }: { identity: IdentityResponse }) {
   if (identity.accessConfigured) return null
   return (
-    <div className='px-6 pb-4'>
-      <WarnNotice title='Cloudflare Access is not configured' tag='exposure'>
-        Every <span className='font-mono'>/api/*</span> request — this UI, the config document, provider keys — is gated
-        by the single bootstrap token below and nothing else. Anyone who obtains that string has full administrative
-        control. Set <span className='font-mono'>ACCESS_TEAM_DOMAIN</span> and{' '}
-        <span className='font-mono'>ACCESS_AUD</span> to put an identity check in front of it before exposing this host
-        publicly.
-      </WarnNotice>
+    <div className='px-6 pt-1 pb-3'>
+      <div className='flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-2 text-[11px] leading-relaxed'>
+        <i className='ri-alert-line shrink-0 text-sm text-amber-600 dark:text-amber-400' />
+        <span>
+          <span className='font-medium'>Cloudflare Access is not configured</span> — the bootstrap token alone gates{' '}
+          <span className='font-mono'>/api/*</span>, so anyone holding it has full administrative control. Set{' '}
+          <span className='font-mono'>ACCESS_TEAM_DOMAIN</span> and <span className='font-mono'>ACCESS_AUD</span>.
+        </span>
+      </div>
     </div>
   )
 }
@@ -99,7 +95,7 @@ function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
       />
       <SettingsField
         label='APIKEY'
-        hint='Stored in the on-disk envelope and mirrored onto process.env. Accepted on /api/* only, so a database outage or a broken Access policy cannot lock you out of the admin UI. The proxy refuses it outright — /v1/* takes issued access tokens and nothing else.'
+        hint='Stored in the on-disk envelope and mirrored onto process.env. Accepted on /api/* only — the recovery path when Access or the database is down. The proxy refuses it.'
       >
         <div className='flex items-center gap-2'>
           <div className='flex h-8 max-w-md flex-1 items-center overflow-hidden rounded-md border border-border px-3 font-mono text-xs'>
@@ -125,21 +121,15 @@ function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
 function PolicyCoverage() {
   return (
     <SettingsField label='Policy coverage' hint='Which Access apps sit on this hostname.'>
-      <div className='space-y-3'>
-        <NotYetAvailable
-          what='Access app list'
-          needs={
-            <>
-              Reading the Access apps for this hostname needs a Cloudflare API token and a server-side proxy for the
-              Zero Trust API. Neither exists — check the policies in the Zero Trust dashboard for now.
-            </>
-          }
-        />
+      <div className='space-y-2'>
+        <div className='rounded-md border border-dashed border-border px-3 py-1.5 text-[11px] text-muted-foreground'>
+          <i className='ri-tools-line mr-1 align-[-1px]' />
+          Listing the Access apps needs a Cloudflare API token and a Zero Trust proxy — check them in the dashboard.
+        </div>
         <p className='text-[11px] leading-relaxed text-muted-foreground'>
           <span className='font-mono'>/v1</span> must be a <span className='font-medium text-foreground'>Bypass</span>{' '}
-          policy. Claude Code, Codex and Gemini CLI cannot complete an interactive Access login and do not send
-          service-token headers, so putting Access in front of that path locks every client out — the access tokens
-          below are its gate instead.
+          policy. Claude Code, Codex and Gemini CLI cannot complete an interactive Access login, so putting Access in
+          front of that path locks every client out — the access tokens below are its gate instead.
         </p>
       </div>
     </SettingsField>

@@ -168,11 +168,10 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
           <div className='px-6 pb-4'>
             <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
               <i className='ri-information-line mr-1 align-[-1px]' />
-              These are the only credentials <span className='font-mono'>/v1/*</span> accepts — the bootstrap token is
-              refused there. Only a SHA-256 digest is stored, so the plaintext is shown once, when the token is issued.
-              Scoping a token to an endpoint and a routing profile is how one client gets its own routing without
-              touching anyone else's chain. <span className='font-medium text-foreground'>Revoke</span> keeps the row so
-              past requests still say whose traffic they were; delete drops that attribution.
+              Only the SHA-256 digest is stored, so the plaintext is shown once, at issue. These are the only
+              credentials <span className='font-mono'>/v1/*</span> accepts. Scoping to an endpoint and a profile gives
+              one client its own routing; <span className='font-medium text-foreground'>revoke</span> keeps the row so
+              past requests still say whose traffic they were, delete drops that attribution.
             </div>
           </div>
           <TokenTable
