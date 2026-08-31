@@ -17,10 +17,13 @@
  *
  *   bun run scripts/rename-dev-database.ts          # rename
  *   bun run scripts/rename-dev-database.ts --dry-run
+ *   bun run scripts/rename-dev-database.ts --verify   # after editing env
  */
 
+import { createHash } from 'node:crypto'
 import 'dotenv/config'
 import { Client } from 'pg'
+import { decryptString, encryptionKey } from '../src/services/subscription-account-sync/crypto'
 
 const PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['ccr', 'rialto'],
@@ -28,6 +31,7 @@ const PAIRS: ReadonlyArray<readonly [string, string]> = [
 ]
 
 const dryRun = process.argv.includes('--dry-run')
+const verifyOnly = process.argv.includes('--verify')
 
 const base = process.env.DATABASE_URL
 if (typeof base !== 'string' || base.length === 0) {
@@ -53,6 +57,68 @@ async function tableCount(db: string): Promise<number> {
   } finally {
     await probe.end()
   }
+}
+
+/**
+ * Report the state after the rename, including the parts this script
+ * cannot change itself. Prints no secret values: the key is a short
+ * SHA-256 fingerprint, and the real proof is whether an existing
+ * SubAccount row still decrypts under it.
+ */
+async function verify(): Promise<void> {
+  const fp = (v: string): string => createHash('sha256').update(v).digest('hex').slice(0, 12)
+  const isSet = (v: string | undefined): v is string => typeof v === 'string' && v.length > 0
+
+  const oldKey = process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+  const newKey = process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
+
+  console.log('--- environment ---')
+  console.log(
+    'RIALTO_ACCOUNT_ENCRYPTION_KEY :',
+    isSet(newKey) ? `set        fp=${fp(newKey)}` : 'UNSET      <- must be set'
+  )
+  console.log(
+    'CCR_ACCOUNT_ENCRYPTION_KEY    :',
+    isSet(oldKey) ? `still set  fp=${fp(oldKey)}  <- no longer read; delete once the check below passes` : 'unset'
+  )
+  if (isSet(oldKey) && isSet(newKey) && oldKey !== newKey) {
+    console.log('  !! the two differ - the new name must carry the OLD value byte-for-byte')
+  }
+
+  const dbName = (v: string | undefined): string => (isSet(v) ? new URL(v).pathname.replace('/', '') : '(unset)')
+  const dev = dbName(process.env.DATABASE_URL)
+  const test = dbName(process.env.TEST_DATABASE_URL)
+  console.log(`DATABASE_URL                  : ${dev} ${dev === 'rialto' ? 'OK' : '<- expected rialto'}`)
+  console.log(`TEST_DATABASE_URL             : ${test} ${test === 'rialto_test' ? 'OK' : '<- expected rialto_test'}`)
+
+  console.log('\n--- do existing accounts still decrypt? ---')
+  try {
+    const key = encryptionKey()
+    const c = new Client({ connectionString: process.env.DATABASE_URL })
+    await c.connect()
+    try {
+      const r = await c.query<{ name: string; accessToken: string | null; refreshToken: string | null }>(
+        'select name, "accessToken", "refreshToken" from "SubAccount" order by name'
+      )
+      if (r.rows.length === 0) console.log('  (no SubAccount rows)')
+      for (const row of r.rows) {
+        const a = decryptString(row.accessToken, key)
+        const rt = decryptString(row.refreshToken, key)
+        const ok = (row.accessToken === null || a !== null) && (row.refreshToken === null || rt !== null)
+        const desc = (v: string | null): string => (v === null ? 'none' : `${v.length} chars`)
+        console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${row.name}   access=${desc(a)}  refresh=${desc(rt)}`)
+      }
+    } finally {
+      await c.end()
+    }
+  } catch (err) {
+    console.log('  FAILED:', err instanceof Error ? err.message : String(err))
+  }
+}
+
+if (verifyOnly) {
+  await verify()
+  process.exit(0)
 }
 
 const admin = new Client({ connectionString: urlFor('postgres') })
