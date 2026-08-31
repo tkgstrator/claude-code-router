@@ -454,9 +454,7 @@ export interface InboundSurfaceWire {
   auth: 'x-api-key' | 'bearer' | 'google'
   errorShape: 'anthropic' | 'openai' | 'google'
   routingMode: RoutingMode
-  defaultRoutingMode: RoutingMode
   profileKey: string
-  overridden: boolean
 }
 
 export interface AccessTokenWire {

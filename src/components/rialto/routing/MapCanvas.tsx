@@ -233,9 +233,7 @@ export function MapCanvas({
             y={surfaceY(i)}
             w={SURFACE_W}
             label={surface.path}
-            // An operator's choice and the shipped default must not read
-            // the same on the canvas either.
-            sub={surface.overridden ? `${surface.routingMode} · overridden` : surface.routingMode}
+            sub={surface.routingMode}
             accent={surface.routingMode === 'routed' ? 'fill-emerald-500' : 'fill-muted-foreground/40'}
           />
         </g>

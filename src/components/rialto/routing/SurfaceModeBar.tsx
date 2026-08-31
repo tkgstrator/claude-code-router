@@ -8,7 +8,6 @@
  * for the inbound path and runs that surface's profile.
  */
 import { useState } from 'react'
-import { Pill, RButton } from '@/components/rialto/primitives'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { InboundSurfaceWire, RoutingMode } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -41,25 +40,6 @@ export function Segmented<T extends string>({
         </button>
       ))}
     </div>
-  )
-}
-
-/**
- * Whether this surface is on its shipped default or on an operator's
- * choice. Rendering the two the same way is what let the old build hide a
- * hardcoded bypass behind a screen that looked configured.
- */
-function ModeOrigin({ surface, onReset }: { surface: InboundSurfaceWire; onReset: () => void }) {
-  if (!surface.overridden) {
-    return <span className='text-[11px] text-muted-foreground'>shipped default</span>
-  }
-  return (
-    <>
-      <Pill tone='info'>overridden</Pill>
-      <RButton variant='ghost' icon='ri-arrow-go-back-line' onClick={onReset}>
-        {`Reset to ${surface.defaultRoutingMode}`}
-      </RButton>
-    </>
   )
 }
 
@@ -142,13 +122,11 @@ export function SurfaceModeBar({
   surface,
   profiles,
   onMode,
-  onReset,
   onProfile
 }: {
   surface: InboundSurfaceWire
   profiles: readonly ProfileSummary[]
   onMode: (mode: RoutingMode) => void
-  onReset: () => void
   onProfile: (key: string) => void
 }) {
   return (
@@ -163,7 +141,6 @@ export function SurfaceModeBar({
           ]}
           onChange={onMode}
         />
-        <ModeOrigin surface={surface} onReset={onReset} />
       </div>
       {surface.routingMode === 'routed' ? (
         <ProfilePicker current={surface.profileKey} profiles={profiles} onSelect={onProfile} />

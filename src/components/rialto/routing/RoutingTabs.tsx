@@ -38,10 +38,6 @@ export function SurfaceTabs({
             </span>
             <span className='flex items-center gap-1.5 text-[11px] text-muted-foreground'>
               {`${surface.client} · `}
-              {/* A surface on its shipped default and one an operator moved
-                  must not read the same; the dot is the top-level tell, the
-                  mode bar spells it out. */}
-              {surface.overridden ? <span className='size-1 rounded-full bg-foreground/50' aria-hidden='true' /> : null}
               {surface.routingMode === 'routed' ? (
                 <span className='text-emerald-600 dark:text-emerald-400'>routed</span>
               ) : (

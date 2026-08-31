@@ -1,12 +1,11 @@
 /**
  * Routing → Chain.
  *
- * The outermost axis is the inbound surface, not the scenario. Before
- * Rialto the router silently bypassed `/v1/chat/completions` and
- * `/v1/responses`, which made every routing screen a `/v1/messages`-only
- * screen without saying so; here the surface is the first thing you pick
- * and its mode is the second, so a chain is never shown for traffic that
- * will not walk it.
+ * The outermost axis is the inbound surface, not the scenario. Whether the
+ * router applies at all is a per-surface fact, so the surface is the first
+ * thing you pick and its mode is the second — a chain is never shown for
+ * traffic that will not walk it. The old build had no such axis, which is
+ * how a routing screen could quietly be about one endpoint only.
  */
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -255,16 +254,6 @@ export function RoutingChain() {
     [surface, setMode, notify, fail]
   )
 
-  // Writing the descriptor's own default back clears `overridden`, so the
-  // surface reads as shipped-default again rather than as a choice that
-  // happens to match.
-  const onReset = useCallback(() => {
-    if (surface === undefined) return
-    setMode(surface.id, surface.defaultRoutingMode)
-      .then(() => notify(`${surface.path} is back on its shipped default (${surface.defaultRoutingMode}).`, true))
-      .catch(fail)
-  }, [surface, setMode, notify, fail])
-
   const onProfile = useCallback(
     (key: string) => {
       if (surface === undefined) return
@@ -296,13 +285,7 @@ export function RoutingChain() {
       ) : (
         <>
           <SurfaceTabs surfaces={surfaces} active={surface.id} onSelect={selectSurface} />
-          <SurfaceModeBar
-            surface={surface}
-            profiles={profiles}
-            onMode={onMode}
-            onReset={onReset}
-            onProfile={onProfile}
-          />
+          <SurfaceModeBar surface={surface} profiles={profiles} onMode={onMode} onProfile={onProfile} />
           {surface.routingMode === 'routed' ? (
             <RoutedBody
               surface={surface}

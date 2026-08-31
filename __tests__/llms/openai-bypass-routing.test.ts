@@ -7,7 +7,8 @@
  * inboundPath keep the pre-existing routing behaviour.
  */
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import { __setSurfacesForTests } from '../../src/services/inbound-surface-service'
 import pino from 'pino'
 import { ConfigStore } from '../../src/llms/registry/config'
 import { TokenizerRegistry } from '../../src/llms/registry/tokenizer'
@@ -65,6 +66,13 @@ async function runRouter(path: string | undefined, bodyModel: string): Promise<R
   await routeScenario(req, { config, tokenizers })
   return req
 }
+
+// The router's behaviour depends on the surface's mode, so the tests
+// set it rather than inheriting whatever a fresh install seeds. These
+// cases describe the routed path.
+beforeEach(() => {
+  __setSurfacesForTests({ 'anthropic-messages': 'routed' })
+})
 
 describe('routeScenario — OpenAI-compat bypass', () => {
   test('/v1/chat/completions keeps body.model verbatim (no rewrite to Router.default)', async () => {

@@ -8,6 +8,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { getPrismaClient } from '../../src/db/client'
 import {
+  ensureInboundSurfaces,
   invalidateSurfaceCache,
   isRoutedPath,
   listSurfaces,
@@ -26,20 +27,24 @@ describeDb('inbound-surface-service', () => {
 
   afterAll(teardownPrisma)
 
-  test('with no stored rows, defaults reproduce the previous hardcoded bypass', async () => {
-    const byId = new Map((await listSurfaces()).map((s) => [s.id, s]))
-
-    expect(byId.get('anthropic-messages')?.routingMode).toBe('routed')
-    expect(byId.get('openai-chat')?.routingMode).toBe('passthrough')
-    expect(byId.get('openai-responses')?.routingMode).toBe('passthrough')
-    expect(byId.get('gemini-generate')?.routingMode).toBe('passthrough')
-    expect([...byId.values()].every((s) => !s.overridden)).toBe(true)
+  test('seeding gives every surface an explicit stored mode', async () => {
+    await ensureInboundSurfaces()
+    const rows = await getPrismaClient().inboundSurfaceConfig.findMany()
+    expect(rows).toHaveLength(4)
+    // No surface is more default than another: they all start the same.
+    expect(rows.every((r) => r.routingMode === 'passthrough')).toBe(true)
   })
 
-  test('isRoutedPath matches the paths scenario-router used to name literally', async () => {
+  test('seeding is idempotent and never rewrites a chosen mode', async () => {
+    await ensureInboundSurfaces()
+    await updateSurface({ surface: 'anthropic-messages', routingMode: 'routed' })
+    await ensureInboundSurfaces()
     expect(await isRoutedPath('/v1/messages')).toBe(true)
-    expect(await isRoutedPath('/v1/chat/completions')).toBe(false)
-    expect(await isRoutedPath('/v1/responses')).toBe(false)
+  })
+
+  test('an unseeded surface reads as passthrough rather than inventing a default', async () => {
+    const byId = new Map((await listSurfaces()).map((s) => [s.id, s]))
+    expect([...byId.values()].every((s) => s.routingMode === 'passthrough')).toBe(true)
   })
 
   test('an unknown path stays routed rather than silently bypassing the router', async () => {
@@ -52,24 +57,19 @@ describeDb('inbound-surface-service', () => {
     expect(surface?.id).toBe('gemini-generate')
   })
 
-  test('an override takes effect on the hot path and is marked as an override', async () => {
+  test('a mode change takes effect on the hot path, which reads through a cache', async () => {
     await updateSurface({ surface: 'openai-chat', routingMode: 'routed' })
 
     expect(await isRoutedPath('/v1/chat/completions')).toBe(true)
-    const surface = await resolveSurfaceForPath('/v1/chat/completions')
-    expect(surface?.routingMode).toBe('routed')
-    expect(surface?.overridden).toBe(true)
+    expect((await resolveSurfaceForPath('/v1/chat/completions'))?.routingMode).toBe('routed')
     // Sibling surfaces are untouched — the row is per-surface.
     expect(await isRoutedPath('/v1/responses')).toBe(false)
   })
 
-  test('setting a surface back to its default clears the overridden flag', async () => {
+  test('a mode change is reversible', async () => {
     await updateSurface({ surface: 'openai-chat', routingMode: 'routed' })
     await updateSurface({ surface: 'openai-chat', routingMode: 'passthrough' })
-
-    const surface = await resolveSurfaceForPath('/v1/chat/completions')
-    expect(surface?.routingMode).toBe('passthrough')
-    expect(surface?.overridden).toBe(false)
+    expect((await resolveSurfaceForPath('/v1/chat/completions'))?.routingMode).toBe('passthrough')
   })
 
   test('a surface carries the default profile key until one is chosen', async () => {

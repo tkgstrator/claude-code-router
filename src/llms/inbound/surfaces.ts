@@ -41,9 +41,23 @@ export interface InboundSurface {
   auth: 'x-api-key' | 'bearer' | 'google'
   /** Error envelope the caller's SDK knows how to parse. */
   errorShape: 'anthropic' | 'openai' | 'google'
-  /** Behaviour before any operator override is applied. */
-  defaultRoutingMode: RoutingMode
 }
+
+/**
+ * What a surface's mode is set to when it has none yet.
+ *
+ * There is deliberately no per-surface default. The previous build
+ * carried one — routed for /v1/messages, passthrough for the rest —
+ * which reproduced a hardcoded bypass rather than expressing anything,
+ * and it forced the UI to explain which of two identical-looking values
+ * was "the shipped one". A surface now simply has a mode.
+ *
+ * Passthrough is the seed because routing an unconfigured install does
+ * nothing useful: with no preference chain and no rules, the selector
+ * falls straight through to the caller's own model. Routing is
+ * something you turn on once there is something to route to.
+ */
+export const INITIAL_ROUTING_MODE: RoutingMode = 'passthrough'
 
 export const INBOUND_SURFACES: readonly InboundSurface[] = [
   {
@@ -52,8 +66,7 @@ export const INBOUND_SURFACES: readonly InboundSurface[] = [
     client: 'Claude Code',
     inboundType: 'anthropic',
     auth: 'x-api-key',
-    errorShape: 'anthropic',
-    defaultRoutingMode: 'routed'
+    errorShape: 'anthropic'
   },
   {
     id: 'openai-chat',
@@ -61,8 +74,7 @@ export const INBOUND_SURFACES: readonly InboundSurface[] = [
     client: 'OpenAI SDK',
     inboundType: 'openai',
     auth: 'bearer',
-    errorShape: 'openai',
-    defaultRoutingMode: 'passthrough'
+    errorShape: 'openai'
   },
   {
     id: 'openai-responses',
@@ -70,8 +82,7 @@ export const INBOUND_SURFACES: readonly InboundSurface[] = [
     client: 'Codex CLI',
     inboundType: 'openai',
     auth: 'bearer',
-    errorShape: 'openai',
-    defaultRoutingMode: 'passthrough'
+    errorShape: 'openai'
   },
   {
     id: 'gemini-generate',
@@ -79,8 +90,7 @@ export const INBOUND_SURFACES: readonly InboundSurface[] = [
     client: 'Gemini CLI',
     inboundType: 'gemini',
     auth: 'google',
-    errorShape: 'google',
-    defaultRoutingMode: 'passthrough'
+    errorShape: 'google'
   }
 ] as const
 

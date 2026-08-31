@@ -1,10 +1,9 @@
 /**
  * GET/POST /api/inbound-surfaces — per-surface routing mode.
  *
- * The read returns every surface in the registry, whether or not an
- * operator has overridden it, so the Routing screen can show the full set
- * with its effective mode. `overridden` says which rows are the operator's
- * choice versus the shipped default.
+ * The read returns every surface in the registry with the mode it is
+ * set to. There is no notion of a value being more default than another:
+ * every surface has an explicit stored mode, seeded at boot.
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
@@ -21,9 +20,7 @@ const SurfaceSchema = z
     auth: z.enum(['x-api-key', 'bearer', 'google']),
     errorShape: z.enum(['anthropic', 'openai', 'google']),
     routingMode: z.enum(['routed', 'passthrough']),
-    defaultRoutingMode: z.enum(['routed', 'passthrough']),
-    profileKey: z.string().nonempty(),
-    overridden: z.boolean()
+    profileKey: z.string().nonempty()
   })
   .openapi('InboundSurface')
 

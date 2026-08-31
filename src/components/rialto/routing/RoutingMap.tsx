@@ -217,7 +217,6 @@ export function RoutingMap() {
   const weights = useMemo(() => weightIndex(scheduler), [scheduler])
   const targets = useMemo(() => profileTargets(profile.entriesByScenario), [profile])
   const ruleCount = config === null ? 0 : allRules(config.Router).length
-  const overridden = surfaces.filter((s) => s.overridden).length
 
   const notify = useCallback((text: string, ok: boolean) => {
     if (ok) toast.success(text)
@@ -274,7 +273,6 @@ export function RoutingMap() {
         {/* An empty graph could mean "unconfigured" or "nothing routes"; only
             the first is true, so it says which. */}
         {profileEntryCount(profile.entriesByScenario) === 0 ? <Pill tone='warn'>not configured</Pill> : null}
-        {overridden === 0 ? null : <Pill tone='info'>{`${overridden} surface overrides`}</Pill>}
         <span className='text-[11px] text-muted-foreground'>
           {surfaces.length} surfaces · {SCENARIOS.length} scenarios · {targets.length} targets
         </span>

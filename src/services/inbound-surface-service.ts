@@ -14,6 +14,7 @@
 import { getPrismaClient } from '../db/client'
 import {
   INBOUND_SURFACES,
+  INITIAL_ROUTING_MODE,
   type InboundSurface,
   type RoutingMode,
   type SurfaceId,
@@ -25,8 +26,6 @@ export interface ResolvedSurface extends InboundSurface {
   routingMode: RoutingMode
   /** RouterPreferenceProfile.key this surface's chain comes from. */
   profileKey: string
-  /** True when an operator has overridden the descriptor default. */
-  overridden: boolean
 }
 
 // Resolved snapshot, rebuilt on write. `null` means "not loaded yet".
@@ -36,6 +35,24 @@ const cache: { value: ResolvedSurface[] | null } = { value: null }
 
 export function invalidateSurfaceCache(): void {
   cache.value = null
+}
+
+/**
+ * Seed the resolved cache directly, for tests that exercise the router
+ * without a database.
+ *
+ * Named for what it is. Router behaviour depends on a surface's mode,
+ * and a test that cannot set one is really asserting whatever the
+ * fallback happens to be — which is how three tests came to depend on
+ * `/v1/messages` defaulting to routed, and broke when that default was
+ * removed rather than when the behaviour they described changed.
+ */
+export function __setSurfacesForTests(modes: Partial<Record<SurfaceId, RoutingMode>>): void {
+  cache.value = INBOUND_SURFACES.map((surface) => ({
+    ...surface,
+    routingMode: modes[surface.id] ?? INITIAL_ROUTING_MODE,
+    profileKey: DEFAULT_PROFILE_KEY
+  }))
 }
 
 const isRoutingMode = (v: string): v is RoutingMode => v === 'routed' || v === 'passthrough'
@@ -54,13 +71,43 @@ export async function listSurfaces(): Promise<ResolvedSurface[]> {
     const stored = row !== undefined && isRoutingMode(row.routingMode) ? row.routingMode : undefined
     return {
       ...surface,
-      routingMode: stored !== undefined ? stored : surface.defaultRoutingMode,
-      profileKey: row?.profileKey !== undefined && row.profileKey !== null ? row.profileKey : DEFAULT_PROFILE_KEY,
-      overridden: stored !== undefined && stored !== surface.defaultRoutingMode
+      // A surface added by a later version has no row until
+      // `ensureInboundSurfaces` runs; the seed value stands in until it
+      // does, so a read never has to invent a per-surface default.
+      routingMode: stored !== undefined ? stored : INITIAL_ROUTING_MODE,
+      profileKey: row?.profileKey !== undefined && row.profileKey !== null ? row.profileKey : DEFAULT_PROFILE_KEY
     }
   })
   cache.value = resolved
   return resolved
+}
+
+/**
+ * Give every registered surface a stored mode.
+ *
+ * Called once at boot, like `ensureRouterSlots`. Without it a surface's
+ * mode would be half state and half fallback, which is what the old
+ * `overridden` flag existed to explain — a value the operator could not
+ * act on, describing a distinction that only mattered because the
+ * fallback existed.
+ *
+ * Idempotent: an existing row is left exactly as it is.
+ */
+export async function ensureInboundSurfaces(): Promise<void> {
+  const prisma = getPrismaClient()
+  for (const surface of INBOUND_SURFACES) {
+    await prisma.inboundSurfaceConfig
+      .upsert({
+        where: { surface: surface.id },
+        create: { surface: surface.id, routingMode: INITIAL_ROUTING_MODE, profileKey: null },
+        update: {}
+      })
+      .catch(() => {
+        // A surface without a row still resolves to the seed value, so a
+        // transient write failure degrades rather than blocking boot.
+      })
+  }
+  invalidateSurfaceCache()
 }
 
 export async function resolveSurfaceForPath(path: string | undefined): Promise<ResolvedSurface | undefined> {
