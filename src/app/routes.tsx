@@ -28,6 +28,9 @@ import { AddProviderScreen } from '@/components/rialto/providers/AddProviderScre
 import { ProvidersScreen } from '@/components/rialto/providers/ProvidersScreen'
 import { RialtoShell } from '@/components/rialto/RialtoShell'
 import { RouteError } from '@/components/rialto/RouteError'
+import { RoutingChain } from '@/components/rialto/routing/RoutingChain'
+import { RoutingMap } from '@/components/rialto/routing/RoutingMap'
+import { RoutingRules } from '@/components/rialto/routing/RoutingRules'
 import { SettingsAccess } from '@/components/rialto/settings/SettingsAccess'
 import { SettingsAdvanced } from '@/components/rialto/settings/SettingsAdvanced'
 import { SettingsLogging } from '@/components/rialto/settings/SettingsLogging'
@@ -90,6 +93,9 @@ export const router = createBrowserRouter([
           // rather than a provider literally named "connect".
           { path: '/providers/connect', element: <AddProviderScreen /> },
           { path: '/providers/:name', element: <ProvidersScreen /> },
+          { path: '/routing', element: <RoutingChain /> },
+          { path: '/routing/map', element: <RoutingMap /> },
+          { path: '/routing/rules', element: <RoutingRules /> },
           { path: '/activity', element: <ActivitySessions /> },
           { path: '/activity/requests', element: <ActivityRequests /> },
           { path: '/activity/sessions/:sessionId', element: <ActivitySessionDetail /> },
@@ -112,12 +118,6 @@ export const router = createBrowserRouter([
         children: [
           { path: '/models', element: fullHeight(<ModelsDashboard />) },
           { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
-          { path: '/routing-map', element: fullHeight(<RoutingLibrary />) },
-          { path: '/routing-map/live', element: fullHeight(<RoutingLiveEditor />) },
-          { path: '/routing-map/preset/:id', element: fullHeight(<RoutingPresetEditor />) },
-          { path: '/router-preferences', element: fullHeight(<RouterPreferences />) },
-          { path: '/router-utilization', element: fullHeight(<RouterUtilization />) },
-          { path: '/router-tiers', element: fullHeight(<TierEditor />) },
           { path: '/transformers', element: fullHeight(<Transformers />) },
           { path: '/json', element: fullHeight(<JsonEditor />) }
         ]

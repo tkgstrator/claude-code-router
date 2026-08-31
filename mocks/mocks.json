@@ -21,7 +21,7 @@
     {
       "name": "routing",
       "mock": "routing.html",
-      "route": null,
+      "route": "/routing",
       "group": "Routing",
       "note": "Preference chain for one surface/scenario/lane. Absorbs RouterPreferences + TierEditor + RouterUtilization."
     },
@@ -35,14 +35,14 @@
     {
       "name": "routing-map",
       "mock": "routing-map.html",
-      "route": null,
+      "route": "/routing/map",
       "group": "Routing",
       "note": "Graph editor. Absorbs RoutingLibrary + RoutingLiveEditor + RoutingPresetEditor. Adds the inbound-surface column."
     },
     {
       "name": "routing-rules",
       "mock": "routing-rules.html",
-      "route": null,
+      "route": "/routing/rules",
       "group": "Routing",
       "note": "Rule editor + tester. Replaces routing-map/RuleEditor.tsx."
     },
