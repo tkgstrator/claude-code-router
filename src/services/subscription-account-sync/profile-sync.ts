@@ -1,9 +1,12 @@
 /**
  * Re-fetch profile data for all SubAccounts and update the DB in-place.
  * Claude: refreshes token first, then pulls /api/oauth/profile for name/plan/tier.
- * Codex: calls wham/usage which returns the live plan_type; updates plan +
- * monthlyPriceUsd in-place. The id_token JWT baked in at OAuth time is a
- * static snapshot — wham/usage is the authoritative live source.
+ * Codex: refreshes via ensureFreshCodexAccessToken (shared with the proxy
+ * hot path and the usage poller, so the rotating refresh_token is never
+ * raced), then calls wham/usage which returns the live plan_type and
+ * updates plan + monthlyPriceUsd in-place. The id_token JWT baked in at
+ * OAuth time is a static snapshot — wham/usage is the authoritative live
+ * source.
  */
 
 import { getPrismaClient } from '../../db/client'
@@ -12,7 +15,7 @@ import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
 import { OauthRefreshResponseSchema } from '../../schemas/llm-oauth.dto'
 import { fetchClaudeProfile } from '../claude-profile-service'
-import { refreshCodexToken } from '../codex-oauth-service'
+import { ensureFreshCodexAccessToken } from '../codex-auth/token'
 import { decryptString, encryptionKey, encryptString, firstString } from './crypto'
 import { providersForKind } from './persist'
 import { claudeMonthlyPrice, codexMonthlyPrice } from './pricing'
@@ -61,47 +64,6 @@ const ensureFreshClaudeToken = async (
     })
     return access_token
   } catch {
-    return accessToken
-  }
-}
-
-// Codex twin of ensureFreshClaudeToken: rotates the token via
-// auth.openai.com when it is expired or within the leeway window, and
-// persists the rotated pair to the DB. Codex issues offline_access
-// grants that DO carry a refresh_token — the old "no refresh flow"
-// assumption was wrong.
-const ensureFreshCodexToken = async (
-  subAccountId: string,
-  accessToken: string,
-  refreshToken: string | null,
-  expiresAt: Date | null,
-  key: Buffer,
-  prisma: PrismaClient
-): Promise<string> => {
-  const needsRefresh = expiresAt === null || expiresAt.valueOf() - Date.now() <= REFRESH_LEEWAY_MS
-  if (!needsRefresh || !refreshToken) return accessToken
-  try {
-    const rotated = await refreshCodexToken({ refreshToken })
-    const expiresInSec = rotated.expires_in !== undefined ? rotated.expires_in : 3600
-    const newExpiresAt = new Date(Date.now() + expiresInSec * 1000)
-    const newAccessEnc = encryptString(rotated.access_token, key)
-    const newRefreshEnc = encryptString(rotated.refresh_token, key)
-    await prisma.subAccount.update({
-      where: { id: subAccountId },
-      data: {
-        accessTokenEnc: newAccessEnc,
-        refreshTokenEnc: newRefreshEnc,
-        expiresAt: newExpiresAt
-      }
-    })
-    return rotated.access_token
-  } catch (err) {
-    // Silent-catch hid rotation-race and prisma-write faults for months
-    // — the only observed symptom was users being asked to re-import
-    // codex auth.json every expiry. Log the failure so it stops being
-    // invisible; the fallback still returns the existing access token
-    // so the caller's own 401 path (recordAuthStatus) keeps working.
-    logger.warn({ subAccountId, err }, '[profile-sync] codex token refresh failed, using existing access token')
     return accessToken
   }
 }
@@ -201,13 +163,14 @@ export async function syncSubAccountProfiles(prisma: PrismaClient = getPrismaCli
         failed++
         continue
       }
-      const codexRefreshToken = decryptString(account.refreshTokenEnc, key)
-      const accessToken = await ensureFreshCodexToken(
-        account.id,
-        rawAccessToken,
-        codexRefreshToken,
-        account.expiresAt,
-        key,
+      const accessToken = await ensureFreshCodexAccessToken(
+        {
+          subAccountId: account.id,
+          accessToken: rawAccessToken,
+          refreshToken: decryptString(account.refreshTokenEnc, key),
+          expiresAt: account.expiresAt,
+          lastSyncedAt: account.lastSyncedAt
+        },
         prisma
       )
       try {

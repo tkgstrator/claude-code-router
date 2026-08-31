@@ -45,11 +45,17 @@ export async function getActiveSubAccountAuth(
 // Refresh-result writeback: encrypt + persist a freshly-rotated token
 // pair onto the named SubAccount. Used by transformer refresh code paths
 // to keep the DB the single source of truth after a token grant rotation.
+//
+// `idToken` is written when the grant returned one. Codex refreshes
+// re-issue the id_token alongside the access token, and dropping it left
+// the stored copy frozen at OAuth time — which is what /export-credentials
+// hands back for re-import elsewhere.
 export async function updateSubAccountAccessToken(
   subAccountId: string,
   next: {
     accessToken: string
     refreshToken?: string | null
+    idToken?: string | null
     expiresAt?: Date | null
   },
   prisma: PrismaClient = getPrismaClient()
@@ -61,6 +67,9 @@ export async function updateSubAccountAccessToken(
   }
   if (typeof next.refreshToken === 'string' && next.refreshToken.length > 0) {
     data.refreshTokenEnc = encryptString(next.refreshToken, key)
+  }
+  if (typeof next.idToken === 'string' && next.idToken.length > 0) {
+    data.idTokenEnc = encryptString(next.idToken, key)
   }
   if (next.expiresAt !== undefined) {
     data.expiresAt = next.expiresAt

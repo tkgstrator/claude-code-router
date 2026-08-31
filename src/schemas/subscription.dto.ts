@@ -14,7 +14,13 @@ export const DiscoveredAccountSchema = z.object({
   plan: z.string().nonempty().nullable(),
   rateLimitTier: z.string().nonempty().nullable(),
   monthlyPriceUsd: z.number().nullable(),
+  // Access-token expiry — for both vendors. Codex reads it off the
+  // token's own `exp` claim.
   expiresAt: z.date().nullable(),
+  // When the paid subscription itself lapses. Codex only (from the
+  // id_token's `chatgpt_subscription_active_until`); null for Claude,
+  // which exposes no equivalent.
+  subscriptionEndsAt: z.date().nullable(),
   scopes: z.array(z.string().nonempty()),
   accessToken: z.string().nonempty().nullable(),
   refreshToken: z.string().nonempty().nullable(),
@@ -40,10 +46,12 @@ export const SubscriptionInfoSchema = z
     plan: z.string().nonempty().nullable(),
     rateLimitTier: z.string().nonempty().nullable(),
     monthlyPriceUsd: z.number().nullable(),
-    // For Claude this is the auto-refreshed access-token expiry; for Codex
-    // it is the subscription end date. Neither on its own means "auth is
-    // dead" — authStatus is the authoritative health signal.
+    // Auto-refreshed access-token expiry, for both vendors. Not a health
+    // signal on its own — a token at or past expiry is rotated on next
+    // use; authStatus is the authoritative "does this authenticate" bit.
     expiresAt: z.number().nullable(),
+    // Codex only: when the paid subscription lapses. Null for Claude.
+    subscriptionEndsAt: z.number().nullable(),
     authStatus: AuthStatusSchema,
     authCheckedAt: z.number().nullable(),
     authError: z.string().nonempty().nullable(),

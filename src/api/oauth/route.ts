@@ -32,8 +32,9 @@
  *     Symmetric to import-credentials — decrypts the ACTIVE SubAccount's
  *     tokens for the given kind and returns them in the on-disk file
  *     shape (claudeAiOauth wrapper for claude, tokens {access_token,
- *     refresh_token, id_token} for codex), so the payload round-trips
- *     straight back through import-credentials on another CCR host.
+ *     refresh_token, id_token, account_id} for codex), so the payload
+ *     round-trips straight back through import-credentials on another
+ *     CCR host.
  *
  * Pending flows live in a process-memory map (PoC scope). CSRF
  * protection is the single-use `state` token issued at /initiate;
@@ -47,8 +48,8 @@ import { getPrismaClient } from '../../db/client'
 import { logger } from '../../logger'
 import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../schemas/llm-oauth.dto'
 import { buildClaudeAuthorizeUrl, CLAUDE_SCOPES, exchangeClaudeCode } from '../../services/claude-oauth-service'
-import { CODEX_CALLBACK_PORT, ensureCodexCallbackListener } from '../../services/codex-callback-listener'
-import { buildCodexAuthorizeUrl, CODEX_CALLBACK_PATH } from '../../services/codex-oauth-service'
+import { CODEX_CALLBACK_PORT, ensureCodexCallbackListener } from '../../services/codex-auth/callback-listener'
+import { buildCodexAuthorizeUrl, CODEX_CALLBACK_PATH } from '../../services/codex-auth/oauth'
 import {
   consumePendingFlow,
   generatePkcePair,
@@ -117,7 +118,7 @@ oauthRoute.post('/api/oauth/initiate/:provider', async (c) => {
 })
 
 // claude only — codex's callback is served by the standalone listener on
-// port 1455 (see codex-callback-listener.ts) because its OAuth client
+// port 1455 (see codex-auth/callback-listener.ts) because its OAuth client
 // doesn't allow any other loopback port.
 oauthRoute.get(CLAUDE_CALLBACK_PATH, async (c) => {
   const code = c.req.query('code')
@@ -327,21 +328,21 @@ oauthRoute.post('/api/oauth/export-credentials', async (c) => {
       return c.json(file, 200)
     }
 
-    // codex: id_token is REQUIRED for re-import (CodexCredentialsFileSchema
-    // rejects empty). Fail loudly rather than emit a payload that will
-    // 400 on import — a missing id_token in the DB means the SubAccount
-    // was created before the field was captured, and the operator has
-    // to re-OAuth to get a usable export.
-    if (!auth.idToken) {
+    // codex: an import needs SOMETHING to identify the account with —
+    // either the id_token (claims carry chatgpt_account_id) or the
+    // account_id itself. Emit both when we have them; refuse only when
+    // neither is stored, since that payload would 400 straight back on
+    // import and the operator has to re-OAuth to fix it.
+    if (!auth.idToken && !auth.accountId) {
       logger.warn(
         { provider: p.name, subAccountId: auth.subAccountId },
-        '[oauth] export-credentials: id_token missing on stored codex account; re-authenticate to refresh'
+        '[oauth] export-credentials: neither id_token nor account_id stored on codex account; re-authenticate to refresh'
       )
       return c.json(
         {
           success: false as const,
           error:
-            'Stored codex account has no id_token to export (created before it was captured). Re-authenticate via Settings → Providers → Connect and retry.'
+            'Stored codex account has no id_token or account_id to export (created before either was captured). Re-authenticate via Settings → Providers → Connect and retry.'
         },
         409
       )
@@ -350,7 +351,8 @@ oauthRoute.post('/api/oauth/export-credentials', async (c) => {
       tokens: {
         access_token: auth.accessToken,
         refresh_token: auth.refreshToken ?? '',
-        id_token: auth.idToken
+        ...(auth.idToken ? { id_token: auth.idToken } : {}),
+        ...(auth.accountId ? { account_id: auth.accountId } : {})
       }
     }
     c.header('content-disposition', 'attachment; filename="codex-auth.json"')

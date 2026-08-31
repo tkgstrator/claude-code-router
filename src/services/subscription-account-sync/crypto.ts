@@ -1,7 +1,9 @@
 /**
- * Small string/record helpers plus the AES-256-GCM encrypt/decrypt and
- * JWT-payload-decode primitives used to persist and read back SubAccount
- * token material.
+ * Small string helpers plus the AES-256-GCM encrypt/decrypt primitives
+ * used to persist and read back SubAccount token material.
+ *
+ * JWT claim decoding used to live here too; it is vendor-specific rather
+ * than storage-level and now sits in ../codex-auth/claims.ts.
  */
 
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
@@ -13,32 +15,6 @@ export const firstString = (...vs: Array<unknown>): string | null => {
     if (typeof v === 'string' && v.length > 0) return v
   }
   return null
-}
-
-export const stringOrNull = (v: unknown): string | null => firstString(v)
-
-export const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-
-export const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
-  const parts = token.split('.')
-  if (parts.length < 2) return null
-  try {
-    const padded = parts[1]
-      .replace(/-/g, '+')
-      .replace(/_/g, '/')
-      .padEnd(parts[1].length + ((4 - (parts[1].length % 4)) % 4), '=')
-    return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'))
-  } catch {
-    return null
-  }
-}
-
-export const claimsAuthSection = (claims: Record<string, unknown> | null): Record<string, unknown> => {
-  if (claims === null) return {}
-  const raw = claims['https://api.openai.com/auth']
-  if (isRecord(raw)) return raw
-  return {}
 }
 
 export const encryptionKey = (): Buffer => {

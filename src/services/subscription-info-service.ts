@@ -32,6 +32,7 @@ const toAccountInfo = (a: {
   rateLimitTier: string | null
   monthlyPriceUsd: number | null
   expiresAt: Date | null
+  subscriptionEndsAt: Date | null
   authStatus: 'unknown' | 'live' | 'invalid'
   authCheckedAt: Date | null
   authError: string | null
@@ -48,6 +49,7 @@ const toAccountInfo = (a: {
   rateLimitTier: a.rateLimitTier,
   monthlyPriceUsd: a.monthlyPriceUsd,
   expiresAt: a.expiresAt ? a.expiresAt.valueOf() : null,
+  subscriptionEndsAt: a.subscriptionEndsAt ? a.subscriptionEndsAt.valueOf() : null,
   authStatus: a.authStatus,
   authCheckedAt: a.authCheckedAt ? a.authCheckedAt.valueOf() : null,
   authError: a.authError,
