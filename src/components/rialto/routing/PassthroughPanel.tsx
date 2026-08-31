@@ -9,6 +9,7 @@
 import { useCallback, useState } from 'react'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import type { InboundSurfaceWire, RoutingSchedulerWeightEntry } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { STATE_TONE, targetState } from './derive'
 import type { EnabledTarget } from './types'
 
@@ -80,7 +81,12 @@ export function PassthroughPanel({
     <>
       {surface.overridden ? null : <LegacyNotice />}
 
-      <div className='flex items-center gap-3 px-6 pb-3'>
+      {/* pt rather than relying on the notice above for the gap: the
+          notice only renders on a surface still at its shipped default,
+          so overriding one left this heading — and its Copy as list
+          button — flush against the mode bar. The notice already ends in
+          pb-5, hence the smaller value when it is present. */}
+      <div className={cn('flex items-center gap-3 px-6 pb-3', surface.overridden ? 'pt-6' : 'pt-1')}>
         <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Reachable targets</h2>
         <span className='text-[11px] text-muted-foreground'>
           what a caller may put in <span className='font-mono'>body.model</span>

@@ -103,8 +103,14 @@ function ProfileButton({
             className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/60'
           >
             <span className='truncate'>{profile.key}</span>
-            <span className='ml-auto font-mono text-[10px] tabular-nums text-muted-foreground'>
-              {profile.entryCount}
+            {/* A reserved mode has no chain to count, and a bare 0 beside
+                it would read as an empty one. */}
+            <span className='ml-auto shrink-0 text-[10px] text-muted-foreground'>
+              {profile.kind === 'passthrough' ? (
+                'skips routing'
+              ) : (
+                <span className='font-mono tabular-nums'>{profile.entryCount}</span>
+              )}
             </span>
           </button>
         ))}

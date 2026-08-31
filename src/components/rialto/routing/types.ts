@@ -42,6 +42,13 @@ export interface ProfileSummary {
   key: string
   entryCount: number
   updatedAt: string | null
+  /**
+   * `passthrough` is a reserved key meaning "skip routing", not a stored
+   * chain. Flagged by the server so a picker can tell it apart without
+   * matching on the string — and so an empty chain and a deliberate
+   * mode are never labelled the same way.
+   */
+  kind: 'chain' | 'passthrough'
 }
 
 /** How a target is behaving right now, per the last scheduler tick. */

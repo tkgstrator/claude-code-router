@@ -87,28 +87,36 @@ function ProfilePicker({
           </button>
         </PopoverTrigger>
         <PopoverContent align='start' className='w-60 p-1'>
-          {profiles.map((profile) => (
-            <button
-              key={profile.key}
-              type='button'
-              onClick={() => {
-                onSelect(profile.key)
-                setOpen(false)
-              }}
-              className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/60'
-            >
-              <span className='truncate'>{profile.key}</span>
-              {/* An unconfigured profile is a real choice with a real
+          {/* The reserved passthrough profile is deliberately not offered
+              here. Selecting it on a surface would mean exactly what the
+              Routed/Passthrough toggle two controls to the left already
+              means, and two controls for one decision is how they end up
+              disagreeing on screen. It stays available for access
+              tokens, where it is the only way to express it. */}
+          {profiles
+            .filter((profile) => profile.kind === 'chain')
+            .map((profile) => (
+              <button
+                key={profile.key}
+                type='button'
+                onClick={() => {
+                  onSelect(profile.key)
+                  setOpen(false)
+                }}
+                className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted/60'
+              >
+                <span className='truncate'>{profile.key}</span>
+                {/* An unconfigured profile is a real choice with a real
                   consequence, so it says so rather than showing a bare 0. */}
-              {profile.entryCount === 0 ? (
-                <span className='ml-auto shrink-0 text-[10px] text-muted-foreground'>not configured</span>
-              ) : (
-                <span className='ml-auto shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground'>
-                  {profile.entryCount}
-                </span>
-              )}
-            </button>
-          ))}
+                {profile.entryCount === 0 ? (
+                  <span className='ml-auto shrink-0 text-[10px] text-muted-foreground'>not configured</span>
+                ) : (
+                  <span className='ml-auto shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground'>
+                    {profile.entryCount}
+                  </span>
+                )}
+              </button>
+            ))}
         </PopoverContent>
       </Popover>
     </div>
