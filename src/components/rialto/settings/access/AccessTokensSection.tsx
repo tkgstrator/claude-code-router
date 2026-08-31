@@ -9,19 +9,13 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Pill, RButton } from '@/components/rialto/primitives'
+import { RButton } from '@/components/rialto/primitives'
 import { IssuedTokenPanel } from '@/components/rialto/settings/access/IssuedTokenPanel'
 import { ANY, emptyDraft, type IssueDraft, IssueTokenForm } from '@/components/rialto/settings/access/IssueTokenForm'
 import { TokenTable } from '@/components/rialto/settings/access/TokenTable'
 import { SectionHead } from '@/components/rialto/settings/fields'
-import { api, type InboundSurfaceWire } from '@/lib/api'
-import {
-  type AccessTokenWire,
-  countTokens,
-  EXPIRY_CHOICES,
-  expiryToIso,
-  type IssuedTokenWire
-} from '@/lib/rialto/settings/access-tokens'
+import { type AccessTokenWire, api, type InboundSurfaceWire } from '@/lib/api'
+import { countTokens, EXPIRY_CHOICES, expiryToIso } from '@/lib/rialto/settings/access-tokens'
 
 interface Revealed {
   plaintext: string
@@ -56,7 +50,7 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
 
   const load = useCallback(() => {
     api
-      .get<{ tokens: AccessTokenWire[] }>('/access-tokens')
+      .getAccessTokens()
       .then((res) => {
         setTokens(res.tokens)
         setNow(Date.now())
@@ -78,10 +72,14 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
   const issue = () => {
     if (draft === null) return
     setIssuing(true)
+    // Resolve the picker's string back through the fetched list rather
+    // than asserting it into a SurfaceId: the id is then one the server
+    // itself reported, so an unknown value cannot reach the wire.
+    const picked = surfaces.find((s) => s.id === draft.surface)
     api
-      .post<IssuedTokenWire>('/access-tokens', {
+      .issueAccessToken({
         name: draft.name.trim(),
-        surface: draft.surface === ANY ? null : draft.surface,
+        surface: picked === undefined ? null : picked.id,
         profileKey: draft.profileKey === ANY ? null : draft.profileKey,
         expiresAt: expiryToIso(draft.expiry, Date.now())
       })
@@ -105,7 +103,7 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
     if (!window.confirm(`Revoke "${token.name}"? Any client using it stops working immediately.`)) return
     setBusyId(token.id)
     api
-      .post<AccessTokenWire>(`/access-tokens/${encodeURIComponent(token.id)}/revoke`, {})
+      .revokeAccessToken(token.id)
       .then(() => {
         toast.success(`"${token.name}" revoked.`)
         load()
@@ -114,12 +112,24 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
       .finally(() => setBusyId(null))
   }
 
-  // Deleting a revoked token needs `DELETE /api/access-tokens/{id}`.
-  // The shared client exposes get/post/put only — `deleteRequest` is
-  // private — so the control is rendered and explained rather than wired
-  // to a call that cannot be made from here.
-  const DELETE_BLOCKED =
-    'Deleting needs a DELETE verb on the shared API client, which only exposes get/post/put today. Revoke does everything delete does for access; only the attribution cleanup is unavailable.'
+  const remove = (token: AccessTokenWire) => {
+    if (
+      !window.confirm(
+        `Delete "${token.name}" permanently?\n\nIt is already revoked, so this changes nothing about access. What it does lose is attribution: past requests in Activity will no longer resolve to this token's name.`
+      )
+    ) {
+      return
+    }
+    setBusyId(token.id)
+    api
+      .deleteAccessToken(token.id)
+      .then(() => {
+        toast.success(`"${token.name}" deleted.`)
+        load()
+      })
+      .catch((e: Error) => toast.error(`Delete failed: ${e.message}`))
+      .finally(() => setBusyId(null))
+  }
 
   const counts = countTokens(tokens, now)
 
@@ -158,10 +168,11 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
           <div className='px-6 pb-4'>
             <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
               <i className='ri-information-line mr-1 align-[-1px]' />
-              Only a SHA-256 digest is stored — the plaintext is shown once, when the token is issued. Scoping a token
-              to an endpoint and a routing profile is how one client gets its own routing without touching anyone else's
-              chain. <span className='font-medium text-foreground'>Revoke</span> keeps the row so past requests still
-              say whose traffic they were; delete drops that attribution.
+              These are the only credentials <span className='font-mono'>/v1/*</span> accepts — the bootstrap token is
+              refused there. Only a SHA-256 digest is stored, so the plaintext is shown once, when the token is issued.
+              Scoping a token to an endpoint and a routing profile is how one client gets its own routing without
+              touching anyone else's chain. <span className='font-medium text-foreground'>Revoke</span> keeps the row so
+              past requests still say whose traffic they were; delete drops that attribution.
             </div>
           </div>
           <TokenTable
@@ -170,7 +181,7 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
             now={now}
             busyId={busyId}
             onRevoke={revoke}
-            deleteBlockedReason={DELETE_BLOCKED}
+            onDelete={remove}
           />
         </>
       )}

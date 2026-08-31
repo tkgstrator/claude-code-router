@@ -3,16 +3,19 @@
  *
  * SetupDialog asked for an APIKEY in a modal before the operator had any
  * model of what Rialto is, so "why am I being asked this" had nowhere to
- * live. This states the shape of the system first, then points at the one
- * action that actually unblocks the install: connecting a provider.
+ * live. This states the shape of the system first, then walks the two
+ * things that actually unblock the install: a provider to route to, and a
+ * credential a client can authenticate with.
  *
  * Full page, no app shell — the sidebar's five destinations mean nothing
  * until something answers.
  */
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { Pill, RButton } from '@/components/rialto/primitives'
+import { type AccessTokenWire, api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { Provider } from '@/types'
 import { APP_VERSION } from '@/version'
@@ -45,12 +48,16 @@ const isConnected = (provider: Provider): boolean => {
   return provider.api_key !== null && provider.api_key.length > 0
 }
 
-// The token is a secret and this page is often screen-shared during a
-// first install. A prefix is enough to tell two keys apart; the real value
-// is read out of the config file the footer names.
-const maskToken = (key: string): string => (key.length > 8 ? `${key.slice(0, 8)}…` : key)
+// Mirrors the server's own liveness test in access-token-service: listing
+// returns revoked and expired rows too, and neither will authenticate.
+const isLive = (token: AccessTokenWire, now: number): boolean => {
+  if (token.revokedAt !== null) return false
+  return token.expiresAt === null ? true : Date.parse(token.expiresAt) > now
+}
 
 const plural = (n: number, word: string): string => `${n} ${n === 1 ? word : `${word}s`}`
+
+const nextTokenName = (live: number): string => (live === 0 ? 'first client' : `client ${live + 1}`)
 
 function Step({
   n,
@@ -87,19 +94,98 @@ function Step({
   )
 }
 
+/**
+ * The export block, in its two states.
+ *
+ * Before issuing it shows the shape rather than a value, because the only
+ * credential the page could otherwise offer — the envelope bootstrap token
+ * — is admin-only now and would 401 on the client's first request. After
+ * issuing it shows the plaintext in full: a masked token cannot be pasted,
+ * and pasting it is the entire point of this block.
+ */
+function ExportBlock({ baseUrl, plaintext }: { baseUrl: string; plaintext: string | null }) {
+  const [copied, setCopied] = useState(false)
+  const [clipboardError, setClipboardError] = useState<string | null>(null)
+
+  const copy = () => {
+    if (plaintext === null) return
+    navigator.clipboard.writeText(plaintext).then(
+      () => setCopied(true),
+      () => setClipboardError('Clipboard was refused — select the token above and copy it by hand.')
+    )
+  }
+
+  return (
+    <>
+      <div className='mt-3 rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px] leading-relaxed break-all'>
+        <div>export ANTHROPIC_BASE_URL={baseUrl}</div>
+        {plaintext === null ? (
+          <div className='text-muted-foreground'>export ANTHROPIC_AUTH_TOKEN=…</div>
+        ) : (
+          <div>export ANTHROPIC_AUTH_TOKEN={plaintext}</div>
+        )}
+        <div>claude</div>
+      </div>
+      {plaintext === null ? null : (
+        <div className='mt-2 flex items-start gap-2'>
+          <RButton
+            variant='outline'
+            icon={copied ? 'ri-check-line' : 'ri-file-copy-line'}
+            className='shrink-0'
+            onClick={copy}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </RButton>
+          <span className='text-[11px] leading-relaxed text-muted-foreground'>
+            {clipboardError === null
+              ? 'Shown once. Rialto stores only a hash of it, so leaving this page loses the value — issuing a replacement is the only way back.'
+              : clipboardError}
+          </span>
+        </div>
+      )}
+    </>
+  )
+}
+
 export function SetupScreen() {
   const { config } = useConfig()
   const navigate = useNavigate()
+  const [tokens, setTokens] = useState<AccessTokenWire[] | null>(null)
+  const [issued, setIssued] = useState<string | null>(null)
+  const [issuing, setIssuing] = useState(false)
+  const [issueError, setIssueError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api
+      .getAccessTokens()
+      .then((res) => setTokens(res.tokens))
+      .catch(() => {
+        // A failed listing only costs the "you already have N" hint; the
+        // issue action below still works and is the point of the step.
+      })
+  }, [])
 
   const providers = config === null ? [] : config.Providers
   const connected = providers.filter(isConnected).length
-  const apiKey = config === null ? '' : config.APIKEY
+  const live = tokens === null ? 0 : tokens.filter((token) => isLive(token, Date.now())).length
 
   // The URL the operator's browser used to get here is, by construction,
   // a URL that reaches this server — through a tunnel, over the LAN, or on
   // loopback. config.PORT would only be right in the third case.
   const baseUrl = window.location.origin
-  const token = apiKey.length > 0 ? maskToken(apiKey) : '<not set>'
+
+  const issue = () => {
+    setIssuing(true)
+    setIssueError(null)
+    api
+      .issueAccessToken({ name: nextTokenName(live) })
+      .then((result) => {
+        setIssued(result.plaintext)
+        setTokens(tokens === null ? [result.token] : [result.token, ...tokens])
+      })
+      .catch((err: unknown) => setIssueError(err instanceof Error ? err.message : 'Could not issue a token.'))
+      .finally(() => setIssuing(false))
+  }
 
   const catalogBody = `Migrations applied and the model catalog seeded. ${plural(providers.length, 'provider')} registered, ${
     connected === 0 ? 'none authenticated yet' : `${connected} authenticated`
@@ -158,18 +244,28 @@ export function SetupScreen() {
           n={3}
           state={connected === 0 ? 'todo' : 'active'}
           title='Point a client at Rialto'
-          body='Export the base URL and token, then run your client as usual.'
+          body='The proxy answers only to an issued access token — a fresh install can serve nothing until one exists. Issue one, export it with the base URL, then run your client as usual.'
         >
-          <div className='mt-3 rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px] leading-relaxed'>
-            <div>export ANTHROPIC_BASE_URL={baseUrl}</div>
-            <div>export ANTHROPIC_AUTH_TOKEN={token}</div>
-            <div>claude</div>
-          </div>
+          <ExportBlock baseUrl={baseUrl} plaintext={issued} />
+          {issued === null ? (
+            <div className='mt-2 flex items-start gap-2'>
+              <RButton variant='outline' icon='ri-key-2-line' className='shrink-0' onClick={issue} disabled={issuing}>
+                {issuing ? 'Issuing…' : 'Issue a token'}
+              </RButton>
+              <span className='text-[11px] leading-relaxed text-muted-foreground'>
+                {live === 0
+                  ? 'Nothing can call the proxy yet.'
+                  : `You already have ${plural(live, 'token')}. Issue another, or paste one you saved — the plaintext of an existing token cannot be shown again.`}
+              </span>
+            </div>
+          ) : null}
+          {issueError === null ? null : <p className='mt-2 text-[11px] text-destructive'>{issueError}</p>}
         </Step>
 
         <div className='flex items-center gap-3 border-t border-border px-6 py-4'>
           <span className='text-[11px] text-muted-foreground'>
-            Your bootstrap token was written to <span className='font-mono'>~/.claude-code-router/config.json</span>.
+            The bootstrap token in <span className='font-mono'>~/.claude-code-router/config.json</span> signs you into
+            this admin UI. Clients authenticate with an access token instead.
           </span>
           <Link to='/overview' className='ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:underline'>
             Skip setup

@@ -9,29 +9,10 @@
  * can still reach the proxy.
  */
 
+import type { AccessTokenWire } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 
-export interface AccessTokenWire {
-  id: string
-  name: string
-  /** First characters only — enough to tell two rows apart, not to authenticate. */
-  prefix: string
-  /** An InboundSurface id, or null for "every endpoint". */
-  surface: string | null
-  /** A routing profile key, or null for "whatever the surface itself uses". */
-  profileKey: string | null
-  lastUsedAt: string | null
-  requestCount: number
-  expiresAt: string | null
-  revokedAt: string | null
-  createdAt: string
-}
-
-export interface IssuedTokenWire {
-  token: AccessTokenWire
-  /** Returned by the issue call and never again. */
-  plaintext: string
-}
+export type { AccessTokenWire } from '@/lib/api'
 
 export type TokenState = 'active' | 'expired' | 'revoked'
 
@@ -49,13 +30,12 @@ export interface TokenCounts {
 }
 
 export function countTokens(tokens: readonly AccessTokenWire[], now: number): TokenCounts {
-  return tokens.reduce<TokenCounts>(
-    (counts, token) => {
-      const state = tokenState(token, now)
-      return { ...counts, [state]: counts[state] + 1 }
-    },
-    { active: 0, expired: 0, revoked: 0 }
-  )
+  const counts: TokenCounts = { active: 0, expired: 0, revoked: 0 }
+  for (const token of tokens) {
+    const state = tokenState(token, now)
+    counts[state] += 1
+  }
+  return counts
 }
 
 const STATE_ORDER: Record<TokenState, number> = { active: 0, expired: 1, revoked: 2 }

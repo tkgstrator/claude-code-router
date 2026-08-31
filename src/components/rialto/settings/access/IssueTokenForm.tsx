@@ -8,7 +8,6 @@
  * come from the server (`/api/inbound-surfaces`,
  * `/api/router-preferences/profiles`); nothing about them is hardcoded.
  */
-import { useState } from 'react'
 import { RButton } from '@/components/rialto/primitives'
 import { SettingsField } from '@/components/rialto/settings/SettingsLayout'
 import type { InboundSurfaceWire } from '@/lib/api'

@@ -6,14 +6,11 @@
  * resolve to a name and Activity can still say whose traffic a request
  * was. Deleting drops the row and that attribution goes with it — so
  * revoke is the plain action, and delete appears only once a row is
- * already revoked.
- *
- * Delete is currently inert: the server has the route, but the shared
- * API client exposes no DELETE verb. It renders disabled with the reason
- * on hover rather than silently vanishing, because a reader needs to
- * know the capability exists and why it cannot be used yet.
+ * already revoked — by which point it changes nothing about access and
+ * only trades away the audit trail.
  */
 import { Pill, SurfacePill } from '@/components/rialto/primitives'
+import { WarnNotice } from '@/components/rialto/settings/notice'
 import type { InboundSurfaceWire } from '@/lib/api'
 import { fmtAgo, fmtCount } from '@/lib/rialto/format'
 import { type AccessTokenWire, sortTokens, type TokenState, tokenState } from '@/lib/rialto/settings/access-tokens'
@@ -30,7 +27,7 @@ function TokenRow({
   surfacePath,
   now,
   onRevoke,
-  deleteBlockedReason,
+  onDelete,
   busy
 }: {
   token: AccessTokenWire
@@ -38,7 +35,7 @@ function TokenRow({
   surfacePath: string | undefined
   now: number
   onRevoke: () => void
-  deleteBlockedReason: string
+  onDelete: () => void
   busy: boolean
 }) {
   const dead = state !== 'active'
@@ -70,7 +67,12 @@ function TokenRow({
       </td>
       <td className='py-2.5 pl-3 pr-6 text-right'>
         {state === 'revoked' ? (
-          <button type='button' disabled title={deleteBlockedReason} className='text-[11px] text-muted-foreground/40'>
+          <button
+            type='button'
+            onClick={onDelete}
+            disabled={busy}
+            className='text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50'
+          >
             Delete
           </button>
         ) : (
@@ -94,20 +96,26 @@ export function TokenTable({
   now,
   busyId,
   onRevoke,
-  deleteBlockedReason
+  onDelete
 }: {
   tokens: AccessTokenWire[]
   surfaces: InboundSurfaceWire[]
   now: number
   busyId: string | null
   onRevoke: (token: AccessTokenWire) => void
-  deleteBlockedReason: string
+  onDelete: (token: AccessTokenWire) => void
 }) {
   if (tokens.length === 0) {
+    // Not a neutral empty list: with no token issued the proxy accepts
+    // nothing, so this is the difference between a working gateway and
+    // a dead one and has to read that way.
     return (
-      <div className='px-6 pb-6 text-xs text-muted-foreground'>
-        No tokens issued yet. Until one exists, every client on <span className='font-mono'>/v1/*</span> authenticates
-        with the shared bootstrap token above.
+      <div className='px-6 pb-6'>
+        <WarnNotice title='No tokens issued — the proxy is closed' tag='no clients'>
+          <span className='font-mono'>/v1/*</span> accepts issued access tokens and nothing else; the bootstrap token is
+          refused there. Until you issue one, no client can route a request — Claude Code, Codex and the OpenAI SDK will
+          all get a 401. That is the intended default: closed until you decide who may call.
+        </WarnNotice>
       </div>
     )
   }
@@ -143,7 +151,7 @@ export function TokenTable({
             now={now}
             busy={busyId === token.id}
             onRevoke={() => onRevoke(token)}
-            deleteBlockedReason={deleteBlockedReason}
+            onDelete={() => onDelete(token)}
           />
         ))}
       </tbody>

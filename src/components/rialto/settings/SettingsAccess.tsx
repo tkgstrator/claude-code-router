@@ -8,9 +8,12 @@
  *             set (the assertion is verified against the team JWKS
  *             before any handler runs), otherwise the bootstrap token
  *             alone.
- *   /v1/*   — per-client access tokens. This path has to be a Bypass app
- *             at the edge, because Claude Code, Codex and Gemini CLI
- *             cannot complete an interactive Access login.
+ *   /v1/*   — per-client access tokens, and only those: the bootstrap
+ *             token is deliberately refused here, so a leaked master
+ *             key cannot spend the subscription unattributably. This
+ *             path has to be a Bypass app at the edge, because Claude
+ *             Code, Codex and Gemini CLI cannot complete an interactive
+ *             Access login. No tokens issued means no proxying at all.
  *
  * `accessConfigured: false` on a deployment reachable from the internet
  * means one shared secret is the only thing in front of the admin API,
@@ -96,7 +99,7 @@ function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
       />
       <SettingsField
         label='APIKEY'
-        hint='Stored in the on-disk envelope and mirrored onto process.env. Accepted on /api/* so a database outage or a broken Access policy cannot lock you out. Prefer a scoped access token for anything that is not you.'
+        hint='Stored in the on-disk envelope and mirrored onto process.env. Accepted on /api/* only, so a database outage or a broken Access policy cannot lock you out of the admin UI. The proxy refuses it outright — /v1/* takes issued access tokens and nothing else.'
       >
         <div className='flex items-center gap-2'>
           <div className='flex h-8 max-w-md flex-1 items-center overflow-hidden rounded-md border border-border px-3 font-mono text-xs'>
