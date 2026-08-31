@@ -28,7 +28,7 @@
     {
       "name": "routing-passthrough",
       "mock": "routing-passthrough.html",
-      "route": null,
+      "route": "/routing?surface=openai-responses",
       "group": "Routing",
       "note": "The passthrough half — today's hardcoded behaviour for chat/completions and responses, made visible and reversible."
     },

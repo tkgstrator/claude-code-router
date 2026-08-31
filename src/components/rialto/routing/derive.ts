@@ -1,0 +1,145 @@
+/**
+ * Pure derivations shared by the Routing screens.
+ *
+ * The chain table, the map and the passthrough list all have to answer
+ * "what state is this target in" and "what tier is this model"; keeping
+ * the answers here stops three screens from drifting into three sets of
+ * thresholds.
+ */
+import type { RoutingSchedulerStateResponse, RoutingSchedulerWeightEntry } from '@/lib/api'
+import type { Provider } from '@/schemas'
+import type { EnabledTarget, PreferenceByScenario, TargetState, Tier } from './types'
+import { SCENARIOS } from './types'
+
+/** Split a "provider,model" target. A malformed row keeps the raw string as its model. */
+export function splitTarget(target: string): { provider: string; model: string } {
+  const comma = target.indexOf(',')
+  if (comma <= 0) return { provider: '', model: target }
+  return { provider: target.slice(0, comma), model: target.slice(comma + 1) }
+}
+
+/**
+ * Name-based tier inference. Mirrors `inferTier` in
+ * services/router-preference-service.ts — the server resolves the tier for
+ * preference entries, but the passthrough list and the model picker draw
+ * from /api/config, which carries only the manual overrides.
+ */
+export function inferTier(modelName: string): Tier | null {
+  const lower = modelName.toLowerCase()
+  if (lower.includes('fable')) return 'fable'
+  if (lower.includes('opus')) return 'opus'
+  if (lower.includes('sonnet')) return 'sonnet'
+  if (lower.includes('haiku')) return 'haiku'
+  return null
+}
+
+/**
+ * Every "provider,model" the operator has left routable: providers switched
+ * off and models in `transformer._disabledModels` drop out, matching the
+ * gate ModelsDashboard and TierEditor apply.
+ */
+export function enabledTargets(providers: readonly Provider[]): EnabledTarget[] {
+  const out: EnabledTarget[] = []
+  for (const provider of providers) {
+    if (provider.enabled === false) continue
+    const disabled = new Set(provider.transformer?._disabledModels)
+    const manual = provider.modelManualTiers
+    for (const model of [...provider.models].sort((a, b) => a.localeCompare(b))) {
+      if (disabled.has(model)) continue
+      const override = manual === undefined ? undefined : manual[model]
+      out.push({
+        target: `${provider.name},${model}`,
+        provider: provider.name,
+        model,
+        tier: override === undefined ? inferTier(model) : override
+      })
+    }
+  }
+  return out
+}
+
+/** Weight snapshot keyed by target, so a row can look up its own live numbers. */
+export function weightIndex(state: RoutingSchedulerStateResponse | null): Map<string, RoutingSchedulerWeightEntry> {
+  const out = new Map<string, RoutingSchedulerWeightEntry>()
+  if (state === null) return out
+  for (const entry of state.weights) out.set(entry.target, entry)
+  return out
+}
+
+/**
+ * Classify a target from its published weight.
+ *
+ * A zero weight means the selector will never pick it — that is exhaustion
+ * as far as routing is concerned. Anything the scheduler annotated with a
+ * reason other than `ok` is degraded but still reachable. No snapshot at
+ * all (cold boot, or a target the scheduler has not scored) stays
+ * `unknown` rather than being flattered into `ready`.
+ */
+export function targetState(entry: RoutingSchedulerWeightEntry | undefined): TargetState {
+  if (entry === undefined) return 'unknown'
+  if (entry.weight === 0) return 'exhausted'
+  return entry.reasons.every((r) => r === 'ok') ? 'ready' : 'throttled'
+}
+
+/**
+ * Consumed share of the binding quota window. The scheduler publishes what
+ * is LEFT; the meter reads as "how full is this account", so it is
+ * inverted here once instead of at every call site.
+ */
+export function quotaUsedPct(entry: RoutingSchedulerWeightEntry | undefined): number | null {
+  if (entry === undefined || entry.remainingBudgetPct === null) return null
+  return Math.round(100 - entry.remainingBudgetPct)
+}
+
+export const STATE_TONE = {
+  ready: 'ok',
+  throttled: 'warn',
+  exhausted: 'bad',
+  unknown: 'mute'
+} as const
+
+/** Empty profile shape — every scenario and lane present, so tabs never branch on "missing". */
+export function emptyByScenario(): PreferenceByScenario {
+  return {
+    default: { agent: [], subagent: [] },
+    think: { agent: [], subagent: [] },
+    longContext: { agent: [], subagent: [] },
+    webSearch: { agent: [], subagent: [] },
+    image: { agent: [], subagent: [] }
+  }
+}
+
+/** Distinct targets referenced anywhere in the profile, in first-seen order. */
+export function profileTargets(byScenario: PreferenceByScenario): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const scenario of SCENARIOS) {
+    for (const lane of ['agent', 'subagent'] as const) {
+      for (const entry of byScenario[scenario][lane]) {
+        if (seen.has(entry.target)) continue
+        seen.add(entry.target)
+        out.push(entry.target)
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Total entries across every scenario and lane.
+ *
+ * Zero means the profile has never been configured, which is not the same
+ * as a chain that routes nowhere: the request falls through to the
+ * scenario router instead. The two need different empty states.
+ */
+export function profileEntryCount(byScenario: PreferenceByScenario): number {
+  return SCENARIOS.reduce(
+    (total, scenario) => total + byScenario[scenario].agent.length + byScenario[scenario].subagent.length,
+    0
+  )
+}
+
+/** Renumber a chain so `priority` matches list position after a move or a delete. */
+export function renumber<T extends { priority: number }>(entries: readonly T[]): T[] {
+  return entries.map((entry, index) => ({ ...entry, priority: index + 1 }))
+}
