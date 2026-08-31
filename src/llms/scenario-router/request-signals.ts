@@ -143,20 +143,35 @@ export function isWebSearchTool(tool: unknown): tool is { type: string } {
   return typeof type === 'string' && type.startsWith('web_search')
 }
 
-// Detect a <CCR-SUBAGENT-MODEL> tag in the second system block and strip
-// it in place so the CCR-internal marker never leaks upstream. Returns
-// true when the tag is present — its PRESENCE selects the subagent route;
-// its VALUE is not used for routing. Only a well-formed (closed) tag is
-// stripped, matching the old extractSubagentModel behaviour; a malformed
-// (unclosed) tag still counts as present but is left untouched.
+/**
+ * Tag names that mark a request as subagent traffic, newest first.
+ *
+ * This is an EXTERNAL CONTRACT: the string lives in prompts users have
+ * already written into their own subagent definitions. The rename adds
+ * a name, it does not replace one — dropping the old spelling would
+ * silently reroute existing subagent traffic onto the main-agent chain,
+ * with nothing in the request to say why.
+ */
+const SUBAGENT_TAGS = ['RIALTO-SUBAGENT-MODEL', 'CCR-SUBAGENT-MODEL'] as const
+
+// Detect a subagent tag in the second system block and strip it in place
+// so the internal marker never leaks upstream. Returns true when the tag
+// is present — its PRESENCE selects the subagent route; its VALUE is not
+// used for routing. Only a well-formed (closed) tag is stripped, matching
+// the old extractSubagentModel behaviour; a malformed (unclosed) tag
+// still counts as present but is left untouched.
 export function stripSubagentTag(system: RouterRequestBody['system']): boolean {
   if (!Array.isArray(system) || system.length < 2) return false
   const block = system[1]
   const text = typeof block?.text === 'string' ? block.text : undefined
-  if (text?.startsWith('<CCR-SUBAGENT-MODEL>') !== true) return false
-  const match = text.match(/<CCR-SUBAGENT-MODEL>(.*?)<\/CCR-SUBAGENT-MODEL>/s)
+  if (text === undefined) return false
+
+  const tag = SUBAGENT_TAGS.find((name) => text.startsWith(`<${name}>`))
+  if (tag === undefined) return false
+
+  const match = text.match(new RegExp(`<${tag}>(.*?)</${tag}>`, 's'))
   if (match) {
-    block.text = text.replace(`<CCR-SUBAGENT-MODEL>${match[1]}</CCR-SUBAGENT-MODEL>`, '')
+    block.text = text.replace(`<${tag}>${match[1]}</${tag}>`, '')
   }
   return true
 }
