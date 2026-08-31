@@ -15,6 +15,6 @@
     },
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "vite.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "vite.config.mts"],
   "exclude": ["node_modules", "dist", "src/generated"]
 }

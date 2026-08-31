@@ -13,7 +13,7 @@ export default defineConfig({
     allowedHosts: true
   },
   resolve: {
-    alias: [{ find: '@', replacement: resolve(__dirname, './src') }],
+    alias: [{ find: '@', replacement: resolve(import.meta.dirname, './src') }],
     // Force a single physical copy of React into the bundle. node_modules
     // can end up with duplicate react/react-dom (e.g. a stale .pnpm store
     // beside .bun, or a dep pinning its own react), and two copies mean two
