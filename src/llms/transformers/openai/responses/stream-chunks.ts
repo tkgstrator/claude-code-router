@@ -195,7 +195,9 @@ function buildCompletedChunk(data: ResponsesStreamEvent): Record<string, unknown
       ? {
           prompt_tokens: numericField(rawUsage, 'input_tokens', 0),
           completion_tokens: numericField(rawUsage, 'output_tokens', 0),
-          total_tokens: numericField(rawUsage, 'total_tokens', 0)
+          total_tokens: numericField(rawUsage, 'total_tokens', 0),
+          ...detailsField(rawUsage, 'input_tokens_details', 'prompt_tokens_details'),
+          ...detailsField(rawUsage, 'output_tokens_details', 'completion_tokens_details')
         }
       : undefined
   const chunk: Record<string, unknown> = {
@@ -219,6 +221,23 @@ function numericField(source: unknown, key: string, fallback: number): number {
   if (source === null || typeof source !== 'object') return fallback
   const value = Reflect.get(source, key)
   return typeof value === 'number' ? value : fallback
+}
+
+/**
+ * Carry a Responses usage detail block over under its Chat-Completions
+ * name (`input_tokens_details` -> `prompt_tokens_details`, likewise for
+ * output). Callers spread the result, so a missing block contributes
+ * nothing rather than an explicit undefined.
+ *
+ * The block is forwarded whole instead of being rebuilt field by field:
+ * `reasoning_tokens` and `cached_tokens` are the ones consumers ask for
+ * today, but the shape grows over time and a passthrough keeps new
+ * counters working without another release here.
+ */
+function detailsField(source: object, from: string, to: string): Record<string, object> {
+  const value: unknown = Reflect.get(source, from)
+  if (value === null || typeof value !== 'object') return {}
+  return { [to]: value }
 }
 
 function buildReasoningDeltaChunk(
