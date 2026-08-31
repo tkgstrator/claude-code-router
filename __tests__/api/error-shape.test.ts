@@ -20,9 +20,81 @@ describe('errorShapeForPath', () => {
     expect(errorShapeForPath('/v1/models')).toBe('openai')
   })
 
+  test('the gemini surface picks the Google shape', () => {
+    // Until Phase 3 this collapsed to the Anthropic envelope, which meant
+    // a Gemini client would have seen an error body its SDK cannot parse.
+    expect(errorShapeForPath('/v1beta/models/gemini-3-pro:generateContent')).toBe('google')
+    expect(errorShapeForPath('/v1beta/models/gemini-3-pro:streamGenerateContent')).toBe('google')
+  })
+
   test('unknown / undefined paths fall back to Anthropic (existing behaviour)', () => {
     expect(errorShapeForPath(undefined)).toBe('anthropic')
     expect(errorShapeForPath('/somewhere/else')).toBe('anthropic')
+  })
+})
+
+describe('buildErrorEnvelope — Google shape', () => {
+  test('emits google.rpc.Status: {error:{code,message,status}}', () => {
+    // `code` is the HTTP status as a NUMBER — the GenAI SDKs read it as
+    // one, and a string there is a silent client-side type error.
+    expect(buildErrorEnvelope({ shape: 'google', status: 400, from: 'Missing model' })).toEqual({
+      error: { code: 400, message: 'Missing model', status: 'INVALID_ARGUMENT' }
+    })
+  })
+
+  test('maps the statuses a client actually branches on', () => {
+    const statusOf = (http: number): unknown =>
+      (buildErrorEnvelope({ shape: 'google', status: http, from: 'x' }).error as Record<string, unknown>).status
+    expect(statusOf(401)).toBe('UNAUTHENTICATED')
+    expect(statusOf(403)).toBe('PERMISSION_DENIED')
+    expect(statusOf(404)).toBe('NOT_FOUND')
+    expect(statusOf(429)).toBe('RESOURCE_EXHAUSTED')
+    expect(statusOf(500)).toBe('INTERNAL')
+    expect(statusOf(503)).toBe('UNAVAILABLE')
+  })
+
+  test('an unmapped status says UNKNOWN rather than inventing a name', () => {
+    const error = buildErrorEnvelope({ shape: 'google', status: 418, from: 'x' }).error as Record<string, unknown>
+    expect(error.status).toBe('UNKNOWN')
+    expect(error.code).toBe(418)
+  })
+
+  test("preserves the upstream's own status name when Google classified it", () => {
+    const env = buildErrorEnvelope({
+      shape: 'google',
+      status: 429,
+      from: { error: { code: 429, message: 'Quota exceeded', status: 'RESOURCE_EXHAUSTED' } }
+    })
+    expect(env).toEqual({
+      error: { code: 429, message: 'Quota exceeded', status: 'RESOURCE_EXHAUSTED' }
+    })
+  })
+
+  test('rewraps a non-Google upstream body into the Google envelope', () => {
+    // A gemini-surface caller failing over onto a codex provider must
+    // still get an envelope its SDK can parse.
+    expect(buildErrorEnvelope({ shape: 'google', status: 400, from: { detail: 'Unsupported parameter' } })).toEqual({
+      error: { code: 400, message: 'Unsupported parameter', status: 'INVALID_ARGUMENT' }
+    })
+  })
+
+  test('the via tag lands on the message here too', () => {
+    const error = buildErrorEnvelope({ shape: 'google', status: 401, from: 'nope', via: 'google' }).error as Record<
+      string,
+      unknown
+    >
+    expect(error.message).toBe('[via google] nope')
+  })
+
+  test("google's status name never leaks into the OpenAI envelope's type", () => {
+    // The two taxonomies do not overlap; INVALID_ARGUMENT in
+    // `error.type` is a string no OpenAI SDK can match on.
+    const error = buildErrorEnvelope({
+      shape: 'openai',
+      status: 400,
+      from: { error: { code: 400, message: 'bad', status: 'INVALID_ARGUMENT' } }
+    }).error as Record<string, unknown>
+    expect(error.type).toBe('invalid_request_error')
   })
 })
 

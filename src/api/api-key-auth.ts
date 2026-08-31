@@ -71,13 +71,9 @@ const PROXY_UNAUTHORIZED =
 
 const PROXY_WRONG_SURFACE = 'This access token is not scoped to this endpoint.'
 
-// Gate the billable proxy + config API behind the envelope APIKEY
-// (mirrored onto process.env by initConfig; bootstrap mints one on
-// first run so this never silently runs open). Accepts the secret as
-// `x-api-key` header or `Authorization: Bearer <key>` header on every
-// gated route; the `apikey` query param is accepted only on the
-// SSE/EventSource paths in ALLOW_API_KEY_QUERY_PARAM. Fails closed.
 // Pull the presented secret off whichever header this surface accepts.
+// Fails closed: an absent or unreadable credential returns the empty
+// string, which matches nothing.
 //
 // Bearer is read on every convention: it is the one header all three
 // client families can send, and it is what the admin gate has always

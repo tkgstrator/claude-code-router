@@ -28,6 +28,7 @@ import {
   type UnifiedChatRequest
 } from '@/schemas'
 import { buildRequestBody, transformRequestOut, transformResponseOut } from '../../utils/gemini-conversion'
+import { convertChatCompletionToGemini, convertChatStreamToGeminiSse } from '../../utils/gemini-inbound-response'
 import { Transformer, type TransformerAuthResult } from '../base'
 
 /**
@@ -115,5 +116,36 @@ export class GeminiTransformer extends Transformer {
 
   async transformResponseOut(response: Response, _context: TransformerContext): Promise<Response> {
     return transformResponseOut(response, this.name, this.logger)
+  }
+
+  /**
+   * Final shaping for a Gemini CLIENT.
+   *
+   * Only runs on the converted path — a Gemini client served by a Gemini
+   * provider bypasses the whole chain, and the upstream body already is
+   * what the client wants. On every other provider the pipeline hands
+   * back its internal OpenAI-shaped response, and a Gemini SDK reading
+   * that finds no `candidates` and reports an empty answer rather than
+   * an error. This is where that is put right.
+   */
+  async transformResponseIn(response: Response, _context?: TransformerContext): Promise<Response> {
+    const contentType = response.headers.get('content-type')
+    if (contentType?.includes('text/event-stream') === true) {
+      if (!response.body) return response
+      return new Response(convertChatStreamToGeminiSse(response.body, this.logger), {
+        status: response.status,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        }
+      })
+    }
+    const payload: unknown = await response.json().catch(() => null)
+    if (payload === null) return response
+    return new Response(JSON.stringify(convertChatCompletionToGemini(payload, this.logger)), {
+      status: response.status,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }

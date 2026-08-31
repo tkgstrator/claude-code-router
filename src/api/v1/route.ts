@@ -1,8 +1,14 @@
 /**
- * /v1/* LLM proxy. The single entry the Claude Code client (and ccr)
- * actually targets. Resolves the inbound path to the matching endpoint
- * transformer, runs the app-side pipeline, and relays the upstream
- * response back to the client as JSON or SSE.
+ * The completion proxy — every inbound surface's HTTP handler.
+ *
+ * One handler serves all of them: the mounts, the SSE→JSON aggregator
+ * and the error envelope all come from the surface registry, so this
+ * file holds the request lifecycle (plan → chain → pipeline → relay) and
+ * none of the per-surface knowledge. Adding a surface does not touch it.
+ *
+ * Resolves the inbound path to its endpoint transformer, runs the
+ * app-side pipeline, and relays the upstream response back to the client
+ * as JSON or SSE.
  */
 
 import type { Context } from 'hono'
@@ -12,6 +18,7 @@ import type { Logger } from 'pino'
 import { getPrismaClient } from '../../db/client'
 import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } from '../../llms'
 import { INBOUND_SURFACES, surfaceForPath } from '../../llms/inbound/surfaces'
+import { aggregateAnthropicSseToJson, isSseContentType } from '../../llms/utils/sse-aggregate'
 import { requestLogEmitter } from '../request-logs/events'
 import { buildFailoverChain } from './candidate-chain'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
@@ -19,7 +26,6 @@ import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
 import type { ResolvedInvocation } from './invocation'
 import { redactToolArguments } from './redact'
 import { buildRoutePlan } from './route-plan'
-import { aggregateAnthropicSseToJson, isSseContentType } from './sse-to-json'
 import { bestSupportedLevel, deepReplaceValue, forwardUpstreamError } from './upstream-error'
 
 export const v1Route = new Hono()

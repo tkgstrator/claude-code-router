@@ -10,24 +10,47 @@ Rialto は「複数のワイヤ形式を受け、複数のベンダへ振り分�
 - `src/llms/inbound/surfaces.ts` — 記述子レジストリ（唯一の定義元）
 - `src/services/inbound-surface-service.ts` — DB上書きを重ねた解決＋キャッシュ
 - `src/api/inbound-surfaces/route.ts` — `GET`/`POST /api/inbound-surfaces`
+- `src/api/api-key-auth.ts` の `inboundProxyAuth` — 記述子の `auth` で認証ゲートを振り分ける
+- `src/api/v1/route.ts` — 記述子から POST ルートをマウントし、`aggregateSse` を選ぶ
+- `src/api/v1/route-plan.ts` — 記述子から endpoint transformer と `extractModel` を引く
 
 ## なぜ作ったか
 
 面ごとの知識が **4箇所に散っていた**。
 
-| 散っていた場所 | 何を知っていたか |
-|---|---|
-| `api/v1/error-shape.ts` の `errorShapeForPath` | エラー封筒の形 |
-| `api/v1/route.ts` の `pickSseAggregator` | 非ストリーム集約の関数（transformer名で分岐） |
-| `index.ts` の `openaiBearerAuth` パス列挙 | 認証ヘッダの種類 |
-| `api/v1/invocation.ts` の `inboundTypeFromPath` | 永続化するワイヤ種別 |
+| 散っていた場所 | 何を知っていたか | 移管先フィールド |
+|---|---|---|
+| `api/v1/error-shape.ts` の `errorShapeForPath` | エラー封筒の形 | `errorShape` |
+| `api/v1/route.ts` の `pickSseAggregator` | 非ストリーム集約の関数（transformer名で分岐） | `aggregateSse` |
+| `index.ts` の `openaiBearerAuth` パス列挙 | 認証ヘッダの種類 | `auth` |
+| `api/v1/invocation.ts` の `inboundTypeFromPath` | 永続化するワイヤ種別 | `inboundType` |
 
 面を1つ足すたびに4箇所を直す必要があり、どれか1つを忘れても**静かに壊れる**（たとえばエラーだけ
 別形式で返る）。記述子に寄せることで、忘れようがなくなる。
 
-現時点で記述子に寄せ終わっているのは `errorShapeForPath` と `inboundTypeFromPath` の2つ。
-`pickSseAggregator` と認証ミドルウェアの選択は未移管で、記述子に `auth` / `errorShape` の
-フィールドだけ先に持たせてある。
+**4箇所すべて移管済み**。加えて次の3つも記述子から導出するようにした。
+
+| 導出するもの | フィールド | 使う場所 |
+|---|---|---|
+| ルートのマウント先 | `endpoint` | `v1Route.post(surface.endpoint, ...)` |
+| 認証・アクセスログのマウント先 | `INBOUND_MOUNT_PREFIXES` | `index.ts` |
+| body に無いリクエストパラメータ | `extractModel` / `extractStream` | `route-plan.ts` |
+
+### `pickSseAggregator` の移管が挙動を変えないこと
+
+旧実装は `transformer.name` で分岐していた。transformer は自分が登録した `endPoint` 経由でしか
+面に到達しないので、**面と transformer は 1:1** であり、2つの分岐が食い違うことは原理的に無い。
+`__tests__/llms/inbound-surfaces.test.ts` が、登録済み transformer 全件について
+「旧分岐が返す関数 === 記述子の `aggregateSse`」を実際に突き合わせている。
+
+### 認証ミドルウェアの移管で1つだけ挙動が変わった
+
+旧実装は `/v1/chat/completions` などを個別に列挙したうえで `/v1/*` のフォールスルーを置いていた。
+Hono はマッチする middleware を**すべて**走らせるので、OpenAI 面に正しい Bearer で入った
+リクエストは `openaiProxyAuth` と `proxyAuth` の**両方**を通っていた。つまり `noteTokenUse` が
+2回呼ばれ、`AccessToken.requestCount` が実リクエスト数の2倍に膨らんでいた。
+記述子ディスパッチ（`inboundProxyAuth`）は面ごとに1つだけ走るので、この二重計上は解消される。
+既存の `requestCount` の値はそのまま（遡及補正はしない）。
 
 ## 4つの面
 
@@ -42,8 +65,24 @@ Rialto は「複数のワイヤ形式を受け、複数のベンダへ振り分�
 ただし呼び手が OpenAI SDK なのでエラー封筒だけは openai 形式を返す（`error-shape.ts` の
 `EXTRA_OPENAI_PATHS`）。
 
-> **未接続**: `gemini-generate` は記述子としては存在するが、`/v1beta/models/*` はまだマウントされて
-> いない。よって Overview のこの行は常に0件になる。有効化は Phase 3。
+`gemini-generate` は Phase 3 で接続済み。`POST /v1beta/models/:modelAndAction` が実際に
+マウントされ、認証・エラー封筒・SSE集約・`RequestLog` 記録まで通る。
+
+### Gemini 面の固有事情
+
+| 事情 | 対処 |
+|---|---|
+| モデルと action が **URL** にあり body に無い | 記述子の `extractModel` / `extractStream` が `body.model` / `body.stream` に畳み込む。下流（scenario router / failover chain / pipeline / JSON-vs-SSE 判定）はすべて body を読むので、ここが2つのワイヤ規約の合流点 |
+| transformer の `endPoint` が `/v1beta/models/:modelAndAction` で、実パスと一致しない | `buildRoutePlan` は `surface.endpoint` で transformer を引く（実パス一致ではない） |
+| 認証ヘッダが `x-goog-api-key` / `?key=` | `createProxyAuth({ credential: 'google' })`。**bootstrap token は受理しない**（他の /v1 面と同じ） |
+| エラー封筒が3種目 `{ error: { code, message, status } }` | `buildErrorEnvelope` の `google` 分岐。`status` は google.rpc.Code 名 |
+| bypass 時の outbound URL | provider の `api_base_url` はコレクション（`.../v1beta/models/`）までしか指さないので、`GeminiTransformer.auth` が `<model>:<action>` を付けて URL を組み立てる。同時に `model` / `stream` を body から除去する（Google は未知のトップレベルフィールドを INVALID_ARGUMENT で弾く） |
+| gemini 以外の provider に振られたとき | `GeminiTransformer.transformResponseIn` が内部の OpenAI 形を Gemini 形へ戻す。無いと 200 のまま `candidates` を欠いた body が返り、Google SDK は「空の応答」として解釈する（エラーにすらならない） |
+
+`?key=` はクエリ文字列に秘密を載せる唯一の例外である。`ALLOW_API_KEY_QUERY_PARAM` が
+そもそもクエリ経由の鍵を拒否しているのは、アクセスログ・履歴・Referer への漏洩を避けるため。
+Google のワイヤ規約に代替が無いのでこの面だけ受理する。`accessLog` は `c.req.path`（クエリ無し）
+を記録するので、少なくともログファイルには残らない。
 
 ## routingMode — 「messages専用に見える」問題の正体
 
@@ -84,9 +123,16 @@ quota-aware セレクタへ渡す。これにより **CIのクライアントが
 
 ## RequestLog.surface
 
-`inboundType` は `anthropic` / `openai` の2値で、**`/v1/chat/completions` と `/v1/responses` を
-区別できない**。Overview と Activity は面ごとの内訳を出すので、`RequestLog.surface` に
-`InboundSurface.id` のスラグを記録する。
+`inboundType` は `anthropic` / `openai` / `gemini` の3値だが、**`/v1/chat/completions` と
+`/v1/responses` を区別できない**（どちらも `openai`）。Overview と Activity は面ごとの内訳を
+出すので、`RequestLog.surface` に `InboundSurface.id` のスラグを記録する。
+
+`gemini` の追加に **DDL マイグレーションは不要**だった。`Session.inboundType` /
+`RequestLog.inboundType` はどちらも制約なしの nullable TEXT で、Postgres enum ではないため。
+広げたのは zod enum（`llm-pipeline.dto` / `llm-usage.dto` / `request-log.dto`）と
+`schema.prisma` のコメントのみで、`prisma migrate dev` は "Already in sync" を返す。
+ワイヤ形式の集合は面レジストリと一緒に増えるので、enum にすると新しい面が毎回 DDL
+マイグレーションとデプロイ順序の危険を伴うことになる — 意図的に TEXT のままにしてある。
 
 移行時のバックフィル（`20260831043000_backfill_request_log_surface`）:
 
@@ -98,14 +144,25 @@ quota-aware セレクタへ渡す。これにより **CIのクライアントが
 
 ## 面を1つ足す手順
 
-1. `INBOUND_SURFACES` に記述子を1つ足す
-2. `src/index.ts` にパスをマウントする
-3. `errorShape` が新形式なら `buildErrorEnvelope` に封筒を足す
-4. 非ストリーム集約が必要なら aggregator を足す（`pickSseAggregator` は transformer 名で
-   分岐しており、まだ記述子には寄せていない。面と transformer は現状1:1なので実害は無いが、
-   集約先を記述子に移すのが本来の形）
+**`INBOUND_SURFACES` に記述子を1つ足す。** ルートのマウント・認証ゲート・アクセスログ・
+エラー封筒・SSE集約・`inboundType` / `surface` の記録・トークンの面スコープ・Routing 画面の
+行は、すべてそこから導出される。
+
+記述子に**書く値が無い**場合だけ、その値を作る作業が別途要る。
+
+| 条件 | 追加で要るもの |
+|---|---|
+| 新しいワイヤ形式 | endpoint transformer 1つ（`endPoint` は記述子の `endpoint` と一致させる）。`transformRequestOut`（wire → 内部形）と `transformResponseIn`（内部形 → wire）の両方 |
+| 新しいエラー封筒 | `buildErrorEnvelope` に分岐1つ、`unauthorizedResponse` に 401 の形1つ |
+| 新しい非ストリーム集約 | `sse-aggregate.ts` に aggregator 1つ |
+| 新しい認証規約 | `presentedSecret` に読み取り1行、`GATE_BY_CREDENTIAL` に1エントリ |
+| 新しい `inboundType` の値 | 3つの zod enum を広げる（DDL は不要 — 列は制約なしの TEXT） |
+
+いずれも「新しい概念を1つ持ち込んだときだけ」であって、面を足すこと自体には要らない。
+たとえば5つ目が OpenAI 互換の別パスなら、記述子1つで終わる。
 
 DBマイグレーションは不要（`InboundSurfaceConfig` は行が無ければ記述子の既定値を使う）。
+起動時の `ensureInboundSurfaces()` が新しい面にも行を1つ入れる。
 
 ## 関連
 

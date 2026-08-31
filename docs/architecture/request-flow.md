@@ -8,7 +8,9 @@
 実装は以下に分散している:
 
 - `src/api/v1/route.ts` — HTTP ハンドラ / chain ループ
-- `src/api/v1/invocation.ts` — `buildRoutePlan` / `resolveInvocationForModel` / `buildFailoverChain`
+- `src/api/v1/route-plan.ts` — `buildRoutePlan`（リクエストごとに1回）
+- `src/api/v1/candidate-chain.ts` — `buildFailoverChain`（試す候補の順序）
+- `src/api/v1/invocation.ts` — `resolveInvocationForModel`（候補1件 → 実行可能な invocation）
 - `src/api/v1/chain-failover.ts` — `attemptChainEntry` / `tryRotateAccount`
 - `src/llms/scenario-router.ts` — `routeScenario` / `selectModel` / `applyProactiveFailover`
 - `src/llms/pipeline.ts` — `runPipeline` / `handleProviderError`

@@ -22,9 +22,9 @@
  * an operator can see and change.
  */
 
+import { aggregateGeminiSseToJson } from '../utils/gemini-sse-aggregate'
 import {
   aggregateAnthropicSseToJson,
-  aggregateGeminiSseToJson,
   aggregateOpenAiChatSseToJson,
   aggregateOpenAiResponsesSseToJson
 } from '../utils/sse-aggregate'

@@ -21,7 +21,8 @@
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
-import { openaiProxyAuth, proxyAuth } from '../../src/api/api-key-auth'
+import { inboundProxyAuth } from '../../src/api/api-key-auth'
+import { INBOUND_MOUNT_PREFIXES } from '../../src/llms/inbound/surfaces'
 import { invalidateTokenCache, issueAccessToken } from '../../src/services/access-token-service'
 import { getPrismaClient } from '../../src/db/client'
 import { HAS_DB, teardownPrisma } from '../db/helpers'
@@ -31,13 +32,11 @@ const prevKey = process.env.APIKEY
 
 function buildApp(): Hono {
   const app = new Hono()
-  // Mirror src/index.ts ordering: the more-specific Bearer-only guards
-  // are registered before the /v1/* catch-all so they win on their
-  // paths and the catch-all still covers /v1/messages.
-  app.use('/v1/chat/completions', openaiProxyAuth)
-  app.use('/v1/responses', openaiProxyAuth)
-  app.use('/v1/models', openaiProxyAuth)
-  app.use('/v1/*', proxyAuth)
+  // Mirror src/index.ts: one gate per registry-derived prefix, which
+  // dispatches to the credential convention the surface declares. This
+  // replaced a hand-written path list here and there — if the registry
+  // and the wire contract below ever disagree, this is where it shows.
+  for (const prefix of INBOUND_MOUNT_PREFIXES) app.use(prefix, inboundProxyAuth)
   const ok = (c: { text: (s: string) => Response }): Response => c.text('ok')
   app.get('/v1/models', ok)
   app.post('/v1/chat/completions', ok)

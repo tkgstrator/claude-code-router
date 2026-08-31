@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { buildFailoverChain, type RoutePlan } from '../../src/api/v1/invocation'
+import { buildFailoverChain } from '../../src/api/v1/candidate-chain'
+import type { RoutePlan } from '../../src/api/v1/route-plan'
 import { ConfigStore } from '../../src/llms/registry/config'
 
 const providers = [

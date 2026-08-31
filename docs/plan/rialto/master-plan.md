@@ -606,8 +606,8 @@ Prismaマイグレーション後は `bun run db:migrate:test`（`ccr_test`）�
 | `ui-mock-diff` スキル | **Done** | `bun run mocks:{css,shoot,diff}` |
 | 0 土台整備 | Not started | envelope.test.ts のフルスイート限定フレークは未解消。原因は特定済み（`CONFIG_FILE` がモジュール初回importで固定されるため、`CCR_HOME_DIR` を差し替えるテストがimport順に依存する） |
 | 1 Rialtoリネーム | Not started | UI表記のみ先行（サイドバーが `Rialto`）。HOME_DIR / パッケージ名は未着手 |
-| 2 Inbound集約+多面ルーティング | **In Progress** | 記述子レジストリ + `InboundSurfaceConfig` + 面ごと profileKey は着地。`docs/architecture/inbound-surfaces.md` |
-| 3 Gemini | Not started | 記述子は置いたが `/v1beta/models/*` は未マウント。Code Assist クォータ取得の可否も未確定 |
+| 2 Inbound集約+多面ルーティング | **In Progress** | 2-1 完了（散っていた4箇所すべて記述子へ移管。ルート/認証/アクセスログのマウントもレジストリ由来）、2-2 完了、2-3 完了。残: 2-4 transformer選択の廃止、2-5 パリティ・マトリクス。`docs/architecture/inbound-surfaces.md` |
+| 3 Gemini | **In Progress** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。残: 3-2 サブスク枠（`gemini-cli` / Code Assist）。クォータ取得の可否は未検証 |
 | 3.5 認証 | Not started | `/api/identity` は表示専用で認証していない。AccessToken テーブルは未作成 |
 | 4 Zodスキーマ | Not started | |
 | 5 UI刷新 | **In Progress** | 21ビュー中20をルーティング済み。モック差分の中央値 3.55%（40ペア中28が5%未満）。旧コンポーネント98ファイル削除済み。残: activity-session（セッション実データ待ち）、i18n再編、`/login` 削除（Phase 3.5 待ち） |
