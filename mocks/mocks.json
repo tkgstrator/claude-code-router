@@ -65,7 +65,7 @@
       "mock": "providers-connect.html",
       "route": "/providers/connect",
       "group": "Providers",
-      "note": "Add-provider flow. Absorbs ConnectChoiceDialog + ProviderConnectFlow + ImportCredentialsDialog + ManualCallbackDialog."
+      "note": "Add-provider flow. Absorbs ConnectChoiceDialog + ProviderConnectFlow + ImportCredentialsDialog + ManualCallbackDialog. KNOWN DIFF ~15% dark: the mock draws step 2 of three, mid-authentication; the route opens on step 1. Capture limitation, not an implementation gap."
     },
     {
       "name": "activity",
@@ -107,7 +107,7 @@
       "mock": "settings-access.html",
       "route": "/settings/access",
       "group": "Settings",
-      "note": "Access tokens (Phase 3.5). New capability."
+      "note": "Access tokens (Phase 3.5). KNOWN DIFF ~12%: the mock depicts an install with Cloudflare Access configured (signed-in email, populated policy rows); an install without it correctly renders the other state, including an exposure warning the mock is never in a position to show. State, not design — trimming copy does not move it."
     },
     {
       "name": "settings-logging",

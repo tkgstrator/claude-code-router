@@ -123,12 +123,12 @@ DBマイグレーションは不要（`InboundSurfaceConfig` は行が無けれ�
 | Routing — Rules | `/routing/rules` | 2.97% / 4.87% |
 | Providers — subscription | `/providers/:name` | 3.89% / 7.75% |
 | Providers — api_key | `/providers/:name` | 3.83% / 7.15% |
-| Providers — connect | `/providers/connect` | 7.22% / 14.66% |
+| Providers — connect | `/providers/connect` | 7.22% / 14.66% ※1 |
 | Activity — Sessions | `/activity` | 1.96% / 2.88% |
 | Activity — Requests | `/activity/requests` | 3.43% / 5.14% |
 | Activity — Logs | `/activity/logs` | 3.22% / 7.12% |
 | Settings — Server | `/settings` | 1.54% / 1.63% |
-| Settings — Access | `/settings/access` | 6.74% / 7.25% |
+| Settings — Access | `/settings/access` | 12.3% / 12.6% ※2 |
 | Settings — Logging | `/settings/logging` | 2.28% / 2.29% |
 | Settings — Personas | `/settings/personas` | 4.73% / 5.63% |
 | Settings — Status line | `/settings/statusline` | 2.24% / 3.03% |
@@ -139,5 +139,11 @@ DBマイグレーションは不要（`InboundSurfaceConfig` は行が無けれ�
 | Session detail | 未登録 | セッション実データが無く撮影できない |
 
 差分の大半は**モックのダミー値と実データの差**である（このインストールには provider が3件、モックのフィクスチャには7件、など）。
-`providers-connect` だけが 10% を超えるが、これはモックが**3ステップの2番目**を描いているのに対し
-ルートは当然1ステップ目で開くためで、実装の欠落ではない。
+
+10% を超える2画面は、どちらも**モックと実機が別の状態を描いている**ことによる既知差分で、実装の欠落ではない。
+コピーや構造をいじっても下がらないので、追わないこと。
+
+- ※1 `providers-connect`: モックは3ステップの**2番目**（認証中）を描いているが、ルートは当然1ステップ目で開く
+- ※2 `settings-access`: モックは **Cloudflare Access 設定済み**のインストール（サインイン済みメール、
+  ポリシー行2件）を描いている。未設定のインストールは正しくもう一方の状態を描き、
+  モックには存在しない露出警告が加わる
