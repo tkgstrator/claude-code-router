@@ -70,14 +70,14 @@
     {
       "name": "activity",
       "mock": "activity.html",
-      "route": null,
+      "route": "/activity",
       "group": "Activity",
       "note": "Sessions tab. Absorbs Sessions + Usage + ApiCost."
     },
     {
       "name": "activity-requests",
       "mock": "activity-requests.html",
-      "route": null,
+      "route": "/activity/requests",
       "group": "Activity",
       "note": "Per-request log with Requested → Sent, matched rule and token attribution."
     },
@@ -91,56 +91,56 @@
     {
       "name": "activity-logs",
       "mock": "activity-logs.html",
-      "route": null,
+      "route": "/activity/logs",
       "group": "Activity",
       "note": "Server log grouped by request id. Absorbs LogViewer and its four sub-components."
     },
     {
       "name": "settings",
       "mock": "settings.html",
-      "route": null,
+      "route": "/settings",
       "group": "Settings",
       "note": "Server section. Absorbs SettingsPage."
     },
     {
       "name": "settings-access",
       "mock": "settings-access.html",
-      "route": null,
+      "route": "/settings/access",
       "group": "Settings",
       "note": "Access tokens (Phase 3.5). New capability."
     },
     {
       "name": "settings-logging",
       "mock": "settings-logging.html",
-      "route": null,
+      "route": "/settings/logging",
       "group": "Settings",
       "note": "Log level, request/message capture, retention per store."
     },
     {
       "name": "settings-personas",
       "mock": "settings-personas.html",
-      "route": null,
+      "route": "/settings/personas",
       "group": "Settings",
       "note": "Absorbs Personas + PersonaView + PersonaEdit — three routes for one object."
     },
     {
       "name": "settings-statusline",
       "mock": "settings-statusline.html",
-      "route": null,
+      "route": "/settings/statusline",
       "group": "Settings",
       "note": "Absorbs StatusLineConfigDialog + its six sub-components. Modal becomes a three-pane editor."
     },
     {
       "name": "settings-presets",
       "mock": "settings-presets.html",
-      "route": null,
+      "route": "/settings/presets",
       "group": "Settings",
       "note": "Absorbs Presets + its six dialogs. Install inputs render inline, with an apply diff."
     },
     {
       "name": "settings-advanced",
       "mock": "settings-advanced.html",
-      "route": null,
+      "route": "/settings/advanced",
       "group": "Settings",
       "note": "Absorbs DebugPage + JsonEditor. Config document + danger zone."
     },

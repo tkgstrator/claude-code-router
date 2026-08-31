@@ -19,11 +19,22 @@ import { RouterUtilization } from '@/components/RouterUtilization'
 import { RoutingLibrary } from '@/components/RoutingLibrary'
 import { RoutingLiveEditor } from '@/components/RoutingLiveEditor'
 import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
+import { ActivityLogs } from '@/components/rialto/activity/ActivityLogs'
+import { ActivityRequests } from '@/components/rialto/activity/ActivityRequests'
+import { ActivitySessionDetail } from '@/components/rialto/activity/ActivitySessionDetail'
+import { ActivitySessions } from '@/components/rialto/activity/ActivitySessions'
 import { Overview } from '@/components/rialto/Overview'
 import { AddProviderScreen } from '@/components/rialto/providers/AddProviderScreen'
 import { ProvidersScreen } from '@/components/rialto/providers/ProvidersScreen'
 import { RialtoShell } from '@/components/rialto/RialtoShell'
 import { RouteError } from '@/components/rialto/RouteError'
+import { SettingsAccess } from '@/components/rialto/settings/SettingsAccess'
+import { SettingsAdvanced } from '@/components/rialto/settings/SettingsAdvanced'
+import { SettingsLogging } from '@/components/rialto/settings/SettingsLogging'
+import { SettingsPersonas } from '@/components/rialto/settings/SettingsPersonas'
+import { SettingsPresets } from '@/components/rialto/settings/SettingsPresets'
+import { SettingsServer } from '@/components/rialto/settings/SettingsServer'
+import { SettingsStatusline } from '@/components/rialto/settings/SettingsStatusline'
 import { AccessRejectedScreen } from '@/components/rialto/system/AccessRejected'
 import { NotFoundScreen } from '@/components/rialto/system/NotFound'
 import { OauthResultScreen } from '@/components/rialto/system/OauthResult'
@@ -76,7 +87,18 @@ export const router = createBrowserRouter([
           // Static before dynamic so /providers/connect is the add flow
           // rather than a provider literally named "connect".
           { path: '/providers/connect', element: <AddProviderScreen /> },
-          { path: '/providers/:name', element: <ProvidersScreen /> }
+          { path: '/providers/:name', element: <ProvidersScreen /> },
+          { path: '/activity', element: <ActivitySessions /> },
+          { path: '/activity/requests', element: <ActivityRequests /> },
+          { path: '/activity/sessions/:sessionId', element: <ActivitySessionDetail /> },
+          { path: '/activity/logs', element: <ActivityLogs /> },
+          { path: '/settings', element: <SettingsServer /> },
+          { path: '/settings/access', element: <SettingsAccess /> },
+          { path: '/settings/logging', element: <SettingsLogging /> },
+          { path: '/settings/personas', element: <SettingsPersonas /> },
+          { path: '/settings/statusline', element: <SettingsStatusline /> },
+          { path: '/settings/presets', element: <SettingsPresets /> },
+          { path: '/settings/advanced', element: <SettingsAdvanced /> }
         ]
       },
       {
@@ -95,17 +117,7 @@ export const router = createBrowserRouter([
           { path: '/router-utilization', element: fullHeight(<RouterUtilization />) },
           { path: '/router-tiers', element: fullHeight(<TierEditor />) },
           { path: '/transformers', element: fullHeight(<Transformers />) },
-          { path: '/usage', element: fullHeight(<Usage />) },
-          { path: '/cost', element: fullHeight(<ApiCost />) },
-          { path: '/sessions', element: fullHeight(<SessionsPage />) },
-          { path: '/sessions/:sessionId', element: fullHeight(<SessionDetailPage />) },
-          { path: '/personas', element: fullHeight(<Personas />) },
-          { path: '/personas/new', element: fullHeight(<PersonaEdit />) },
-          { path: '/personas/view/:id', element: fullHeight(<PersonaView />) },
-          { path: '/personas/edit/:id', element: fullHeight(<PersonaEdit />) },
-          { path: '/logs', element: fullHeight(<LogViewer />) },
-          { path: '/json', element: fullHeight(<JsonEditor />) },
-          { path: '/settings', element: fullHeight(<SettingsPage />) }
+          { path: '/json', element: fullHeight(<JsonEditor />) }
         ]
       },
       {
