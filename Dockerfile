@@ -18,7 +18,7 @@ WORKDIR /app
 # `prisma generate`).
 COPY package.json bun.lock ./
 COPY tsconfig.json tsconfig.base.json tsconfig.runtime.json biome.json ./
-COPY index.html vite.config.ts prisma.config.ts ./
+COPY index.html vite.config.mts prisma.config.ts ./
 COPY scripts ./scripts
 COPY src ./src
 
