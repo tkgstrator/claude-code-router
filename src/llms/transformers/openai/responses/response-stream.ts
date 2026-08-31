@@ -10,6 +10,17 @@ import type { ResponsesStreamEvent } from '@/schemas'
 import { ResponsesStreamEventSchema } from '@/schemas'
 import { handleStreamEvent } from './stream-chunks'
 
+/** Does this `data:` payload look like a Responses-API event? */
+function isResponsesEvent(dataStr: string): boolean {
+  try {
+    const raw: unknown = JSON.parse(dataStr)
+    if (typeof raw !== 'object' || raw === null || !('type' in raw)) return false
+    return typeof raw.type === 'string' && raw.type.startsWith('response.')
+  } catch {
+    return false
+  }
+}
+
 /**
  * Buffered SSE parser that drives the upstream Responses-API stream.
  *
@@ -93,7 +104,12 @@ export class ResponsesStreamSession {
     }
     const parsed = this.safeParseEvent(dataStr)
     if (!parsed) {
-      this.enqueueRaw(line)
+      // This transformer emits a Chat-Completions stream. Forwarding an
+      // unparsed Responses event verbatim breaks clients: the OpenAI SDK
+      // reads every `data:` line as a chat chunk and throws on the first
+      // `response.*` payload. Raw passthrough stays for anything that is
+      // not a Responses event, so genuinely unknown wire data survives.
+      if (!isResponsesEvent(dataStr)) this.enqueueRaw(line)
       return
     }
     const ended = handleStreamEvent(
