@@ -75,7 +75,7 @@ function CaptureSection({
       <SectionHead title='Request capture' meta='what lands in Activity' />
       <ToggleField
         label='Record requests'
-        hint='One RequestLog row per upstream call — tokens, cost, latency, routing decision. Off also empties the Usage and cost figures for the period it is off.'
+        hint='One RequestLog row per upstream call — tokens, cost, latency, routing decision.'
         value={draft.CAPTURE_REQUESTS}
         onChange={(v) => onChange('CAPTURE_REQUESTS', v)}
       />
@@ -86,17 +86,18 @@ function CaptureSection({
         onChange={(v) => onChange('CAPTURE_MESSAGES', v)}
       />
       <ToggleField
-        label='Redact tool arguments'
-        hint='Blanks tool_use input and tool_result content before archiving, keeping the prose. Off by default: the arguments are destroyed on the way in, so a turn archived with this on can never be read back in full.'
+        label='Redact tool args'
+        hint='Store tool_use blocks with arguments stripped.'
         value={draft.REDACT_TOOL_ARGUMENTS}
         onChange={(v) => onChange('REDACT_TOOL_ARGUMENTS', v)}
       />
 
       <div className='px-6 py-4'>
         <WarnNotice title='Message capture stores conversation content' tag='privacy'>
-          User and assistant turns are written to Postgres in the clear so the session view can replay them. On a shared
-          database, turn Record messages off, or leave it on with tool arguments redacted and the Message store pruned
-          below.
+          User and assistant turns are written to Postgres in the clear so the session view can replay them. Turn Record
+          messages off if this database is shared, or prune the Message store below. Anything not recorded is gone for
+          good: Usage and cost keep a permanent gap for the period capture was off, and redaction is applied before the
+          turn is stored.
         </WarnNotice>
       </div>
     </>
@@ -147,10 +148,8 @@ function RetentionSection({ stats, reload }: { stats: StorageStats | null; reloa
         />
       )}
       <div className='px-6 py-4 text-[11px] leading-relaxed text-muted-foreground'>
-        Nothing schedules a prune. The cutoff above is the argument to the button beside it, not a stored policy — a
-        store marked <span className='font-medium text-foreground'>unbounded</span> keeps growing until someone runs
-        this by hand. Sizes come from <span className='font-mono'>pg_total_relation_size</span>, so they include indexes
-        and TOAST.
+        The cutoff above is the argument to the button beside it, not a stored policy — nothing prunes on a schedule.
+        Sizes include indexes and TOAST.
       </div>
     </>
   )
@@ -277,7 +276,7 @@ export function SettingsLogging() {
           />
           <StaticField
             label='Keep files'
-            hint='Rotation never deletes an old file — this is the count on disk, not a limit. Prune them below.'
+            hint='Rotation never deletes; prune below.'
             value={logFiles === undefined || logFiles.retention === null ? '–' : logFiles.retention}
           />
           <CaptureSection draft={draft} onChange={set} />
