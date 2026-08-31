@@ -1,24 +1,8 @@
-import type { ReactNode } from 'react'
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
-import { ApiCost } from '@/components/ApiCost'
-import { AppShell } from '@/components/AppShell'
-import { DebugPage } from '@/components/DebugPage'
 import { ErrorPage } from '@/components/ErrorPage'
-import { JsonEditor } from '@/components/JsonEditor'
 import { Login } from '@/components/Login'
-import { LogViewer } from '@/components/LogViewer'
-import { ModelsDashboard } from '@/components/ModelsDashboard'
-import { PersonaEdit } from '@/components/PersonaEdit'
-import { Personas } from '@/components/Personas'
-import { PersonaView } from '@/components/PersonaView'
-import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PublicRoute from '@/components/PublicRoute'
-import { RouterPreferences } from '@/components/RouterPreferences'
-import { RouterUtilization } from '@/components/RouterUtilization'
-import { RoutingLibrary } from '@/components/RoutingLibrary'
-import { RoutingLiveEditor } from '@/components/RoutingLiveEditor'
-import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
 import { ActivityLogs } from '@/components/rialto/activity/ActivityLogs'
 import { ActivityRequests } from '@/components/rialto/activity/ActivityRequests'
 import { ActivitySessionDetail } from '@/components/rialto/activity/ActivitySessionDetail'
@@ -42,15 +26,6 @@ import { AccessRejectedScreen } from '@/components/rialto/system/AccessRejected'
 import { NotFoundScreen } from '@/components/rialto/system/NotFound'
 import { OauthResultScreen } from '@/components/rialto/system/OauthResult'
 import { SetupScreen } from '@/components/rialto/system/SetupScreen'
-import { SessionDetailPage } from '@/components/SessionDetail'
-import { SessionsPage } from '@/components/Sessions'
-import { SettingsPage } from '@/components/SettingsPage'
-import { Subscriptions } from '@/components/Subscriptions'
-import { TierEditor } from '@/components/TierEditor'
-import { Transformers } from '@/components/Transformers'
-import { Usage } from '@/components/Usage'
-
-const fullHeight = (node: ReactNode) => <div className='h-full'>{node}</div>
 
 export const router = createBrowserRouter([
   {
@@ -108,35 +83,6 @@ export const router = createBrowserRouter([
           { path: '/settings/presets', element: <SettingsPresets /> },
           { path: '/settings/advanced', element: <SettingsAdvanced /> }
         ]
-      },
-      {
-        element: (
-          <ProtectedRoute>
-            <AppShell />
-          </ProtectedRoute>
-        ),
-        children: [
-          { path: '/models', element: fullHeight(<ModelsDashboard />) },
-          { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
-          { path: '/transformers', element: fullHeight(<Transformers />) },
-          { path: '/json', element: fullHeight(<JsonEditor />) }
-        ]
-      },
-      {
-        path: '/presets',
-        element: (
-          <ProtectedRoute>
-            <Presets />
-          </ProtectedRoute>
-        )
-      },
-      {
-        path: '/debug',
-        element: (
-          <ProtectedRoute>
-            <DebugPage />
-          </ProtectedRoute>
-        )
       },
       {
         // Public — the IdP redirects browsers here after a server-side
