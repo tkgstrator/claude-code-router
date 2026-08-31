@@ -239,12 +239,20 @@ export function RoutingChain() {
       .finally(() => setSaving(false))
   }, [save, notify, fail])
 
+  // The mode, the profile and the reset apply on click — there is no
+  // Save for them, in the design or here, because each is a single
+  // choice rather than an edit in progress. That only reads as
+  // deliberate if the write is acknowledged; silence is
+  // indistinguishable from a dropped click, which is what makes people
+  // go looking for a Save button.
   const onMode = useCallback(
     (mode: RoutingMode) => {
       if (surface === undefined) return
-      setMode(surface.id, mode).catch(fail)
+      setMode(surface.id, mode)
+        .then(() => notify(`${surface.path} is now ${mode}. Applies to the next request.`, true))
+        .catch(fail)
     },
-    [surface, setMode, fail]
+    [surface, setMode, notify, fail]
   )
 
   // Writing the descriptor's own default back clears `overridden`, so the
@@ -252,15 +260,19 @@ export function RoutingChain() {
   // happens to match.
   const onReset = useCallback(() => {
     if (surface === undefined) return
-    setMode(surface.id, surface.defaultRoutingMode).catch(fail)
-  }, [surface, setMode, fail])
+    setMode(surface.id, surface.defaultRoutingMode)
+      .then(() => notify(`${surface.path} is back on its shipped default (${surface.defaultRoutingMode}).`, true))
+      .catch(fail)
+  }, [surface, setMode, notify, fail])
 
   const onProfile = useCallback(
     (key: string) => {
       if (surface === undefined) return
-      setSurfaceProfile(surface.id, surface.routingMode, key).catch(fail)
+      setSurfaceProfile(surface.id, surface.routingMode, key)
+        .then(() => notify(`${surface.path} now routes through the ${key} profile.`, true))
+        .catch(fail)
     },
-    [surface, setSurfaceProfile, fail]
+    [surface, setSurfaceProfile, notify, fail]
   )
 
   return (
