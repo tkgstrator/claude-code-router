@@ -232,27 +232,112 @@ function resolveTarget(
   return { primary: scenarioPrimary, fallbacks: catchAllFallbacks }
 }
 
-// Evaluate a rule's predicate against the request context. An empty
-// predicate matches everything (catch-all rule). Missing fields on
-// the predicate are unconstrained; each populated field is an AND
-// with the others.
-export function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
+/** One predicate field's verdict, with the value it was judged against. */
+export interface ConditionVerdict {
+  field: 'requestedTier' | 'requestedModel' | 'thinking' | 'minTokens' | 'maxTokens' | 'hasTool' | 'effort'
+  expected: string
+  /** What the request actually presented. Null when it presented nothing. */
+  actual: string | null
+  matched: boolean
+}
+
+const show = (value: unknown): string => (Array.isArray(value) ? value.join(', ') : String(value))
+
+/**
+ * Evaluate a rule's predicate and report each populated field separately.
+ *
+ * An empty predicate matches everything (catch-all rule). Absent fields
+ * are unconstrained; each populated field is an AND with the others —
+ * which is precisely why a per-field verdict is worth having. "This rule
+ * did not match" leaves the operator to guess which of five conditions
+ * was responsible.
+ *
+ * `matchesRule` is defined in terms of this, so the tester and the
+ * router cannot disagree about a rule: there is only one implementation.
+ */
+export function explainRule(
+  rule: RouteRule,
+  ctx: RuleEvalContext
+): { matched: boolean; conditions: ConditionVerdict[] } {
   const when = rule.when
   const { req, tokenCount } = ctx
+  const conditions: ConditionVerdict[] = []
+
   if (when.requestedTier !== undefined) {
     const tier = tierOf(req.body.model)
-    if (tier === undefined || !when.requestedTier.includes(tier)) return false
+    conditions.push({
+      field: 'requestedTier',
+      expected: show(when.requestedTier),
+      actual: tier === undefined ? null : tier,
+      matched: tier !== undefined && when.requestedTier.includes(tier)
+    })
   }
-  if (when.requestedModel !== undefined && !globMatch(when.requestedModel, req.body.model)) return false
-  if (when.thinking !== undefined && isThinkingEnabled(req.body) !== when.thinking) return false
-  if (when.minTokens !== undefined && tokenCount < when.minTokens) return false
-  if (when.maxTokens !== undefined && tokenCount > when.maxTokens) return false
-  if (when.hasTool !== undefined && !hasMatchingTool(req.body.tools, when.hasTool)) return false
+  if (when.requestedModel !== undefined) {
+    conditions.push({
+      field: 'requestedModel',
+      expected: when.requestedModel,
+      actual: req.body.model,
+      matched: globMatch(when.requestedModel, req.body.model)
+    })
+  }
+  if (when.thinking !== undefined) {
+    const thinking = isThinkingEnabled(req.body)
+    conditions.push({
+      field: 'thinking',
+      expected: show(when.thinking),
+      actual: show(thinking),
+      matched: thinking === when.thinking
+    })
+  }
+  if (when.minTokens !== undefined) {
+    conditions.push({
+      field: 'minTokens',
+      expected: `>= ${when.minTokens}`,
+      actual: String(tokenCount),
+      matched: tokenCount >= when.minTokens
+    })
+  }
+  if (when.maxTokens !== undefined) {
+    conditions.push({
+      field: 'maxTokens',
+      expected: `<= ${when.maxTokens}`,
+      actual: String(tokenCount),
+      matched: tokenCount <= when.maxTokens
+    })
+  }
+  if (when.hasTool !== undefined) {
+    conditions.push({
+      field: 'hasTool',
+      expected: when.hasTool,
+      actual: toolTypes(req.body.tools),
+      matched: hasMatchingTool(req.body.tools, when.hasTool)
+    })
+  }
   if (when.effort !== undefined) {
     const effort = readEffort(req.body)
-    if (effort === undefined || !when.effort.includes(effort)) return false
+    conditions.push({
+      field: 'effort',
+      expected: show(when.effort),
+      actual: effort === undefined ? null : effort,
+      matched: effort !== undefined && when.effort.includes(effort)
+    })
   }
-  return true
+
+  return { matched: conditions.every((c) => c.matched), conditions }
+}
+
+export function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
+  return explainRule(rule, ctx).matched
+}
+
+// The tool types the request actually carried, for the hasTool verdict —
+// "no tool matched `web_*`" is only actionable alongside what was there.
+function toolTypes(tools: unknown): string | null {
+  if (!Array.isArray(tools)) return null
+  const types = tools
+    .map((tool) => (tool !== null && typeof tool === 'object' ? Reflect.get(tool, 'type') : undefined))
+    .filter((t): t is string => typeof t === 'string')
+  return types.length === 0 ? null : types.join(', ')
 }
 
 // Bucket a model string into one of the four CC families. Case-

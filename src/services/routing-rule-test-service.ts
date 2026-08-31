@@ -16,13 +16,19 @@
 
 import type { RouteRule } from '@/schemas'
 import { getLlmsContext } from '../llms/context'
-import { matchesRule } from '../llms/scenario-router/model-selection'
+import { type ConditionVerdict, explainRule } from '../llms/scenario-router/model-selection'
 import type { RouterRequestBody } from '../llms/scenario-router/types'
 
 export interface RuleVerdict {
   index: number
   name: string | null
   matched: boolean
+  /**
+   * Per-condition verdicts. A rule's predicate fields are ANDed, so
+   * "did not match" on its own leaves the operator guessing which of
+   * five conditions was responsible — this says which.
+   */
+  conditions: ConditionVerdict[]
 }
 
 export interface RuleTestResult {
@@ -62,8 +68,8 @@ export async function testRules(rules: RouteRule[], body: RouterRequestBody): Pr
 
   const evaluated: RuleVerdict[] = []
   for (const [index, rule] of rules.entries()) {
-    const matched = matchesRule(rule, ctx)
-    evaluated.push({ index, name: ruleName(rule), matched })
+    const { matched, conditions } = explainRule(rule, ctx)
+    evaluated.push({ index, name: ruleName(rule), matched, conditions })
     if (!matched) continue
     return {
       matchedIndex: index,

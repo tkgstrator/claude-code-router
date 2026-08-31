@@ -11,11 +11,23 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { RecordSchema, RouteRuleSchema } from '../../../schemas'
 import { testRules } from '../../../services/routing-rule-test-service'
 
+const ConditionSchema = z
+  .object({
+    field: z.enum(['requestedTier', 'requestedModel', 'thinking', 'minTokens', 'maxTokens', 'hasTool', 'effort']),
+    expected: z.string().nonempty(),
+    // Null when the request presented nothing for this field — which is
+    // a different answer from presenting a value that did not match.
+    actual: z.string().nonempty().nullable(),
+    matched: z.boolean()
+  })
+  .openapi('RoutingRuleCondition')
+
 const VerdictSchema = z
   .object({
     index: z.number().int().nonnegative(),
     name: z.string().nonempty().nullable(),
-    matched: z.boolean()
+    matched: z.boolean(),
+    conditions: z.array(ConditionSchema)
   })
   .openapi('RoutingRuleVerdict')
 
