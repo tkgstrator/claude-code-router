@@ -60,8 +60,10 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       {
+        // The new information architecture leads with Overview. /models
+        // was the old landing and is now one tab inside Providers.
         path: '/',
-        element: <Navigate to='/models' replace />
+        element: <Navigate to='/overview' replace />
       },
       {
         path: '/login',
