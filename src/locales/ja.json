@@ -236,17 +236,6 @@
     "cross_provider_fallback": "クロスプロバイダフォールバック (OpenAI 系)",
     "cross_provider_fallback_help": "フォールバック chain の各エントリの直後に、同名モデルを持つ OpenAI 系プロバイダ (openai_chat / openai_responses) のエントリを自動注入します。codex,gpt-5.6-luna が 429 になったら chain 未記載でも openai,gpt-5.6-luna に自動でフォールバックします。auto peer は同一 auth_mode ゲートも回避するため、subscription プライマリから api_key プロバイダへも落ちられます。"
   },
-  "transformers": {
-    "title": "カスタム Transformer",
-    "path": "パス",
-    "project": "プロジェクト",
-    "remove": "削除",
-    "add": "Transformer を追加",
-    "edit": "Transformer を編集",
-    "delete": "Transformer を削除",
-    "delete_transformer_confirm": "この Transformer を削除しますか?",
-    "parameters": "パラメータ"
-  },
   "providers": {
     "title": "プロバイダー",
     "name": "名前",

@@ -61,15 +61,13 @@ Token calculation uses `tiktoken` (cl100k_base) to estimate request size.
 
 ### 2. Transformer System
 
-The project uses the `@musistudio/llms` package (external dependency) to handle request/response transformations. Transformers adapt to different provider API differences:
+Transformers adapt Anthropic-format requests to each provider's wire format. Six ship with the app and are registered in `src/llms/context.ts` (implementations in `src/llms/transformers/`):
 
-- Built-in transformers: `anthropic`, `deepseek`, `gemini`, `openrouter`, `groq`, `maxtoken`, `tooluse`, `reasoning`, `enhancetool`, etc.
-- Custom transformers: Load external plugins via `transformers` array in `config.json`
+`anthropic`, `openai`, `openai-responses`, `gemini`, `claude-code-oauth`, `codex-oauth`
 
-Transformer configuration supports:
-- Global application (provider level)
-- Model-specific application
-- Option passing (e.g., `max_tokens` parameter for `maxtoken`)
+There is no plugin loader: the set is fixed at build time, and a provider's transformer chain is **derived**, not configured. `src/shared/transformer-chain.ts` maps `Provider.apiStyle` + `Provider.authMode` to the chain; `ProviderRegistry` resolves it to instances, and the Providers screen's read-only "Request shape" block displays it by calling **the same function**, so what is shown cannot drift from what runs. `Provider.transformer` no longer holds a `use` — a stale one from an older build is dropped on both the read and the write path. `GET /api/transformers` returns the live registry (name + endpoint).
+
+A model whose `Model.apiStyle` disagrees with its provider's (codex-family models on the api_key OpenAI provider) gets its own conversion step appended after the provider chain.
 
 ### 3. Agent System (packages/server/src/agents/)
 
@@ -112,7 +110,7 @@ longer read**. Anything still using one has to be updated.
 
 Configuration is split across two stores:
 
-- **Disk envelope**: `~/.rialto/config.json` holds boot-time scalars (HOST/PORT/APIKEY/LOG/LOG_LEVEL/PROXY_URL/API_TIMEOUT_MS/CLAUDE_PATH/NON_INTERACTIVE_MODE) plus disk-resident objects (StatusLine, transformers, plugins).
+- **Disk envelope**: `~/.rialto/config.json` holds boot-time scalars (HOST/PORT/APIKEY/LOG/LOG_LEVEL/PROXY_URL/API_TIMEOUT_MS/CLAUDE_PATH/NON_INTERACTIVE_MODE) plus disk-resident objects (Personas, StatusLine). Keys the schema does not declare are preserved by its `.catchall`, not dropped.
 - **PostgreSQL** (via Prisma, `packages/server/prisma/schema.prisma`): holds Providers, Models, and the six RouterSlot rows. `DATABASE_URL` is loaded from `.env` (`.devcontainer/compose.yaml` provides a local `postgres` service).
 
 Schema (PR #1):
@@ -215,7 +213,7 @@ Presets are stored in `~/.rialto/presets/<preset-name>/manifest.json`
 
 Each preset contains:
 - **Metadata**: name, version, description, author, keywords, etc.
-- **Configuration**: Providers, Router, transformers, and other settings
+- **Configuration**: Providers, Router, StatusLine, and other settings
 - **Dynamic Schema** (optional): Input fields for collecting required information during installation
 - **Required Inputs** (optional): Fields that need to be filled during installation (e.g., API keys)
 

@@ -129,7 +129,6 @@ function normalizeConfig(data: Config): Config {
     APIKEY: typeof data.APIKEY === 'string' ? data.APIKEY : '',
     API_TIMEOUT_MS: typeof data.API_TIMEOUT_MS === 'number' ? data.API_TIMEOUT_MS : 600000,
     PROXY_URL: typeof data.PROXY_URL === 'string' ? data.PROXY_URL : '',
-    transformers: Array.isArray(data.transformers) ? data.transformers : [],
     Providers: Array.isArray(data.Providers) ? data.Providers : [],
     StatusLine:
       data.StatusLine && typeof data.StatusLine === 'object'
@@ -195,7 +194,6 @@ const emptyConfig = (): Config => ({
   APIKEY: '',
   API_TIMEOUT_MS: 600000,
   PROXY_URL: '',
-  transformers: [],
   Providers: [],
   StatusLine: undefined,
   Router: {

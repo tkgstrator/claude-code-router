@@ -8,8 +8,7 @@
  * `PresetProviderSchema` is deliberately a narrower projection of
  * domain/provider.ts, not an alias of it: a preset is shareable, so auth
  * modes, sub-accounts and test state must not be able to ride along.
- * The same reasoning gives `PresetRouterConfigSchema` and
- * `PresetTransformerConfigSchema` their own names.
+ * The same reasoning gives `PresetRouterConfigSchema` its own name.
  */
 
 import { z } from '@hono/zod-openapi'
@@ -146,15 +145,6 @@ export const PresetRouterConfigSchema = z
   .catchall(z.union([z.string().nonempty(), z.number()]))
 export type PresetRouterConfig = z.infer<typeof PresetRouterConfigSchema>
 
-export const PresetTransformerConfigSchema = z
-  .object({
-    path: z.string().optional(),
-    use: z.array(z.union([z.string().nonempty(), z.tuple([z.string().nonempty(), JsonValueSchema])])),
-    options: JsonValueSchema.optional()
-  })
-  .catchall(JsonValueSchema)
-export type PresetTransformerConfig = z.infer<typeof PresetTransformerConfigSchema>
-
 // --- Preset metadata / sections ---------------------------------------------
 
 export const PresetMetadataSchema = z.object({
@@ -183,7 +173,6 @@ export const PresetConfigSectionSchema = z
   .object({
     Providers: z.array(PresetProviderSchema).optional(),
     Router: PresetRouterConfigSchema.optional(),
-    transformers: z.array(PresetTransformerConfigSchema).optional(),
     StatusLine: JsonValueSchema.optional(),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
     noServer: z.boolean().optional(),

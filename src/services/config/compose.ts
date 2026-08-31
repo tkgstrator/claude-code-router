@@ -96,6 +96,32 @@ export type ProviderWithModels = DbProvider & {
   subscriptionAccounts?: { id: string; enabled: boolean }[]
 }
 
+/**
+ * The `transformer` blob as the UI sees it: whatever the column holds,
+ * minus `use`, plus the `_disabledModels` view of `Model.enabled`.
+ *
+ * `use` is dropped because a row seeded by an older build can still carry
+ * one and nothing reads it any more — the chain is derived from
+ * api_style + auth_mode (`shared/transformer-chain.ts`). Echoing a stored
+ * chain back would invite the screen to render a pipeline that does not
+ * run. Undefined when there is nothing left to send.
+ */
+const toWireTransformer = (
+  stored: Record<string, unknown> | undefined,
+  disabledModels: string[]
+): Record<string, unknown> | undefined => {
+  const carried = (() => {
+    if (stored === undefined) return undefined
+    const { use: _use, ...keep } = stored
+    return keep
+  })()
+  if (carried === undefined && disabledModels.length === 0) return undefined
+  return {
+    ...(carried ? carried : {}),
+    ...(disabledModels.length > 0 ? { _disabledModels: disabledModels } : {})
+  }
+}
+
 export const toProvider = (p: ProviderWithModels): Provider => {
   const deprecatedModels = p.models.filter((m) => m.deprecated).map((m) => m.name)
   // Model.enabled is the source of truth. Synthesize the
@@ -103,13 +129,7 @@ export const toProvider = (p: ProviderWithModels): Provider => {
   // ModelsDashboard read so the UI sees the DB state directly.
   const disabledModels = p.models.filter((m) => !m.enabled).map((m) => m.name)
   const baseTransformer = isJsonObject(p.transformer) ? p.transformer : undefined
-  const transformerOut: Record<string, unknown> | undefined =
-    baseTransformer || disabledModels.length > 0
-      ? {
-          ...(baseTransformer ? baseTransformer : {}),
-          ...(disabledModels.length > 0 ? { _disabledModels: disabledModels } : {})
-        }
-      : undefined
+  const transformerOut = toWireTransformer(baseTransformer, disabledModels)
   const tested = p.models.filter((m) => m.testStatus !== ModelTestStatus.unknown)
   const modelTestStatus: Record<string, { status: 'unknown' | 'ok' | 'fail'; passedAt: string | null }> =
     Object.fromEntries(

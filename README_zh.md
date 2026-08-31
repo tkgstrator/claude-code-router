@@ -18,7 +18,7 @@
 - **用量与成本仪表板** — 按提供商和模型细分的费用明细及每日费用图表。
 - **请求历史** — 浏览过去的会话，包含每个请求的统计信息和已归档的对话记录。
 - **Web 管理界面** — 完整的浏览器端配置管理，无需手动编辑 JSON。
-- **转换器管道** — 内置和自定义转换器将 Anthropic 格式请求适配至各提供商 API。
+- **转换器管道** — 内置转换器将 Anthropic 格式请求适配至各提供商 API。
 - **自定义 JavaScript 路由器** — 实现超出六个内置场景的任意路由逻辑。
 - **子代理模型锁定** — 通过内联提示标签将子代理定向到指定提供商和模型。
 - **状态栏** — 在 Claude Code 状态栏中实时显示 Rialto 状态。
@@ -225,21 +225,6 @@ Rialto 支持通过订阅型提供商进行路由，无需单独的 API Key。
 | `gemini-cli` *（实验性）* | 通过 Gemini CLI 的非官方 Gemini 支持 |
 | `qwen-cli` *（实验性）* | 通过 Qwen CLI 的非官方 qwen3-coder-plus 支持 |
 | `rovo-cli` *（实验性）* | 通过 Atlassian Rovo Dev CLI 的非官方 GPT-5 支持 |
-
-**自定义转换器插件：**
-
-通过磁盘配置加载 JavaScript 模块来添加自定义转换器：
-
-```json
-{
-  "transformers": [
-    {
-      "path": "/home/user/.rialto/plugins/my-transformer.js",
-      "options": { "someOption": "value" }
-    }
-  ]
-}
-```
 
 **转换器配置示例：**
 

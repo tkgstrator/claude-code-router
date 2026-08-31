@@ -34,11 +34,11 @@ const log = pino({ level: 'silent' })
 const PROVIDERS = [
   {
     name: 'google',
-    auth_mode: 'api_key',
+    auth_mode: 'api_key' as const,
+    api_style: 'gemini' as const,
     api_key: 'sk-goog',
     api_base_url: 'https://generativelanguage.googleapis.com/v1beta/models/',
-    models: ['gemini-3-pro'],
-    transformer: { use: ['gemini'] }
+    models: ['gemini-3-pro']
   }
 ]
 

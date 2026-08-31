@@ -26,16 +26,19 @@ export const parseSlot = (raw: unknown): { providerName: string | null; modelNam
 }
 
 // Build the JSONB blob persisted on Provider.transformer. The wire
-// shape carries two derived keys we do not store: `_disabledModels`
-// (the inverse of Model.enabled, re-derived in toProvider) and
-// `providerEnabled` (rewritten here from the top-level `enabled`
-// flag). Both are dropped before persistence so the DB never holds a
-// stale copy.
+// shape carries three keys we do not store: `_disabledModels` (the
+// inverse of Model.enabled, re-derived in toProvider), `providerEnabled`
+// (rewritten here from the top-level `enabled` flag), and `use` — a
+// pre-derivation chain selection that a config carried over from an
+// older build may still contain. All three are dropped before
+// persistence so the DB never holds a stale copy, and so a stored `use`
+// can never look like it is doing something: the chain comes from
+// api_style + auth_mode now (`shared/transformer-chain.ts`).
 export const buildStoredTransformer = (incoming: Provider): Prisma.InputJsonObject | typeof Prisma.DbNull => {
   const transformer = incoming.transformer
   const rest: Prisma.InputJsonObject = (() => {
     if (!transformer) return {}
-    const { _disabledModels: _d, providerEnabled: _p, ...keep } = transformer
+    const { _disabledModels: _d, providerEnabled: _p, use: _u, ...keep } = transformer
     return keep
   })()
   const base: Prisma.InputJsonObject = {

@@ -315,6 +315,56 @@ interface InboundSurface {
 失うのは実装ではなく設定欄だけ。必要になったら `InboundSurface` レジストリと同じ形で
 `apiStyle → transformer` の写像に1行足す方が素直。
 
+##### 実施結果 (2026-08-31) — **Done**
+
+導出は `src/shared/transformer-chain.ts` の1枚に集約した。`shared/` に置いたのは、
+サーバの `ProviderRegistry` と Providers 画面の Request shape 表示が**同じ関数**を読む
+ためで、以前は UI が `derive.ts` に写像を写経していて（`pipelineOf`）、実際に走る chain と
+食い違っていた。純粋な文字列写像で import ゼロなのでブラウザバンドルに入れて問題ない。
+
+| apiStyle | api_key | subscription |
+|---|---|---|
+| `anthropic` | （変換段なし） | `claude-code-oauth` |
+| `openai_chat` | `openai` | 未対応 → 登録しない |
+| `openai_responses` | `openai-responses` | `openai-responses` → `codex-oauth` |
+| `gemini` | `gemini` | 未対応 → 登録しない（Phase 3-2） |
+
+判断が要った点:
+
+- **`anthropic` / api_key を空にした**。`anthropic` を積むと chain 長1が endpoint
+  transformer と一致し、**bypass モードに落ちる**。no-op ではなく別経路なので、現行の
+  非 bypass 挙動を保つには空が正しい
+- **chain が `null`（未対応の subscription 組）と `[]`（変換段が不要）を区別する**。null は
+  provider を登録しない。placeholder キーのまま upstream を叩かせないため
+- **base URL フォールバックは subscription に限って残した**。`apiStyleForVendor` は名前しか
+  見ないので、pre-Rialto config から来た非正規名の自前プロキシが `openai_chat` に落ちて
+  auth 段を失う。api_key 側には効かせない（`api.openai.com/v1/...` は普通の chat ベンダ）
+
+副作用として2件のバグが直った。どちらも「設定欄が機能していない証拠」そのものだった:
+
+- **deepseek** は `use: ['deepseek']` という未登録名を指しており、`resolveUseEntry` が
+  `undefined` を返して**空 chain**になっていた。OpenAI 側のリクエスト書き換えが効いていない
+- **minimax** は base URL が `/v1/text/chatcompletion_v2` で `applyOpenAIOverlay` の
+  URL 判定（`api.openai.com` か `/chat/completions` 末尾）に当たらず、同じく chain 無しで
+  unified 形をそのまま送っていた
+
+削除したもの: `src/services/openai-overlay.ts`（全体）、`applySubscriptionAuth` の chain 選択、
+`ProviderTransformerSchema.use`、`TransformerUseEntrySchema` と registry の `[name, opts]`
+解決経路、`VENDOR_DEFAULTS.transformer`（deepseek / google）、`SeedRow.transformer`、
+`provider-edits.ts` の transformer picker / options ヘルパ9本（317行 → 30行。Phase 5 で
+ダイアログが消えて以来 `setModelDisabled` 以外は全部死んでいた）。
+
+古い build が書き残した `use` は `toProvider` と `buildStoredTransformer` の両方で落とすので、
+既存 DB 行を移行する必要はない。テストは `__tests__/shared/transformer-chain.test.ts`（写像）と
+`__tests__/llms/provider-registry-chain.test.ts`（解決と skip）。
+
+**持ち越し**: 「`Provider.transformer` JSONB を Phase 4 で正式カラムへ昇格させて畳む」は
+**未着手**。Phase 4（Zodスキーマ層分け）は別の作業として閉じており、この昇格は Prisma
+マイグレーション（`Provider.enabled` カラム追加 + `Model.enabled` への一本化 + JSONB 削除）を
+伴う。2-4 の範囲外なのでここでは触っていない。現状 JSONB に残っているのは
+`_disabledModels`（`Model.enabled` の派生ビュー）、`providerEnabled`、そして実行時にだけ
+載る subscription credential の3つで、`use` はもう入らない。
+
 #### 2-5. パリティ・マトリクス
 
 面 × 機能で表を定義し、各セルにテストを割り当てる。
@@ -614,7 +664,7 @@ Prismaマイグレーション後は `bun run db:migrate:test`（`rialto_test`�
 | `ui-mock-diff` スキル | **Done** | `bun run mocks:{css,shoot,diff}` |
 | 0 土台整備 | **Done** | envelope.test.ts のフルスイート限定フレークは解消。原因は import順ではなく `readConfigFile` が `process.env` を上書き合成すること — テスト間で漏れた `API_TIMEOUT_MS` が結果を変えていた。各テストで `ENVELOPE_ENV_KEYS` を消して修正。フルスイート 1121 pass / 0 fail |
 | 1 Rialtoリネーム | **Done** | HOME_DIR移行（コピー→検証→旧削除）、旧環境変数の受理を全廃、DB名 `rialto` / `rialto_test`、`ccr_` thinking signature の受理を廃止。既存volumeは `bun run scripts/rename-dev-database.ts`。唯一残した後方互換は `<CCR-SUBAGENT-MODEL>` タグ（外部契約で、外すと**無言で**main-agent chainに落ちるため） |
-| 2 Inbound集約+多面ルーティング | **In Progress** | 2-1 完了（散っていた4箇所すべて記述子へ移管。ルート/認証/アクセスログのマウントもレジストリ由来）、2-2 完了、2-3 完了。残: 2-4 transformer選択の廃止、2-5 パリティ・マトリクス。`docs/architecture/inbound-surfaces.md` |
+| 2 Inbound集約+多面ルーティング | **In Progress** | 2-1 完了（散っていた4箇所すべて記述子へ移管。ルート/認証/アクセスログのマウントもレジストリ由来）、2-2 完了、2-3 完了、2-4 完了（chain は `src/shared/transformer-chain.ts` が apiStyle+authMode から導出。UI と同じ関数。deepseek / minimax が chain 無しで走っていたバグが直った）。残: 2-5 パリティ・マトリクス。`docs/architecture/inbound-surfaces.md` |
 | 3 Gemini | **In Progress** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。残: 3-2 サブスク枠（`gemini-cli` / Code Assist）。クォータ取得の可否は未検証 |
 | 3.5 認証 | **In Progress** | 管理UIは Cloudflare Access JWT + ローカル免除、`/v1/*` は発行済みアクセストークンのみ。`AccessToken` テーブルと `src/services/access-token-service.ts` は稼働。bootstrap token は廃止済み。残: `/login` の削除 |
 | 4 Zodスキーマ | **Done** | primitives / wire / domain / api / forms の5層に分割し、グローバルbarrelを削除。着手前の計測で、計画が前提にしていた重複は存在しないことが判明（§Phase 4 に記録） |

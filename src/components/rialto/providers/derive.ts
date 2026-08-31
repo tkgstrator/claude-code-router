@@ -6,6 +6,7 @@
  * can be reasoned about (and unit-tested) without React.
  */
 import type { CatalogEntry, CatalogModel } from '@/schemas/api/catalog'
+import { transformerChain } from '@/shared/transformer-chain'
 import type { ApiStyle, Provider, SubscriptionWire, TestStatus, Tier, TransformerWire } from './types'
 
 export type ProviderState = 'live' | 'invalid' | 'unknown'
@@ -128,21 +129,6 @@ export function maskKey(key: string): string {
   return `${head}${KEY_BULLETS}${key.slice(-4)}`
 }
 
-// Mirrors SUBSCRIPTION_TRANSFORMER_CHAIN in services/subscription-overlay.ts.
-// Same reason as inferTier: read-only knowledge, not worth dragging the
-// server module graph into the bundle for.
-const SUBSCRIPTION_PIPELINE: Record<string, string[]> = {
-  'claude-code': ['claude-code-oauth'],
-  codex: ['openai-responses', 'codex-oauth']
-}
-
-const API_KEY_PIPELINE: Record<ApiStyle, string> = {
-  anthropic: 'anthropic',
-  openai_chat: 'openai',
-  openai_responses: 'openai-responses',
-  gemini: 'gemini'
-}
-
 /** Header the outbound request carries the credential in. */
 const API_KEY_AUTH: Record<ApiStyle, string> = {
   anthropic: 'x-api-key',
@@ -151,21 +137,19 @@ const API_KEY_AUTH: Record<ApiStyle, string> = {
   openai_responses: 'Bearer'
 }
 
-/** The transformer chain a request through this provider runs. */
+/**
+ * The transformer chain a request through this provider runs.
+ *
+ * Imported rather than mirrored: `shared/transformer-chain.ts` is the
+ * same pure module the provider registry builds the real chain from, so
+ * this block cannot drift from what actually runs — which is the only
+ * reason to show it. An empty array covers both "no step needed" (an
+ * Anthropic upstream) and "unservable"; the screen renders a dash either
+ * way, and an unservable provider already reads as such above.
+ */
 export function pipelineOf(p: Provider): string[] {
-  if (p.auth_mode === 'subscription') {
-    const named = SUBSCRIPTION_PIPELINE[p.name]
-    if (named !== undefined) return named
-    // Self-hosted proxies pointed at a vendor endpoint under a
-    // non-canonical name resolve by base URL, as the overlay does.
-    if (p.api_base_url.includes('anthropic.com')) return SUBSCRIPTION_PIPELINE['claude-code']
-    if (p.api_base_url.includes('chatgpt.com') || p.api_base_url.includes('openai.com/v1')) {
-      return SUBSCRIPTION_PIPELINE.codex
-    }
-    return []
-  }
-  const style = apiStyleOf(p)
-  return style === null ? [] : [API_KEY_PIPELINE[style]]
+  const chain = transformerChain(p)
+  return chain === null ? [] : chain
 }
 
 export function authLabelOf(p: Provider): string {

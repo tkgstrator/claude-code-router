@@ -12,8 +12,9 @@
  *     We rename the field in place, leaving older gpt-4.x models alone.
  *
  * Codex-family models on the openai provider are routed through
- * `openai-responses` (a per-model `use` override added by
- * services/openai-overlay.ts), so they never reach this rewrite.
+ * `openai-responses` — their `Model.apiStyle` disagrees with the
+ * provider's, which earns them a per-model chain of their own (see
+ * `shared/transformer-chain.ts`) — so they never reach this rewrite.
  */
 
 import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '@/schemas/domain'

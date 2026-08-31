@@ -10,7 +10,7 @@
 
 import { z } from '@hono/zod-openapi'
 import { LogLevelSchema } from '@/schemas/primitives/env'
-import { JsonValueSchema, PresetTransformerConfigSchema } from './preset'
+import { JsonValueSchema } from './preset'
 
 // A single persona in the library. `id` is the stable uuid key every
 // reference points at — the URL (/personas/view|edit/:id), the active
@@ -75,14 +75,11 @@ export const ConfigEnvelopeSchema = z
     // instead of the generic "Live".
     LiveRoutingName: z.string().optional(),
 
-    // Object-shaped envelope members that stay on disk for PR #1.
-    // Personas is the named persona library; it stays on disk alongside
-    // `transformers` (an object-shaped member, not a boot scalar).
+    // Object-shaped envelope members: they stay on disk rather than
+    // moving to the DB, and are never mirrored onto process.env.
+    // Personas is the named persona library.
     Personas: z.array(PersonaSchema).default([]),
     StatusLine: JsonValueSchema.optional(),
-    transformers: z.array(PresetTransformerConfigSchema).optional(),
-    plugins: z.array(JsonValueSchema).optional(),
-    Plugins: z.array(JsonValueSchema).optional(),
 
     // Quota-aware preference router (docs/plan/quota-aware-preference-router.md
     // §6.4). All four keys are Phase 2 knobs; the runtime router stays on

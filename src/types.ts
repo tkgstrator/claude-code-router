@@ -18,9 +18,7 @@ export {
   type StatusLineModuleConfig,
   StatusLineModuleConfigSchema,
   type StatusLineThemeConfig,
-  StatusLineThemeConfigSchema,
-  type Transformer,
-  TransformerSchema
+  StatusLineThemeConfigSchema
 } from '@/schemas/domain'
 export { type AccessLevel, AccessLevelSchema } from '@/schemas/primitives/common'
 // Schemas that were value-exported from this file before the move.

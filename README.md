@@ -18,7 +18,7 @@
 - **Usage & cost dashboard** — per-provider and per-model cost breakdown with daily cost charts.
 - **Request history** — browse past sessions with per-request stats and archived conversation transcripts.
 - **Web management UI** — full browser-based configuration; no manual JSON editing required.
-- **Transformer pipeline** — built-in and custom transformers adapt Anthropic-format requests to each provider's API.
+- **Transformer pipeline** — built-in transformers adapt Anthropic-format requests to each provider's API.
 - **Custom JavaScript router** — implement any routing logic beyond the six built-in scenarios.
 - **Subagent model pinning** — direct individual subagents to a specific provider and model using an inline prompt tag.
 - **Status line** — real-time Rialto status display integrated into Claude Code's status bar.
@@ -238,21 +238,6 @@ Transformers adapt Anthropic-format requests to each provider's wire format.
 | `gemini-cli` *(experimental)* | Gemini via Gemini CLI (unofficial) |
 | `qwen-cli` *(experimental)* | qwen3-coder-plus via Qwen CLI (unofficial) |
 | `rovo-cli` *(experimental)* | GPT-5 via Atlassian Rovo Dev CLI (unofficial) |
-
-**Custom transformer plugins:**
-
-Add your own transformer by loading a JavaScript module from the disk envelope:
-
-```json
-{
-  "transformers": [
-    {
-      "path": "/home/user/.rialto/plugins/my-transformer.js",
-      "options": { "someOption": "value" }
-    }
-  ]
-}
-```
 
 **Transformer configuration examples:**
 

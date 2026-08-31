@@ -30,8 +30,6 @@ export const HOME_DIR = resolveHomeDir(process.env, os.homedir())
 
 export const CONFIG_FILE = path.join(HOME_DIR, 'config.json')
 
-export const PLUGINS_DIR = path.join(HOME_DIR, 'plugins')
-
 // Where pino's rotating file sink writes. Shared with the storage
 // report, which measures the same directory the logger fills.
 export const LOG_DIR = path.join(HOME_DIR, 'logs')

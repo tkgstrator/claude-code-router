@@ -403,17 +403,31 @@ sequenceDiagram
 | `tokenizers: TokenizerRegistry` | tiktoken (cl100k_base) ベース | scenario-router の token 数計上 |
 | `log: pino.Logger` | ベースロガー。`reqId` で child を切る | 全レイヤ |
 
+### transformer chain の導出
+
+chain は設定項目ではない。登録されている6つの transformer はどれも endpoint 束縛（`anthropic` / `openai` / `openai-responses` / `gemini`）か auth 束縛（`claude-code-oauth` / `codex-oauth`）で、選ぶ余地が無いため、chain は `Provider.apiStyle` + `Provider.authMode` の**関数**として `src/shared/transformer-chain.ts` が導出し、`ProviderRegistry` が Transformer インスタンスに解決する。`provider.transformer.use` は読まれない（古い build が書き残した値は compose 時に落とす）。
+
+| apiStyle | api_key | subscription |
+|---|---|---|
+| `anthropic` | （変換不要） | `claude-code-oauth` |
+| `openai_chat` | `openai` | — 未対応 |
+| `openai_responses` | `openai-responses` | `openai-responses` → `codex-oauth` |
+| `gemini` | `gemini` | — 未対応（Phase 3-2） |
+
+`anthropic` / api_key が空なのは手落ちではない。endpoint transformer が作る unified 形がそのまま Anthropic のワイヤ形なので変換段が要らず、ここに `anthropic` を積むと chain 長1が endpoint transformer と一致して **bypass モードに落ちる**（別経路であって no-op ではない）。「未対応」の組は chain が null になり、provider は登録されない — placeholder キーで upstream を叩かせないため。
+
+`Model.apiStyle` が provider と食い違うモデル（api_key openai provider 上の codex 系）は、その差分だけをモデル別 chain として provider chain の後段に足す。
+
 ### Subscription overlay
 
-DB 上では subscription provider の `api_key` は null。これだと `ProviderRegistry.registerFromConfig` の sanity check で落ちるので、`applySubscriptionAuth` がメモリ上で `api_key: 'oauth'` をスタンプし、provider 名 / base URL に応じて `claude-code-oauth` / `codex-oauth` の transformer chain を mount する。OAuth の bearer token は disk の `~/.claude/.credentials.json` から **リクエスト時に** transformer.auth() が読む。
+DB 上では subscription provider の `api_key` は null。これだと `ProviderRegistry.registerFromConfig` の sanity check で落ちるので、`applySubscriptionAuth` がメモリ上で `api_key: 'oauth'` をスタンプし、credential（`subscriptionCredentialPath` / `subscriptionAuth`）を `provider.transformer` に載せる。chain の選択はしない（上記の導出が担う）。OAuth の bearer token は disk の `~/.claude/.credentials.json` から **リクエスト時に** transformer.auth() が読む。
 
 ```mermaid
 flowchart LR
-  CFG[DB: Providers] --> AO[applyOpenAIOverlay<br/>openai api_key 系に<br/>openai/openai-responses chain]
-  AO --> SA[applySubscriptionAuth<br/>subscription 系に<br/>oauth chain + api_key='oauth']
+  CFG[DB: Providers] --> SA[applySubscriptionAuth<br/>subscription 系に<br/>credential + api_key='oauth']
   SA --> CS[ConfigStore]
-  SA --> PR[ProviderRegistry.registerFromConfig]
-  PR -.warn.-> SKIP[api_key 未設定→skip<br/>+ missing フィールド log]
+  SA --> PR[ProviderRegistry.registerFromConfig<br/>apiStyle+authMode から chain を導出]
+  PR -.warn.-> SKIP[api_key 未設定 / chain 無し→skip<br/>+ 理由を log]
 ```
 
 ---
@@ -552,7 +566,7 @@ flowchart TD
 
 ### bypass モード
 
-provider の `transformer.use` が単一かつ endpoint transformer と一致するとき発動。「unified に reshape する必要がなく、auth だけ被せれば良い」最短経路。subscription claude-code 系がこれに該当（anthropic-in / anthropic-out + OAuth bearer 注入のみ）。
+導出された chain が単一かつ endpoint transformer と一致するとき発動。「unified に reshape する必要がなく、auth だけ被せれば良い」最短経路。inbound と provider の apiStyle が揃った組（gemini 面 → google provider、chat 面 → openai_chat provider）がこれに該当する。
 
 ### 各 transformer の責務
 

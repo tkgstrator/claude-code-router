@@ -5,7 +5,7 @@ import readline from 'node:readline'
 import JSON5 from 'json5'
 import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas/domain/config'
 import { ENVELOPE_ENV_KEYS, type EnvelopeEnvKey } from '@/shared'
-import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
+import { CONFIG_FILE, HOME_DIR } from '@/shared/constants'
 import { SEED_PERSONAS } from '@/shared/data'
 import { logger } from '../../logger'
 
@@ -82,7 +82,6 @@ const ensureDir = async (dir_path: string) => {
 
 export const initDir = async () => {
   await ensureDir(HOME_DIR)
-  await ensureDir(PLUGINS_DIR)
   await ensureDir(path.join(HOME_DIR, 'logs'))
 }
 

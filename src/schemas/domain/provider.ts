@@ -16,19 +16,20 @@ export const AuthModeSchema = z.enum(['api_key', 'subscription']).openapi('AuthM
 export const ProviderAuthModeSchema = AuthModeSchema
 export type ProviderAuthMode = z.infer<typeof ProviderAuthModeSchema>
 
-export const ProviderTransformerSchema = z
-  .object({
-    // Optional: toUiProvider may emit { _disabledModels: [...] } without use.
-    use: z
-      .array(
-        z.union([
-          z.string().nonempty(),
-          z.array(z.union([z.string().nonempty(), z.record(z.string().nonempty(), z.unknown())]))
-        ])
-      )
-      .optional()
-  })
-  .catchall(z.any())
+/**
+ * The `Provider.transformer` JSONB blob.
+ *
+ * The name is historical: it no longer selects transformers. The chain a
+ * provider runs is derived from `api_style` + `auth_mode`
+ * (`shared/transformer-chain.ts`) and is not configurable, so nothing
+ * here declares one. What the column actually holds today is two flags
+ * the schema has yet to promote to columns of their own —
+ * `_disabledModels` (the wire view of `Model.enabled`) and
+ * `providerEnabled` — plus the subscription credential keys the runtime
+ * overlay grafts on. Hence a shape with no declared members and a
+ * catchall.
+ */
+export const ProviderTransformerSchema = z.object({}).catchall(z.any())
 export type ProviderTransformer = z.infer<typeof ProviderTransformerSchema>
 
 export const ProviderSchema = z

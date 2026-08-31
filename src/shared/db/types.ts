@@ -32,9 +32,9 @@ export const SCENARIO_KEYS = ['default', 'think', 'longContext', 'webSearch', 'i
 // --- Config envelope --------------------------------------------------------
 
 // Scalar envelope keys that may be mirrored onto process.env at boot.
-// Object/array fields (StatusLine, transformers, plugins, Plugins) are
-// envelope-resident but never copied onto process.env, so they live in
-// the schema (config.dto.ts) but not in this list.
+// Object/array fields (Personas, StatusLine) are envelope-resident but
+// never copied onto process.env, so they live in the schema
+// (`@/schemas/domain/config`) but not in this list.
 export const ENVELOPE_ENV_KEYS = [
   'HOST',
   'PORT',

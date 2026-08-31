@@ -236,17 +236,6 @@
     "cross_provider_fallback": "跨提供商回退 (OpenAI 系)",
     "cross_provider_fallback_help": "在每个回退链条目之后,自动插入同名模型的 OpenAI 系提供商 (openai_chat / openai_responses) 条目。例如 codex,gpt-5.6-luna 遇到 429 时,即使未手写链也会自动回退到 openai,gpt-5.6-luna。自动插入的对等条目还会绕过同 auth_mode 限制,因此 subscription 主可以回退到 api_key 提供商。"
   },
-  "transformers": {
-    "title": "自定义转换器",
-    "path": "路径",
-    "project": "项目",
-    "remove": "移除",
-    "add": "添加自定义转换器",
-    "edit": "编辑自定义转换器",
-    "delete": "删除自定义转换器",
-    "delete_transformer_confirm": "您确定要删除此自定义转换器吗？",
-    "parameters": "参数"
-  },
   "providers": {
     "title": "供应商",
     "name": "名称",

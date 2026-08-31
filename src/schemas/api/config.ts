@@ -13,7 +13,6 @@ import { JsonValueSchema } from '@/schemas/domain/preset'
 import { ProviderSchema } from '@/schemas/domain/provider'
 import { RouterConfigSchema, RouterSchema } from '@/schemas/domain/router'
 import { StatusLineConfigSchema } from '@/schemas/domain/status-line'
-import { TransformerSchema } from '@/schemas/domain/transformer'
 import { EmptyStringToNullSchema } from '@/schemas/primitives/common'
 
 // API wire shape returned by /api/config and emitted by composeUiConfig
@@ -45,7 +44,6 @@ export type AppConfig = z.infer<typeof AppConfigSchema>
 export const ConfigSchema = z.object({
   Providers: z.array(ProviderSchema),
   Router: RouterConfigSchema,
-  transformers: z.array(TransformerSchema),
   StatusLine: StatusLineConfigSchema.optional(),
   LOG: z.boolean(),
   LOG_LEVEL: z.string().nonempty(),

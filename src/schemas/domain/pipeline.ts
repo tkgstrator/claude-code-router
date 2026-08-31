@@ -18,11 +18,11 @@ import { z } from '@hono/zod-openapi'
 // ─── Runtime provider ──────────────────────────────────────────────────
 
 /**
- * `transformer.use` is intentionally loose: at registration time it
- * holds string names (`TransformerUseEntry`); after the registry
- * resolves them it holds Transformer instances. Both are valid runtime
- * shapes; consumers (hooks) only read sibling fields like
- * `subscriptionCredentialPath` / `subscriptionAuth`, never the use chain.
+ * `transformer.use` is intentionally loose: it holds the Transformer
+ * instances the registry derived for this provider. Nothing configures
+ * it — see `shared/transformer-chain.ts` — and consumers (hooks) only
+ * read sibling fields like `subscriptionCredentialPath` /
+ * `subscriptionAuth`, never the use chain itself.
  */
 export const ProviderTransformerConfigSchema = z
   .object({
@@ -53,24 +53,27 @@ export type RuntimeProvider = z.input<typeof RuntimeProviderSchema>
 
 // ─── Provider config (registry input form) ─────────────────────────────
 
-/**
- * Each `use` entry on the CONFIG side is either a transformer NAME
- * or `[name, opts]`. The registry translates entries into Transformer
- * instances; the pipeline only sees resolved instances.
- */
-export const TransformerUseEntrySchema = z.union([
-  z.string().nonempty(),
-  z.tuple([z.string().nonempty(), z.record(z.string().nonempty(), z.unknown())])
-])
-export type TransformerUseEntry = z.infer<typeof TransformerUseEntrySchema>
+export const ApiStyleSchema = z.enum(['openai_chat', 'openai_responses', 'anthropic', 'gemini'])
 
+/**
+ * What the registry needs to build a provider.
+ *
+ * There is no `use` chain on this side. The chain is derived from
+ * `api_style` + `auth_mode` (see `shared/transformer-chain.ts`), so the
+ * registry is handed the two columns rather than a pre-resolved list of
+ * transformer names — which is what makes the chain impossible to
+ * configure into an invalid state. `transformer` survives only as the
+ * carrier for the subscription credential keys the OAuth base reads
+ * (`subscriptionCredentialPath`, `subscriptionAuth`).
+ */
 export const ProviderConfigShapeSchema = RuntimeProviderSchema.extend({
-  transformer: z
-    .object({
-      use: z.array(TransformerUseEntrySchema).default([])
-    })
-    .catchall(z.unknown())
-    .optional()
+  auth_mode: z.enum(['api_key', 'subscription']),
+  api_style: ApiStyleSchema.optional(),
+  // Per-model wire-format override (Model.apiStyle). Only models whose
+  // column is non-null appear; a model that agrees with its provider
+  // needs no per-model chain.
+  modelApiStyles: z.record(z.string().nonempty(), ApiStyleSchema).optional(),
+  transformer: z.object({}).catchall(z.unknown()).optional()
 })
 export type ProviderConfigShape = z.input<typeof ProviderConfigShapeSchema>
 

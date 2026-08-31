@@ -2,4 +2,3 @@
 // a half-filled form has to stay parseable while the user is still
 // typing in it.
 export * from './settings'
-export * from './transformer'

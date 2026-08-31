@@ -1,7 +1,8 @@
 /**
- * What /api/transformers returns: the registry listing, which is a
- * different shape from the on-disk entry in domain/transformer.ts —
- * it names endpoints instead of module paths and carries no options.
+ * What /api/transformers returns: the live registry listing built in
+ * `src/llms/context.ts` — the transformers that are actually loaded,
+ * named alongside the endpoint each one posts to. Read-only; there is
+ * no on-disk transformer config to reconcile it against.
  */
 
 import { z } from '@hono/zod-openapi'

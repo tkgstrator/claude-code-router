@@ -29,7 +29,6 @@ import {
   type PresetProvider,
   type PresetRegistry,
   type PresetRouterConfig,
-  type PresetTransformerConfig,
   type RequiredInput,
   type SanitizeResult,
   type TemplateConfig,
@@ -57,7 +56,6 @@ export type {
   PresetProvider,
   PresetRegistry,
   PresetRouterConfig,
-  PresetTransformerConfig,
   RequiredInput,
   SanitizeResult,
   TemplateConfig,
@@ -70,9 +68,8 @@ export type {
 export { InputType, MergeStrategy }
 
 // Legacy aliases for the renamed preset-specific shapes. The originals
-// shadowed the API-wire Provider/Router/Transformer types in the
-// `@/schemas` barrel; the new names disambiguate. These aliases keep
-// the legacy preset code (CLI export/install, etc.) compiling.
+// shadowed the API-wire Provider/Router types in the `@/schemas`
+// barrel; the new names disambiguate. These aliases keep the legacy
+// preset code (CLI export/install, etc.) compiling.
 export type ProviderConfig = PresetProvider
 export type RouterConfig = PresetRouterConfig
-export type TransformerConfig = PresetTransformerConfig

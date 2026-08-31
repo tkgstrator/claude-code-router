@@ -26,8 +26,6 @@ export type VendorAuth = 'bearer' | 'x-api-key' | 'google-key-param'
 export interface VendorDefaults {
   /** Provider.apiBaseUrl */
   baseUrl: string
-  /** Provider.transformer JSONB; absent for openai-compatible vendors */
-  transformer?: { use: string[] }
   /** GET endpoint returning the vendor's live model catalog */
   modelsEndpoint?: string
   /** How to attach the apiKey when calling modelsEndpoint */
@@ -44,13 +42,11 @@ export const VENDOR_DEFAULTS: Record<string, VendorDefaults> = {
   },
   deepseek: {
     baseUrl: 'https://api.deepseek.com/chat/completions',
-    transformer: { use: ['deepseek'] },
     modelsEndpoint: 'https://api.deepseek.com/v1/models',
     modelsAuth: 'bearer'
   },
   google: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
-    transformer: { use: ['gemini'] },
     modelsEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
     modelsAuth: 'google-key-param'
   },
@@ -91,7 +87,6 @@ export interface SeedProvider {
   name: string
   apiBaseUrl: string
   models: string[]
-  transformer?: { use: string[] }
 }
 
 export function buildSeedProviders(prices: PriceEntry[] = LLM_PRICES_SEED.prices): SeedProvider[] {
@@ -114,8 +109,7 @@ export function buildSeedProviders(prices: PriceEntry[] = LLM_PRICES_SEED.prices
     result.push({
       name: vendor,
       apiBaseUrl: defaults.baseUrl,
-      models: [...modelSet],
-      ...(defaults.transformer ? { transformer: defaults.transformer } : {})
+      models: [...modelSet]
     })
   }
   return result
