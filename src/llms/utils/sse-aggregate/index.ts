@@ -24,4 +24,8 @@ export { aggregateAnthropicSseToJson } from './anthropic'
 export { aggregateGeminiSseToJson } from './gemini'
 export { aggregateOpenAiChatSseToJson } from './openai-chat'
 export { aggregateOpenAiResponsesSseToJson } from './openai-responses'
-export { isSseContentType, parseSseEvents } from './parse'
+// `parseSseEvents` is deliberately NOT re-exported: it is the framing
+// the four aggregators share, not something a call site outside this
+// directory has ever needed. Anything that does need it can import
+// `./parse` and say so explicitly.
+export { isSseContentType } from './parse'

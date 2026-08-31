@@ -154,7 +154,7 @@ quota-aware セレクタへ渡す。これにより **CIのクライアントが
 |---|---|
 | 新しいワイヤ形式 | endpoint transformer 1つ（`endPoint` は記述子の `endpoint` と一致させる）。`transformRequestOut`（wire → 内部形）と `transformResponseIn`（内部形 → wire）の両方 |
 | 新しいエラー封筒 | `buildErrorEnvelope` に分岐1つ、`unauthorizedResponse` に 401 の形1つ |
-| 新しい非ストリーム集約 | `sse-aggregate.ts` に aggregator 1つ |
+| 新しい非ストリーム集約 | `sse-aggregate/` にファイル1つ（ワイヤ形式ごとに1ファイル）と barrel の1行 |
 | 新しい認証規約 | `presentedSecret` に読み取り1行、`GATE_BY_CREDENTIAL` に1エントリ |
 | 新しい `inboundType` の値 | 3つの zod enum を広げる（DDL は不要 — 列は制約なしの TEXT） |
 
