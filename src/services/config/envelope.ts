@@ -43,6 +43,10 @@ const coerceEnvelopeValue = (key: EnvelopeEnvKey, value: string): unknown => {
     }
     case 'LOG':
     case 'NON_INTERACTIVE_MODE':
+    case 'CROSS_PROVIDER_FALLBACK':
+    case 'CAPTURE_REQUESTS':
+    case 'CAPTURE_MESSAGES':
+    case 'REDACT_TOOL_ARGUMENTS':
       // Only the strings the operator would reasonably type. Anything
       // else (unset, empty, arbitrary) leaves the field alone.
       return value === 'true' || value === '1'

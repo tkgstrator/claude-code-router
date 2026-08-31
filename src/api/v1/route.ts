@@ -16,6 +16,7 @@ import { requestLogEmitter } from '../request-logs/events'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
 import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
 import { buildFailoverChain, buildRoutePlan, type ResolvedInvocation } from './invocation'
+import { redactToolArguments } from './redact'
 import {
   aggregateAnthropicSseToJson,
   aggregateOpenAiChatSseToJson,
@@ -28,7 +29,18 @@ export const v1Route = new Hono()
 
 // ─── Usage capture sink ─────────────────────────────────────────────────
 
+/**
+ * Envelope switch, read per request rather than at boot.
+ *
+ * The reason to turn capture off is usually that something is being
+ * recorded right now that should not be, so waiting for a restart is
+ * the wrong behaviour. Absent reads as on, which is what capture did
+ * before these keys existed.
+ */
+const captureEnabled = (key: 'CAPTURE_REQUESTS' | 'CAPTURE_MESSAGES'): boolean => process.env[key] !== 'false'
+
 async function recordUsage(entry: UsageRecord): Promise<void> {
+  if (!captureEnabled('CAPTURE_REQUESTS')) return
   const prisma = getPrismaClient()
   // New activity un-archives a previously archived session so it returns to
   // the History list (archivedAt: null), while still bumping updatedAt.
@@ -50,7 +62,8 @@ async function recordUsage(entry: UsageRecord): Promise<void> {
 // Session first because the user turn can land before recordUsage has
 // created it.
 async function recordMessages(entries: MessageRecord[]): Promise<void> {
-  if (entries.length === 0) return
+  if (entries.length === 0 || !captureEnabled('CAPTURE_MESSAGES')) return
+  const redact = process.env.REDACT_TOOL_ARGUMENTS === 'true'
   const prisma = getPrismaClient()
   const sessionIds = new Set(entries.map((e) => e.sessionId))
   for (const id of sessionIds) {
@@ -62,7 +75,11 @@ async function recordMessages(entries: MessageRecord[]): Promise<void> {
   }
   await prisma.message.createMany({
     // biome-ignore plugin: MessageRecord.content is unknown by wire schema (Anthropic block arrays and user content shapes vary); Prisma InputJsonValue wants a concrete JSON value. The pipeline only passes wire-safe values here.
-    data: entries.map((e) => ({ sessionId: e.sessionId, role: e.role, content: e.content as never }))
+    data: entries.map((e) => ({
+      sessionId: e.sessionId,
+      role: e.role,
+      content: (redact ? redactToolArguments(e.content) : e.content) as never
+    }))
   })
 }
 

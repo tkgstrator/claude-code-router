@@ -54,7 +54,16 @@ export const ENVELOPE_ENV_KEYS = [
   'ROUTER_MODE',
   'ROUTER_SHADOW',
   'ROUTER_ROLLOUT_PCT',
-  'CROSS_PROVIDER_FALLBACK'
+  'CROSS_PROVIDER_FALLBACK',
+  // Archive capture switches. Mirrored onto process.env for the same
+  // reason as the router knobs: the request-log writer reads them per
+  // request, so turning capture off takes effect on the next call
+  // rather than at the next restart — which matters, because the
+  // reason to turn it off is usually that something is being recorded
+  // right now that should not be.
+  'CAPTURE_REQUESTS',
+  'CAPTURE_MESSAGES',
+  'REDACT_TOOL_ARGUMENTS'
 ] as const
 export type EnvelopeEnvKey = (typeof ENVELOPE_ENV_KEYS)[number]
 

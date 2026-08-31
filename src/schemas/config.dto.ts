@@ -38,6 +38,17 @@ export const ConfigEnvelopeSchema = z
     CLAUDE_PATH: z.string().default(''),
     NON_INTERACTIVE_MODE: z.boolean().optional(),
 
+    // What the archive is allowed to keep. Default on, matching the
+    // unconditional capture that predates these keys, so an existing
+    // install records exactly what it recorded before.
+    //
+    // `REDACT_TOOL_ARGUMENTS` defaults OFF because turning it on loses
+    // information that cannot be recovered later; an operator who needs
+    // it will say so.
+    CAPTURE_REQUESTS: z.boolean().default(true),
+    CAPTURE_MESSAGES: z.boolean().default(true),
+    REDACT_TOOL_ARGUMENTS: z.boolean().default(false),
+
     // Disk-only backing store for the active persona's id (surfaced on
     // the wire as `Router.persona`, not as a top-level field). Absent /
     // empty means "no persona". Round-trips through the disk envelope
@@ -144,6 +155,12 @@ export const ConfigSchema = z.object({
   ROUTER_SHADOW: z.enum(['off', 'preference', 'quota-aware']).optional(),
   ROUTER_ROLLOUT_PCT: z.number().int().min(0).max(100).optional(),
   CROSS_PROVIDER_FALLBACK: z.boolean().optional(),
+  // Archive capture switches. Optional here so an envelope written
+  // before they existed still parses; ConfigEnvelopeSchema supplies the
+  // defaults on the server side.
+  CAPTURE_REQUESTS: z.boolean().optional(),
+  CAPTURE_MESSAGES: z.boolean().optional(),
+  REDACT_TOOL_ARGUMENTS: z.boolean().optional(),
   // Active persona lives on Router.persona (RouterConfigSchema), not as a
   // top-level field. The persona library stays top-level.
   Personas: z.array(PersonaSchema).default([])
