@@ -9,14 +9,13 @@
  *
  * This module is the single descriptor. Everything else derives from it.
  *
- * Note the distinction the registry makes explicit for the first time:
- * `defaultRoutingMode`. `/v1/messages` runs the full scenario → rule →
- * preference-chain → failover pipeline; the OpenAI-compat surfaces have
- * always bypassed it, because those callers hand-pick `provider,model`
- * themselves. That bypass was correct but hardcoded and invisible
- * (`scenario-router.ts`), which is why every routing screen in the old UI
- * was silently a `/v1/messages`-only screen. Here it is data, and the
- * stored per-surface override in `InboundSurfaceConfig` can change it.
+ * Whether the router applies is NOT part of the descriptor. It was
+ * hardcoded in `scenario-router.ts` — /v1/messages routed, the
+ * OpenAI-compat surfaces bypassed — which is why every routing screen in
+ * the old UI was silently a `/v1/messages`-only screen. It now lives per
+ * surface in `InboundSurfaceConfig` as an explicit stored mode, so the
+ * question "does routing apply here" has one answer, in one place, that
+ * an operator can see and change.
  */
 
 export type SurfaceId = 'anthropic-messages' | 'openai-chat' | 'openai-responses' | 'gemini-generate'

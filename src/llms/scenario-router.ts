@@ -124,10 +124,9 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
   // body.model as-is, and stamp default-scenario metadata so the
   // downstream pipeline has the fields it reads.
   //
-  // Which surfaces those are is now configuration, not a constant. The
-  // shipped defaults reproduce the previous hardcoded list exactly
-  // (/v1/chat/completions and /v1/responses passthrough, /v1/messages
-  // routed); an operator can flip any surface from the Routing screen.
+  // Which surfaces those are is configuration, not a constant. Every
+  // surface carries an explicit mode, set from the Routing screen; there
+  // is no per-surface default for this to fall back to.
   // A token may name the reserved passthrough profile, which opts that
   // one client out of routing without changing the mode for everyone
   // else sharing the endpoint.

@@ -1,11 +1,10 @@
 /**
  * Per-surface routing configuration.
  *
- * Reads `InboundSurfaceConfig` and layers it over the descriptors in
- * `llms/inbound/surfaces.ts`. A surface with no row keeps its
- * `defaultRoutingMode`, which reproduces the pre-Rialto behaviour exactly:
- * `/v1/messages` routed, the OpenAI-compat and gemini surfaces
- * passthrough. Nothing changes until an operator changes it.
+ * Reads `InboundSurfaceConfig` and joins it to the descriptors in
+ * `llms/inbound/surfaces.ts`. Every surface has an explicit stored mode,
+ * seeded at boot by `ensureInboundSurfaces`; there is no per-surface
+ * default, so no value is more "the shipped one" than another.
  *
  * The router reads this on the hot path, so the resolved map is cached and
  * invalidated on write rather than re-queried per request.
