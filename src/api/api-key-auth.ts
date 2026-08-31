@@ -4,6 +4,7 @@ import './context'
 import { surfaceForPath } from '../llms/inbound/surfaces'
 import { noteTokenUse, resolveAccessToken } from '../services/access-token-service'
 import { readAccessConfig, verifyAccessJwt } from '../services/cloudflare-access'
+import { isLocalRequest } from './local-access'
 
 // SHA-256 both sides before comparing: fixed-length digests make
 // timingSafeEqual safe (it throws on length mismatch and would
@@ -98,6 +99,11 @@ function matchesBootstrapToken(provided: string): boolean {
  * With Access unconfigured this is exactly the previous behaviour.
  */
 export const adminAuth: MiddlewareHandler = async (c, next) => {
+  // A browser on the machine Rialto runs on does not have to
+  // authenticate to itself. See local-access.ts for why the test is not
+  // simply "is the peer loopback" — with a tunnel in front, it always is.
+  if (isLocalRequest(c)) return next()
+
   const config = readAccessConfig()
   if (config !== null) {
     const assertion = c.req.header('cf-access-jwt-assertion')
