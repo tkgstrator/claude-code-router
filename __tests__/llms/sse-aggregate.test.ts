@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { aggregateGeminiSseToJson } from '../../src/llms/utils/gemini-sse-aggregate'
 import {
+  aggregateGeminiSseToJson,
   aggregateOpenAiChatSseToJson,
   aggregateOpenAiResponsesSseToJson
 } from '../../src/llms/utils/sse-aggregate'

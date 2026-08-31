@@ -1,18 +1,11 @@
 /**
- * Gemini SSE → `GenerateContentResponse` aggregation.
+ * Gemini `streamGenerateContent` SSE → a single
+ * `GenerateContentResponse`.
  *
- * The gemini surface's entry in `InboundSurface.aggregateSse`. Fires in
- * the `formatResponse` branch that trips when the client asked for a
- * blocking `:generateContent` but the upstream answered with a stream —
- * which a provider can force regardless of what the caller asked for.
- *
- * Lives here rather than in `sse-aggregate.ts` so it sits with the rest
- * of the Gemini wire conversion (`gemini-request`, `gemini-response`,
- * `gemini-inbound-response`); the registry is what indexes the four
- * aggregators, so nothing depends on them sharing a file.
+ * The `/v1beta/models/*` surface's `aggregateSse`.
  */
 
-import { parseSseEvents } from './sse-aggregate'
+import { parseSseEvents } from './parse'
 
 /**
  * Aggregate a Gemini `streamGenerateContent?alt=sse` stream into the

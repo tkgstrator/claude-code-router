@@ -31,9 +31,9 @@ import {
   OpenAIResponsesTransformer,
   OpenAITransformer
 } from '../../src/llms/transformers/openai'
-import { aggregateGeminiSseToJson } from '../../src/llms/utils/gemini-sse-aggregate'
 import {
   aggregateAnthropicSseToJson,
+  aggregateGeminiSseToJson,
   aggregateOpenAiChatSseToJson,
   aggregateOpenAiResponsesSseToJson
 } from '../../src/llms/utils/sse-aggregate'
