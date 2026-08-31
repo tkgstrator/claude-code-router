@@ -8,13 +8,11 @@ import { JsonEditor } from '@/components/JsonEditor'
 import { Login } from '@/components/Login'
 import { LogViewer } from '@/components/LogViewer'
 import { ModelsDashboard } from '@/components/ModelsDashboard'
-import { OauthResultPage } from '@/components/OauthResultPage'
 import { PersonaEdit } from '@/components/PersonaEdit'
 import { Personas } from '@/components/Personas'
 import { PersonaView } from '@/components/PersonaView'
 import { Presets } from '@/components/Presets'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import { Providers } from '@/components/Providers'
 import PublicRoute from '@/components/PublicRoute'
 import { RouterPreferences } from '@/components/RouterPreferences'
 import { RouterUtilization } from '@/components/RouterUtilization'
@@ -22,7 +20,14 @@ import { RoutingLibrary } from '@/components/RoutingLibrary'
 import { RoutingLiveEditor } from '@/components/RoutingLiveEditor'
 import { RoutingPresetEditor } from '@/components/RoutingPresetEditor'
 import { Overview } from '@/components/rialto/Overview'
+import { AddProviderScreen } from '@/components/rialto/providers/AddProviderScreen'
+import { ProvidersScreen } from '@/components/rialto/providers/ProvidersScreen'
 import { RialtoShell } from '@/components/rialto/RialtoShell'
+import { RouteError } from '@/components/rialto/RouteError'
+import { AccessRejectedScreen } from '@/components/rialto/system/AccessRejected'
+import { NotFoundScreen } from '@/components/rialto/system/NotFound'
+import { OauthResultScreen } from '@/components/rialto/system/OauthResult'
+import { SetupScreen } from '@/components/rialto/system/SetupScreen'
 import { SessionDetailPage } from '@/components/SessionDetail'
 import { SessionsPage } from '@/components/Sessions'
 import { SettingsPage } from '@/components/SettingsPage'
@@ -35,12 +40,13 @@ const fullHeight = (node: ReactNode) => <div className='h-full'>{node}</div>
 
 export const router = createBrowserRouter([
   {
-    // Root wrapper: gives every descendant a shared error boundary
-    // (unknown paths + thrown render errors both surface as ErrorPage
-    // instead of react-router's default "Unexpected Application Error"
-    // dev screen).
+    // Root wrapper: gives every descendant a shared error boundary.
+    // RouteError separates the two cases that land here — an unmatched
+    // path and a component that threw — because telling someone their
+    // bookmark moved when the app actually crashed sends them looking in
+    // the wrong place.
     element: <Outlet />,
-    errorElement: <ErrorPage />,
+    errorElement: <RouteError />,
     children: [
       {
         path: '/',
@@ -64,7 +70,14 @@ export const router = createBrowserRouter([
             <RialtoShell />
           </ProtectedRoute>
         ),
-        children: [{ path: '/overview', element: <Overview /> }]
+        children: [
+          { path: '/overview', element: <Overview /> },
+          { path: '/providers', element: <ProvidersScreen /> },
+          // Static before dynamic so /providers/connect is the add flow
+          // rather than a provider literally named "connect".
+          { path: '/providers/connect', element: <AddProviderScreen /> },
+          { path: '/providers/:name', element: <ProvidersScreen /> }
+        ]
       },
       {
         element: (
@@ -74,7 +87,6 @@ export const router = createBrowserRouter([
         ),
         children: [
           { path: '/models', element: fullHeight(<ModelsDashboard />) },
-          { path: '/providers', element: fullHeight(<Providers />) },
           { path: '/subscriptions', element: fullHeight(<Subscriptions />) },
           { path: '/routing-map', element: fullHeight(<RoutingLibrary />) },
           { path: '/routing-map/live', element: fullHeight(<RoutingLiveEditor />) },
@@ -117,11 +129,17 @@ export const router = createBrowserRouter([
         // token exchange. Token persistence already happened by the time
         // this route mounts; the page is read-only.
         path: '/oauth-result',
-        element: <OauthResultPage />
+        element: <OauthResultScreen />
       },
+      // First run and the Access-denied explanation render without the
+      // shell: the first has no configuration to hang a sidebar off yet,
+      // and the second is what the operator sees when the edge refused
+      // them, so the app chrome would be misleading.
+      { path: '/setup', element: <SetupScreen /> },
+      { path: '/access-denied', element: <AccessRejectedScreen /> },
       {
         path: '*',
-        element: <ErrorPage />
+        element: <NotFoundScreen />
       }
     ]
   }

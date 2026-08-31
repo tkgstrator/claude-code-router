@@ -49,21 +49,21 @@
     {
       "name": "providers",
       "mock": "providers.html",
-      "route": null,
+      "route": "/providers/claude-code",
       "group": "Providers",
       "note": "Subscription provider detail. Absorbs Subscriptions + SubscriptionAccountsPanel."
     },
     {
       "name": "providers-apikey",
       "mock": "providers-apikey.html",
-      "route": null,
+      "route": "/providers/openai",
       "group": "Providers",
       "note": "API-key provider detail — key field, real prices, per-model apiStyle override."
     },
     {
       "name": "providers-connect",
       "mock": "providers-connect.html",
-      "route": null,
+      "route": "/providers/connect",
       "group": "Providers",
       "note": "Add-provider flow. Absorbs ConnectChoiceDialog + ProviderConnectFlow + ImportCredentialsDialog + ManualCallbackDialog."
     },
@@ -147,14 +147,14 @@
     {
       "name": "setup",
       "mock": "setup.html",
-      "route": null,
+      "route": "/setup",
       "group": "System",
       "note": "Absorbs SetupDialog. First-run explanation before the first question."
     },
     {
       "name": "system-states",
       "mock": "system-states.html",
-      "route": null,
+      "route": "/access-denied",
       "group": "System",
       "note": "OAuth ok/error, 404, API-unreachable. Four routes shown together for tone comparison."
     }
