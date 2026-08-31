@@ -17,7 +17,7 @@ export const EDIT_SCENARIOS = ['default', 'think', 'longContext', 'webSearch', '
 export type EditScenario = (typeof EDIT_SCENARIOS)[number]
 
 // The two caller kinds each scenario routes independently: `agent` for
-// normal traffic, `subagent` for a request carrying a <CCR-SUBAGENT-MODEL>
+// normal traffic, `subagent` for a request carrying a <RIALTO-SUBAGENT-MODEL>
 // tag. Both are first-class exits on a scenario node.
 export const ROUTE_KINDS = ['agent', 'subagent'] as const
 export type RouteKind = (typeof ROUTE_KINDS)[number]

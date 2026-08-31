@@ -27,13 +27,13 @@ const PROVIDER_ERR_RE = /^Error from provider\([^)]*:\s*(\d+)\):\s*([\s\S]*)$/
 // provider-shaped one (caller should treat as a pipeline error and
 // surface a generic 5xx).
 //
-// `via` names the CCR provider the upstream error came through, so the
+// `via` names the Rialto provider the upstream error came through, so the
 // wire response can advertise it back to the client. Without this the
-// classic "two CCRs chained" case is unreadable: the outer CCR forwards
-// the inner CCR's literal 401 verbatim, and the operator can't tell
-// which CCR rejected the request — the wording matches CCR's own gate.
+// classic "two Rialtos chained" case is unreadable: the outer Rialto forwards
+// the inner Rialto's literal 401 verbatim, and the operator can't tell
+// which Rialto rejected the request — the wording matches Rialto's own gate.
 // Surfaces on the response as:
-//   - header `x-ccr-upstream: <name>` (machine-readable)
+//   - header `x-rialto-upstream: <name>` (machine-readable)
 //   - message prefix `[via <name>] ` (visible in SDK error toString())
 export function forwardUpstreamError(err: unknown, shape: ErrorShape = 'anthropic', via?: string): Response | null {
   if (!(err instanceof HTTPException)) return null
@@ -44,16 +44,16 @@ export function forwardUpstreamError(err: unknown, shape: ErrorShape = 'anthropi
   const parsed = parseUpstreamBody(m[2])
   const envelope = buildErrorEnvelope({ shape, status, from: parsed, via })
   const headers: Record<string, string> = { 'content-type': 'application/json' }
-  if (via !== undefined && via.length > 0) headers['x-ccr-upstream'] = via
+  if (via !== undefined && via.length > 0) headers['x-rialto-upstream'] = via
   // Surface the actual outbound URL (query-stripped) when the pipeline
   // attached it to the exception. Closes the "provider.api_base_url says
-  // api.openai.com but the client sees a CCR-shaped 401 in return" gap:
+  // api.openai.com but the client sees a Rialto-shaped 401 in return" gap:
   // a transformer / overlay rewriting `config.url` will now show its
   // real target on the response instead of the operator having to grep
   // debug logs.
   // biome-ignore plugin: symbol-keyed property attached by sendToProvider is not part of HTTPException's declared type; the cast is the read-side of the same contract the pipeline writes.
   const upstreamUrl = (err as unknown as Record<symbol, unknown>)[UPSTREAM_URL_SYMBOL]
-  if (typeof upstreamUrl === 'string' && upstreamUrl.length > 0) headers['x-ccr-upstream-url'] = upstreamUrl
+  if (typeof upstreamUrl === 'string' && upstreamUrl.length > 0) headers['x-rialto-upstream-url'] = upstreamUrl
   return new Response(JSON.stringify(envelope), { status, headers })
 }
 

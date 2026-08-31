@@ -2,7 +2,7 @@
 [![](https://img.shields.io/badge/🇯🇵-日本語-bc002d?style=flat)](README_ja.md)
 [![](https://img.shields.io/badge/🇨🇳-中文版-ff0000?style=flat)](README_zh.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
-[![](https://img.shields.io/github/license/tkgstrator/claude-code-router)](https://github.com/tkgstrator/claude-code-router/blob/master/LICENSE)
+[![](https://img.shields.io/github/license/tkgstrator/rialto)](https://github.com/tkgstrator/rialto/blob/master/LICENSE)
 
 <hr>
 
@@ -21,7 +21,7 @@
 - **トランスフォーマーパイプライン** — 組み込み・カスタムトランスフォーマーにより Anthropic 形式のリクエストを各プロバイダー API に適合。
 - **カスタム JavaScript ルーター** — 組み込みシナリオを超えた任意のルーティングロジックを実装。
 - **サブエージェントモデル固定** — インラインプロンプトタグで個々のサブエージェントを特定のプロバイダー・モデルに誘導。
-- **ステータスライン** — Claude Code のステータスバーに CCR のリアルタイム状態を表示。
+- **ステータスライン** — Claude Code のステータスバーに Rialto のリアルタイム状態を表示。
 - **Docker ファーストデプロイ** — PostgreSQL と Redis を含む `docker compose up -d` 一発起動。
 
 ## 🖥️ Web UI
@@ -54,10 +54,10 @@ Web UI（デフォルトでポート **3456** で提供）でルーターのあ�
 **ステップ 1 — 作業ディレクトリと最小限の設定ファイルを作成：**
 
 ```shell
-mkdir -p ~/ccr ~/.claude-code-router
-cd ~/ccr
+mkdir -p ~/rialto ~/.rialto
+cd ~/rialto
 
-cat > ~/.claude-code-router/config.json << 'EOF'
+cat > ~/.rialto/config.json << 'EOF'
 {
   "APIKEY": "your-secret-key"
 }
@@ -71,7 +71,7 @@ EOF
 **ステップ 2 — `compose.yaml` をダウンロード：**
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/tkgstrator/claude-code-router/master/compose.yaml -o compose.yaml
+curl -fsSL https://raw.githubusercontent.com/tkgstrator/rialto/master/compose.yaml -o compose.yaml
 ```
 
 **ステップ 3 — （任意）プロバイダー認証情報を `.env` に記述：**
@@ -125,9 +125,9 @@ docker compose restart
 
 ### サブスクリプション型プロバイダー（Claude Code・Codex）
 
-CCR はサブスクリプション型プロバイダーを API キーなしでルーティングに利用できます。
+Rialto はサブスクリプション型プロバイダーを API キーなしでルーティングに利用できます。
 
-**Claude Code** — **Providers** ページ → **Subscription** タブ → **Connect** から OAuth フローを完了してください。CCR が認証情報を保存・自動更新します。
+**Claude Code** — **Providers** ページ → **Subscription** タブ → **Connect** から OAuth フローを完了してください。Rialto が認証情報を保存・自動更新します。
 
 **Codex（OpenAI）** — 現在、ブラウザ経由のログインは未対応です。認証はファイルアップロードによる認証情報の登録のみサポートしています。
 
@@ -137,7 +137,7 @@ CCR はサブスクリプション型プロバイダーを API キーなしで�
 
 ## ⚙️ 設定
 
-### ディスクエンベロープ（`~/.claude-code-router/config.json`）
+### ディスクエンベロープ（`~/.rialto/config.json`）
 
 起動時のスカラー値とディスク常駐オブジェクトを格納します。環境変数補間（`$VAR` / `${VAR}`）と JSON5 コメントをサポート。直近 3 世代のバックアップを自動保持。
 
@@ -171,7 +171,7 @@ CCR はサブスクリプション型プロバイダーを API キーなしで�
 | `think` | 推論集約型タスク（プランモード）|
 | `longContext` | コンテキスト閾値超過のリクエスト（デフォルト 60 000 トークン）|
 | `webSearch` | ウェブ検索タスク（モデルがネイティブに検索をサポートしている必要あり）|
-| `image` | 画像関連タスク（CCR 組み込み画像エージェントを使用）|
+| `image` | 画像関連タスク（Rialto 組み込み画像エージェントを使用）|
 
 ### effort・ティア・フォールバック
 
@@ -193,7 +193,7 @@ CCR はサブスクリプション型プロバイダーを API キーなしで�
 - **アクティブ選択** — Router ごとに 1 つだけアクティブにできます。アクティブなペルソナの uuid id は `Router.persona` に乗り、ディスク側では `ActivePersona` エンベロープキーにラウンドトリップします。`null` / 欠落 / 空文字は「ペルソナ無し」。プロジェクト別・セッション別の Router オーバーライドファイルでも `Router.persona` を受け付けます。
 - **挿入方法** — ルーターがシナリオを解決すると、アクティブペルソナの `prompt` を、`cache_control` を持つ最後の system ブロック（無ければ最後の文字列テキストブロック）に追記します。これによりペルソナはキャッシュプレフィクスの*内側*に収まり、追加のキャッシュブレークポイントを消費せず、リクエスト間でバイト単位の安定性が保たれます（Anthropic のプロンプトキャッシュが維持される）。`system` が文字列 / 未定義のときは結合、複数ブロックの配列のときはその場で更新します。
 - **シナリオ除外** — `background` シナリオは除外します。タイトル生成等の軽量内部タスクで動くので、ペルソナの語り口が出力を汚染するのを避けるためです。他のシナリオ（default / think / longContext / webSearch / image）はアクティブペルソナを継承します。
-- **サブエージェントとの相互作用** — ペルソナ挿入は `<CCR-SUBAGENT-MODEL>` タグ処理の*後*で走るので、サブエージェント呼び出しごとの system 内容を上書きせず、ペルソナと合成されます。
+- **サブエージェントとの相互作用** — ペルソナ挿入は `<RIALTO-SUBAGENT-MODEL>` タグ処理の*後*で走るので、サブエージェント呼び出しごとの system 内容を上書きせず、ペルソナと合成されます。
 
 ライブラリ管理は **Personas** ページ（`/personas`）で、アクティブペルソナの切り替えは **Router** ページで行います。「ペルソナ無し」がデフォルトの no-op です。
 
@@ -234,7 +234,7 @@ CCR はサブスクリプション型プロバイダーを API キーなしで�
 {
   "transformers": [
     {
-      "path": "/home/user/.claude-code-router/plugins/my-transformer.js",
+      "path": "/home/user/.rialto/plugins/my-transformer.js",
       "options": { "someOption": "value" }
     }
   ]
@@ -284,7 +284,7 @@ CCR はサブスクリプション型プロバイダーを API キーなしで�
 
 ```json
 {
-  "CUSTOM_ROUTER_PATH": "/home/user/.claude-code-router/custom-router.js"
+  "CUSTOM_ROUTER_PATH": "/home/user/.rialto/custom-router.js"
 }
 ```
 
@@ -307,14 +307,14 @@ module.exports = async function router(req, config) {
 サブエージェントのプロンプト先頭に以下のタグを付けて特定モデルに固定します：
 
 ```
-<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+<RIALTO-SUBAGENT-MODEL>provider,model</RIALTO-SUBAGENT-MODEL>
 このコードの分析をお願いします...
 ```
 
 ## 📊 ログ
 
-- **サーバーレベルログ**（pino）：`~/.claude-code-router/logs/ccr-*.log` — HTTP リクエスト、API コール、サーバーイベント。レベルは `LOG_LEVEL` で制御。
-- **アプリレベルログ**：`~/.claude-code-router/claude-code-router.log` — ルーティング決定とビジネスロジックイベント。
+- **サーバーレベルログ**（pino）：`~/.rialto/logs/rialto-*.log` — HTTP リクエスト、API コール、サーバーイベント。レベルは `LOG_LEVEL` で制御。
+- **アプリレベルログ**：`~/.rialto/rialto.log` — ルーティング決定とビジネスロジックイベント。
 
 ## 🛠️ 開発
 

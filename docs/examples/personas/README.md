@@ -1,6 +1,6 @@
 # Persona Examples
 
-CCR の `Personas` ライブラリに貼り付けて使える、参考実装のサンプルプロンプト集。
+Rialto の `Personas` ライブラリに貼り付けて使える、参考実装のサンプルプロンプト集。
 authoring の方法論は `docs/guides/persona-authoring.md` を参照。
 
 ## 一覧
@@ -12,13 +12,13 @@ authoring の方法論は `docs/guides/persona-authoring.md` を参照。
 ## 使い方
 
 1. ファイルの**本文をそのまま**コピーする。
-2. CCR の Web UI で `/personas/new` を開く。
+2. Rialto の Web UI で `/personas/new` を開く。
 3. `Name` に任意の表示名 (例: `月見ヤチヨ`) を入れ、`Prompt` 欄に貼り付けて保存。
 4. `Router` ページでこのペルソナをアクティブに切り替えれば、`background` 以外の全シナリオで自動的に挿入される。
 
-CCR は persona を `cache_control` を持つ system ブロックの**内側**に append するため、
+Rialto は persona を `cache_control` を持つ system ブロックの**内側**に append するため、
 400 行クラスの長文プロンプトでも prompt cache が効く限り 2 回目以降の runtime コストはほぼゼロ。
-詳細は authoring guide の「CCR 固有の事項」セクションを参照。
+詳細は authoring guide の「Rialto 固有の事項」セクションを参照。
 
 ## ファイルの中身について
 

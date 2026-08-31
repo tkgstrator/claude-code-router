@@ -34,7 +34,7 @@
  *     shape (claudeAiOauth wrapper for claude, tokens {access_token,
  *     refresh_token, id_token, account_id} for codex), so the payload
  *     round-trips straight back through import-credentials on another
- *     CCR host.
+ *     Rialto host.
  *
  * Pending flows live in a process-memory map (PoC scope). CSRF
  * protection is the single-use `state` token issued at /initiate;
@@ -79,13 +79,13 @@ oauthRoute.post('/api/oauth/initiate/:provider', async (c) => {
 
   const callbackPath = PROVIDER_CALLBACK_PATH[provider]
   const initiateUrl = new URL(c.req.url)
-  const ccrBaseUrl = `${initiateUrl.protocol}//${initiateUrl.host}`
+  const rialtoBaseUrl = `${initiateUrl.protocol}//${initiateUrl.host}`
   let redirectUri: string
   if (provider === 'codex') {
     // OpenAI's OAuth client only allows http://localhost:1455/auth/callback —
     // confirmed: any other loopback port returns unknown_error.
     try {
-      await ensureCodexCallbackListener({ resultBaseUrl: ccrBaseUrl })
+      await ensureCodexCallbackListener({ resultBaseUrl: rialtoBaseUrl })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'failed to bind codex callback listener on :1455'
       return c.json({ success: false as const, error: message }, 500)
@@ -166,7 +166,7 @@ oauthRoute.get(CLAUDE_CALLBACK_PATH, async (c) => {
 })
 
 // Remote-deployment relay: the browser cannot reach the loopback callback
-// when CCR is hosted behind a reverse proxy, so the UI asks the user to
+// when Rialto is hosted behind a reverse proxy, so the UI asks the user to
 // copy the redirect URL and POST it here. Extracts code+state and runs the
 // same token exchange as the loopback GET /callback handler above.
 oauthRoute.post('/api/oauth/manual-callback', async (c) => {
@@ -277,7 +277,7 @@ oauthRoute.post('/api/oauth/import-credentials', async (c) => {
 // tokens for the given kind and return them in the ~/.claude/.credentials.json
 // / ~/.codex/auth.json wire shape — the exact bytes import-credentials
 // accepts, so a backup taken from this endpoint round-trips into another
-// CCR (or the on-disk CLI file) without hand-editing.
+// Rialto (or the on-disk CLI file) without hand-editing.
 //
 // Response carries Content-Disposition: attachment with a stable
 // filename so a browser download prompt fires; XHR / SDK callers keep

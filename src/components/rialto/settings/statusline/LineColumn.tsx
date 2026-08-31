@@ -100,8 +100,8 @@ export function LineColumn({
       ))}
       <div className='border-t border-border px-4 py-4'>
         <p className='text-[11px] leading-relaxed text-muted-foreground'>
-          Order is left to right. Claude Code pipes session JSON to <span className='font-mono'>ccr statusline</span> on
-          every turn.
+          Order is left to right. Claude Code pipes session JSON to <span className='font-mono'>rialto statusline</span>{' '}
+          on every turn.
         </p>
       </div>
     </aside>

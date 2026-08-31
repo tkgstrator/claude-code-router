@@ -64,6 +64,8 @@ export interface PresetMetadata {
   repository?: string
   license?: string
   keywords?: string[]
+  rialtoVersion?: string
+  /** Pre-rename spelling of rialtoVersion, still read from manifests. */
   ccrVersion?: string
   source?: string
   sourceType?: 'local' | 'gist' | 'registry'

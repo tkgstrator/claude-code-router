@@ -1,12 +1,12 @@
 /**
  * Shared helpers for DB-backed tests. Tests opt out cleanly when there
- * is no DATABASE_URL or when CI sets CCR_SKIP_DB_TESTS=1 — mirroring
- * the CCR_SKIP_LIVE_TESTS gate that the provider integration tests use.
+ * is no DATABASE_URL or when CI sets RIALTO_SKIP_DB_TESTS=1 — mirroring
+ * the RIALTO_SKIP_LIVE_TESTS gate that the provider integration tests use.
  */
 
 import { __resetPrismaClientForTests, getPrismaClient } from '../../src/db/client'
 
-export const HAS_DB = Boolean(process.env.DATABASE_URL) && process.env.CCR_SKIP_DB_TESTS !== '1'
+export const HAS_DB = Boolean(process.env.DATABASE_URL) && process.env.RIALTO_SKIP_DB_TESTS !== '1'
 
 /**
  * Wipe every mutable table so each test starts from a known empty

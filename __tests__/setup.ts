@@ -8,7 +8,7 @@
  *     load time (src/shared/constants.ts). Tests that write or unlink
  *     CONFIG_FILE (services/config/envelope.test.ts, db/migrateFromJson.test.ts)
  *     would otherwise clobber the developer's real
- *     ~/.claude-code-router/config.json.
+ *     ~/.rialto/config.json.
  *  2. DB-backed tests TRUNCATE Provider/Model/RouterSlot/... in
  *     whatever DATABASE_URL points to. Routing them through
  *     TEST_DATABASE_URL keeps the dev DB intact; if TEST_DATABASE_URL
@@ -20,13 +20,15 @@ import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-// CCR_HOME_DIR is honoured by src/shared/constants.ts in place of
-// os.homedir() + '/.claude-code-router'. os.homedir() reads /etc/passwd
-// (not $HOME) under bun, so overriding $HOME at preload time would be
-// too late — the override lives behind its own env var instead.
-const TMP_HOME = join(tmpdir(), `ccr-test-home-${process.pid}`, '.claude-code-router')
+// RIALTO_HOME_DIR is honoured by src/shared/constants.ts in place of
+// os.homedir() + '/.rialto'. os.homedir() reads /etc/passwd (not $HOME)
+// under bun, so overriding $HOME at preload time would be too late —
+// the override lives behind its own env var instead. The pre-rename
+// CCR_HOME_DIR still works (see shared/constants.test.ts); it is not
+// set here so the suite exercises the current name.
+const TMP_HOME = join(tmpdir(), `rialto-test-home-${process.pid}`, '.rialto')
 mkdirSync(TMP_HOME, { recursive: true })
-process.env.CCR_HOME_DIR = TMP_HOME
+process.env.RIALTO_HOME_DIR = TMP_HOME
 
 const devUrl = process.env.DATABASE_URL
 const testUrl = process.env.TEST_DATABASE_URL

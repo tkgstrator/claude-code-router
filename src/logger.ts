@@ -67,14 +67,8 @@ const REDACT_PATHS = [
   'data.headers["set-cookie"]'
 ]
 
-try {
-  mkdirSync(LOG_DIR, { recursive: true })
-} catch {
-  /* logging must never throw */
-}
-
 // Size-based rotation on top of the daily cadence. When the active file
-// grows past LOG_MAX_MB, subsequent writes go to `ccr-YYYY-MM-DD-N.log`
+// grows past LOG_MAX_MB, subsequent writes go to `rialto-YYYY-MM-DD-N.log`
 // with an incrementing suffix, so a single busy day produces a series
 // of digestible files instead of one multi-hundred-MB blob. A restart
 // mid-day resumes at the highest existing suffix. The cap itself lives
@@ -89,11 +83,22 @@ const rotationState = {
 
 const rotationPath = (date: string, seq: number): string => {
   const suffix = seq === 0 ? '' : `-${seq}`
-  return path.join(LOG_DIR, `ccr-${date}${suffix}.log`)
+  return path.join(LOG_DIR, `rialto-${date}${suffix}.log`)
 }
 
+// The log directory is created on the first line actually written to
+// disk, not at import time. Import-time creation materialised the whole
+// home directory before src/index.ts could run migrateHomeDir(), whose
+// idempotency guard is "the destination exists" — so the copy from the
+// pre-rename home would have been skipped on every boot. It also means
+// a deployment with LOG=false no longer gets an empty logs/ directory.
 const ensureRotationForDate = (date: string): void => {
   if (date === rotationState.date) return
+  try {
+    mkdirSync(LOG_DIR, { recursive: true })
+  } catch {
+    /* logging must never throw */
+  }
   rotationState.date = date
   rotationState.seq = 0
   while (existsSync(rotationPath(date, rotationState.seq + 1))) rotationState.seq++

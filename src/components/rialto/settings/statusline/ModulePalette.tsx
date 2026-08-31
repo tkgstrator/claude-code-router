@@ -1,7 +1,7 @@
 /**
  * The "add a module" column.
  *
- * Only the types `ccr statusline` can actually render are listed —
+ * Only the types `rialto statusline` can actually render are listed —
  * offering a type the renderer drops would produce a line that silently
  * loses a segment.
  */

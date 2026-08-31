@@ -1,7 +1,7 @@
 /**
  * Error envelope shaping for the /v1 surface. The reporter complained
  * about mixed shapes on the same OpenAI-compat surface — `{detail:...}`
- * forwarded from codex sat next to CCR's own `{type:'error',error:...}`.
+ * forwarded from codex sat next to Rialto's own `{type:'error',error:...}`.
  * These helpers translate everything to the shape matching the inbound
  * endpoint.
  */
@@ -207,8 +207,8 @@ describe('buildErrorEnvelope — Anthropic shape', () => {
   })
 })
 
-// `via` — the chained-CCR-diagnostics knob. Without it, an outer CCR
-// forwarding an inner CCR's 401 gives the operator no way to tell which
+// `via` — the chained-Rialto-diagnostics knob. Without it, an outer Rialto
+// forwarding an inner Rialto's 401 gives the operator no way to tell which
 // hop rejected the request; the literal 'Invalid or missing API key.
 // Send it as Authorization: Bearer <key>.' collides byte-for-byte with
 // the local gate's wording.

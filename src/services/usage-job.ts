@@ -18,7 +18,7 @@ const CRON = '*/5 * * * *'
 // double-fire — this just avoids leaking extra Worker/connection
 // instances.
 declare global {
-  var __ccrUsageJobStarted: boolean | undefined
+  var __rialtoUsageJobStarted: boolean | undefined
 }
 
 let warnedOnce = false
@@ -38,13 +38,13 @@ const makeConnection = (url: string): IORedis =>
 // capture + prune. Never throws — if Redis is down the server still
 // serves; the schedule registers once Redis is reachable again.
 export async function startUsageCapture(): Promise<void> {
-  if (globalThis.__ccrUsageJobStarted) return
+  if (globalThis.__rialtoUsageJobStarted) return
   const url = process.env.REDIS_URL
   if (!url || url.length === 0) {
     logger.warn('[usage-job] REDIS_URL is not set — skipping the usage-capture job')
     return
   }
-  globalThis.__ccrUsageJobStarted = true
+  globalThis.__rialtoUsageJobStarted = true
 
   const queueConn = makeConnection(url)
   const queue = new Queue(QUEUE, { connection: queueConn })

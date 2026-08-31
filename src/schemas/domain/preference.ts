@@ -149,7 +149,7 @@ export const RouterPreferenceEntrySchema = z
 export type RouterPreferenceEntry = z.infer<typeof RouterPreferenceEntrySchema>
 
 // Preference kinds — mirrors the RouterPreferenceKind Prisma enum.
-// `agent` is the main-agent chain (no <CCR-SUBAGENT-MODEL> tag);
+// `agent` is the main-agent chain (no <RIALTO-SUBAGENT-MODEL> tag);
 // `subagent` is the chain requests carrying the tag route through.
 export const PreferenceKindSchema = z.enum(['agent', 'subagent'])
 export type PreferenceKind = z.infer<typeof PreferenceKindSchema>

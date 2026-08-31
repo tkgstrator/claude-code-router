@@ -2,7 +2,7 @@
 [![](https://img.shields.io/badge/🇯🇵-日本語-bc002d?style=flat)](README_ja.md)
 [![](https://img.shields.io/badge/🇨🇳-中文版-ff0000?style=flat)](README_zh.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
-[![](https://img.shields.io/github/license/tkgstrator/claude-code-router)](https://github.com/tkgstrator/claude-code-router/blob/master/LICENSE)
+[![](https://img.shields.io/github/license/tkgstrator/rialto)](https://github.com/tkgstrator/rialto/blob/master/LICENSE)
 
 <hr>
 
@@ -21,7 +21,7 @@
 - **Transformer pipeline** — built-in and custom transformers adapt Anthropic-format requests to each provider's API.
 - **Custom JavaScript router** — implement any routing logic beyond the six built-in scenarios.
 - **Subagent model pinning** — direct individual subagents to a specific provider and model using an inline prompt tag.
-- **Status line** — real-time CCR status display integrated into Claude Code's status bar.
+- **Status line** — real-time Rialto status display integrated into Claude Code's status bar.
 - **Docker-first deployment** — single `docker compose up -d` with PostgreSQL and Redis included.
 
 ## 🖥️ Web UI
@@ -54,10 +54,10 @@ Install [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https
 **Step 1 — Create a working directory and a minimal config file:**
 
 ```shell
-mkdir -p ~/ccr ~/.claude-code-router
-cd ~/ccr
+mkdir -p ~/rialto ~/.rialto
+cd ~/rialto
 
-cat > ~/.claude-code-router/config.json << 'EOF'
+cat > ~/.rialto/config.json << 'EOF'
 {
   "APIKEY": "your-secret-key"
 }
@@ -71,7 +71,7 @@ EOF
 **Step 2 — Download `compose.yaml`:**
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/tkgstrator/claude-code-router/master/compose.yaml -o compose.yaml
+curl -fsSL https://raw.githubusercontent.com/tkgstrator/rialto/master/compose.yaml -o compose.yaml
 ```
 
 **Step 3 — (Optional) Store provider credentials in `.env`:**
@@ -125,9 +125,9 @@ On the **Providers** page, select any API-key provider (Anthropic, OpenAI, DeepS
 
 ### Subscription providers (Claude Code & Codex)
 
-CCR can route through subscription-based providers without a per-call API key.
+Rialto can route through subscription-based providers without a per-call API key.
 
-**Claude Code** — Open the **Providers** page → **Subscription** tab → **Connect**, then complete the OAuth flow. CCR stores and auto-refreshes the credentials.
+**Claude Code** — Open the **Providers** page → **Subscription** tab → **Connect**, then complete the OAuth flow. Rialto stores and auto-refreshes the credentials.
 
 **Codex (OpenAI)** — Browser-based login is not currently supported. Authentication is handled via credential file upload only.
 
@@ -137,7 +137,7 @@ CCR can route through subscription-based providers without a per-call API key.
 
 ## ⚙️ Configuration
 
-### Disk envelope (`~/.claude-code-router/config.json`)
+### Disk envelope (`~/.rialto/config.json`)
 
 Boot-time scalars and disk-resident objects live here. Environment-variable interpolation (`$VAR` / `${VAR}`) and JSON5 comments are supported. The last three backups are kept automatically.
 
@@ -172,7 +172,7 @@ Configure which model to use for each scenario on the **Router** page:
 | `think` | Reasoning-intensive tasks (Plan Mode) |
 | `longContext` | Requests above the context threshold (default 60 000 tokens) |
 | `webSearch` | Web search tasks (the model must support search natively) |
-| `image` | Image-related tasks (uses CCR's built-in image agent) |
+| `image` | Image-related tasks (uses Rialto's built-in image agent) |
 
 ### Effort, tier, and fallbacks
 
@@ -206,7 +206,7 @@ A *persona* is a named system-prompt fragment appended to every user-facing requ
 - **Active selection** — exactly one persona is active per Router. The active persona's uuid id rides on `Router.persona` (round-tripped through the disk-only `ActivePersona` envelope key). `null` / absent / empty string means "no persona". Per-project and per-session router-override files also accept `Router.persona`.
 - **Injection** — when the router resolves a scenario, the active persona's `prompt` is appended to the LAST system block carrying `cache_control` (falling back to the last string text block). This keeps the persona *inside* the cached prefix, so it consumes no extra cache breakpoint and stays byte-stable across requests (preserving Anthropic's prompt cache). String and undefined `system` values are concatenated; multi-block array systems are mutated in place.
 - **Scenario exclusion** — the `background` scenario is excluded: it runs lightweight internal tasks (e.g. title generation) where a persona voice would corrupt the output. Every other scenario (default / think / longContext / webSearch / image) inherits the active persona.
-- **Subagent interaction** — persona injection runs *after* `<CCR-SUBAGENT-MODEL>` tag handling, so a subagent's per-call system content composes with — rather than clobbers — the persona.
+- **Subagent interaction** — persona injection runs *after* `<RIALTO-SUBAGENT-MODEL>` tag handling, so a subagent's per-call system content composes with — rather than clobbers — the persona.
 
 Manage the library on the **Personas** page (`/personas`); switch the active persona on the **Router** page. Setting it to "no persona" is the no-op default.
 
@@ -247,7 +247,7 @@ Add your own transformer by loading a JavaScript module from the disk envelope:
 {
   "transformers": [
     {
-      "path": "/home/user/.claude-code-router/plugins/my-transformer.js",
+      "path": "/home/user/.rialto/plugins/my-transformer.js",
       "options": { "someOption": "value" }
     }
   ]
@@ -297,7 +297,7 @@ For routing logic beyond the six built-in scenarios, set `CUSTOM_ROUTER_PATH` in
 
 ```json
 {
-  "CUSTOM_ROUTER_PATH": "/home/user/.claude-code-router/custom-router.js"
+  "CUSTOM_ROUTER_PATH": "/home/user/.rialto/custom-router.js"
 }
 ```
 
@@ -320,19 +320,19 @@ See `custom-router.example.js` in the repository root for a full example.
 Pin a specific model for a subagent by prefixing its prompt with:
 
 ```
-<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+<RIALTO-SUBAGENT-MODEL>provider,model</RIALTO-SUBAGENT-MODEL>
 Please help me analyze this code...
 ```
 
 ## 🔀 OpenAI-compat API surface
 
-CCR is not just a Claude Code proxy — it also exposes an **OpenAI-compatible API** so any OpenAI SDK caller (Codex CLI, Cline, OpenWebUI, `openai` for Python / JS, `curl`) can consume your **subscription quota** (Claude Max, ChatGPT Plus/Pro) as if it were a plain OpenAI endpoint. The caller sees a normal OpenAI request/response; behind CCR the request is routed to your OAuth-authenticated Claude / Codex account, so cost stays inside your monthly subscription instead of hitting metered API billing.
+Rialto is not just a Claude Code proxy — it also exposes an **OpenAI-compatible API** so any OpenAI SDK caller (Codex CLI, Cline, OpenWebUI, `openai` for Python / JS, `curl`) can consume your **subscription quota** (Claude Max, ChatGPT Plus/Pro) as if it were a plain OpenAI endpoint. The caller sees a normal OpenAI request/response; behind Rialto the request is routed to your OAuth-authenticated Claude / Codex account, so cost stays inside your monthly subscription instead of hitting metered API billing.
 
 ### Endpoints (OpenAI wire shape)
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET`  | `/v1/models`             | Returns the DB-backed enabled model list as `{object:'list', data:[…]}`. Each `id` is CCR's canonical `provider,model` (round-trip it straight into the next call). |
+| `GET`  | `/v1/models`             | Returns the DB-backed enabled model list as `{object:'list', data:[…]}`. Each `id` is Rialto's canonical `provider,model` (round-trip it straight into the next call). |
 | `POST` | `/v1/chat/completions`   | Standard Chat Completions — stream + non-stream. Body's `model` field takes the `provider,model` id from `/v1/models`. |
 | `POST` | `/v1/responses`          | OpenAI Responses API — stream + non-stream. Same model addressing as above. |
 
@@ -345,7 +345,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:3456/v1",
-    api_key="<your CCR APIKEY>",
+    api_key="<your Rialto APIKEY>",
 )
 
 # 1. Discover routable models
@@ -370,7 +370,7 @@ import OpenAI from 'openai'
 
 const client = new OpenAI({
   baseURL: 'http://localhost:3456/v1',
-  apiKey: process.env.CCR_APIKEY,
+  apiKey: process.env.RIALTO_APIKEY,
 })
 
 const stream = await client.chat.completions.create({
@@ -385,8 +385,8 @@ Any client that supports overriding `base_url` / `baseURL` works the same way. R
 
 ## 📊 Logging
 
-- **Server-level logs** (pino): `~/.claude-code-router/logs/ccr-*.log` — HTTP requests, API calls, server events. Level controlled by `LOG_LEVEL`.
-- **Application-level logs**: `~/.claude-code-router/claude-code-router.log` — routing decisions and business-logic events.
+- **Server-level logs** (pino): `~/.rialto/logs/rialto-*.log` — HTTP requests, API calls, server events. Level controlled by `LOG_LEVEL`.
+- **Application-level logs**: `~/.rialto/rialto.log` — routing decisions and business-logic events.
 
 ## 🛠️ Development
 

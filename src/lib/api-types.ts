@@ -217,7 +217,7 @@ export type PreferenceKind = 'agent' | 'subagent'
 
 // Each scenario carries two independent ordered chains: `agent` for
 // main-agent traffic, `subagent` for requests carrying a
-// <CCR-SUBAGENT-MODEL> tag. Both are always present so the UI can
+// <RIALTO-SUBAGENT-MODEL> tag. Both are always present so the UI can
 // render an empty tab without a "missing" branch.
 export interface PreferenceEntriesByKindWire {
   agent: RouterPreferenceEntryWire[]

@@ -1,7 +1,7 @@
 /**
  * Pure helpers for the Status line settings section.
  *
- * The module types here are the ones `ccr statusline` actually renders
+ * The module types here are the ones `rialto statusline` actually renders
  * (see `createModuleForType`); the icon/label pairs are the presentation
  * the editor needs and the runtime does not.
  */

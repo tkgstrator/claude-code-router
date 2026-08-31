@@ -17,7 +17,7 @@
  * `{"detail":"Unsupported parameter: X"}` would reach an OpenAI SDK
  * client that didn't know how to parse it. Route-level `errorResponse`
  * only knew the Anthropic shape. The reporter's complaint was the
- * mixed envelope: `{detail}` from upstream and `{type,error}` from CCR
+ * mixed envelope: `{detail}` from upstream and `{type,error}` from Rialto
  * on the same OpenAI-compat surface.
  *
  * The helpers here take (a) an inbound path (or a `Transformer` name)
@@ -167,14 +167,14 @@ export interface BuildErrorEnvelopeInput {
   from: string | Record<string, unknown> | unknown
   // Provider name the upstream error came through, when the caller
   // knows it. Prepended to the visible message as `[via <name>] ` so a
-  // chained-CCR 401 (whose literal 'Invalid or missing API key. Send it
+  // chained-Rialto 401 (whose literal 'Invalid or missing API key. Send it
   // as Authorization: Bearer <key>.' collides with the local gate's
-  // wording byte-for-byte) tells the operator which CCR rejected. Absent
+  // wording byte-for-byte) tells the operator which Rialto rejected. Absent
   // for callers that didn't resolve to a specific provider yet.
   via?: string
 }
 
-// Prepend `[via <name>] ` to a message once. Idempotent — nested CCRs
+// Prepend `[via <name>] ` to a message once. Idempotent — nested Rialtos
 // each add their own hop, but re-forwarding the same envelope in the
 // same layer would not double-tag. Returns the original message when
 // `via` is empty / undefined.

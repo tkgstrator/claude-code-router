@@ -3,7 +3,7 @@
  *
  * `selectModel` decides which configured model a request lands on in three
  * stages:
- *   1. Caller kind — a <CCR-SUBAGENT-MODEL> tag's PRESENCE selects the
+ *   1. Caller kind — a <RIALTO-SUBAGENT-MODEL> tag's PRESENCE selects the
  *      scenario's `subagent` route; otherwise the `agent` route. The tag's
  *      model value is not used to route; the tag is stripped either way so
  *      the marker never leaks upstream.
@@ -38,7 +38,7 @@ export { explainRule, matchesRule } from './rules'
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 128_000
 // Fraction of the default agent primary's contextWindow used as the
 // effective auto-threshold. Leaves 30% headroom for the response and
-// the CCR wrapper overhead so a request landing just under the model's
+// the Rialto wrapper overhead so a request landing just under the model's
 // hard ceiling still fits when the reply lands. Not user-configurable
 // yet — flipped to a config knob once we have signal it isn't a fit.
 const LONG_CONTEXT_AUTO_RATIO = 0.7
@@ -59,7 +59,7 @@ export function effectiveLongContextThreshold(router: RouterConfig | undefined):
 }
 
 // Which route within a scenario a request uses: `agent` for normal /
-// main-agent traffic, `subagent` when a <CCR-SUBAGENT-MODEL> tag is present.
+// main-agent traffic, `subagent` when a <RIALTO-SUBAGENT-MODEL> tag is present.
 export type RouteKind = 'agent' | 'subagent'
 
 export function selectModel(
@@ -70,9 +70,9 @@ export function selectModel(
   // by the request's bare model name, so the provider registry isn't read.
   _config: ConfigStore
 ): { model: string; scenarioType: ScenarioType; isSubagent: boolean; fallbacks: string[] } {
-  // Stage 1 — caller kind. A <CCR-SUBAGENT-MODEL> tag's PRESENCE selects
+  // Stage 1 — caller kind. A <RIALTO-SUBAGENT-MODEL> tag's PRESENCE selects
   // the subagent route; its value is ignored. The tag is stripped in place
-  // regardless so the CCR-internal marker never reaches upstream.
+  // regardless so the Rialto-internal marker never reaches upstream.
   const isSubagent = stripSubagentTag(req.body.system)
   req.isSubagent = isSubagent
   const kind: RouteKind = isSubagent ? 'subagent' : 'agent'

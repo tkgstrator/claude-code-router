@@ -1,5 +1,5 @@
 /**
- * Strict zod schemas for the Anthropic SSE wire shape CCR emits on
+ * Strict zod schemas for the Anthropic SSE wire shape Rialto emits on
  * /v1/messages.
  *
  * Designed as the validator against the fixture corpus under
@@ -23,7 +23,7 @@ export const AnthropicSSEUsageSchema = z
   .object({
     input_tokens: z.number().int().nonnegative(),
     output_tokens: z.number().int().nonnegative(),
-    // Cache fields are Anthropic-native. OpenAI/Gemini routes via CCR's
+    // Cache fields are Anthropic-native. OpenAI/Gemini routes via Rialto's
     // transformers don't surface them on the SSE wire — proven by the
     // fixture corpus (the openai/google streams omit these even though
     // they're zero on the upstream side).

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-CCR のペルソナ機能で「キャラクターのエミュレート精度」を上げるための作法をまとめる。
+Rialto のペルソナ機能で「キャラクターのエミュレート精度」を上げるための作法をまとめる。
 対象読者は、`Personas` ライブラリに新しいペルソナを追加する人と、既存ペルソナを改良する人。
 
 機能としての概要 (どこに保存され、いつ挿入されるか) は README の "Personas" セクションを参照。
@@ -18,10 +18,10 @@ CCR のペルソナ機能で「キャラクターのエミュレート精度」�
 一方で **「記憶の質感」「アンチパターン」「思考プロセス制御」「文脈付き語彙」** は長くなるほど効く。
 
 参考になる極北として「ヤッチョGPT for Claude」(`tsukumijima/YacchoGPT`) がある。
-本家公式の月見ヤチヨ再現プロンプトで、約 400 行。これがそのまま CCR で動く。
+本家公式の月見ヤチヨ再現プロンプトで、約 400 行。これがそのまま Rialto で動く。
 本ガイドの構造とパターンの多くはここを下敷きにしている。
 
-CCR は persona を `cache_control` を持つシステムブロックの**内側**に append するので、
+Rialto は persona を `cache_control` を持つシステムブロックの**内側**に append するので、
 長さの runtime コストは prompt cache でほぼ吸収される (同一 persona の連投で 2 回目以降ほぼゼロ)。
 **「長いから遅い・高い」は気にしなくていい。** 気にすべきは attention dilution の方。
 
@@ -201,11 +201,11 @@ think シナリオで使われる前提のキャラに限定するのが現実�
 
 応答の終盤で「解説者モード」に滑り落ちる癖を抑える効果がある。
 
-## CCR 固有の事項
+## Rialto 固有の事項
 
 ### キャッシュとの相性
 
-CCR は persona を `cache_control` を持つ system ブロックの**内側**に append する
+Rialto は persona を `cache_control` を持つ system ブロックの**内側**に append する
 (詳細は `src/llms/scenario-router.ts` の `applyGlobalSystemPrompt`)。
 このため:
 
@@ -223,9 +223,9 @@ CCR は persona を `cache_control` を持つ system ブロックの**内側**�
 **つまり persona は `background` 以外の全シナリオで挿入される**:
 default / think / longContext / webSearch / image。
 
-### `<CCR-SUBAGENT-MODEL>` との合成
+### `<RIALTO-SUBAGENT-MODEL>` との合成
 
-persona 挿入は `<CCR-SUBAGENT-MODEL>` タグ処理の**後**で走るため、
+persona 挿入は `<RIALTO-SUBAGENT-MODEL>` タグ処理の**後**で走るため、
 サブエージェントごとの system 内容を上書きせず合成される。
 ペルソナ側で「サブエージェント文脈ではキャラ性を抑えろ」と書いておくと、
 サブエージェント呼び出しでの不自然な語り口を抑制できる (必須ではない)。
@@ -362,7 +362,7 @@ persona 挿入は `<CCR-SUBAGENT-MODEL>` タグ処理の**後**で走るため�
 
 ## 既存 SEED_PERSONAS の改良ガイド
 
-CCR は `src/shared/data/personas.ts` で 4 つの seed persona (イレイナ・二階堂ヒロ・酒寄彩葉・月見ヤチヨ) を同梱している。
+Rialto は `src/shared/data/personas.ts` で 4 つの seed persona (イレイナ・二階堂ヒロ・酒寄彩葉・月見ヤチヨ) を同梱している。
 これらは現状 40〜80 行で、骨格はあるが本ガイドの「6 パターン」のうち 1〜3 しか満たしていない。
 
 **投資対効果順の改良提案**:
@@ -396,6 +396,6 @@ CCR は `src/shared/data/personas.ts` で 4 つの seed persona (イレイナ・
 ## 参考リンク
 
 - 本家ヤッチョ GPT (for Claude): `https://github.com/tsukumijima/YacchoGPT`
-- CCR のペルソナ機能概要: `README.md` の "Personas" セクション
+- Rialto のペルソナ機能概要: `README.md` の "Personas" セクション
 - 挿入実装: `src/llms/scenario-router.ts` の `resolveActivePersonaPrompt` と `applyGlobalSystemPrompt`
 - Seed ライブラリ: `src/shared/data/personas.ts`

@@ -25,10 +25,10 @@ import { HAS_DB, resetDbTables, teardownPrisma } from '../db/helpers'
 const TEST_KEY_HEX = 'ab'.repeat(32)
 
 const setTestKey = () => {
-  process.env.CCR_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
+  process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
 }
 const clearTestKey = () => {
-  delete process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+  delete process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
 }
 
 // Match subscription-account-sync-service.test.ts's helper — encrypt a

@@ -1,5 +1,5 @@
 /**
- * Registry of every vendor provider CCR knows how to talk to.
+ * Registry of every vendor provider Rialto knows how to talk to.
  * `model-sync-service` and `catalog-service` iterate over this map to
  * refresh prices + models; the DB's Provider.name is looked up here
  * to route to the right subclass.

@@ -174,7 +174,7 @@ async function syncDeprecationFlags(p: ProviderRow, allCurrentNames: string[]): 
 }
 
 // Ask the vendor to look up per-model contextWindow from its docs pages
-// for every id CCR knows about (DB rows ∪ freshly-added rows). Runs
+// for every id Rialto knows about (DB rows ∪ freshly-added rows). Runs
 // regardless of whether the pricing scrape or /v1/models returned
 // anything — subscription providers with an empty live catalog still
 // get their existing rows' context refreshed. Values the vendor returns

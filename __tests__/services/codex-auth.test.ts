@@ -346,7 +346,7 @@ describe.skipIf(!HAS_DB)('codex-auth / ensureFreshCodexAccessToken persistence',
   const TEST_KEY_HEX = 'ab'.repeat(32)
 
   beforeEach(async () => {
-    process.env.CCR_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
+    process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
     await resetDbTables()
   })
 
@@ -355,7 +355,7 @@ describe.skipIf(!HAS_DB)('codex-auth / ensureFreshCodexAccessToken persistence',
   })
 
   afterAll(async () => {
-    delete process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+    delete process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
     await teardownPrisma()
   })
 

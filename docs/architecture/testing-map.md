@@ -17,7 +17,7 @@ Phase 1時点のテスト責務を可視化し、回帰リスクの高い未カ�
 
 ## Supporting Test Utilities
 
-- `__tests__/providers/helpers.ts`: CCR API呼び出し、SSEパーサ、subscription model matrix取得
+- `__tests__/providers/helpers.ts`: Rialto API呼び出し、SSEパーサ、subscription model matrix取得
 - `__tests__/db/helpers.ts`: DB初期化/クリーンアップ、DB利用可否ゲート
 
 ## Gaps (Phase 1 backlog)

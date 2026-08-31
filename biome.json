@@ -25,6 +25,7 @@
   "files": {
     "includes": [
       "src/**/*.{ts,tsx}",
+      "rialto-auth/**/*.json",
       "ccr-auth/**/*.json",
       "vite.config.mts",
       "!src/generated",

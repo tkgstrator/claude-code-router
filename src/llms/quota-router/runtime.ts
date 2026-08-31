@@ -146,7 +146,7 @@ export interface QuotaAwareSelection {
 
 export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput): Promise<QuotaAwareSelection> {
   // Per-kind chain lookup: `agent` for main-agent traffic, `subagent`
-  // for requests carrying a <CCR-SUBAGENT-MODEL> tag. The two chains
+  // for requests carrying a <RIALTO-SUBAGENT-MODEL> tag. The two chains
   // are ordered independently in the DB, so the same scenario can
   // route very differently based on the caller lane.
   const kind = input.isSubagent ? 'subagent' : 'agent'

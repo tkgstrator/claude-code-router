@@ -1,6 +1,13 @@
 import { logger } from '../logger'
 
 // The published package this deployment tracks for update checks.
+//
+// Deliberately NOT renamed with the rest of the rename: nothing in this
+// repository is published to npm (releases are Docker images), so this
+// has always pointed at the upstream project it was forked from. The
+// bare name `rialto` on the registry belongs to someone else — querying
+// it would show an unrelated package's version numbers as an available
+// update.
 const NPM_PACKAGE = '@musistudio/claude-code-router'
 // npm registry dist-tag endpoint: returns the manifest of the
 // `latest` release (including its `version`). Queried over plain HTTP

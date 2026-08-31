@@ -85,7 +85,7 @@ function InstallBox({
         variant='ghost'
         icon='ri-download-line'
         disabled
-        title='Exporting a preset is a CLI command: ccr preset export'
+        title='Exporting a preset is a CLI command: rialto preset export'
       >
         Export current
       </RButton>

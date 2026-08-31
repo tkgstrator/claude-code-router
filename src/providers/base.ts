@@ -123,7 +123,7 @@ export async function fetchScrapePage(url: string): Promise<string | null> {
       // Vendor docs sites (Mintlify, Astro) all render tables inline in
       // the SSR HTML; a plain Node fetch UA gets the same payload as a
       // browser.
-      'User-Agent': 'Mozilla/5.0 (compatible; ccr-refresh-models/1.0)',
+      'User-Agent': 'Mozilla/5.0 (compatible; rialto-refresh-models/1.0)',
       Accept: 'text/html'
     }
   })

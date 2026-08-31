@@ -1,5 +1,5 @@
 /**
- * Fallback vendor provider for vendors CCR knows about (they live in
+ * Fallback vendor provider for vendors Rialto knows about (they live in
  * VENDOR_DEFAULTS) but hasn't yet grown a dedicated scraper. Delivers
  * live-models fetch through the base class using the endpoint /
  * modelsAuth pulled from VENDOR_DEFAULTS, and returns an empty scrape.

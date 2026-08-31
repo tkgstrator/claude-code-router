@@ -1,7 +1,7 @@
-// CCR's Postgres-backed config store.
+// Rialto's Postgres-backed config store.
 //
 // Three normalized tables hold what used to live as `Providers` and
-// `Router` in ~/.claude-code-router/config.json:
+// `Router` in ~/.rialto/config.json:
 //   - Provider:   one row per LLM provider account (api_base_url + api_key)
 //   - Model:      one row per model name, child of Provider
 //   - RouterSlot: 6 rows keyed by scenario, each pointing at a Model (or null)
@@ -34,7 +34,7 @@ enum ScenarioKey {
 }
 
 // Which caller lane a RouterPreferenceEntry participates in. Main-agent
-// traffic (no <CCR-SUBAGENT-MODEL> tag) reads the `agent` chain;
+// traffic (no <RIALTO-SUBAGENT-MODEL> tag) reads the `agent` chain;
 // requests carrying the tag read the `subagent` chain. Kept as an enum
 // so a future third lane (e.g. "batch") is one migration away instead
 // of a boolean flag flip.
@@ -330,7 +330,7 @@ model Model {
   testError           String?
   // A RouterSlot binds two independent model references per scenario: the
   // agent route (main-agent traffic) and the subagent route (requests
-  // carrying a <CCR-SUBAGENT-MODEL> tag). Named relations keep the two
+  // carrying a <RIALTO-SUBAGENT-MODEL> tag). Named relations keep the two
   // back-references distinct on this side.
   routerSlots         RouterSlot[]            @relation("RouterSlotAgentModel")
   subagentRouterSlots RouterSlot[]            @relation("RouterSlotSubagentModel")
@@ -373,7 +373,7 @@ model RouterPreferenceEntry {
   scenario      ScenarioKey             @default(default)
   // Which caller lane this entry participates in — `agent` for main-
   // agent traffic, `subagent` for requests carrying a
-  // <CCR-SUBAGENT-MODEL> tag. Split from the pre-A design (a single
+  // <RIALTO-SUBAGENT-MODEL> tag. Split from the pre-A design (a single
   // chain plus per-entry `subagentTiers` filter) so operators can
   // reorder subagent independently of agent. Existing rows are
   // backfilled to `agent` by the migration.
@@ -425,7 +425,7 @@ model RouterSlot {
   modelId         String?
   model           Model?      @relation("RouterSlotAgentModel", fields: [modelId], references: [id], onDelete: Restrict)
   // Subagent route primary — the model that requests carrying a
-  // <CCR-SUBAGENT-MODEL> tag route to for this scenario. Same Restrict
+  // <RIALTO-SUBAGENT-MODEL> tag route to for this scenario. Same Restrict
   // semantics as the agent route.
   subagentModelId String?
   subagentModel   Model?      @relation("RouterSlotSubagentModel", fields: [subagentModelId], references: [id], onDelete: Restrict)
@@ -545,7 +545,7 @@ model RequestLog {
   // "untracked". `model`/`provider` above stay the actual upstream target.
   requestedModel   String?
   scenario         String?
-  // Whether the request carried a <CCR-SUBAGENT-MODEL> tag and was routed
+  // Whether the request carried a <RIALTO-SUBAGENT-MODEL> tag and was routed
   // through the subagent lane. Null for rows written before this column
   // landed (untracked); true / false thereafter. Kept nullable so the
   // model-routing report can distinguish "no data" from "data says agent".

@@ -166,6 +166,12 @@ export const PresetMetadataSchema = z.object({
   repository: z.string().optional(),
   license: z.string().optional(),
   keywords: z.array(z.string().nonempty()).optional(),
+  // The app version the preset was authored against. `ccrVersion` is the
+  // pre-rename spelling and stays accepted: preset manifests are files
+  // users already have on disk or share with each other, and an object
+  // schema drops keys it does not declare — so removing it would quietly
+  // strip the field on the next round-trip through the UI.
+  rialtoVersion: z.string().optional(),
   ccrVersion: z.string().optional(),
   source: z.string().optional(),
   sourceType: z.enum(['local', 'gist', 'registry']).optional(),
@@ -245,6 +251,8 @@ export const PresetIndexEntrySchema = z.object({
   url: z.string().nonempty(),
   repo: z.string().optional(),
   checksum: z.string().optional(),
+  rialtoVersion: z.string().optional(),
+  // Pre-rename spelling — see PresetMetadataSchema.
   ccrVersion: z.string().optional()
 })
 export type PresetIndexEntry = z.infer<typeof PresetIndexEntrySchema>

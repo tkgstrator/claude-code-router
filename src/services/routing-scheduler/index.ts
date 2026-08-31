@@ -46,8 +46,8 @@ const DEFAULT_TICK_MS = 300_000 // 5 min, matches plan doc §6.4 default
 const USAGE_CACHE_TTL_MS = 5 * 60 * 1000 // must match usage-service/cache.ts
 
 declare global {
-  var __ccrRoutingSchedulerStarted: boolean | undefined
-  var __ccrRoutingSchedulerTimer: ReturnType<typeof setTimeout> | undefined
+  var __rialtoRoutingSchedulerStarted: boolean | undefined
+  var __rialtoRoutingSchedulerTimer: ReturnType<typeof setTimeout> | undefined
 }
 
 let consecutiveFailures = 0
@@ -338,8 +338,8 @@ export async function runSchedulerTickForTest(prismaOverride?: PrismaClient): Pr
 // `dayjs().valueOf()`, so a slow tick shortens the next delay but never
 // compounds.
 export function startRoutingScheduler(): void {
-  if (globalThis.__ccrRoutingSchedulerStarted) return
-  globalThis.__ccrRoutingSchedulerStarted = true
+  if (globalThis.__rialtoRoutingSchedulerStarted) return
+  globalThis.__rialtoRoutingSchedulerStarted = true
 
   const intervalMs = readIntervalMs()
   const mode = readMode()
@@ -360,16 +360,16 @@ export function startRoutingScheduler(): void {
   }
 
   const scheduleNext = (): void => {
-    if (!globalThis.__ccrRoutingSchedulerStarted) return
+    if (!globalThis.__rialtoRoutingSchedulerStarted) return
     const start = dayjs().valueOf()
-    globalThis.__ccrRoutingSchedulerTimer = setTimeout(async () => {
+    globalThis.__rialtoRoutingSchedulerTimer = setTimeout(async () => {
       if (shouldRunTick()) {
         await runSchedulerTickForTest()
       }
       const elapsed = dayjs().valueOf() - start
       const delay = Math.max(1_000, intervalMs - elapsed)
-      if (globalThis.__ccrRoutingSchedulerStarted) {
-        globalThis.__ccrRoutingSchedulerTimer = setTimeout(scheduleNext, delay)
+      if (globalThis.__rialtoRoutingSchedulerStarted) {
+        globalThis.__rialtoRoutingSchedulerTimer = setTimeout(scheduleNext, delay)
       }
     }, intervalMs)
   }
@@ -378,10 +378,10 @@ export function startRoutingScheduler(): void {
 }
 
 export function stopRoutingScheduler(): void {
-  globalThis.__ccrRoutingSchedulerStarted = false
-  if (globalThis.__ccrRoutingSchedulerTimer !== undefined) {
-    clearTimeout(globalThis.__ccrRoutingSchedulerTimer)
-    globalThis.__ccrRoutingSchedulerTimer = undefined
+  globalThis.__rialtoRoutingSchedulerStarted = false
+  if (globalThis.__rialtoRoutingSchedulerTimer !== undefined) {
+    clearTimeout(globalThis.__rialtoRoutingSchedulerTimer)
+    globalThis.__rialtoRoutingSchedulerTimer = undefined
   }
 }
 

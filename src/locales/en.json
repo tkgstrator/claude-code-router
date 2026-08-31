@@ -14,7 +14,7 @@
     "hide_details": "Hide technical details"
   },
   "app": {
-    "title": "Claude Code Router",
+    "title": "Rialto",
     "save": "Save",
     "save_and_restart": "Save and Restart",
     "cancel": "Cancel",
@@ -134,7 +134,7 @@
     "sync": "Sync",
     "current": "Current rate limits",
     "routing": "Model routing",
-    "routingHint": "What Claude Code requested vs. the model CCR actually sent upstream.",
+    "routingHint": "What Claude Code requested vs. the model Rialto actually sent upstream.",
     "routingEmpty": "No routing data recorded yet.",
     "routingLaneAgent": "Agent",
     "routingLaneSubagent": "Sub",
@@ -198,7 +198,7 @@
     "invalidApiKey": "Invalid API key",
     "configError": "Configuration not loaded",
     "validating": "Validating API key...",
-    "keyHint": "First run? Your API key was printed to the server console (look for [ccr] APIKEY=) and saved to ~/.claude-code-router/config.json"
+    "keyHint": "First run? Your API key was printed to the server console (look for [rialto] APIKEY=) and saved to ~/.rialto/config.json"
   },
   "setup": {
     "title": "Configure API Key",
@@ -322,7 +322,7 @@
     "import_cred_submit": "Import",
     "oauth_result_success_title": "Sign-in complete",
     "oauth_result_failure_title": "Sign-in failed",
-    "oauth_result_success_body": "You're now signed in to {{provider}}. You can close this tab and return to Claude Code Router.",
+    "oauth_result_success_body": "You're now signed in to {{provider}}. You can close this tab and return to Rialto.",
     "oauth_result_close_tab": "Close this tab",
     "oauth_result_provider_claude": "Claude Code",
     "oauth_result_provider_codex": "Codex",

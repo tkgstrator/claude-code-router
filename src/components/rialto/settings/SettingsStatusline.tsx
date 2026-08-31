@@ -27,7 +27,7 @@ function WireUpNote() {
       <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
         <i className='ri-terminal-line mr-1 align-[-1px]' />
         Wire it up in <span className='font-mono'>~/.claude/settings.json</span>:{' '}
-        <span className='font-mono'>{'"statusLine": { "type": "command", "command": "ccr statusline" }'}</span>
+        <span className='font-mono'>{'"statusLine": { "type": "command", "command": "rialto statusline" }'}</span>
       </div>
     </div>
   )
@@ -112,7 +112,7 @@ function StatuslineEditor({ config }: { config: Config }) {
     <SettingsLayout
       active='statusline'
       title='Status line'
-      subtitle={`${modules.length} modules · ccr statusline`}
+      subtitle={`${modules.length} modules · rialto statusline`}
       // Opens straight into the module palette: the four panes are one
       // continuous editor, and a heading above them would offset only the
       // rightmost column.

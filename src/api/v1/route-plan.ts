@@ -53,7 +53,7 @@ export interface RoutePlan {
   // for" next to "what was actually sent". Absent when the body had no
   // usable model string.
   requestedModel?: string
-  // Whether the request carried a <CCR-SUBAGENT-MODEL> tag. Selects the
+  // Whether the request carried a <RIALTO-SUBAGENT-MODEL> tag. Selects the
   // scenario's subagent route (vs agent) for the reactive failover chain,
   // so it matches the route selectModel used for the primary.
   isSubagent: boolean

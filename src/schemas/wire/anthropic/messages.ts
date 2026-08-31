@@ -175,7 +175,7 @@ export const AnthropicIncomingRequestSchema = z.object({
 export type AnthropicIncomingRequest = z.input<typeof AnthropicIncomingRequestSchema>
 
 // ─── Anthropic incoming request headers ────────────────────────────────
-// Headers that Claude Code (or any compliant client) must send to CCR's
+// Headers that Claude Code (or any compliant client) must send to Rialto's
 // /v1/messages endpoint. Validated against the captured fixture corpus in
 // fixture-schemas.test.ts so a breaking change to the expected header set
 // surfaces as a test failure rather than a runtime surprise.

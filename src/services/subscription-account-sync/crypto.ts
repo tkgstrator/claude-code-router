@@ -17,11 +17,19 @@ export const firstString = (...vs: Array<unknown>): string | null => {
   return null
 }
 
+/**
+ * The key material, from RIALTO_ACCOUNT_ENCRYPTION_KEY or, still, the
+ * pre-rename CCR_ACCOUNT_ENCRYPTION_KEY.
+ *
+ * The old name has to keep working: it is what every existing SubAccount
+ * row was encrypted under, and dropping it would not fail loudly — the
+ * server would start and every stored token would be undecryptable.
+ */
 export const encryptionKey = (): Buffer => {
-  const envValue = process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+  const envValue = firstString(process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY, process.env.CCR_ACCOUNT_ENCRYPTION_KEY)
   const raw = typeof envValue === 'string' ? envValue.trim() : ''
   if (!raw) {
-    throw new Error('CCR_ACCOUNT_ENCRYPTION_KEY is required for SubAccount token encryption')
+    throw new Error('RIALTO_ACCOUNT_ENCRYPTION_KEY is required for SubAccount token encryption')
   }
   if (/^[a-fA-F0-9]{64}$/.test(raw)) return Buffer.from(raw, 'hex')
   try {

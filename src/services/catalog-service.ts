@@ -1,6 +1,6 @@
 /**
  * Assemble the "provider catalog" — the read-only reference view of
- * every vendor CCR knows about, with its models and prices, plus
+ * every vendor Rialto knows about, with its models and prices, plus
  * whether the user has enabled it (i.e. a Provider row exists).
  *
  * The catalog fuses three sources:

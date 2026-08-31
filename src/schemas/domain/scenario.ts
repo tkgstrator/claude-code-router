@@ -10,7 +10,7 @@
  * file may carry only the slice it wants (absent → empty routes).
  *
  * `ProjectRouterFile` is the on-disk shape of
- * `~/.claude-code-router/<project>/config.json` (or per-session
+ * `~/.rialto/<project>/config.json` (or per-session
  * `<sessionId>.json`); parsing it through Zod replaces an unsafe cast
  * after JSON.parse.
  */
@@ -59,7 +59,7 @@ const RulesMapSchema = z.object({
 export const ScenarioRouterConfigSchema = z.object({
   /** Agent-route primaries keyed by scenario (main-agent traffic). */
   agent: RouteMapSchema.optional(),
-  /** Subagent-route primaries keyed by scenario (<CCR-SUBAGENT-MODEL> tag present). */
+  /** Subagent-route primaries keyed by scenario (<RIALTO-SUBAGENT-MODEL> tag present). */
   subagent: RouteMapSchema.optional(),
   /** Agent-route fallback chains keyed by scenario. */
   agentFallbacks: FallbackMapSchema.optional(),

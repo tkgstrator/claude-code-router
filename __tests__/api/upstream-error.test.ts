@@ -1,7 +1,7 @@
 /**
  * `forwardUpstreamError` — end-to-end Response-level assertions.
  *
- * The `via` provider tag and the `x-ccr-upstream-url` diagnostic header
+ * The `via` provider tag and the `x-rialto-upstream-url` diagnostic header
  * both round-trip an out-of-band signal from `sendToProvider` (where the
  * outbound URL and provider are known) up to the /v1 error path (where
  * the client-facing Response is built). Verify the wire-observable
@@ -53,7 +53,7 @@ describe('stripUrlSecrets', () => {
   })
 })
 
-describe('forwardUpstreamError — via + x-ccr-upstream-url headers', () => {
+describe('forwardUpstreamError — via + x-rialto-upstream-url headers', () => {
   test('emits both headers when the exception carries a URL', () => {
     const err = makeUpstreamException(
       401,
@@ -65,16 +65,16 @@ describe('forwardUpstreamError — via + x-ccr-upstream-url headers', () => {
     const res = forwardUpstreamError(err, 'openai', 'openai')
     expect(res).not.toBeNull()
     expect(res!.status).toBe(401)
-    expect(res!.headers.get('x-ccr-upstream')).toBe('openai')
-    expect(res!.headers.get('x-ccr-upstream-url')).toBe('https://api.openai.com/v1/chat/completions')
+    expect(res!.headers.get('x-rialto-upstream')).toBe('openai')
+    expect(res!.headers.get('x-rialto-upstream-url')).toBe('https://api.openai.com/v1/chat/completions')
   })
 
-  test('omits x-ccr-upstream-url when the exception did not attach one', () => {
+  test('omits x-rialto-upstream-url when the exception did not attach one', () => {
     const err = makeUpstreamException(500, 'openai', 'gpt-5-nano', 'oops')
     const res = forwardUpstreamError(err, 'openai', 'openai')
     expect(res).not.toBeNull()
-    expect(res!.headers.get('x-ccr-upstream')).toBe('openai')
-    expect(res!.headers.get('x-ccr-upstream-url')).toBeNull()
+    expect(res!.headers.get('x-rialto-upstream')).toBe('openai')
+    expect(res!.headers.get('x-rialto-upstream-url')).toBeNull()
   })
 
   test('returns null for non-HTTPException errors (caller falls back to 5xx envelope)', () => {

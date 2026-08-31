@@ -1,6 +1,6 @@
 /**
  * Key-free unit tests for the preset Zod schemas and condition logic.
- * These run in CI without an API key or a running CCR server.
+ * These run in CI without an API key or a running Rialto server.
  */
 
 import { describe, expect, test } from 'bun:test'

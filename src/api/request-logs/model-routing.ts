@@ -1,6 +1,6 @@
 /**
  * Model-routing report: a cross-tab of what the client (Claude Code)
- * requested in body.model versus what CCR actually sent upstream.
+ * requested in body.model versus what Rialto actually sent upstream.
  *
  * Groups request_logs by (requestedModel, provider, model, scenario) and
  * folds the counts into one row per requested model, so the UI can show

@@ -3,7 +3,7 @@
  *
  * Verifies the endpoint returns the DB-backed enabled model list in
  * OpenAI's `{object:'list', data:[{id, object, created, owned_by}]}`
- * shape, with `id` set to CCR's canonical `provider,model` string so
+ * shape, with `id` set to Rialto's canonical `provider,model` string so
  * OpenAI SDK clients can round-trip the id straight back into
  * /v1/chat/completions' `model` field.
  *

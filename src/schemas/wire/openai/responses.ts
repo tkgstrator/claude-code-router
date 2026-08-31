@@ -171,7 +171,7 @@ export type ResponsesUnifiedChatRequest = z.input<typeof ResponsesUnifiedChatReq
 //
 // Mirror of the OpenAI Responses API wire shape as it arrives on our
 // inbound endpoint. The reverse of the schemas above — those describe
-// what CCR SENDS to a Responses upstream; these describe what CCR
+// what Rialto SENDS to a Responses upstream; these describe what Rialto
 // RECEIVES from an OpenAI-client caller (Codex CLI, Cline in
 // Responses-mode, direct curl).
 //

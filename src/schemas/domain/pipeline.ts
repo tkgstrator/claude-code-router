@@ -92,7 +92,7 @@ export const PipelineRequestSchema = z.object({
   // rewrote it. Carried so the usage-capture step can persist "what was
   // asked for" alongside "what was actually sent".
   requestedModel: z.string().nonempty().optional(),
-  // True when the request carried a <CCR-SUBAGENT-MODEL> tag and was
+  // True when the request carried a <RIALTO-SUBAGENT-MODEL> tag and was
   // routed through the subagent lane. Always known — the route builder
   // stamps it before the pipeline runs — so it stays a plain boolean
   // (no optional / nullable) at this layer.

@@ -9,7 +9,7 @@
 
 ## レイヤ構造
 
-CCR は **「起動時 1 回だけ走る Bootstrap 層」 / 「リクエスト毎に走る Per-Request 層」 / 「常駐 State 層」** の 3 つに分かれる。
+Rialto は **「起動時 1 回だけ走る Bootstrap 層」 / 「リクエスト毎に走る Per-Request 層」 / 「常駐 State 層」** の 3 つに分かれる。
 Bootstrap 層が State 層を組み立て、Per-Request 層がそれを読みながら 1 リクエスト処理する。
 
 ```mermaid
@@ -67,7 +67,7 @@ flowchart TB
 
 | 層 | サブ層 | やること | 入力 → 出力 | 主なソース |
 |---|---|---|---|---|
-| ① Bootstrap | 0. initDir | `~/.claude-code-router/` などホーム作成 | – | `src/index.ts` |
+| ① Bootstrap | 0. initDir | `~/.rialto/` などホーム作成 | – | `src/index.ts` |
 | | 1. runJsonToDbMigration | 旧 `config.json` の `Providers`/`Router` を Postgres に lift（一回限り） | disk envelope → Postgres | `src/db/*` |
 | | 2. initConfig | disk envelope を読み、HOST/PORT/APIKEY/LOG_LEVEL/PROXY_URL を `process.env` に反映 | disk → env | `src/services/config/*` |
 | | 3. loadFullConfig | envelope + DB を合成して `AppConfig` を返す | env + DB → AppConfig | `src/services/config/compose.ts` |
@@ -380,7 +380,7 @@ sequenceDiagram
 
 `packages/server/src/index.ts:getServer` (現リポでは `src/index.ts`):
 
-1. `initDir()` — `~/.claude-code-router/` などのホームディレクトリ確保。
+1. `initDir()` — `~/.rialto/` などのホームディレクトリ確保。
 2. `runJsonToDbMigration()` — 旧 `config.json` の `Providers` / `Router` を Postgres に lift する一回限りの移行。
 3. `initConfig()` — disk envelope を読んで `HOST` / `PORT` / `APIKEY` / `LOG_LEVEL` / `PROXY_URL` などを `process.env` に反映。
 4. `loadFullConfig()` — envelope + DB を合成して `AppConfig` を返す。
@@ -451,7 +451,7 @@ flowchart TD
 
 1. **bare 名 hit** → `resolveByModelName` が **subscription provider を先に走査** して `provider,model` を組む。
 2. **longContext しきい値** — `tokenCount > Router.longContextThreshold` (default 60_000) → `Router.longContext`。
-3. **`<CCR-SUBAGENT-MODEL>` タグ** — system[1] に埋まる explicit override。
+3. **`<RIALTO-SUBAGENT-MODEL>` タグ** — system[1] に埋まる explicit override。
 4. **haiku → background** — `claude-*-haiku-*` の bare 名は `Router.background` に。
 5. **`tools[]` に `web_search`** → `Router.webSearch`。
 6. **`thinking` 付き** → `Router.think`。
@@ -512,7 +512,7 @@ flowchart TD
 `resolveInvocationForModel` は **per-attempt の新規 body / headers** を切り出して shaping する:
 
 - `output_config.effort` を `EFFORT_BY_MODEL` の範囲にクランプ。
-- CCR 内部拡張 (`context_management` / `output_config` / `diagnostics`) を削除。
+- Rialto 内部拡張 (`context_management` / `output_config` / `diagnostics`) を削除。
 - subscription path (transformer 名が `-oauth` 終わり) なら `prepareSubscriptionBetas` で `anthropic-beta` を整形（`context-1m-*` を落とす + `oauth-2025-04-20` を足す）。
 
 ---

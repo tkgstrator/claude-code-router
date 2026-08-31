@@ -27,7 +27,7 @@ export type * from '@/lib/api-types'
 
 // Browser-side API client. Fetches under `${baseUrl}<endpoint>` with the
 // envelope APIKEY (mirrored onto X-API-Key) attached automatically. The
-// temp key from `?tempApiKey=` lets the integrated `ccr ui` flow open the
+// temp key from `?tempApiKey=` lets the integrated `rialto ui` flow open the
 // UI pre-authenticated without persisting the long-lived key.
 class ApiClient {
   private baseUrl: string

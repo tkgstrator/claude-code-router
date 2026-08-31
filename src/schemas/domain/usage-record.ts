@@ -94,7 +94,7 @@ export const UsageRecordSchema = z.object({
   // Which AccessToken authenticated the request. Null for traffic on the
   // envelope bootstrap token and for rows predating tokens.
   accessTokenId: z.string().nonempty().nullable(),
-  // Whether the request took the subagent lane (a <CCR-SUBAGENT-MODEL>
+  // Whether the request took the subagent lane (a <RIALTO-SUBAGENT-MODEL>
   // tag was present). Always known at write — the route builder stamps
   // it before the pipeline runs, so this stays a plain boolean.
   isSubagent: z.boolean(),

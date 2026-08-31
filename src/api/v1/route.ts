@@ -92,7 +92,7 @@ async function recordMessages(entries: MessageRecord[]): Promise<void> {
 // and total bytes; on flush (end-of-stream) fire a warn when nothing came
 // through. This surfaces the "HTTP 200 but empty body" case that Claude
 // Code shows as "API returned an empty or malformed response" — until now
-// CCR silently relayed the empty stream and the operator had no signal.
+// Rialto silently relayed the empty stream and the operator had no signal.
 function countingSseTransform(
   log: Logger,
   ctx: { provider: string; model: string | undefined; status: number }

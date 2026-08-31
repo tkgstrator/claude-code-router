@@ -14,7 +14,7 @@
     "hide_details": "技術的な詳細を隠す"
   },
   "app": {
-    "title": "Claude Code Router",
+    "title": "Rialto",
     "save": "保存",
     "save_and_restart": "保存して再起動",
     "cancel": "キャンセル",
@@ -134,7 +134,7 @@
     "sync": "同期",
     "current": "現在のレートリミット",
     "routing": "モデル振り分け",
-    "routingHint": "Claude Codeが要求したモデルと、CCRが実際に上流へ送ったモデルの対応。",
+    "routingHint": "Claude Codeが要求したモデルと、Rialtoが実際に上流へ送ったモデルの対応。",
     "routingEmpty": "振り分けデータはまだありません。",
     "routingLaneAgent": "エージェント",
     "routingLaneSubagent": "サブ",
@@ -198,7 +198,7 @@
     "invalidApiKey": "無効な API キーです",
     "configError": "設定を読み込めません",
     "validating": "API キーを検証中...",
-    "keyHint": "初回起動時は、サーバーのコンソール（[ccr] APIKEY= の行）または ~/.claude-code-router/config.json に API キーが表示・保存されています"
+    "keyHint": "初回起動時は、サーバーのコンソール（[rialto] APIKEY= の行）または ~/.rialto/config.json に API キーが表示・保存されています"
   },
   "setup": {
     "title": "API Key を設定",
@@ -322,7 +322,7 @@
     "import_cred_submit": "インポート",
     "oauth_result_success_title": "サインイン完了",
     "oauth_result_failure_title": "サインイン失敗",
-    "oauth_result_success_body": "{{provider}} へのサインインが完了しました。このタブを閉じて Claude Code Router に戻れます。",
+    "oauth_result_success_body": "{{provider}} へのサインインが完了しました。このタブを閉じて Rialto に戻れます。",
     "oauth_result_close_tab": "このタブを閉じる",
     "oauth_result_provider_claude": "Claude Code",
     "oauth_result_provider_codex": "Codex",

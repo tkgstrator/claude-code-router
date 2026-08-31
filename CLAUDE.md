@@ -8,12 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Claude Code Router is a tool that routes Claude Code requests to different LLM providers. It uses a Monorepo architecture with four main packages:
+Rialto is a tool that routes Claude Code requests to different LLM providers. It uses a Monorepo architecture with four main packages:
 
-- **cli** (`@musistudio/claude-code-router`): Command-line tool providing the `ccr` command
-- **server** (`@CCR/server`): Core server handling API routing and transformations
-- **shared** (`@CCR/shared`): Shared constants, utilities, and preset management
-- **ui** (`@CCR/ui`): Web management interface (React + Vite)
+- **cli** (`rialto`): Command-line tool providing the `rialto` command
+- **server** (`@Rialto/server`): Core server handling API routing and transformations
+- **shared** (`@Rialto/shared`): Shared constants, utilities, and preset management
+- **ui** (`@Rialto/ui`): Web management interface (React + Vite)
 
 ## Build Commands
 
@@ -48,7 +48,7 @@ bun run release        # Build and publish all packages
 The routing logic determines which model a request should be sent to:
 
 - **Default routing**: Uses `Router.default` configuration
-- **Project-level routing**: Checks `~/.claude/projects/<project-id>/claude-code-router.json`
+- **Project-level routing**: the session id is matched to a project via `~/.claude/projects/<project>/<sessionId>.jsonl`, then `Router` is read from `~/.rialto/<project>/<sessionId>.json` or `~/.rialto/<project>/config.json`
 - **Custom routing**: Loads custom JavaScript router function via `CUSTOM_ROUTER_PATH`
 - **Built-in scenario routing**:
   - `background`: Background tasks (typically lightweight models)
@@ -97,9 +97,24 @@ The server uses custom Transform streams to handle Server-Sent Events:
 
 ### 5. Configuration Management
 
+Names carried over from before the Rialto rename — all still honoured,
+none of them re-emitted:
+
+| Old | New | Read at |
+|-----|-----|---------|
+| `CCR_HOME_DIR` | `RIALTO_HOME_DIR` | `src/shared/constants.ts` (warns on boot) |
+| `CCR_ACCOUNT_ENCRYPTION_KEY` | `RIALTO_ACCOUNT_ENCRYPTION_KEY` | `src/services/subscription-account-sync/crypto.ts` |
+| `CCR_DEBUG_OAUTH` | `RIALTO_DEBUG_OAUTH` | `src/services/claude-oauth-service.ts`, `src/services/codex-auth/oauth.ts` |
+| `~/.claude-code-router` | `~/.rialto` | copied on first boot by `src/services/config/migrate-home-dir.ts` |
+| `ccr_` thinking signatures | `rialto_` | `src/llms/transformers/anthropic/claude-code-oauth.ts` |
+| `ccrVersion` (preset manifests) | `rialtoVersion` | `src/schemas/domain/preset.ts` |
+
+The database is still named `ccr` / `ccr_test`; `DATABASE_URL` and
+`TEST_DATABASE_URL` were deliberately left alone.
+
 Configuration is split across two stores:
 
-- **Disk envelope**: `~/.claude-code-router/config.json` holds boot-time scalars (HOST/PORT/APIKEY/LOG/LOG_LEVEL/PROXY_URL/API_TIMEOUT_MS/CLAUDE_PATH/NON_INTERACTIVE_MODE) plus disk-resident objects (StatusLine, transformers, plugins).
+- **Disk envelope**: `~/.rialto/config.json` holds boot-time scalars (HOST/PORT/APIKEY/LOG/LOG_LEVEL/PROXY_URL/API_TIMEOUT_MS/CLAUDE_PATH/NON_INTERACTIVE_MODE) plus disk-resident objects (StatusLine, transformers, plugins).
 - **PostgreSQL** (via Prisma, `packages/server/prisma/schema.prisma`): holds Providers, Models, and the six RouterSlot rows. `DATABASE_URL` is loaded from `.env` (`.devcontainer/compose.yaml` provides a local `postgres` service).
 
 Schema (PR #1):
@@ -126,7 +141,7 @@ Key features (disk envelope):
 - Environment variable interpolation (`$VAR_NAME` or `${VAR_NAME}`)
 - JSON5 format (supports comments)
 - Automatic backups (keeps last 3 backups)
-- Hot reload requires service restart (`ccr restart`)
+- Hot reload requires service restart (`rialto restart`)
 
 Configuration validation:
 - If `Providers` are configured, both `HOST` and `APIKEY` must be set
@@ -147,46 +162,50 @@ Never edit DDL directly; always go through Prisma migrations.
 Two separate logging systems:
 
 **Server-level logs** (pino):
-- Location: `~/.claude-code-router/logs/ccr-*.log`
+- Location: `~/.rialto/logs/rialto-*.log`
 - Content: HTTP requests, API calls, server events
 - Configuration: `LOG_LEVEL` (fatal/error/warn/info/debug/trace)
 
 **Application-level logs**:
-- Location: `~/.claude-code-router/claude-code-router.log`
+- Location: `~/.rialto/rialto.log`
 - Content: Routing decisions, business logic events
 
 ## CLI Commands
 
 ```bash
-ccr start      # Start server
-ccr stop       # Stop server
-ccr restart    # Restart server
-ccr status     # Show status
-ccr code       # Execute claude command
-ccr model      # Interactive model selection and configuration
-ccr preset     # Manage presets (export, install, list, info, delete)
-ccr activate   # Output shell environment variables (for integration)
-ccr ui         # Open Web UI
-ccr statusline # Integrated statusline (reads JSON from stdin)
+rialto start      # Start server
+rialto stop       # Stop server
+rialto restart    # Restart server
+rialto status     # Show status
+rialto code       # Execute claude command
+rialto model      # Interactive model selection and configuration
+rialto preset     # Manage presets (export, install, list, info, delete)
+rialto activate   # Output shell environment variables (for integration)
+rialto ui         # Open Web UI
+rialto statusline # Integrated statusline (reads JSON from stdin)
 ```
 
 ### Preset Commands
 
 ```bash
-ccr preset export <name>      # Export current configuration as a preset
-ccr preset install <source>   # Install a preset from file, URL, or name
-ccr preset list               # List all installed presets
-ccr preset info <name>        # Show preset information
-ccr preset delete <name>      # Delete a preset
+rialto preset export <name>      # Export current configuration as a preset
+rialto preset install <source>   # Install a preset from file, URL, or name
+rialto preset list               # List all installed presets
+rialto preset info <name>        # Show preset information
+rialto preset delete <name>      # Delete a preset
 ```
 
 ## Subagent Routing
 
 Use special tags in subagent prompts to specify models:
 ```
-<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+<RIALTO-SUBAGENT-MODEL>provider,model</RIALTO-SUBAGENT-MODEL>
 Please help me analyze this code...
 ```
+
+`<CCR-SUBAGENT-MODEL>` is the pre-rename spelling and is still accepted
+(`src/llms/scenario-router/request-signals.ts`). It lives in prompts users
+have already written, so it must not be removed.
 
 ## Preset System
 
@@ -194,7 +213,7 @@ The preset system allows users to save, share, and reuse configurations easily.
 
 ### Preset Structure
 
-Presets are stored in `~/.claude-code-router/presets/<preset-name>/manifest.json`
+Presets are stored in `~/.rialto/presets/<preset-name>/manifest.json`
 
 Each preset contains:
 - **Metadata**: name, version, description, author, keywords, etc.
@@ -255,7 +274,7 @@ The CLI layer (`packages/cli/src/utils/preset/`) handles:
 - Display formatting
 
 Key files:
-- `commands.ts`: Command handlers for `ccr preset` subcommands
+- `commands.ts`: Command handlers for `rialto preset` subcommands
 - `export.ts`: CLI wrapper for export functionality
 - `install.ts`: CLI wrapper for install functionality
 

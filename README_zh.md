@@ -2,7 +2,7 @@
 [![](https://img.shields.io/badge/🇯🇵-日本語-bc002d?style=flat)](README_ja.md)
 [![](https://img.shields.io/badge/🇨🇳-中文版-ff0000?style=flat)](README_zh.md)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white)](https://discord.gg/rdftVMaUcS)
-[![](https://img.shields.io/github/license/tkgstrator/claude-code-router)](https://github.com/tkgstrator/claude-code-router/blob/master/LICENSE)
+[![](https://img.shields.io/github/license/tkgstrator/rialto)](https://github.com/tkgstrator/rialto/blob/master/LICENSE)
 
 <hr>
 
@@ -21,7 +21,7 @@
 - **转换器管道** — 内置和自定义转换器将 Anthropic 格式请求适配至各提供商 API。
 - **自定义 JavaScript 路由器** — 实现超出六个内置场景的任意路由逻辑。
 - **子代理模型锁定** — 通过内联提示标签将子代理定向到指定提供商和模型。
-- **状态栏** — 在 Claude Code 状态栏中实时显示 CCR 状态。
+- **状态栏** — 在 Claude Code 状态栏中实时显示 Rialto 状态。
 - **Docker 优先部署** — 包含 PostgreSQL 和 Redis 的一键 `docker compose up -d`。
 
 ## 🖥️ Web 界面
@@ -54,10 +54,10 @@ Web 界面（默认在端口 **3456** 提供服务）让您全面掌控路由器
 **第一步 — 创建工作目录和最小配置文件：**
 
 ```shell
-mkdir -p ~/ccr ~/.claude-code-router
-cd ~/ccr
+mkdir -p ~/rialto ~/.rialto
+cd ~/rialto
 
-cat > ~/.claude-code-router/config.json << 'EOF'
+cat > ~/.rialto/config.json << 'EOF'
 {
   "APIKEY": "your-secret-key"
 }
@@ -71,7 +71,7 @@ EOF
 **第二步 — 下载 `compose.yaml`：**
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/tkgstrator/claude-code-router/master/compose.yaml -o compose.yaml
+curl -fsSL https://raw.githubusercontent.com/tkgstrator/rialto/master/compose.yaml -o compose.yaml
 ```
 
 **第三步 — （可选）将提供商凭据写入 `.env`：**
@@ -125,9 +125,9 @@ docker compose restart
 
 ### 订阅型提供商（Claude Code 与 Codex）
 
-CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
+Rialto 支持通过订阅型提供商进行路由，无需单独的 API Key。
 
-**Claude Code** — 打开 **Providers** 页面 → **Subscription** 标签页 → **Connect**，完成 OAuth 授权流程。CCR 会自动存储并刷新凭据。
+**Claude Code** — 打开 **Providers** 页面 → **Subscription** 标签页 → **Connect**，完成 OAuth 授权流程。Rialto 会自动存储并刷新凭据。
 
 **Codex（OpenAI）** — 目前不支持通过浏览器登录，仅支持通过上传凭据文件的方式进行认证。
 
@@ -137,7 +137,7 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 
 ## ⚙️ 配置
 
-### 磁盘配置（`~/.claude-code-router/config.json`）
+### 磁盘配置（`~/.rialto/config.json`）
 
 存储启动时的标量值和磁盘常驻对象。支持环境变量插值（`$VAR` / `${VAR}`）和 JSON5 注释。自动保留最近三个备份。
 
@@ -171,7 +171,7 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 | `think` | 推理密集型任务（计划模式）|
 | `longContext` | 超过上下文阈值的请求（默认 60 000 token）|
 | `webSearch` | 网络搜索任务（需要模型原生支持搜索）|
-| `image` | 图像相关任务（使用 CCR 内置图像代理）|
+| `image` | 图像相关任务（使用 Rialto 内置图像代理）|
 
 ### effort、层级与兜底
 
@@ -193,7 +193,7 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 - **当前激活** — 每个 Router 只能有一个激活的人格。当前激活的人格 uuid id 写在 `Router.persona` 上，并通过磁盘上的 `ActivePersona` envelope 键进行往返。`null` / 缺失 / 空字符串表示「无人格」。项目级与会话级的 Router 覆盖文件也接受 `Router.persona`。
 - **注入方式** — 路由器解析完场景后，会把当前人格的 `prompt` 追加到带有 `cache_control` 的最后一个 system 块上（若没有则退回到最后一个字符串文本块）。这样人格就被收纳进缓存前缀的*内部*，既不会消耗额外的 cache 断点，又能在多次请求之间保持字节级稳定（保留 Anthropic 的 prompt cache）。当 `system` 为字符串 / 未定义时进行拼接；多块数组形式则原地修改。
 - **场景例外** — `background` 场景会被排除：它跑的是标题生成等轻量内部任务，人格化的语气会污染这类输出。其它场景（default / think / longContext / webSearch / image）都会继承当前的人格。
-- **与子代理交互** — 人格注入在 `<CCR-SUBAGENT-MODEL>` 标签处理*之后*执行，所以子代理的逐次系统内容不会被覆盖，而是与人格合成。
+- **与子代理交互** — 人格注入在 `<RIALTO-SUBAGENT-MODEL>` 标签处理*之后*执行，所以子代理的逐次系统内容不会被覆盖，而是与人格合成。
 
 人格库管理在 **Personas** 页面（`/personas`），当前激活人格的切换在 **Router** 页面。「无人格」是默认的 no-op。
 
@@ -234,7 +234,7 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 {
   "transformers": [
     {
-      "path": "/home/user/.claude-code-router/plugins/my-transformer.js",
+      "path": "/home/user/.rialto/plugins/my-transformer.js",
       "options": { "someOption": "value" }
     }
   ]
@@ -284,7 +284,7 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 
 ```json
 {
-  "CUSTOM_ROUTER_PATH": "/home/user/.claude-code-router/custom-router.js"
+  "CUSTOM_ROUTER_PATH": "/home/user/.rialto/custom-router.js"
 }
 ```
 
@@ -307,14 +307,14 @@ module.exports = async function router(req, config) {
 在子代理提示词开头添加以下标签将其锁定到特定模型：
 
 ```
-<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+<RIALTO-SUBAGENT-MODEL>provider,model</RIALTO-SUBAGENT-MODEL>
 请帮我分析这段代码...
 ```
 
 ## 📊 日志
 
-- **服务器级日志**（pino）：`~/.claude-code-router/logs/ccr-*.log` — HTTP 请求、API 调用、服务器事件。级别由 `LOG_LEVEL` 控制。
-- **应用级日志**：`~/.claude-code-router/claude-code-router.log` — 路由决策和业务逻辑事件。
+- **服务器级日志**（pino）：`~/.rialto/logs/rialto-*.log` — HTTP 请求、API 调用、服务器事件。级别由 `LOG_LEVEL` 控制。
+- **应用级日志**：`~/.rialto/rialto.log` — 路由决策和业务逻辑事件。
 
 ## 🛠️ 开发
 

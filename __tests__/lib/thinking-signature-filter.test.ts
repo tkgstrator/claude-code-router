@@ -3,8 +3,9 @@ import { keepSignedBlock } from '../../src/llms/transformers/anthropic/claude-co
 
 // Only Anthropic can validate an Anthropic thinking signature. A block
 // replayed from another provider carries either nothing or a placeholder
-// CCR minted itself, and sending either back to Anthropic 400s the whole
-// request — permanently, because the transcript replays it every turn.
+// Rialto minted itself, and sending either back to Anthropic 400s the
+// whole request — permanently, because the transcript replays it every
+// turn.
 
 test('a real Anthropic signature is preserved', () => {
   // Dropping these would be the expensive mistake: it invalidates the
@@ -17,10 +18,18 @@ test('a thinking block with no signature is dropped', () => {
   expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: '' })).toBe(false)
 })
 
-test('a CCR-minted placeholder signature is dropped', () => {
+test('a Rialto-minted placeholder signature is dropped', () => {
   // Shape produced by the Gemini streaming converter when the upstream
   // returned reasoning without a signature of its own. It is non-empty,
   // so a bare emptiness check let it reach Anthropic.
+  expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'rialto_1756468800000' })).toBe(false)
+})
+
+test('a placeholder minted before the rename is still dropped', () => {
+  // These live in transcripts written by pre-rename builds and are
+  // replayed on every later turn of the same conversation. Matching only
+  // the new prefix would forward them to Anthropic, which 400s the
+  // conversation for good.
   expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'ccr_1756468800000' })).toBe(false)
 })
 

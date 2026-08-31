@@ -45,10 +45,12 @@ import { INBOUND_MOUNT_PREFIXES } from './llms/inbound/surfaces'
 import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
+import { migrateHomeDir } from './services/config/migrate-home-dir'
 import { ensureInboundSurfaces } from './services/inbound-surface-service'
 import { startRoutingScheduler } from './services/routing-scheduler'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
+import { HOME_DIR, HOME_DIR_ENV_IS_LEGACY } from './shared/constants'
 import { APP_VERSION } from './version'
 
 // Hono root. Backend routes live under src/api/<path>/route.ts (one
@@ -67,6 +69,25 @@ import { APP_VERSION } from './version'
 // job of `prisma migrate deploy` + `prisma db seed`, which entrypoint.sh
 // runs before exec'ing this process (or `bun db:migrate` locally).
 
+// Carry a pre-rename ~/.claude-code-router over to ~/.rialto before
+// anything reads or creates the new home. This has to be the first
+// statement: the migration is idempotent by "the destination already
+// exists", so any earlier mkdir of ~/.rialto — initDir(), or the
+// logger's first file write — would make the copy a permanent no-op and
+// silently start the operator on an empty configuration.
+//
+// Skipped when the home directory is pinned by env (RIALTO_HOME_DIR /
+// CCR_HOME_DIR): ~/.rialto is then not the directory being read, so
+// copying into it would only litter the operator's home.
+if (process.env.RIALTO_HOME_DIR === undefined && process.env.CCR_HOME_DIR === undefined) {
+  await migrateHomeDir()
+}
+if (HOME_DIR_ENV_IS_LEGACY) {
+  logger.warn(
+    { HOME_DIR },
+    'CCR_HOME_DIR is deprecated and will be removed; rename it to RIALTO_HOME_DIR (the value is unchanged)'
+  )
+}
 await initDir()
 const envelope = await initConfig()
 // Re-apply LOG_LEVEL to the already-initialised logger: the pino
@@ -198,7 +219,7 @@ app.route('/', v1Route)
 // OpenAPI spec endpoint — useful for tooling and the generated docs.
 app.doc('/api/openapi.json', {
   openapi: '3.1.0',
-  info: { title: 'CCR API', version: APP_VERSION }
+  info: { title: 'Rialto API', version: APP_VERSION }
 })
 
 // SPA + static fallback for production runs (Bun serving the built

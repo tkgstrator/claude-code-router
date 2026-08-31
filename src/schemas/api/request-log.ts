@@ -140,7 +140,7 @@ export const SessionMessagesResponseSchema = z.object({
 })
 
 // ─── Model-routing report ──────────────────────────────────────────────
-// Cross-tab of "what the client requested" → "what CCR actually sent".
+// Cross-tab of "what the client requested" → "what Rialto actually sent".
 // Answers: how often is each requested model honored vs rerouted, and to
 // which provider/model/scenario.
 

@@ -264,8 +264,8 @@ export function SetupScreen() {
 
         <div className='flex items-center gap-3 border-t border-border px-6 py-4'>
           <span className='text-[11px] text-muted-foreground'>
-            The token in <span className='font-mono'>~/.claude-code-router/config.json</span> signs you into this UI.
-            Clients use an access token.
+            The token in <span className='font-mono'>~/.rialto/config.json</span> signs you into this UI. Clients use an
+            access token.
           </span>
           <Link to='/overview' className='ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:underline'>
             Skip setup

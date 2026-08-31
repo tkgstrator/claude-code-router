@@ -22,7 +22,7 @@ import type { PipelineInput } from './types'
 // bypass path. Buckets:
 //
 //  Hop-by-hop / encoding — content-length is re-serialised by
-//  fetchProvider; accept-encoding is stripped because CCR's fetch
+//  fetchProvider; accept-encoding is stripped because Rialto's fetch
 //  auto-decompresses, and forwarding the inbound value causes the
 //  upstream to send a compressed body that Bun decompresses while its
 //  content-encoding header lingers, which triggers a double-decompress
@@ -51,7 +51,7 @@ import type { PipelineInput } from './types'
 //      the vendor's own error body.
 //  Model test's probeInference builds its own tiny header set so it
 //  never had these; the pipeline's bypass path did, and that is why
-//  "test passes, real request 403s" showed up only against remote CCRs
+//  "test passes, real request 403s" showed up only against remote Rialtos
 //  behind a Cloudflare front (local dev is direct, so cf-* is absent
 //  and the same bug never fired).
 const STRIP_INBOUND_EXACT = new Set([

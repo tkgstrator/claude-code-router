@@ -3,7 +3,7 @@
  * the app owns rather than serves.
  *
  * ConfigEnvelopeSchema is the whitelist of what may stay in
- * ~/.claude-code-router/config.json now that Providers and Router live
+ * ~/.rialto/config.json now that Providers and Router live
  * in the DB, so it is read at boot before any HTTP surface exists. The
  * /api/config wire shapes derived from it are in api/config.ts.
  */
@@ -29,7 +29,7 @@ export const PersonaSchema = z
 export type Persona = z.infer<typeof PersonaSchema>
 
 // Whitelist of what is allowed to stay on disk in
-// ~/.claude-code-router/config.json once Providers / Router have been
+// ~/.rialto/config.json once Providers / Router have been
 // moved into the DB.
 export const ConfigEnvelopeSchema = z
   .object({

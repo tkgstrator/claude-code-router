@@ -37,7 +37,7 @@ export type RouterRequest = {
   log: Logger
   sessionId?: string
   // Inbound wire endpoint the request arrived on (e.g. `/v1/messages`,
-  // `/v1/chat/completions`, `/v1/responses`). CCR-idiom mutations that
+  // `/v1/chat/completions`, `/v1/responses`). Rialto-idiom mutations that
   // only make sense for the Anthropic client (persona injection notably)
   // gate on this: OpenAI-shape callers get the exact request they sent,
   // Anthropic-shape callers still get the enrichments Claude Code
@@ -52,7 +52,7 @@ export type RouterRequest = {
   scenarioType?: ScenarioType
   tokenCount?: number
   // Set by selectModel: true when the request carried a
-  // <CCR-SUBAGENT-MODEL> tag, so the pipeline routes and fails over on the
+  // <RIALTO-SUBAGENT-MODEL> tag, so the pipeline routes and fails over on the
   // scenario's `subagent` route instead of the `agent` route.
   isSubagent?: boolean
   // Set by selectModel: the fallback chain to walk for this request. When

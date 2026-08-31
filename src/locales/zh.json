@@ -14,7 +14,7 @@
     "hide_details": "隐藏技术细节"
   },
   "app": {
-    "title": "Claude Code Router",
+    "title": "Rialto",
     "save": "保存",
     "save_and_restart": "保存并重启",
     "cancel": "取消",
@@ -134,7 +134,7 @@
     "sync": "同步",
     "current": "当前速率限制",
     "routing": "模型路由",
-    "routingHint": "Claude Code 请求的模型与 CCR 实际发往上游的模型对照。",
+    "routingHint": "Claude Code 请求的模型与 Rialto 实际发往上游的模型对照。",
     "routingEmpty": "尚无路由数据。",
     "routingLaneAgent": "代理",
     "routingLaneSubagent": "子",
@@ -198,7 +198,7 @@
     "invalidApiKey": "API密钥无效",
     "configError": "配置未加载",
     "validating": "正在验证API密钥...",
-    "keyHint": "首次启动时，API 密钥已打印到服务器控制台（查找 [ccr] APIKEY= 行）并保存到 ~/.claude-code-router/config.json"
+    "keyHint": "首次启动时，API 密钥已打印到服务器控制台（查找 [rialto] APIKEY= 行）并保存到 ~/.rialto/config.json"
   },
   "setup": {
     "title": "配置 API Key",
@@ -322,7 +322,7 @@
     "import_cred_submit": "导入",
     "oauth_result_success_title": "登录成功",
     "oauth_result_failure_title": "登录失败",
-    "oauth_result_success_body": "已成功登录 {{provider}}。可以关闭此标签页并返回 Claude Code Router。",
+    "oauth_result_success_body": "已成功登录 {{provider}}。可以关闭此标签页并返回 Rialto。",
     "oauth_result_close_tab": "关闭此标签页",
     "oauth_result_provider_claude": "Claude Code",
     "oauth_result_provider_codex": "Codex",

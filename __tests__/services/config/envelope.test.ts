@@ -79,42 +79,42 @@ describe('readConfigFile', () => {
   })
 
   test('interpolates $VAR_NAME', async () => {
-    process.env.TEST_CCR_KEY = 'sk-real'
-    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$TEST_CCR_KEY' }))
+    process.env.TEST_RIALTO_KEY = 'sk-real'
+    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$TEST_RIALTO_KEY' }))
     const cfg = await readConfigFile()
     expect(cfg.APIKEY).toBe('sk-real')
-    delete process.env.TEST_CCR_KEY
+    delete process.env.TEST_RIALTO_KEY
   })
 
   test('interpolates ${VAR_NAME}', async () => {
-    process.env.TEST_CCR_HOST = '0.0.0.0'
-    await writeConfig(JSON.stringify({ HOST: '${TEST_CCR_HOST}', LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' }))
+    process.env.TEST_RIALTO_HOST = '0.0.0.0'
+    await writeConfig(JSON.stringify({ HOST: '${TEST_RIALTO_HOST}', LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' }))
     const cfg = await readConfigFile()
     expect(cfg.HOST).toBe('0.0.0.0')
-    delete process.env.TEST_CCR_HOST
+    delete process.env.TEST_RIALTO_HOST
   })
 
   test('keeps literal when env var is unset', async () => {
-    delete process.env.UNSET_CCR_VAR
-    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$UNSET_CCR_VAR' }))
+    delete process.env.UNSET_RIALTO_VAR
+    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$UNSET_RIALTO_VAR' }))
     const cfg = await readConfigFile()
-    expect(cfg.APIKEY).toBe('$UNSET_CCR_VAR')
+    expect(cfg.APIKEY).toBe('$UNSET_RIALTO_VAR')
   })
 
   test('interpolates env vars inside nested objects and arrays', async () => {
-    process.env.TEST_CCR_BASE = 'https://api.example.com'
+    process.env.TEST_RIALTO_BASE = 'https://api.example.com'
     await writeConfig(
       JSON.stringify({
         LOG: false,
         LOG_LEVEL: 'info',
         APIKEY: 'test-key',
-        Providers: [{ name: 'test', api_base_url: '$TEST_CCR_BASE' }]
+        Providers: [{ name: 'test', api_base_url: '$TEST_RIALTO_BASE' }]
       })
     )
     const cfg = await readConfigFile() as Record<string, unknown>
     const providers = cfg.Providers as { api_base_url: string }[]
     expect(providers[0].api_base_url).toBe('https://api.example.com')
-    delete process.env.TEST_CCR_BASE
+    delete process.env.TEST_RIALTO_BASE
   })
 
   test('returns default config when file does not exist', async () => {

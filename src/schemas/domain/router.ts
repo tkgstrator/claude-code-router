@@ -21,7 +21,7 @@ import { SCENARIO_KEYS } from '@/shared/db/types'
 const FallbackEntrySchema = z.string().nonempty()
 
 // The four families of Claude models CC (and everything upstream of
-// CCR that speaks the Anthropic wire format) actually sends: fable,
+// Rialto that speaks the Anthropic wire format) actually sends: fable,
 // opus, sonnet, haiku. The tier is derived from the requested model
 // name with case-insensitive substring matching, so `claude-opus-4-7`
 // tiers to `opus` regardless of version suffix. This is the vocabulary
@@ -117,7 +117,7 @@ export const RouteTargetSchema = z
 
 // The fields every scenario shares: TWO routes keyed by caller kind.
 // `agent` handles normal / main-agent traffic; `subagent` handles a
-// request carrying a <CCR-SUBAGENT-MODEL> tag. selectModel picks the
+// request carrying a <RIALTO-SUBAGENT-MODEL> tag. selectModel picks the
 // `subagent` route iff the tag is present, else `agent`. The tag's model
 // VALUE is no longer used to route — only its presence selects the route.
 //

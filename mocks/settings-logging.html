@@ -78,7 +78,7 @@ document.getElementById('root').innerHTML = `
       ${field('Level', 'info', 'fatal · error · warn · info · debug · trace', 'select')}
       ${field('Rotate at', '10', 'Megabytes. A new file is started past this size.')}
       <!-- NOT "older files are deleted on rotation": src/logger.ts opens
-           ccr-<date>-N.log with an incrementing suffix and never unlinks
+           rialto-<date>-N.log with an incrementing suffix and never unlinks
            anything, which is why this row shows a count on disk rather
            than a limit. The retention table below is the actual remedy. -->
       ${field('Keep files', '7', 'Rotation never deletes; prune below.')}
