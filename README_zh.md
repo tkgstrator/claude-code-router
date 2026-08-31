@@ -64,7 +64,9 @@ cat > ~/.claude-code-router/config.json << 'EOF'
 EOF
 ```
 
-> `APIKEY` 用于保护 Web 界面和 `/v1/*` 代理。如果省略，首次启动时会自动生成并打印到服务器控制台。
+> `APIKEY` 用于保护 Web 界面（`/api/*`）。如果省略，首次启动时会自动生成并打印到服务器控制台。
+>
+> **它不能用于 `/v1/*` 的认证。** 客户端使用在 **Settings → Access** 中签发的*访问令牌*连接：可单独吊销、可按请求归属、可限定到某个端点与路由配置。未签发任何令牌的实例无法通过代理。
 
 **第二步 — 下载 `compose.yaml`：**
 
@@ -88,19 +90,19 @@ EOF
 docker compose up -d
 ```
 
-服务在 `http://127.0.0.1:3456` 启动。在浏览器中打开该地址，使用 `APIKEY` 登录，然后在 **Providers** 和 **Router** 页面完成配置。
+服务在 `http://127.0.0.1:3456` 启动。在浏览器中打开该地址，使用 `APIKEY` 登录，然后在 **Providers** 和 **Routing** 页面完成配置。接着在 **Settings → Access** 签发访问令牌 —— 客户端认证使用的是它。
 
 **第五步 — 将 Claude Code 指向路由器：**
 
 ```shell
-ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
+ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=rialto_your-access-token claude
 ```
 
 或在 Shell 配置文件中永久设置：
 
 ```shell
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
-export ANTHROPIC_AUTH_TOKEN=your-secret-key
+export ANTHROPIC_AUTH_TOKEN=rialto_your-access-token
 ```
 
 **查看日志：**
@@ -141,8 +143,10 @@ CCR 支持通过订阅型提供商进行路由，无需单独的 API Key。
 
 | 键 | 说明 |
 |----|------|
-| `APIKEY` | 客户端须通过 `x-api-key` 或 `Authorization: Bearer` 发送的密钥 |
+| `APIKEY` | `/api/*` 的管理密钥，通过 `x-api-key` 或 `Authorization: Bearer` 发送。`/v1/*` 不接受 |
 | `HOST` | 监听地址。默认 `127.0.0.1`；反向代理后端使用 `0.0.0.0`（需要 `APIKEY`）|
+| `ACCESS_TEAM_DOMAIN` | Cloudflare Access 团队域名。与 `ACCESS_AUD` 一起校验 `/api/*` 的 assertion |
+| `ACCESS_AUD` | Access 应用的 AUD 标签。**两者都设置才会生效** |
 | `PORT` | 监听端口（默认：`3456`）|
 | `LOG` | `true` 以启用日志文件 |
 | `LOG_LEVEL` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |

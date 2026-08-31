@@ -145,7 +145,7 @@ function ServerFields({
     <>
       <TextField
         label='Host'
-        hint='Bind address. Set a bootstrap token before exposing beyond loopback.'
+        hint='Bind address. Put Cloudflare Access in front before exposing beyond loopback.'
         value={draft.HOST}
         onChange={(v) => set('HOST', v)}
         placeholder='127.0.0.1'
@@ -153,7 +153,7 @@ function ServerFields({
       <TextField label='Port' value={draft.PORT} inputMode='numeric' onChange={(v) => set('PORT', v)} />
       <StaticField
         label='Bootstrap token'
-        hint='Gates /api/* and /v1/*. Minted on first run. Reveal and copy it under Access.'
+        hint='Gates /api/* only — the admin recovery path. Clients call /v1/* with an issued access token.'
         value={maskSecret(wire.APIKEY)}
       />
       <TextField

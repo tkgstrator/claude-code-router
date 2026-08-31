@@ -64,7 +64,9 @@ cat > ~/.claude-code-router/config.json << 'EOF'
 EOF
 ```
 
-> `APIKEY` は Web UI と `/v1/*` プロキシを保護します。省略すると初回起動時に自動生成されサーバーコンソールに表示されます。
+> `APIKEY` は Web UI（`/api/*`）を保護します。省略すると初回起動時に自動生成されサーバーコンソールに表示されます。
+>
+> **`/v1/*` の認証には使えません。** クライアントは **Settings → Access** で発行する*アクセストークン*で接続します。個別に失効でき、リクエスト単位で帰属が取れ、エンドポイントとルーティングプロファイルにスコープできます。トークンを1本も発行していないインストールはプロキシを通せません。
 
 **ステップ 2 — `compose.yaml` をダウンロード：**
 
@@ -88,19 +90,19 @@ EOF
 docker compose up -d
 ```
 
-サーバーが `http://127.0.0.1:3456` で起動します。ブラウザで開き `APIKEY` でサインインした後、**Providers** ページと **Router** ページで設定を完了します。
+サーバーが `http://127.0.0.1:3456` で起動します。ブラウザで開き `APIKEY` でサインインした後、**Providers** ページと **Routing** ページで設定を完了します。続けて **Settings → Access** でアクセストークンを発行してください — クライアントが認証に使うのはこちらです。
 
 **ステップ 5 — Claude Code からルーターに接続：**
 
 ```shell
-ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
+ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=rialto_your-access-token claude
 ```
 
 シェル設定ファイルに永続的に追記する場合：
 
 ```shell
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
-export ANTHROPIC_AUTH_TOKEN=your-secret-key
+export ANTHROPIC_AUTH_TOKEN=rialto_your-access-token
 ```
 
 **ログを確認：**
@@ -141,8 +143,10 @@ CCR はサブスクリプション型プロバイダーを API キーなしで�
 
 | キー | 説明 |
 |------|------|
-| `APIKEY` | クライアントが `x-api-key` または `Authorization: Bearer` で送信する必要があるシークレットキー |
+| `APIKEY` | `/api/*` 用の管理シークレット。`x-api-key` または `Authorization: Bearer` で送信。`/v1/*` では受理されません |
 | `HOST` | リスニングアドレス。デフォルトは `127.0.0.1`。リバースプロキシ背後では `0.0.0.0`（`APIKEY` 必須）|
+| `ACCESS_TEAM_DOMAIN` | Cloudflare Access のチームドメイン。`ACCESS_AUD` と併せて `/api/*` の assertion を検証します |
+| `ACCESS_AUD` | Access アプリケーションの AUD タグ。**両方揃わないと有効になりません** |
 | `PORT` | リスニングポート（デフォルト：`3456`）|
 | `LOG` | `true` でログファイルを有効化 |
 | `LOG_LEVEL` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |

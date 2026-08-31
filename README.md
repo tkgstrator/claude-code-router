@@ -64,7 +64,9 @@ cat > ~/.claude-code-router/config.json << 'EOF'
 EOF
 ```
 
-> The `APIKEY` guards the web UI and the `/v1/*` proxy. If you omit it, one is generated on first boot and printed to the server console.
+> The `APIKEY` guards the web UI (`/api/*`). If you omit it, one is generated on first boot and printed to the server console.
+>
+> **It does not authenticate `/v1/*`.** Clients call the proxy with an *access token* you issue under **Settings → Access** — individually revocable, attributable per request, and scopeable to one endpoint and routing profile. An install with no tokens issued cannot proxy.
 
 **Step 2 — Download `compose.yaml`:**
 
@@ -88,19 +90,19 @@ EOF
 docker compose up -d
 ```
 
-The server starts at `http://127.0.0.1:3456`. Open that URL in a browser, sign in with your `APIKEY`, and use the **Providers** and **Router** pages to finish configuration.
+The server starts at `http://127.0.0.1:3456`. Open that URL in a browser, sign in with your `APIKEY`, and use the **Providers** and **Routing** pages to finish configuration. Then issue an access token under **Settings → Access** — that is what your clients authenticate with.
 
 **Step 5 — Point Claude Code at the router:**
 
 ```shell
-ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=your-secret-key claude
+ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=rialto_your-access-token claude
 ```
 
 Or set permanently in your shell profile:
 
 ```shell
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
-export ANTHROPIC_AUTH_TOKEN=your-secret-key
+export ANTHROPIC_AUTH_TOKEN=rialto_your-access-token
 ```
 
 **View logs:**
@@ -141,8 +143,10 @@ Boot-time scalars and disk-resident objects live here. Environment-variable inte
 
 | Key | Description |
 |-----|-------------|
-| `APIKEY` | Secret key clients must send as `x-api-key` or `Authorization: Bearer` |
+| `APIKEY` | Admin secret for `/api/*`. Sent as `x-api-key` or `Authorization: Bearer`. Not accepted on `/v1/*` |
 | `HOST` | Listen address. Defaults to `127.0.0.1`; set to `0.0.0.0` when behind a reverse proxy (requires `APIKEY`) |
+| `ACCESS_TEAM_DOMAIN` | Cloudflare Access team domain. With `ACCESS_AUD`, verifies the Access assertion on `/api/*` |
+| `ACCESS_AUD` | Access application AUD tag. Both must be set — one alone enables nothing |
 | `PORT` | Listen port (default: `3456`) |
 | `LOG` | `true` to enable log files |
 | `LOG_LEVEL` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |
@@ -332,7 +336,7 @@ CCR is not just a Claude Code proxy — it also exposes an **OpenAI-compatible A
 | `POST` | `/v1/chat/completions`   | Standard Chat Completions — stream + non-stream. Body's `model` field takes the `provider,model` id from `/v1/models`. |
 | `POST` | `/v1/responses`          | OpenAI Responses API — stream + non-stream. Same model addressing as above. |
 
-Auth on these three paths is **`Authorization: Bearer <APIKEY>` only** (the `x-api-key` header — an Anthropic convention — is rejected here, and 401 bodies follow OpenAI's `{error:{message,type,code}}` shape). The Anthropic-style `/v1/messages` endpoint used by Claude Code keeps its existing dual-mode auth (`x-api-key` + `Bearer`).
+Auth on these three paths is **`Authorization: Bearer <access token>` only** (the `x-api-key` header — an Anthropic convention — is rejected here, and 401 bodies follow OpenAI's `{error:{message,type,code}}` shape). The Anthropic-style `/v1/messages` endpoint used by Claude Code keeps its existing dual-mode auth (`x-api-key` + `Bearer`).
 
 ### Example — OpenAI Python SDK against your Codex subscription
 
