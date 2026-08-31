@@ -77,7 +77,11 @@ document.getElementById('root').innerHTML = `
       ${field('Write to file', true, 'Off keeps logging to stdout only.', 'toggle')}
       ${field('Level', 'info', 'fatal · error · warn · info · debug · trace', 'select')}
       ${field('Rotate at', '10', 'Megabytes. A new file is started past this size.')}
-      ${field('Keep files', '7', 'Older files are deleted on rotation.')}
+      <!-- NOT "older files are deleted on rotation": src/logger.ts opens
+           ccr-<date>-N.log with an incrementing suffix and never unlinks
+           anything, which is why this row shows a count on disk rather
+           than a limit. The retention table below is the actual remedy. -->
+      ${field('Keep files', '7', 'Rotation never deletes; prune below.')}
 
       <div class="flex items-center gap-3 border-t border-border px-6 pt-6 pb-3">
         <h2 class="text-sm font-semibold">Request capture</h2>
