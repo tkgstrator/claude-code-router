@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Routing</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, mono, meter, btn } = window.Shell
+
+// ─── The fix for "every routing setting is messages-only" ─────────────
+// The old build hard-coded a router bypass for /v1/chat/completions and
+// /v1/responses (scenario-router.ts:117-128) and nothing in the UI said
+// so. Here the surface is the OUTERMOST selector: you pick which wire
+// format you are configuring, then whether the router applies to it at
+// all, and only then the scenario / lane / chain.
+const SURFACES = [
+  { id: 'messages',  label: '/v1/messages',         mode: 'routed',      hint: 'Claude Code' },
+  { id: 'chat',      label: '/v1/chat/completions', mode: 'routed',      hint: 'OpenAI SDK' },
+  { id: 'responses', label: '/v1/responses',        mode: 'passthrough', hint: 'Codex CLI' },
+  { id: 'gemini',    label: '/v1beta/models/*',     mode: 'passthrough', hint: 'Gemini CLI' }
+]
+const ACTIVE_SURFACE = 'messages'
+
+const surfaceTab = (s) => {
+  const on = s.id === ACTIVE_SURFACE
+  return `
+    <button class="relative flex flex-col items-start gap-0.5 border-b-2 px-4 py-2.5 text-left transition-colors ${
+      on ? 'border-b-foreground' : 'border-b-transparent hover:bg-muted/50'
+    }">
+      <span class="font-mono text-xs ${on ? 'text-foreground' : 'text-muted-foreground'}">${s.label}</span>
+      <span class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        ${s.hint} · ${s.mode === 'routed' ? '<span class="text-emerald-600 dark:text-emerald-400">routed</span>' : 'passthrough'}
+      </span>
+    </button>`
+}
+
+const SCENARIOS = [
+  { id: 'default',     label: 'Default',      count: 5 },
+  { id: 'think',       label: 'Think',        count: 4 },
+  { id: 'longContext', label: 'Long context', count: 3 },
+  { id: 'webSearch',   label: 'Web search',   count: 2 },
+  { id: 'image',       label: 'Image',        count: 2 }
+]
+const ACTIVE_SCENARIO = 'default'
+
+const scenarioTab = (s) => {
+  const on = s.id === ACTIVE_SCENARIO
+  return `
+    <button class="flex items-center gap-2 border-b-2 px-3 py-2 text-xs transition-colors ${
+      on ? 'border-b-foreground font-medium' : 'border-b-transparent text-muted-foreground hover:text-foreground'
+    }">
+      ${s.label}<span class="font-mono text-[10px] tabular-nums text-muted-foreground">${s.count}</span>
+    </button>`
+}
+
+// ─── Preference chain ─────────────────────────────────────────────────
+// Priority order is the whole point, so the row leads with the ordinal
+// and a drag handle. Quota / health / weight are separate columns —
+// never packed into one cell.
+const CHAIN = [
+  { n: 1, target: 'claude-code,claude-opus-4-8',  tier: 'opus',   weight: '0.60', quota: 71, health: '99.8%', state: 'throttled', on: true },
+  { n: 2, target: 'claude-code,claude-fable-5',   tier: 'fable',  weight: '1.00', quota: 34, health: '99.9%', state: 'ready',     on: true },
+  { n: 3, target: 'codex,gpt-5.5',                tier: 'opus',   weight: '0.00', quota: 88, health: '98.1%', state: 'exhausted', on: true },
+  { n: 4, target: 'gemini-cli,gemini-3.1-pro',    tier: 'opus',   weight: '1.00', quota: 12, health: '96.4%', state: 'ready',     on: true },
+  { n: 5, target: 'claude-code,claude-sonnet-4-6',tier: 'sonnet', weight: '1.00', quota: 71, health: '99.9%', state: 'ready',     on: false }
+]
+
+const stateTone = { ready: 'ok', throttled: 'warn', exhausted: 'bad' }
+
+const chainRow = (e) => `
+  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50 ${e.on ? '' : 'opacity-45'}">
+    <td class="py-2.5 pl-6 pr-2">
+      <div class="flex items-center gap-2">
+        <i class="ri-draggable text-base leading-none text-muted-foreground/50"></i>
+        <span class="font-mono text-xs tabular-nums text-muted-foreground">${e.n}</span>
+      </div>
+    </td>
+    <td class="px-2 font-mono text-xs">${e.target}</td>
+    <td class="px-2">${pill(e.tier, 'mute')}</td>
+    <td class="px-2">${pill(e.state, stateTone[e.state])}</td>
+    <td class="px-2 text-right font-mono text-xs tabular-nums">${e.weight}</td>
+    <td class="px-2">
+      <div class="flex items-center gap-2">
+        <div class="w-16">${meter(e.quota)}</div>
+        <span class="font-mono text-[11px] tabular-nums text-muted-foreground">${e.quota}%</span>
+      </div>
+    </td>
+    <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${e.health}</td>
+    <td class="py-2.5 pl-2 pr-6">
+      <div class="flex items-center justify-end gap-1">
+        <span class="inline-flex h-4 w-7 items-center rounded-full ${e.on ? 'bg-foreground' : 'bg-muted-foreground/30'} px-0.5">
+          <span class="size-3 rounded-full bg-background ${e.on ? 'translate-x-3' : ''}"></span>
+        </span>
+        <button class="ml-1 text-muted-foreground/60 hover:text-foreground"><i class="ri-more-2-fill text-sm"></i></button>
+      </div>
+    </td>
+  </tr>`
+
+const chain = `
+  <table class="w-full table-fixed">
+    <colgroup><col class="w-16"><col><col class="w-20"><col class="w-24"><col class="w-20"><col class="w-32"><col class="w-20"><col class="w-24"></colgroup>
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+        <th class="pb-2 pl-6 pr-2 text-left font-medium">#</th>
+        <th class="px-2 text-left font-medium">Target</th>
+        <th class="px-2 text-left font-medium">Tier</th>
+        <th class="px-2 text-left font-medium">State</th>
+        <th class="px-2 text-right font-medium">Weight</th>
+        <th class="px-2 text-left font-medium">Quota</th>
+        <th class="px-2 text-right font-medium">Health</th>
+        <th class="pb-2 pl-2 pr-6 text-right font-medium">On</th>
+      </tr>
+    </thead>
+    <tbody>${CHAIN.map(chainRow).join('')}</tbody>
+  </table>`
+
+// ─── Right rail: constraints + rules ──────────────────────────────────
+const constraint = (label, value, hint) => `
+  <div class="border-l-2 border-l-transparent px-4 py-3 transition-colors hover:border-l-border hover:bg-muted/50">
+    <div class="flex items-baseline gap-2">
+      <span class="text-xs">${label}</span>
+      <span class="ml-auto font-mono text-xs">${value}</span>
+    </div>
+    <div class="mt-0.5 text-[11px] text-muted-foreground">${hint}</div>
+  </div>`
+
+const RULES = [
+  { when: 'requestedModel matches <span class="font-mono">*haiku*</span>', then: 'claude-code,claude-haiku-4-5' },
+  { when: 'tokens &gt; <span class="font-mono">60,000</span>', then: 'longContext chain' },
+  { when: 'has <span class="font-mono">&lt;RIALTO-SUBAGENT-MODEL&gt;</span>', then: 'subagent lane' }
+]
+
+const rule = (r) => `
+  <div class="border-l-2 border-l-transparent px-4 py-3 transition-colors hover:border-l-border hover:bg-muted/50">
+    <div class="text-[11px] uppercase tracking-wider text-muted-foreground">when</div>
+    <div class="mt-0.5 text-xs">${r.when}</div>
+    <div class="mt-2 text-[11px] uppercase tracking-wider text-muted-foreground">then</div>
+    <div class="mt-0.5 font-mono text-xs">${r.then}</div>
+  </div>`
+
+document.getElementById('root').innerHTML = `
+  <!-- Surface selector: the outermost axis of the whole screen -->
+  <div class="flex items-stretch gap-0 border-b border-border px-2">
+    ${SURFACES.map(surfaceTab).join('')}
+  </div>
+
+  <!-- Mode + profile for the selected surface -->
+  <div class="flex items-center gap-4 border-b border-border bg-muted/30 px-6 py-3">
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-muted-foreground">Routing</span>
+      <div class="flex rounded-md border border-border p-0.5">
+        <button class="rounded bg-foreground px-2.5 py-1 text-[11px] font-medium text-background">Routed</button>
+        <button class="rounded px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground">Passthrough</button>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-muted-foreground">Profile</span>
+      <button class="inline-flex h-7 items-center gap-2 rounded-md border border-border px-2.5 text-xs hover:bg-muted/60">
+        live <i class="ri-arrow-down-s-line text-sm text-muted-foreground"></i>
+      </button>
+    </div>
+    <p class="ml-auto max-w-md text-right text-[11px] leading-snug text-muted-foreground">
+      Passthrough sends the caller's <span class="font-mono">provider,model</span> straight upstream.
+      Routed applies scenarios, rules and quota-aware failover.
+    </p>
+  </div>
+
+  <div class="grid grid-cols-[1fr_20rem]">
+    <div class="min-w-0 border-r border-border">
+      <div class="flex items-center gap-1 border-b border-border px-6">
+        ${SCENARIOS.map(scenarioTab).join('')}
+      </div>
+
+      <div class="flex items-center gap-3 px-6 py-3">
+        <div class="flex rounded-md border border-border p-0.5">
+          <button class="rounded bg-foreground px-2.5 py-1 text-[11px] font-medium text-background">Agent</button>
+          <button class="rounded px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground">Subagent</button>
+        </div>
+        <span class="text-[11px] text-muted-foreground">5 targets · 1 disabled</span>
+        <div class="ml-auto flex gap-2">
+          ${btn('Add target', 'outline', 'ri-add-line')}
+          ${btn('Save', 'primary', 'ri-check-line')}
+        </div>
+      </div>
+
+      ${chain}
+
+      <div class="px-6 py-4">
+        <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+          <i class="ri-information-line mr-1 align-[-1px]"></i>
+          Order is preference, top first. A target is skipped when it is disabled, exhausted,
+          or its scheduler weight is <span class="font-mono">0.00</span>. Weights are published by the routing
+          scheduler every tick — edit the chain, not the weights.
+        </div>
+      </div>
+    </div>
+
+    <aside class="min-w-0">
+      <div class="px-4 pt-5 pb-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Constraints</h2>
+      </div>
+      ${constraint('Tier respect', 'sonnet', 'never fall below this tier')}
+      ${constraint('Healthiness floor', '95%', 'skip targets below this')}
+      ${constraint('When exhausted', 'next', 'next / wait / error')}
+      ${constraint('Cross-provider', 'on', 'allow different auth modes')}
+
+      <div class="border-t border-border px-4 pt-5 pb-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rules</h2>
+      </div>
+      ${RULES.map(rule).join('')}
+
+      <div class="border-t border-border px-4 pt-5 pb-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Presets</h2>
+      </div>
+      <div class="px-4 pb-6">
+        <div class="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
+          <i class="ri-bookmark-line text-sm text-muted-foreground"></i>
+          <span>Cost-first</span>
+          <span class="ml-auto text-[11px] text-muted-foreground">Apply</span>
+        </div>
+        <div class="mt-2 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
+          <i class="ri-bookmark-line text-sm text-muted-foreground"></i>
+          <span>Max quality</span>
+          <span class="ml-auto text-[11px] text-muted-foreground">Apply</span>
+        </div>
+      </div>
+    </aside>
+  </div>`
+
+renderShell({
+  active: 'routing',
+  title: 'Routing',
+  subtitle: 'Per inbound surface · scenario · lane',
+  actions: btn('Live map', 'outline', 'ri-node-tree') + btn('Simulate', 'ghost', 'ri-play-line')
+})
+</script>
+</body>
+</html>

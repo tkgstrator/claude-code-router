@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Logging</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn, railItem, SETTINGS_RAIL } = window.Shell
+
+const field = (label, value, hint, kind = 'text') => `
+  <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
+    <div>
+      <div class="text-xs font-medium">${label}</div>
+      ${hint ? `<div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">${hint}</div>` : ''}
+    </div>
+    <div>
+      ${
+        kind === 'toggle'
+          ? `<span class="inline-flex h-5 w-9 items-center rounded-full ${value ? 'bg-foreground' : 'bg-muted-foreground/30'} px-0.5 align-middle">
+               <span class="size-4 rounded-full bg-background ${value ? 'translate-x-4' : ''}"></span>
+             </span>`
+          : kind === 'select'
+            ? `<button class="inline-flex h-8 min-w-40 items-center gap-2 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
+                 <span class="font-mono">${value}</span>
+                 <i class="ri-arrow-down-s-line ml-auto text-sm text-muted-foreground"></i>
+               </button>`
+            : `<div class="flex h-8 max-w-md items-center rounded-md border border-border px-3 font-mono text-xs">${value}</div>`
+      }
+    </div>
+  </div>`
+
+// Retention is the part worth surfacing: RequestLog and Message grow
+// without bound today and nothing in the UI says how big they are.
+const STORES = [
+  { name: 'RequestLog',    rows: '1.24M',  size: '412 MB', keep: '90 days' },
+  { name: 'Message',       rows: '318k',   size: '1.8 GB', keep: '30 days' },
+  { name: 'UsageSnapshot', rows: '82.1k',  size: '9.4 MB', keep: '14 days' },
+  { name: 'Log files',     rows: '—',      size: '186 MB', keep: '7 files' }
+]
+
+const storeRow = (s) => `
+  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50">
+    <td class="py-2.5 pl-6 pr-3 font-mono text-xs">${s.name}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums text-muted-foreground">${s.rows}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${s.size}</td>
+    <td class="px-3">
+      <button class="inline-flex h-7 items-center gap-2 rounded-md border border-border px-2.5 text-xs transition-colors hover:bg-muted/60">
+        ${s.keep}<i class="ri-arrow-down-s-line text-sm text-muted-foreground"></i>
+      </button>
+    </td>
+    <td class="py-2.5 pl-3 pr-6 text-right">
+      <button class="text-[11px] text-muted-foreground hover:text-destructive">Prune now</button>
+    </td>
+  </tr>`
+
+document.getElementById('root').innerHTML = `
+  <div class="grid h-full grid-cols-[13rem_1fr]">
+
+    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
+      ${SETTINGS_RAIL.map((r) => railItem(r, 'logging')).join('')}
+    </aside>
+
+    <div class="min-w-0 overflow-y-auto">
+      <div class="flex items-center gap-3 px-6 pt-6 pb-3">
+        <h2 class="text-sm font-semibold">Server log</h2>
+        <span class="text-[11px] text-muted-foreground">pino → ~/.rialto/logs/</span>
+        <div class="ml-auto">${btn('Open in Activity', 'outline', 'ri-external-link-line')}</div>
+      </div>
+      ${field('Write to file', true, 'Off keeps logging to stdout only.', 'toggle')}
+      ${field('Level', 'info', 'fatal · error · warn · info · debug · trace', 'select')}
+      ${field('Rotate at', '10', 'Megabytes. A new file is started past this size.')}
+      ${field('Keep files', '7', 'Older files are deleted on rotation.')}
+
+      <div class="flex items-center gap-3 border-t border-border px-6 pt-6 pb-3">
+        <h2 class="text-sm font-semibold">Request capture</h2>
+        <span class="text-[11px] text-muted-foreground">what lands in Activity</span>
+      </div>
+      ${field('Record requests', true, 'One RequestLog row per upstream call — tokens, cost, latency, routing decision.', 'toggle')}
+      ${field('Record messages', true, 'Chat turns for the session view. Never includes the system prompt or tool definitions.', 'toggle')}
+      ${field('Redact tool args', false, 'Store tool_use blocks with arguments stripped.', 'toggle')}
+
+      <div class="px-6 py-4">
+        <div class="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+          <div class="flex items-center gap-2">
+            <i class="ri-alert-line text-sm text-amber-600 dark:text-amber-400"></i>
+            <span class="text-xs font-medium">Message capture stores conversation content</span>
+            ${pill('privacy', 'warn')}
+          </div>
+          <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            User and assistant turns are written to Postgres in the clear so the session view can
+            replay them. Turn it off if this database is shared, or shorten the retention below.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 border-t border-border px-6 pt-6 pb-3">
+        <h2 class="text-sm font-semibold">Retention</h2>
+        <span class="text-[11px] text-muted-foreground">2.4 GB total</span>
+      </div>
+      <table class="w-full table-fixed">
+        <colgroup><col><col class="w-24"><col class="w-24"><col class="w-32"><col class="w-24"></colgroup>
+        <thead>
+          <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+            <th class="pb-2 pl-6 pr-3 text-left font-medium">Store</th>
+            <th class="px-3 text-right font-medium">Rows</th>
+            <th class="px-3 text-right font-medium">Size</th>
+            <th class="px-3 text-left font-medium">Keep</th>
+            <th class="pb-2 pl-3 pr-6"></th>
+          </tr>
+        </thead>
+        <tbody>${STORES.map(storeRow).join('')}</tbody>
+      </table>
+      <div class="h-10"></div>
+    </div>
+
+  </div>`
+
+renderShell({
+  active: 'settings',
+  title: 'Logging',
+  subtitle: 'level info · 2.4 GB captured',
+  actions: btn('Discard', 'ghost', '') + btn('Save', 'primary', 'ri-check-line')
+})
+</script>
+</body>
+</html>
