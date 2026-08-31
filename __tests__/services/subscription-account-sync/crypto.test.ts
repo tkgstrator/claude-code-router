@@ -24,12 +24,15 @@ describe('encryptionKey', () => {
     expect(encryptionKey().toString('hex')).toBe(HEX_A)
   })
 
-  test('falls back to the pre-rename CCR_ACCOUNT_ENCRYPTION_KEY', () => {
+  test('ignores the pre-rename CCR_ACCOUNT_ENCRYPTION_KEY, and says how to fix it', () => {
+    // The old name is no longer read. Existing rows were encrypted under
+    // its value, so the error has to point at the rename rather than
+    // just reporting a missing variable.
     process.env.CCR_ACCOUNT_ENCRYPTION_KEY = HEX_A
-    expect(encryptionKey().toString('hex')).toBe(HEX_A)
+    expect(() => encryptionKey()).toThrow(/CCR_ACCOUNT_ENCRYPTION_KEY/)
   })
 
-  test('prefers the new name when both are set', () => {
+  test('reads only the new name', () => {
     process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY = HEX_A
     process.env.CCR_ACCOUNT_ENCRYPTION_KEY = HEX_B
     expect(encryptionKey().toString('hex')).toBe(HEX_A)

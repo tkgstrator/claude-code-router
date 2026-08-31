@@ -9,22 +9,22 @@ import path from 'node:path'
  * starts (it reads /etc/passwd) so setting process.env.HOME at preload
  * time is too late. Production never sets it.
  *
- * CCR_HOME_DIR is the pre-rename name of the same variable. It is still
- * honoured, second, so an operator who set it does not silently get a
- * different directory after upgrading. Exported as a function purely so
- * the fallback is testable — HOME_DIR itself is frozen at import time.
+ * Exported as a function purely so the resolution is testable — HOME_DIR
+ * itself is frozen at import time.
+ *
+ * The pre-rename CCR_HOME_DIR is no longer read. It was a deliberate
+ * choice to drop it: unlike a credential, pointing at the wrong home is
+ * self-announcing — the server comes up on an empty configuration and
+ * the operator sees it immediately.
  */
-export const resolveHomeDir = (env: NodeJS.ProcessEnv, homedir: string): string =>
-  env.RIALTO_HOME_DIR ?? env.CCR_HOME_DIR ?? path.join(homedir, '.rialto')
-
-/**
- * True when the deprecated CCR_HOME_DIR was the variable that decided
- * HOME_DIR. The warning itself is emitted from the boot path, not here:
- * this module cannot import the logger, because the logger imports
- * LOG_DIR from it.
- */
-export const HOME_DIR_ENV_IS_LEGACY =
-  process.env.RIALTO_HOME_DIR === undefined && process.env.CCR_HOME_DIR !== undefined
+export const resolveHomeDir = (env: NodeJS.ProcessEnv, homedir: string): string => {
+  const pinned = env.RIALTO_HOME_DIR
+  // Length-checked, not just null-checked: an exported-but-empty
+  // RIALTO_HOME_DIR would otherwise resolve the home to '' and scatter
+  // config.json and the log directory over the process's cwd.
+  if (typeof pinned === 'string' && pinned.length > 0) return pinned
+  return path.join(homedir, '.rialto')
+}
 
 export const HOME_DIR = resolveHomeDir(process.env, os.homedir())
 

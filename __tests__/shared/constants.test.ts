@@ -19,13 +19,17 @@ describe('resolveHomeDir', () => {
     expect(resolveHomeDir({ RIALTO_HOME_DIR: '/tmp/pinned' }, '/home/op')).toBe('/tmp/pinned')
   })
 
-  test('still honours the pre-rename CCR_HOME_DIR', () => {
-    // An operator who set this before the rename must not silently be
-    // moved to ~/.rialto and find an empty configuration.
-    expect(resolveHomeDir({ CCR_HOME_DIR: '/tmp/legacy' }, '/home/op')).toBe('/tmp/legacy')
+  test('ignores the pre-rename CCR_HOME_DIR', () => {
+    // Dropped deliberately: unlike a credential, pointing at the wrong
+    // home announces itself — the server comes up on an empty
+    // configuration and the operator sees it at once.
+    expect(resolveHomeDir({ CCR_HOME_DIR: '/tmp/legacy' }, '/home/op')).toBe('/home/op/.rialto')
   })
+})
 
-  test('prefers the new name when both are set', () => {
-    expect(resolveHomeDir({ RIALTO_HOME_DIR: '/tmp/new', CCR_HOME_DIR: '/tmp/legacy' }, '/home/op')).toBe('/tmp/new')
-  })
+test('an empty RIALTO_HOME_DIR falls back rather than resolving to ""', () => {
+  // An exported-but-empty variable is a common shell accident. Treating
+  // it as "set" would put config.json and the log directory in the
+  // process's cwd.
+  expect(resolveHomeDir({ RIALTO_HOME_DIR: '' }, '/home/op')).toBe('/home/op/.rialto')
 })

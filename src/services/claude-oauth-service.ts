@@ -17,8 +17,7 @@ import { logger } from '../logger'
 // Diagnostic flag — set RIALTO_DEBUG_OAUTH=1 to log the token-exchange
 // request body alongside the response on failure. Off by default to
 // keep the `code` / `code_verifier` out of routine logs. The pre-rename
-// CCR_DEBUG_OAUTH still works.
-const DEBUG_OAUTH = process.env.RIALTO_DEBUG_OAUTH === '1' || process.env.CCR_DEBUG_OAUTH === '1'
+const DEBUG_OAUTH = process.env.RIALTO_DEBUG_OAUTH === '1'
 
 // Loopback OAuth flow — the only redirect_uri pattern the Claude Code
 // OAuth client allows (per the public metadata at

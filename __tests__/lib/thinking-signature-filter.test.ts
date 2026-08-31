@@ -25,12 +25,12 @@ test('a Rialto-minted placeholder signature is dropped', () => {
   expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'rialto_1756468800000' })).toBe(false)
 })
 
-test('a placeholder minted before the rename is still dropped', () => {
-  // These live in transcripts written by pre-rename builds and are
-  // replayed on every later turn of the same conversation. Matching only
-  // the new prefix would forward them to Anthropic, which 400s the
-  // conversation for good.
-  expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'ccr_1756468800000' })).toBe(false)
+test('a pre-rename placeholder is no longer recognised', () => {
+  // The `ccr_` prefix is gone. Such a placeholder now reaches Anthropic,
+  // which rejects it — accepted because no transcript in the installs
+  // this rename covers contains one. Pinned so the consequence of
+  // re-adding a prefix, or of this one resurfacing, is visible.
+  expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'ccr_1756468800000' })).toBe(true)
 })
 
 test('non-thinking blocks are never touched', () => {

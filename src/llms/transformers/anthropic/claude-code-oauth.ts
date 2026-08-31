@@ -85,12 +85,14 @@ type ClaudeCodeRequestShape = {
 // text with reasoning locally — they are NOT Anthropic signatures and
 // Anthropic cannot validate them.
 //
-// Both spellings are recognised, and that is not cosmetic: a synthesised
-// signature is written into the client's transcript and replayed on
-// every later turn of the same conversation. Matching only the new
-// prefix would forward every `ccr_` placeholder minted before the
-// upgrade to Anthropic, which 400s the whole conversation permanently.
-const SYNTHETIC_SIGNATURE_PREFIXES = ['rialto_', 'ccr_']
+// Only the current prefix is matched. A synthesised signature is written
+// into the client's transcript and replayed on every later turn, so any
+// `ccr_` placeholder minted before the rename is now forwarded to
+// Anthropic, which rejects it and 400s that conversation for good.
+// Dropped deliberately, having confirmed no such placeholder exists in
+// this install's transcripts; restarting an affected conversation is the
+// only remedy if one ever turns up.
+const SYNTHETIC_SIGNATURE_PREFIXES = ['rialto_']
 
 export function keepSignedBlock(block: unknown): boolean {
   if (block === null || typeof block !== 'object') return true

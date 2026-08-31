@@ -15,7 +15,7 @@
     "test": "bun test __tests__/lib __tests__/db __tests__/preset",
     "test:coverage": "bun test --coverage __tests__/lib __tests__/db __tests__/preset",
     "test:providers": "bun test __tests__/providers",
-    "db:migrate:test": "TEST_DATABASE_URL=\"${TEST_DATABASE_URL:-postgres://postgres:password@postgres:5432/ccr_test}\" DATABASE_URL=\"$TEST_DATABASE_URL\" prisma migrate deploy",
+    "db:migrate:test": "TEST_DATABASE_URL=\"${TEST_DATABASE_URL:-postgres://postgres:password@postgres:5432/rialto_test}\" DATABASE_URL=\"$TEST_DATABASE_URL\" prisma migrate deploy",
     "scrape:openai-prices": "bun run scripts/scrape-openai-prices.ts",
     "scrape:anthropic-prices": "bun run scripts/scrape-anthropic-prices.ts",
     "scrape:google-prices": "bun run scripts/scrape-gemini-pricing.ts",

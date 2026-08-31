@@ -35,7 +35,6 @@
 - Prisma / PostgreSQL / Hono / Vite といった基盤の入れ替え
 - react-router-dom → TanStack Router のようなUI基盤の入れ替え（今回は基盤維持・設計刷新）
 - 上流 `musistudio/claude-code-router` との再同期（すでに別物）
-- ローカルDB名（`ccr` / `ccr_test`）の改名。既存ローカル環境を壊す割にリターンが無いので据え置く
 
 ---
 
@@ -219,24 +218,26 @@ if (req.inboundPath === '/v1/chat/completions' || req.inboundPath === '/v1/respo
 | `CCR`（識別子・コメント） | `Rialto` |
 | `ccr`（変数・関数名） | `rialto` |
 | `claude-code-router`（パッケージ/パス） | `rialto` |
-| `CCR_HOME_DIR` | `RIALTO_HOME_DIR`（旧名も読む・deprecation warn） |
+| `CCR_HOME_DIR` | `RIALTO_HOME_DIR`（旧名は読まない） |
 | `~/.claude-code-router` | `~/.rialto` |
 | `tkgling/claude-code-router`（Docker） | `tkgling/rialto` |
 | `@musistudio/claude-code-router`（package name） | `rialto` |
 | GitHubリポジトリ `claude-code-router` | `rialto` |
 
-**HOME_DIR移行**（最重要・唯一のデータリスク）:
+**HOME_DIR移行**（最重要・唯一のデータリスク）— 実装済み:
 
 ```
 起動時 migrateHomeDir():
   1. ~/.rialto が存在 → 何もしない（冪等）
   2. ~/.rialto が無く ~/.claude-code-router がある
-     → コピー（renameではない）して ~/.claude-code-router はそのまま残す
-     → 「旧ディレクトリは手動で削除してよい」旨をログに出す
+     → コピー → ファイル数を数え直して検証 → 一致したら旧ディレクトリを削除
+     → 検証に失敗したらコピー先を消す（旧ディレクトリは無傷のまま次回再試行）
   3. どちらも無い → 通常の initDir()
 ```
 
-rename ではなく **コピー**にするのは、ロールバック時に旧バージョンが動かなくなるのを避けるため。
+`fs.rename` ではなく **コピー→検証→削除** なのは、rename がファイルシステムを
+またぐと失敗するうえ、旧パスが消える前に検証する余地が無いため。どの段階で
+失敗しても旧ディレクトリは残るので、データを失わない。
 
 注意点:
 - `<CCR-SUBAGENT-MODEL>` タグは**外部契約**（ユーザーのサブエージェントプロンプトに書かれている）。`<RIALTO-SUBAGENT-MODEL>` を新名として受け付けつつ、旧タグも当面受理する
@@ -244,9 +245,16 @@ rename ではなく **コピー**にするのは、ロールバック時に旧�
 - `~/.claude/projects/<id>/claude-code-router.json`（プロジェクト単位のルーティング上書き）も外部契約。新名 `rialto.json` を優先し旧名もフォールバック
 - Prismaのスキーマコメント / locales 3言語 / README 3言語 / `docs/**` も対象
 
-完了条件:
-- 残存する `claude-code-router` 参照が「意図的な後方互換フォールバック」のみ
+完了条件（達成済み）:
+- 残存する `claude-code-router` 参照は3か所のみ — 移行元パス定数、その移行を
+  説明するコメント、そして npm 上の実際のパッケージ名（`src/services/update.ts`）
 - 旧HOME_DIRを持つ環境で起動 → 設定が引き継がれる統合テストがグリーン
+
+**旧名の受理は全廃した**（`CCR_HOME_DIR` / `CCR_ACCOUNT_ENCRYPTION_KEY` /
+`CCR_DEBUG_OAUTH` / `ccr_` thinking signature / DB名）。詳細は CLAUDE.md の
+対応表。`CCR_ACCOUNT_ENCRYPTION_KEY` だけは既存 `SubAccount` 行の復号鍵なので、
+変数名の変更時に**値を変えてはいけない** — `encryptionKey()` はその旨を含む
+エラーを投げる。
 
 ---
 
@@ -583,7 +591,7 @@ Routing画面には **Phase 2 で入る「面セレクタ」** が乗る。こ�
 - **UI**: `ui-mock-diff` スキルによるスクリーンショット差分（light / dark 両方）
 - **CI**: `Build` / `Type Check` / `Test` の3ゲートを維持
 
-Prismaマイグレーション後は `bun run db:migrate:test`（`ccr_test`）も必ず流す。
+Prismaマイグレーション後は `bun run db:migrate:test`（`rialto_test`）も必ず流す。
 
 ---
 
@@ -604,11 +612,11 @@ Prismaマイグレーション後は `bun run db:migrate:test`（`ccr_test`）�
 |---|---|---|
 | UIモック先行作成 | **Done → 承認済み** | 21ビュー × light/dark（42枚）。`bun run mocks:serve` で確認 |
 | `ui-mock-diff` スキル | **Done** | `bun run mocks:{css,shoot,diff}` |
-| 0 土台整備 | Not started | envelope.test.ts のフルスイート限定フレークは未解消。原因は特定済み（`CONFIG_FILE` がモジュール初回importで固定されるため、`CCR_HOME_DIR` を差し替えるテストがimport順に依存する） |
-| 1 Rialtoリネーム | Not started | UI表記のみ先行（サイドバーが `Rialto`）。HOME_DIR / パッケージ名は未着手 |
+| 0 土台整備 | **Done** | envelope.test.ts のフルスイート限定フレークは解消。原因は import順ではなく `readConfigFile` が `process.env` を上書き合成すること — テスト間で漏れた `API_TIMEOUT_MS` が結果を変えていた。各テストで `ENVELOPE_ENV_KEYS` を消して修正。フルスイート 1121 pass / 0 fail |
+| 1 Rialtoリネーム | **Done** | HOME_DIR移行（コピー→検証→旧削除）、旧環境変数の受理を全廃、DB名 `rialto` / `rialto_test`、`ccr_` thinking signature の受理を廃止。既存volumeは `bun run scripts/rename-dev-database.ts`。唯一残した後方互換は `<CCR-SUBAGENT-MODEL>` タグ（外部契約で、外すと**無言で**main-agent chainに落ちるため） |
 | 2 Inbound集約+多面ルーティング | **In Progress** | 2-1 完了（散っていた4箇所すべて記述子へ移管。ルート/認証/アクセスログのマウントもレジストリ由来）、2-2 完了、2-3 完了。残: 2-4 transformer選択の廃止、2-5 パリティ・マトリクス。`docs/architecture/inbound-surfaces.md` |
 | 3 Gemini | **In Progress** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。残: 3-2 サブスク枠（`gemini-cli` / Code Assist）。クォータ取得の可否は未検証 |
-| 3.5 認証 | Not started | `/api/identity` は表示専用で認証していない。AccessToken テーブルは未作成 |
-| 4 Zodスキーマ | Not started | |
+| 3.5 認証 | **In Progress** | 管理UIは Cloudflare Access JWT + ローカル免除、`/v1/*` は発行済みアクセストークンのみ。`AccessToken` テーブルと `src/services/access-token-service.ts` は稼働。bootstrap token は廃止済み。残: `/login` の削除 |
+| 4 Zodスキーマ | **Done** | primitives / wire / domain / api / forms の5層に分割し、グローバルbarrelを削除。着手前の計測で、計画が前提にしていた重複は存在しないことが判明（§Phase 4 に記録） |
 | 5 UI刷新 | **In Progress** | 21ビュー中20をルーティング済み。モック差分の中央値 3.55%（40ペア中28が5%未満）。旧コンポーネント98ファイル削除済み。残: activity-session（セッション実データ待ち）、i18n再編、`/login` 削除（Phase 3.5 待ち） |
 | 6 仕上げ・v3.0.0 | Not started | |

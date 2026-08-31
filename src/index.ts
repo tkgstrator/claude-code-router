@@ -50,7 +50,7 @@ import { ensureInboundSurfaces } from './services/inbound-surface-service'
 import { startRoutingScheduler } from './services/routing-scheduler'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
-import { HOME_DIR, HOME_DIR_ENV_IS_LEGACY } from './shared/constants'
+import { HOME_DIR } from './shared/constants'
 import { APP_VERSION } from './version'
 
 // Hono root. Backend routes live under src/api/<path>/route.ts (one
@@ -76,17 +76,11 @@ import { APP_VERSION } from './version'
 // logger's first file write — would make the copy a permanent no-op and
 // silently start the operator on an empty configuration.
 //
-// Skipped when the home directory is pinned by env (RIALTO_HOME_DIR /
-// CCR_HOME_DIR): ~/.rialto is then not the directory being read, so
-// copying into it would only litter the operator's home.
-if (process.env.RIALTO_HOME_DIR === undefined && process.env.CCR_HOME_DIR === undefined) {
+// Skipped when RIALTO_HOME_DIR pins the home elsewhere: ~/.rialto is
+// then not the directory being read, so moving into it would only
+// litter the operator's home.
+if (process.env.RIALTO_HOME_DIR === undefined) {
   await migrateHomeDir()
-}
-if (HOME_DIR_ENV_IS_LEGACY) {
-  logger.warn(
-    { HOME_DIR },
-    'CCR_HOME_DIR is deprecated and will be removed; rename it to RIALTO_HOME_DIR (the value is unchanged)'
-  )
 }
 await initDir()
 const envelope = await initConfig()

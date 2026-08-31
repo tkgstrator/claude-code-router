@@ -10,7 +10,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:password@postgres:5432/ccr
+      DATABASE_URL: postgres://postgres:password@postgres:5432/rialto
       REDIS_URL: redis://redis:6379
       # Optional: pin the API key. If unset, one is minted on first boot
       # and written into the config volume below.
@@ -43,11 +43,11 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: ccr
+      POSTGRES_DB: rialto
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ccr"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rialto"]
       interval: 10s
       timeout: 5s
       retries: 5

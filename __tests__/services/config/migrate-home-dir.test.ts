@@ -3,8 +3,9 @@
  *
  * This is the one step of the Rialto rename that can destroy an
  * operator's configuration, so the cases here are mostly about what it
- * must NOT do: overwrite an existing home, move rather than copy, or
- * leave a partial copy that the next boot mistakes for a finished one.
+ * must NOT do: overwrite an existing home, remove the original before
+ * the copy has been verified, or leave a partial copy that the next
+ * boot mistakes for a finished one.
  */
 import { afterEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -40,22 +41,21 @@ describe('migrateHomeDir', () => {
 
     const result = await migrateHomeDir(root)
 
-    expect(result.outcome).toBe('copied')
+    expect(result.outcome).toBe('moved')
     expect(result.fileCount).toBe(2)
     const moved = JSON.parse(readFileSync(join(root, HOME_DIR_NAME, 'config.json'), 'utf-8'))
     expect(moved.APIKEY).toBe('keep-me')
     expect(existsSync(join(root, HOME_DIR_NAME, 'logs', 'ccr-2026-08-31.log'))).toBe(true)
   })
 
-  test('leaves the original in place, so an older build still starts', async () => {
+  test('removes the original once the copy verifies', async () => {
     const root = newRoot()
     const legacy = seedLegacy(root)
 
-    await migrateHomeDir(root)
+    const result = await migrateHomeDir(root)
 
-    // Copy, not rename. A rollback to a pre-rename build must still find
-    // its configuration.
-    expect(existsSync(join(legacy, 'config.json'))).toBe(true)
+    expect(result.legacyRemoved).toBe(true)
+    expect(existsSync(legacy)).toBe(false)
   })
 
   test('does nothing when the new home already exists', async () => {
@@ -79,7 +79,7 @@ describe('migrateHomeDir', () => {
     const first = await migrateHomeDir(root)
     const second = await migrateHomeDir(root)
 
-    expect(first.outcome).toBe('copied')
+    expect(first.outcome).toBe('moved')
     expect(second.outcome).toBe('already-migrated')
     expect(second.fileCount).toBe(0)
   })
@@ -106,8 +106,10 @@ describe('migrateHomeDir', () => {
     // The half-copy is gone, so the next boot retries instead of running
     // on a fraction of the operator's configuration.
     expect(existsSync(join(root, HOME_DIR_NAME))).toBe(false)
-    // And the original is untouched.
+    // And nothing was removed: the original is the only copy that exists
+    // at this point, so deleting before verifying would lose it outright.
     expect(existsSync(join(legacy, 'config.json'))).toBe(true)
+    expect(result.legacyRemoved).toBe(false)
   })
 
   test('never throws — a failed migration must not stop the server booting', async () => {

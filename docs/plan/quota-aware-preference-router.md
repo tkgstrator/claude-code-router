@@ -203,7 +203,7 @@ flowchart TB
 
 ### 6.1 Prisma: `SubAccountQuota`（新規）
 
-`src/prisma/schema.prisma` に追記 → `bun run db:migrate -- --name add_subaccount_quota_and_weight_log` → **`bun run db:migrate:test` も必須**（ccr_test）。
+`src/prisma/schema.prisma` に追記 → `bun run db:migrate -- --name add_subaccount_quota_and_weight_log` → **`bun run db:migrate:test` も必須**（rialto_test）。
 
 既存 `SubAccountUsage` は (subAccountId, metric) の縦持ちで、スケジューラが 1 tick で全アカウントの全窓 + 429 観測 + 鮮度を読むには join / 集約が要る。また 429 観測やヘッダ由来の情報を置く場所がない。そこで **1 アカウント 1 行の横持ちテーブル**を新設する。`SubAccountUsage` は既存読み手（session-account-router / chain-failover / Usage 画面）が居るので**廃止しない**（コレクタが両方書く。§7.4）。
 

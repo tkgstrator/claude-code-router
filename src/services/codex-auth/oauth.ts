@@ -37,9 +37,9 @@ const CODEX_SCOPES = ['openid', 'profile', 'email', 'offline_access', 'api.conne
 // can reuse the Rialto server's port instead of spinning a second listener.
 export const CODEX_CALLBACK_PATH = '/auth/callback'
 
-// RIALTO_DEBUG_OAUTH=1 logs the token exchange; CCR_DEBUG_OAUTH is the
+// RIALTO_DEBUG_OAUTH=1 logs the token exchange.
 // pre-rename name and still works.
-const DEBUG_OAUTH = process.env.RIALTO_DEBUG_OAUTH === '1' || process.env.CCR_DEBUG_OAUTH === '1'
+const DEBUG_OAUTH = process.env.RIALTO_DEBUG_OAUTH === '1'
 
 export const buildCodexAuthorizeUrl = (opts: { redirectUri: string; state: string; codeChallenge: string }): string => {
   // Param set captured verbatim from a fresh `codex login` run.

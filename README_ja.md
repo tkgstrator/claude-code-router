@@ -334,7 +334,7 @@ bun install
 
 ```shell
 # .env
-DATABASE_URL=postgres://postgres:password@postgres:5432/ccr
+DATABASE_URL=postgres://postgres:password@postgres:5432/rialto
 REDIS_URL=redis://redis:6379
 ```
 

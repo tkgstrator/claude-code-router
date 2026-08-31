@@ -97,20 +97,18 @@ The server uses custom Transform streams to handle Server-Sent Events:
 
 ### 5. Configuration Management
 
-Names carried over from before the Rialto rename — all still honoured,
-none of them re-emitted:
+The Rialto rename is complete: the pre-rename names below are **no
+longer read**. Anything still using one has to be updated.
 
-| Old | New | Read at |
-|-----|-----|---------|
-| `CCR_HOME_DIR` | `RIALTO_HOME_DIR` | `src/shared/constants.ts` (warns on boot) |
-| `CCR_ACCOUNT_ENCRYPTION_KEY` | `RIALTO_ACCOUNT_ENCRYPTION_KEY` | `src/services/subscription-account-sync/crypto.ts` |
-| `CCR_DEBUG_OAUTH` | `RIALTO_DEBUG_OAUTH` | `src/services/claude-oauth-service.ts`, `src/services/codex-auth/oauth.ts` |
-| `~/.claude-code-router` | `~/.rialto` | copied on first boot by `src/services/config/migrate-home-dir.ts` |
-| `ccr_` thinking signatures | `rialto_` | `src/llms/transformers/anthropic/claude-code-oauth.ts` |
+| Old | New | Notes |
+|-----|-----|-------|
+| `CCR_HOME_DIR` | `RIALTO_HOME_DIR` | ignored; the wrong home announces itself as an empty config |
+| `CCR_ACCOUNT_ENCRYPTION_KEY` | `RIALTO_ACCOUNT_ENCRYPTION_KEY` | **rename the variable, keep the value byte-for-byte** — it decrypts existing `SubAccount` rows. `encryptionKey()` throws with that instruction |
+| `CCR_DEBUG_OAUTH` | `RIALTO_DEBUG_OAUTH` | ignored |
+| `~/.claude-code-router` | `~/.rialto` | moved on first boot by `src/services/config/migrate-home-dir.ts` — copy, verify, then remove the original |
+| `ccr_` thinking signatures | `rialto_` | a pre-rename placeholder now reaches Anthropic and 400s that conversation; restart it |
 | `ccrVersion` (preset manifests) | `rialtoVersion` | `src/schemas/domain/preset.ts` |
-
-The database is still named `ccr` / `ccr_test`; `DATABASE_URL` and
-`TEST_DATABASE_URL` were deliberately left alone.
+| DB `ccr` / `ccr_test` | `rialto` / `rialto_test` | fresh volumes are provisioned with the new names; existing ones need `bun run scripts/rename-dev-database.ts`, then `DATABASE_URL` / `TEST_DATABASE_URL` updated |
 
 Configuration is split across two stores:
 
