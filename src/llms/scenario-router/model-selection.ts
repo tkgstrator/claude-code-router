@@ -47,7 +47,7 @@ export function effectiveLongContextThreshold(router: RouterConfig | undefined):
 
 // Which route within a scenario a request uses: `agent` for normal /
 // main-agent traffic, `subagent` when a <CCR-SUBAGENT-MODEL> tag is present.
-type RouteKind = 'agent' | 'subagent'
+export type RouteKind = 'agent' | 'subagent'
 
 // Whether the request opts INTO extended thinking. Anthropic's
 // `thinking` field carries a `type` discriminator with three real
@@ -171,7 +171,7 @@ function primaryFor(router: RouterConfig | undefined, kind: RouteKind, scenario:
 // files may skip them entirely). The runtime shape stores rules as
 // unknown[] — each entry is parsed through RouteRuleSchema here so a
 // malformed rule is skipped rather than blowing up the walker.
-function rulesFor(router: RouterConfig | undefined, kind: RouteKind, scenario: ScenarioType): RouteRule[] {
+export function rulesFor(router: RouterConfig | undefined, kind: RouteKind, scenario: ScenarioType): RouteRule[] {
   const map = kind === 'subagent' ? router?.subagentRules : router?.agentRules
   const list = map?.[scenario]
   if (!Array.isArray(list)) return []
@@ -186,7 +186,7 @@ function rulesFor(router: RouterConfig | undefined, kind: RouteKind, scenario: S
 // Context available to predicate evaluation. All rule predicates read
 // through this shape so adding a new predicate never has to thread a
 // new argument through selectModel's call sites.
-interface RuleEvalContext {
+export interface RuleEvalContext {
   req: RouterRequest
   tokenCount: number
 }
@@ -236,7 +236,7 @@ function resolveTarget(
 // predicate matches everything (catch-all rule). Missing fields on
 // the predicate are unconstrained; each populated field is an AND
 // with the others.
-function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
+export function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
   const when = rule.when
   const { req, tokenCount } = ctx
   if (when.requestedTier !== undefined) {

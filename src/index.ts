@@ -24,6 +24,7 @@ import { requestLogsRoute } from './api/request-logs/route'
 import { routerPreferencesRoute } from './api/router-preferences/route'
 import { routerUtilizationRoute } from './api/router-utilization/route'
 import { routingPresetsRoute } from './api/routing-presets/route'
+import { routingRulesTestRoute } from './api/routing-rules/test/route'
 import { routingSchedulerStateRoute } from './api/routing-scheduler-state/route'
 import { scrapePricesRoute } from './api/scrape-prices/[vendor]/route'
 import { solverInputRoute } from './api/solver-input/route'
@@ -167,6 +168,7 @@ app.route('/', solverInputRoute)
 app.route('/', overviewRoute)
 app.route('/', inboundSurfacesRoute)
 app.route('/', identityRoute)
+app.route('/', routingRulesTestRoute)
 app.route('/', oauthRoute)
 
 // OpenAI-compat GET /v1/models — mounted BEFORE v1Route so the wildcard
