@@ -22,8 +22,8 @@ import { loadPreviews } from './preview'
 // null so the History view treats it as "unknown" rather than falsely
 // bucketed. Kept as a helper so TypeScript picks up the narrowing at
 // the object-literal assignment site.
-function narrowInboundType(raw: string | null): 'anthropic' | 'openai' | null {
-  if (raw === 'anthropic' || raw === 'openai') return raw
+function narrowInboundType(raw: string | null): 'anthropic' | 'openai' | 'gemini' | null {
+  if (raw === 'anthropic' || raw === 'openai' || raw === 'gemini') return raw
   return null
 }
 

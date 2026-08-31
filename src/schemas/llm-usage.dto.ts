@@ -81,10 +81,11 @@ export const UsageRecordSchema = z.object({
   scenario: z.string().nonempty().nullable(),
   // Which wire format the request came in on. 'anthropic' for
   // /v1/messages (Claude Code), 'openai' for /v1/chat/completions and
-  // /v1/responses. Null for rows written before this landed (backfill
-  // is not possible — the inbound path is not recoverable from stored
-  // fields). Persisted on both RequestLog and Session (first-observed).
-  inboundType: z.enum(['anthropic', 'openai']).nullable(),
+  // /v1/responses, 'gemini' for /v1beta/models/*. Null for rows written
+  // before this landed (backfill is not possible — the inbound path is
+  // not recoverable from stored fields). Persisted on both RequestLog
+  // and Session (first-observed).
+  inboundType: z.enum(['anthropic', 'openai', 'gemini']).nullable(),
   // Which inbound surface the request arrived on, as an
   // `InboundSurface.id` slug. Distinguishes the two OpenAI-compat
   // surfaces, which `inboundType` collapses into one bucket. Null for

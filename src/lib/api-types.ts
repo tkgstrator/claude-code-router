@@ -45,7 +45,7 @@ export interface RequestLogItem {
   totalCostUsd: number | null
 }
 
-export type InboundType = 'anthropic' | 'openai'
+export type InboundType = 'anthropic' | 'openai' | 'gemini'
 
 export interface SessionSummary {
   sessionId: string

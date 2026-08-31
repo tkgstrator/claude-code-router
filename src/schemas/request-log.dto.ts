@@ -1,6 +1,8 @@
 import { z } from '@hono/zod-openapi'
 
-export const InboundTypeSchema = z.enum(['anthropic', 'openai'])
+// The wire formats Rialto accepts, mirroring `InboundSurface.inboundType`.
+// Coarser than `surface`: both OpenAI-compat surfaces report 'openai'.
+export const InboundTypeSchema = z.enum(['anthropic', 'openai', 'gemini'])
 export type InboundType = z.infer<typeof InboundTypeSchema>
 
 export const SessionSummarySchema = z.object({
@@ -75,7 +77,8 @@ export const RequestLogsSessionsQuerySchema = z.object({
   // History tends to grow unbounded, so default to a recent window.
   sinceHours: z.coerce.number().int().min(0).max(8760).default(6),
   // Filter by inbound wire type. 'anthropic' = Claude Code (/v1/messages),
-  // 'openai' = /v1/chat/completions + /v1/responses. Omit for "all".
+  // 'openai' = /v1/chat/completions + /v1/responses, 'gemini' =
+  // /v1beta/models/*. Omit for "all".
   inboundType: InboundTypeSchema.optional()
 })
 

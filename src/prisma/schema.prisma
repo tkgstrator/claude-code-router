@@ -449,11 +449,16 @@ model Session {
   // preserved. Reset to null when the session receives new activity, so a
   // resumed session reappears in the list. Never physically deleted here.
   archivedAt DateTime?
-  // First-observed inbound wire type for this session: 'anthropic' or
-  // 'openai'. Set once on the first request that carries an inboundType
-  // and never overwritten, so a subsequent OpenAI-compat request that
-  // happens to reuse a Claude Code session id (rare, but possible) does
-  // not silently flip the tag. Null for pre-migration sessions.
+  // First-observed inbound wire type for this session: 'anthropic',
+  // 'openai' or 'gemini' (the `inboundType` of the surface it arrived
+  // on — see src/llms/inbound/surfaces.ts). Set once on the first
+  // request that carries an inboundType and never overwritten, so a
+  // subsequent OpenAI-compat request that happens to reuse a Claude Code
+  // session id (rare, but possible) does not silently flip the tag. Null
+  // for pre-migration sessions. Deliberately a plain nullable TEXT and
+  // not a Postgres enum: the set of wire formats grows with the surface
+  // registry, and an enum would make each new one a DDL migration and a
+  // deploy-order hazard for no read-side benefit.
   inboundType String?
   logs       RequestLog[]
   messages   Message[]
@@ -546,10 +551,11 @@ model RequestLog {
   // model-routing report can distinguish "no data" from "data says agent".
   isSubagent       Boolean?
   // Which wire format the client came in on: 'anthropic' for
-  // /v1/messages (Claude Code) or 'openai' for /v1/chat/completions
-  // and /v1/responses. Null for rows written before this landed
-  // (untracked). Persisted so the History view can filter by inbound
-  // type without re-parsing anything from the payload.
+  // /v1/messages (Claude Code), 'openai' for /v1/chat/completions and
+  // /v1/responses, 'gemini' for /v1beta/models/*. Null for rows written
+  // before this landed (untracked). Persisted so the History view can
+  // filter by inbound type without re-parsing anything from the payload.
+  // Nullable TEXT rather than an enum, for the reason on Session above.
   inboundType      String?
   // Which inbound surface the request arrived on, as an
   // `InboundSurface.id` slug (see src/llms/inbound/surfaces.ts). Finer

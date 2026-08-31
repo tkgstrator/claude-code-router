@@ -11,18 +11,15 @@ import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
 import { getPrismaClient } from '../../db/client'
 import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } from '../../llms'
-import type { Transformer } from '../../llms/transformers/base'
+import { INBOUND_SURFACES, surfaceForPath } from '../../llms/inbound/surfaces'
 import { requestLogEmitter } from '../request-logs/events'
+import { buildFailoverChain } from './candidate-chain'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
 import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
-import { buildFailoverChain, buildRoutePlan, type ResolvedInvocation } from './invocation'
+import type { ResolvedInvocation } from './invocation'
 import { redactToolArguments } from './redact'
-import {
-  aggregateAnthropicSseToJson,
-  aggregateOpenAiChatSseToJson,
-  aggregateOpenAiResponsesSseToJson,
-  isSseContentType
-} from './sse-to-json'
+import { buildRoutePlan } from './route-plan'
+import { aggregateAnthropicSseToJson, isSseContentType } from './sse-to-json'
 import { bestSupportedLevel, deepReplaceValue, forwardUpstreamError } from './upstream-error'
 
 export const v1Route = new Hono()
@@ -120,21 +117,23 @@ function countingSseTransform(
   })
 }
 
-// Pick the SSE→JSON aggregator that matches the inbound endpoint. The
-// upstream response has already been reshaped by the endpoint
-// transformer's `transformResponseIn` into the inbound wire form, so
-// the aggregator only needs to know which wire shape it is:
+// The SSE→JSON aggregator that matches the inbound surface. The upstream
+// response has already been reshaped by the endpoint transformer's
+// `transformResponseIn` into the inbound wire form, so the aggregator
+// only needs to know which wire shape that is — which is the surface's
+// own answer, and now lives on its descriptor.
 //
-//   AnthropicTransformer      → Anthropic message envelope
-//   OpenAITransformer         → OpenAI chat.completion envelope
-//   OpenAIResponsesTransformer→ OpenAI Responses `response` envelope
+// This used to dispatch on `transformer.name`. That read the same answer
+// off a different object: a transformer is only reachable here through
+// the endpoint it registered, so surface and transformer were 1:1 and
+// the two dispatches could not disagree. Asking the surface is simply
+// asking the thing that knows.
 //
-// Falls back to the Anthropic aggregator for unknown endpoints so the
-// long-standing /v1/messages path is untouched.
-function pickSseAggregator(transformer: Transformer): (response: Response) => Promise<Record<string, unknown>> {
-  if (transformer.name === 'openai') return aggregateOpenAiChatSseToJson
-  if (transformer.name === 'openai-responses') return aggregateOpenAiResponsesSseToJson
-  return aggregateAnthropicSseToJson
+// Unknown paths (the /v1/* catch-all's 404 lane) keep the Anthropic
+// aggregator they have always had.
+function pickSseAggregator(path: string): (response: Response) => Promise<Record<string, unknown>> {
+  const surface = surfaceForPath(path)
+  return surface !== undefined ? surface.aggregateSse : aggregateAnthropicSseToJson
 }
 
 async function formatResponse(
@@ -142,7 +141,7 @@ async function formatResponse(
   response: Response,
   stream: boolean,
   log: Logger,
-  observed: { provider: string; model: string | undefined; transformer: Transformer }
+  observed: { provider: string; model: string | undefined; path: string }
 ): Promise<Response> {
   if (!stream) {
     // A few provider paths (codex-oauth notably) force stream=true
@@ -153,7 +152,7 @@ async function formatResponse(
     // this the parse throws on "event: ...\ndata: ..." and the client
     // sees a 500.
     if (isSseContentType(response.headers.get('content-type'))) {
-      const aggregate = pickSseAggregator(observed.transformer)
+      const aggregate = pickSseAggregator(observed.path)
       const message = await aggregate(response)
       return c.json(message, (response.status || 200) as 200)
     }
@@ -214,7 +213,7 @@ function errorResponse(c: Context, err: unknown): Response {
 
 // ─── Handler ────────────────────────────────────────────────────────────
 
-v1Route.post('/v1/*', async (c) => {
+const handleInbound = async (c: Context): Promise<Response> => {
   const ctx = await getLlmsContext()
   const planOrResponse = await buildRoutePlan(c, ctx)
   if (planOrResponse instanceof Response) return planOrResponse
@@ -246,7 +245,7 @@ v1Route.post('/v1/*', async (c) => {
     return formatResponse(c, upstream, clientAskedStream, ctx.log, {
       provider: inv.provider.name,
       model: inv.request.model,
-      transformer: inv.transformer
+      path: plan.path
     })
   }
 
@@ -285,4 +284,13 @@ v1Route.post('/v1/*', async (c) => {
   // Chain exhausted: every candidate was rate-limited (or unresolvable).
   if (lastForwarded) return lastForwarded
   return c.json({ type: 'error', error: { type: 'invalid_request', message: 'No usable model for this request' } }, 400)
-})
+}
+
+// Route mounts come from the registry, one per surface — including
+// `/v1beta/models/:modelAndAction`, which no `/v1/*` pattern can reach.
+for (const surface of INBOUND_SURFACES) v1Route.post(surface.endpoint, handleInbound)
+
+// Not a surface: the fail-closed lane for an unknown /v1 path, which has
+// to answer 404 in the caller's own envelope rather than fall through to
+// the SPA catch-all. Registered last so a surface's own mount wins.
+v1Route.post('/v1/*', handleInbound)

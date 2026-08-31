@@ -99,10 +99,11 @@ export const PipelineRequestSchema = z.object({
   isSubagent: z.boolean().default(false),
   // Which wire format the request came in on. Set by the /v1 route
   // builder from the inbound path — 'anthropic' for /v1/messages
-  // (Claude Code), 'openai' for /v1/chat/completions and /v1/responses.
-  // Persisted on RequestLog / Session so the History view can filter
-  // by inbound type without re-parsing the path from the payload.
-  inboundType: z.enum(['anthropic', 'openai']).optional(),
+  // (Claude Code), 'openai' for /v1/chat/completions and /v1/responses,
+  // 'gemini' for /v1beta/models/*. Persisted on RequestLog / Session so
+  // the History view can filter by inbound type without re-parsing the
+  // path from the payload.
+  inboundType: z.enum(['anthropic', 'openai', 'gemini']).optional(),
   // Which inbound surface the request arrived on, as an
   // `InboundSurface.id` slug. Finer than `inboundType`, which cannot
   // tell /v1/chat/completions from /v1/responses.

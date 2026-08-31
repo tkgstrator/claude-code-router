@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { MiddlewareHandler } from 'hono'
 import './context'
-import { surfaceForPath } from '../llms/inbound/surfaces'
+import { catalogPathFor, type SurfaceAuth, type SurfaceErrorShape, surfaceForPath } from '../llms/inbound/surfaces'
 import { noteTokenUse, resolveAccessToken } from '../services/access-token-service'
 import { readAccessConfig, verifyAccessJwt } from '../services/cloudflare-access'
 import { isLocalRequest } from './local-access'
@@ -21,20 +21,23 @@ const digest = (s: string): Buffer => createHash('sha256').update(s).digest()
 const ALLOW_API_KEY_QUERY_PARAM = new Set<string>(['/api/request-logs/events'])
 
 interface ApiKeyAuthOptions {
-  // OpenAI-shape endpoints (/v1/chat/completions, /v1/responses,
-  // /v1/models) mint their key from `Authorization: Bearer` only —
-  // `x-api-key` is an Anthropic convention and accepting it on an
-  // OpenAI-compat surface leaks the two conventions into each other.
-  bearerOnly?: boolean
+  // Which credential convention this surface accepts. Deliberately one
+  // per surface: `x-api-key` is Anthropic's, `Authorization: Bearer` is
+  // OpenAI's, `x-goog-api-key` / `?key=` are Google's, and accepting a
+  // neighbouring convention leaks them into each other — an operator
+  // then reuses one key across two surfaces and cannot tell which
+  // client a revocation will cut off.
+  credential?: SurfaceAuth
   // Error envelope shape. Anthropic-style clients (Claude Code) expect
   // `{type: 'error', error: {type, message}}`; OpenAI SDK / Codex CLI /
-  // Cline expect `{error: {message, type, code}}`. The wire body diverges
-  // even though the 401 status is identical.
-  errorShape?: 'anthropic' | 'openai'
+  // Cline expect `{error: {message, type, code}}`; Google clients expect
+  // `{error: {code, message, status}}`. The wire body diverges even
+  // though the 401 status is identical.
+  errorShape?: SurfaceErrorShape
 }
 
 function unauthorizedResponse(
-  shape: 'anthropic' | 'openai',
+  shape: SurfaceErrorShape,
   // The proxy and the admin API fail for different reasons and have
   // different remedies, and the operator reads this text in a CLI where
   // it is the only diagnostic they get.
@@ -49,6 +52,12 @@ function unauthorizedResponse(
       body: {
         error: { message, type: 'invalid_request_error', param: null, code: 'invalid_api_key' }
       }
+    }
+  }
+  if (shape === 'google') {
+    return {
+      status: 401,
+      body: { error: { code: 401, message, status: 'UNAUTHENTICATED' } }
     }
   }
   return {
@@ -69,11 +78,24 @@ const PROXY_WRONG_SURFACE = 'This access token is not scoped to this endpoint.'
 // gated route; the `apikey` query param is accepted only on the
 // SSE/EventSource paths in ALLOW_API_KEY_QUERY_PARAM. Fails closed.
 // Pull the presented secret off whichever header this surface accepts.
-function presentedSecret(c: Parameters<MiddlewareHandler>[0], bearerOnly: boolean): string {
+//
+// Bearer is read on every convention: it is the one header all three
+// client families can send, and it is what the admin gate has always
+// taken. The convention only decides which ADDITIONAL header is read —
+// `x-api-key` for Anthropic callers, `x-goog-api-key` / `?key=` for
+// Google ones — so a caller never gets in by presenting a neighbouring
+// surface's header.
+function presentedSecret(c: Parameters<MiddlewareHandler>[0], credential: SurfaceAuth): string {
   const bearer = c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
   const queryKey = ALLOW_API_KEY_QUERY_PARAM.has(c.req.path) ? c.req.query('apikey') : undefined
-  const xApiKey = bearerOnly ? undefined : c.req.header('x-api-key')
-  return (xApiKey ?? bearer ?? queryKey ?? '').trim()
+  const xApiKey = credential === 'x-api-key' ? c.req.header('x-api-key') : undefined
+  // Google's own SDKs send `x-goog-api-key`; its REST docs send `?key=`.
+  // The query form is only read on this surface for that reason — see
+  // ALLOW_API_KEY_QUERY_PARAM above for why URL-borne secrets are
+  // otherwise refused. `accessLog` logs `c.req.path`, never the query,
+  // so the token does not reach the log file from here.
+  const googKey = credential === 'google' ? (c.req.header('x-goog-api-key') ?? c.req.query('key')) : undefined
+  return (xApiKey ?? googKey ?? bearer ?? queryKey ?? '').trim()
 }
 
 // Does the presented value match the envelope bootstrap token?
@@ -126,7 +148,9 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
     }
   }
 
-  if (!matchesBootstrapToken(presentedSecret(c, false))) {
+  // The admin gate is not a surface: it takes `x-api-key` or Bearer,
+  // which is what every /api client has always sent.
+  if (!matchesBootstrapToken(presentedSecret(c, 'x-api-key'))) {
     const err = unauthorizedResponse('anthropic')
     return c.json(err.body, err.status)
   }
@@ -153,10 +177,10 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
  * against the request and to read its routing scope from.
  */
 export function createProxyAuth(options: ApiKeyAuthOptions = {}): MiddlewareHandler {
-  const bearerOnly = options.bearerOnly === true
-  const errorShape = options.errorShape ?? (bearerOnly ? 'openai' : 'anthropic')
+  const credential: SurfaceAuth = options.credential !== undefined ? options.credential : 'x-api-key'
+  const errorShape: SurfaceErrorShape = options.errorShape !== undefined ? options.errorShape : 'anthropic'
   return async (c, next) => {
-    const provided = presentedSecret(c, bearerOnly)
+    const provided = presentedSecret(c, credential)
     const token = provided.length === 0 ? null : await resolveAccessToken(provided)
     if (token === null) {
       const err = unauthorizedResponse(errorShape, PROXY_UNAUTHORIZED)
@@ -180,4 +204,41 @@ export const proxyAuth: MiddlewareHandler = createProxyAuth()
 
 // OpenAI-compat surface: reject x-api-key (an Anthropic convention) and
 // emit an OpenAI-shape error envelope on 401.
-export const openaiProxyAuth: MiddlewareHandler = createProxyAuth({ bearerOnly: true })
+export const openaiProxyAuth: MiddlewareHandler = createProxyAuth({ credential: 'bearer', errorShape: 'openai' })
+
+// Google surface: accept `x-goog-api-key` / `?key=`, and answer 401 in
+// google.rpc.Status shape so the GenAI SDKs can classify it.
+export const googleProxyAuth: MiddlewareHandler = createProxyAuth({ credential: 'google', errorShape: 'google' })
+
+// One gate per credential convention. The registry says which
+// convention a surface speaks; this is the only place that turns that
+// answer into a middleware, so a new descriptor picks up the right gate
+// with no edit here or in index.ts.
+const GATE_BY_CREDENTIAL: Record<SurfaceAuth, MiddlewareHandler> = {
+  'x-api-key': proxyAuth,
+  bearer: openaiProxyAuth,
+  google: googleProxyAuth
+}
+
+/**
+ * The proxy front door, mounted once per prefix in `index.ts`.
+ *
+ * Replaces the path list that used to live there — `/v1/chat/completions`,
+ * `/v1/responses` and `/v1/models` named one by one, with a `/v1/*`
+ * catch-all underneath. That list was a fourth copy of surface
+ * knowledge, and because Hono runs every matching middleware, a valid
+ * Bearer call on an OpenAI surface was authenticated twice (and its
+ * token's requestCount incremented twice). Dispatching on the registry
+ * fixes both.
+ *
+ * Fails closed: a path in neither registry gets the Anthropic-convention
+ * gate, which is what the old `/v1/*` catch-all gave it.
+ */
+export const inboundProxyAuth: MiddlewareHandler = (c, next) => {
+  const path = c.req.path
+  const surface = surfaceForPath(path)
+  if (surface !== undefined) return GATE_BY_CREDENTIAL[surface.auth](c, next)
+  const catalog = catalogPathFor(path)
+  if (catalog !== undefined) return GATE_BY_CREDENTIAL[catalog.auth](c, next)
+  return proxyAuth(c, next)
+}

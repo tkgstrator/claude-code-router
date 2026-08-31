@@ -23,12 +23,16 @@ import type { PipelineInput } from './types'
 //  content-encoding header lingers, which triggers a double-decompress
 //  ZlibError on the Claude Code client side.
 //
-//  Client-auth — authorization / x-api-key carry the client's CCR
-//  APIKEY. Forwarding them causes the upstream to see the CCR key as
-//  its Bearer instead of provider.api_key; buildRequestHeaders sets
-//  the correct provider Bearer first, but a lowercase inbound
-//  `authorization` spread on top overrides it and OpenAI then 400s
-//  with "Incorrect API key".
+//  Client-auth — authorization / x-api-key / x-goog-api-key carry the
+//  client's Rialto access token. Forwarding them causes the upstream to
+//  see the Rialto token as its own credential instead of
+//  provider.api_key; buildRequestHeaders sets the correct provider
+//  Bearer first, but a lowercase inbound `authorization` spread on top
+//  overrides it and OpenAI then 400s with "Incorrect API key".
+//  `x-goog-api-key` is the Gemini surface's convention and is stripped
+//  for the same reason — the gemini transformer's auth hook overwrites
+//  it on the way out, but a client token must not depend on one hook
+//  remembering to.
 //
 //  Proxy trail — host and every Cloudflare / X-Forwarded-* header the
 //  front tier stamps on the request. Two failure modes drove the wider
@@ -50,6 +54,7 @@ const STRIP_INBOUND_EXACT = new Set([
   'accept-encoding',
   'authorization',
   'x-api-key',
+  'x-goog-api-key',
   'host',
   'x-real-ip',
   'cdn-loop',

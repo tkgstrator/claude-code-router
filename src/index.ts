@@ -5,7 +5,7 @@ import { ZodError } from 'zod'
 import { accessCheckRoute } from './api/access-check/route'
 import { accessLog } from './api/access-log'
 import { accessTokensRoute } from './api/access-tokens/route'
-import { adminAuth, openaiProxyAuth, proxyAuth } from './api/api-key-auth'
+import { adminAuth, inboundProxyAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
 import { healthRoute } from './api/health/route'
@@ -41,6 +41,7 @@ import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
 import { v1ModelsRoute } from './api/v1/models-list'
 import { v1Route } from './api/v1/route'
+import { INBOUND_MOUNT_PREFIXES } from './llms/inbound/surfaces'
 import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
@@ -123,17 +124,16 @@ const app = new OpenAPIHono()
 app.route('/', healthRoute)
 
 app.use('/api/*', accessLog)
-app.use('/v1/*', accessLog)
 app.use('/api/*', adminAuth)
-// OpenAI-compat inbound endpoints: reject `x-api-key` (the Anthropic
-// convention Claude Code sends) so operators aren't tempted to reuse the
-// same key across two auth conventions. Registered BEFORE the /v1/*
-// catch-all so it wins for these paths; the wildcard still covers
-// /v1/messages for Claude Code.
-app.use('/v1/chat/completions', openaiProxyAuth)
-app.use('/v1/responses', openaiProxyAuth)
-app.use('/v1/models', openaiProxyAuth)
-app.use('/v1/*', proxyAuth)
+// Proxy front door. The prefixes and the credential convention behind
+// each path both come from the inbound-surface registry, so adding a
+// surface does not mean remembering to name its path here — which is
+// exactly the omission that used to leave a new surface either
+// unauthenticated or authenticated by the wrong convention.
+for (const prefix of INBOUND_MOUNT_PREFIXES) {
+  app.use(prefix, accessLog)
+  app.use(prefix, inboundProxyAuth)
+}
 
 app.onError((err, c) => {
   if (err instanceof ZodError) {

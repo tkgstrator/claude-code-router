@@ -17,7 +17,8 @@ import {
   type InboundSurface,
   type RoutingMode,
   type SurfaceId,
-  surfaceById
+  surfaceById,
+  surfaceForPath
 } from '../llms/inbound/surfaces'
 import { DEFAULT_PROFILE_KEY, PASSTHROUGH_PROFILE_KEY } from './router-preference-service'
 
@@ -110,12 +111,15 @@ export async function ensureInboundSurfaces(): Promise<void> {
 }
 
 export async function resolveSurfaceForPath(path: string | undefined): Promise<ResolvedSurface | undefined> {
-  if (typeof path !== 'string' || path.length === 0) return undefined
+  // Path matching (exact vs glob) belongs to the descriptor registry —
+  // this layer only adds the stored mode on top. The second copy that
+  // used to live here carried its own hardcoded `/v1beta/models/` test,
+  // which is precisely the kind of duplicate a fifth surface would have
+  // had to remember to update.
+  const descriptor = surfaceForPath(path)
+  if (descriptor === undefined) return undefined
   const all = await listSurfaces()
-  const exact = all.find((s) => s.path === path)
-  if (exact !== undefined) return exact
-  if (path.startsWith('/v1beta/models/')) return all.find((s) => s.id === 'gemini-generate')
-  return undefined
+  return all.find((s) => s.id === descriptor.id)
 }
 
 /**
