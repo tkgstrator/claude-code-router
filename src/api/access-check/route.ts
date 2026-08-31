@@ -14,7 +14,12 @@
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { normalizeTeamDomain, resetAccessKeyCache, verifyAccessJwt } from '../../services/cloudflare-access'
+import {
+  decodeSegment,
+  normalizeTeamDomain,
+  resetAccessKeyCache,
+  verifyAccessJwt
+} from '../../services/cloudflare-access'
 import '../context'
 
 const BodySchema = z
@@ -44,6 +49,90 @@ const ResponseSchema = z
   .openapi('AccessCheckResponse')
 
 export const accessCheckRoute = new OpenAPIHono()
+
+const DetectSchema = z
+  .object({
+    // Whether this request arrived through Cloudflare Access at all.
+    // False means there is nothing to read and the operator has to fetch
+    // the values from the Zero Trust dashboard.
+    assertionPresent: z.boolean(),
+    teamDomain: z.string().nonempty().nullable(),
+    aud: z.string().nonempty().nullable(),
+    email: z.string().nonempty().nullable(),
+    detail: z.string().nonempty()
+  })
+  .openapi('AccessDetectResponse')
+
+/**
+ * GET /api/access-check/detect — read the settings off the request.
+ *
+ * The team domain and AUD tag are otherwise a hunt through the Zero
+ * Trust dashboard, and a mistyped AUD is the failure that locks the
+ * operator out of the screen they typed it on. When the request already
+ * came through Access, both values are sitting in the assertion.
+ *
+ * NOT verified — it cannot be, since verifying requires knowing the
+ * team domain, which is what is being read. These are suggestions to
+ * put in the fields; POST /api/access-check then verifies them properly
+ * against the JWKS that domain publishes. The operator should recognise
+ * the team domain before trusting it, which is why it is reported
+ * rather than silently applied.
+ */
+accessCheckRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/access-check/detect',
+    responses: {
+      200: {
+        description: 'Unverified Access settings read off this request, to prefill the fields',
+        content: { 'application/json': { schema: DetectSchema } }
+      }
+    }
+  }),
+  (c) => {
+    const assertion = c.req.header('cf-access-jwt-assertion')
+    const parts = typeof assertion === 'string' ? assertion.split('.') : []
+    const claims = parts.length === 3 ? decodeSegment(parts[1]) : null
+
+    if (claims === null || typeof claims !== 'object') {
+      return c.json(
+        {
+          assertionPresent: false,
+          teamDomain: null,
+          aud: null,
+          email: null,
+          detail:
+            'This request did not come through Cloudflare Access, so there is nothing to read. Open Rialto on the hostname Access protects, or copy the team domain and Application Audience (AUD) tag from the Zero Trust dashboard.'
+        },
+        200
+      )
+    }
+
+    const record: Record<string, unknown> = { ...claims }
+    const iss = typeof record.iss === 'string' ? record.iss : null
+    const audValue = record.aud
+    // Cloudflare sends `aud` as an array; a token minted for several
+    // applications would carry several, and guessing which one this
+    // deployment is would be worse than asking.
+    const auds = Array.isArray(audValue) ? audValue.filter((a): a is string => typeof a === 'string') : []
+    const single = typeof audValue === 'string' ? audValue : auds.length === 1 ? auds[0] : null
+    const email = typeof record.email === 'string' ? record.email : null
+
+    return c.json(
+      {
+        assertionPresent: true,
+        teamDomain: iss === null ? null : normalizeTeamDomain(iss),
+        aud: single,
+        email,
+        detail:
+          single === null && auds.length > 1
+            ? `This assertion carries ${auds.length} audience tags, so the right one is ambiguous — pick this application's AUD from the Zero Trust dashboard.`
+            : 'Read from the Access assertion on this request. Not verified yet — run the check to confirm it against the keys that domain publishes.'
+      },
+      200
+    )
+  }
+)
 
 accessCheckRoute.openapi(
   createRoute({

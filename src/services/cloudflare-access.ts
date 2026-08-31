@@ -127,7 +127,7 @@ const b64urlToBuffer = (value: string): Buffer => Buffer.from(value, 'base64url'
 // segment that is not base64, not UTF-8, or not JSON has to come back as
 // "no claims" — throwing here would turn a malformed assertion into a
 // 500 instead of the 401 it is.
-const decodeSegment = (segment: string): unknown => {
+export const decodeSegment = (segment: string): unknown => {
   try {
     return JSON.parse(b64urlToBuffer(segment).toString('utf8'))
   } catch {
