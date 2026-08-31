@@ -6,7 +6,7 @@ import { HAS_DB, resetDbTables, teardownPrisma } from '../db/helpers'
 const describeOrSkip = HAS_DB ? describe : describe.skip
 
 // Cold-boot (empty DB) end-to-end: the route mounts under the shared
-// apiKeyAuth middleware in src/index.ts, so calling the sub-app
+// adminAuth middleware in src/index.ts, so calling the sub-app
 // directly here bypasses auth (mirrors the pattern used by
 // routing-scheduler-state.test.ts).
 describeOrSkip('GET /api/solver-input (DB)', () => {

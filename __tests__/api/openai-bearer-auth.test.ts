@@ -1,40 +1,43 @@
 /**
- * The Bearer-only auth variant used on /v1/chat/completions,
- * /v1/responses, and /v1/models. Verifies the wire contract we
- * promised OpenAI clients:
+ * Auth on the /v1 surfaces.
  *
- *   - Authorization: Bearer <APIKEY>  → passes
- *   - x-api-key: <APIKEY>            → rejected (Anthropic convention)
- *   - wrong / missing key            → 401 with OpenAI-shaped error
- *   - the /v1/messages (Anthropic) surface keeps accepting both
+ * Two things are being protected here and they are independent:
+ *
+ *   1. The wire contract promised to OpenAI clients — Bearer only on
+ *      /v1/chat/completions, /v1/responses and /v1/models (`x-api-key`
+ *      is an Anthropic convention and is rejected there), OpenAI-shaped
+ *      401 bodies, and /v1/messages still accepting both headers with
+ *      an Anthropic-shaped 401.
+ *
+ *   2. Which credential opens them. That changed: the envelope APIKEY
+ *      is no longer accepted on /v1 at all. At the edge this path is a
+ *      Bypass policy, so whatever passes here is the only thing in
+ *      front of the operator's credits — and a master key there could
+ *      not be revoked without cutting off every client, and no request
+ *      log could say whose it was.
  *
  * Built as a minimal Hono app in-process so no server needs to start.
  */
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
-import { apiKeyAuth, openaiBearerAuth } from '../../src/api/api-key-auth'
+import { openaiProxyAuth, proxyAuth } from '../../src/api/api-key-auth'
+import { invalidateTokenCache, issueAccessToken } from '../../src/services/access-token-service'
+import { getPrismaClient } from '../../src/db/client'
+import { HAS_DB, teardownPrisma } from '../db/helpers'
 
-const TEST_KEY = 'test-api-key-12345'
+const BOOTSTRAP = 'bootstrap-key-12345'
 const prevKey = process.env.APIKEY
-
-beforeEach(() => {
-  process.env.APIKEY = TEST_KEY
-})
-afterEach(() => {
-  if (prevKey === undefined) delete process.env.APIKEY
-  else process.env.APIKEY = prevKey
-})
 
 function buildApp(): Hono {
   const app = new Hono()
   // Mirror src/index.ts ordering: the more-specific Bearer-only guards
   // are registered before the /v1/* catch-all so they win on their
   // paths and the catch-all still covers /v1/messages.
-  app.use('/v1/chat/completions', openaiBearerAuth)
-  app.use('/v1/responses', openaiBearerAuth)
-  app.use('/v1/models', openaiBearerAuth)
-  app.use('/v1/*', apiKeyAuth)
+  app.use('/v1/chat/completions', openaiProxyAuth)
+  app.use('/v1/responses', openaiProxyAuth)
+  app.use('/v1/models', openaiProxyAuth)
+  app.use('/v1/*', proxyAuth)
   const ok = (c: { text: (s: string) => Response }): Response => c.text('ok')
   app.get('/v1/models', ok)
   app.post('/v1/chat/completions', ok)
@@ -43,105 +46,91 @@ function buildApp(): Hono {
   return app
 }
 
-describe('openaiBearerAuth (/v1/chat/completions and siblings)', () => {
-  test('accepts Authorization: Bearer <APIKEY>', async () => {
-    const app = buildApp()
-    const res = await app.fetch(
-      new Request('http://local/v1/chat/completions', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${TEST_KEY}` }
-      })
-    )
-    expect(res.status).toBe(200)
-    expect(await res.text()).toBe('ok')
+const call = (app: Hono, path: string, headers: Record<string, string>, method = 'POST') =>
+  app.fetch(new Request(`http://local${path}`, { method, headers }))
+
+describe.skipIf(!HAS_DB)('/v1 auth', () => {
+  let token = ''
+
+  beforeEach(async () => {
+    process.env.APIKEY = BOOTSTRAP
+    await getPrismaClient().accessToken.deleteMany({})
+    invalidateTokenCache()
+    token = (await issueAccessToken({ name: 'test' })).plaintext
   })
 
-  test('rejects x-api-key even when the value matches APIKEY', async () => {
-    const app = buildApp()
-    const res = await app.fetch(
-      new Request('http://local/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'x-api-key': TEST_KEY }
-      })
-    )
-    expect(res.status).toBe(401)
-    const body = (await res.json()) as { error?: { type?: string; code?: string } }
-    // OpenAI-shaped error envelope: {error: {message, type, code}}.
-    expect(body.error?.type).toBe('invalid_request_error')
-    expect(body.error?.code).toBe('invalid_api_key')
+  afterEach(() => {
+    if (prevKey === undefined) delete process.env.APIKEY
+    else process.env.APIKEY = prevKey
   })
 
-  test('rejects a bogus Bearer key', async () => {
-    const app = buildApp()
-    const res = await app.fetch(
-      new Request('http://local/v1/chat/completions', {
-        method: 'POST',
-        headers: { authorization: 'Bearer nope' }
-      })
-    )
-    expect(res.status).toBe(401)
+  afterAll(teardownPrisma)
+
+  describe('the credential', () => {
+    test('an issued token opens the proxy', async () => {
+      const res = await call(buildApp(), '/v1/chat/completions', { authorization: `Bearer ${token}` })
+      expect(res.status).toBe(200)
+    })
+
+    test('the envelope bootstrap key does not', async () => {
+      // The regression this file exists to catch. A master key here
+      // would be unrevocable and unattributable.
+      const app = buildApp()
+      expect((await call(app, '/v1/chat/completions', { authorization: `Bearer ${BOOTSTRAP}` })).status).toBe(401)
+      expect((await call(app, '/v1/messages', { 'x-api-key': BOOTSTRAP })).status).toBe(401)
+    })
+
+    test('a token scoped to one surface is refused on another', async () => {
+      const scoped = (await issueAccessToken({ name: 'chat only', surface: 'openai-chat' })).plaintext
+      const app = buildApp()
+      expect((await call(app, '/v1/chat/completions', { authorization: `Bearer ${scoped}` })).status).toBe(200)
+      expect((await call(app, '/v1/responses', { authorization: `Bearer ${scoped}` })).status).toBe(401)
+    })
+
+    test('a bogus value is refused', async () => {
+      expect((await call(buildApp(), '/v1/chat/completions', { authorization: 'Bearer nope' })).status).toBe(401)
+    })
   })
 
-  test('/v1/responses is guarded the same way', async () => {
-    const app = buildApp()
-    const rejected = await app.fetch(
-      new Request('http://local/v1/responses', {
-        method: 'POST',
-        headers: { 'x-api-key': TEST_KEY }
-      })
-    )
-    expect(rejected.status).toBe(401)
-    const ok = await app.fetch(
-      new Request('http://local/v1/responses', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${TEST_KEY}` }
-      })
-    )
-    expect(ok.status).toBe(200)
+  describe('the OpenAI wire contract', () => {
+    test('rejects x-api-key even when the token itself is valid', async () => {
+      // x-api-key is an Anthropic convention; accepting it here would
+      // leak the two conventions into each other.
+      const res = await call(buildApp(), '/v1/chat/completions', { 'x-api-key': token })
+      expect(res.status).toBe(401)
+      const body = (await res.json()) as { error?: { type?: string; code?: string } }
+      expect(body.error?.type).toBe('invalid_request_error')
+      expect(body.error?.code).toBe('invalid_api_key')
+    })
+
+    test('/v1/responses is guarded the same way', async () => {
+      const app = buildApp()
+      expect((await call(app, '/v1/responses', { 'x-api-key': token })).status).toBe(401)
+      expect((await call(app, '/v1/responses', { authorization: `Bearer ${token}` })).status).toBe(200)
+    })
+
+    test('GET /v1/models is guarded the same way', async () => {
+      const app = buildApp()
+      expect((await call(app, '/v1/models', { 'x-api-key': token }, 'GET')).status).toBe(401)
+      expect((await call(app, '/v1/models', { authorization: `Bearer ${token}` }, 'GET')).status).toBe(200)
+    })
   })
 
-  test('GET /v1/models is guarded the same way', async () => {
-    const app = buildApp()
-    const rejected = await app.fetch(
-      new Request('http://local/v1/models', { headers: { 'x-api-key': TEST_KEY } })
-    )
-    expect(rejected.status).toBe(401)
-    const ok = await app.fetch(
-      new Request('http://local/v1/models', { headers: { authorization: `Bearer ${TEST_KEY}` } })
-    )
-    expect(ok.status).toBe(200)
-  })
-})
+  describe('the Anthropic wire contract on /v1/messages', () => {
+    test('accepts x-api-key, which is what Claude Code sends', async () => {
+      expect((await call(buildApp(), '/v1/messages', { 'x-api-key': token })).status).toBe(200)
+    })
 
-describe('apiKeyAuth (/v1/messages) — legacy dual-mode', () => {
-  test('accepts x-api-key (the Anthropic convention Claude Code sends)', async () => {
-    const app = buildApp()
-    const res = await app.fetch(
-      new Request('http://local/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': TEST_KEY }
-      })
-    )
-    expect(res.status).toBe(200)
-  })
+    test('also accepts Authorization: Bearer', async () => {
+      expect((await call(buildApp(), '/v1/messages', { authorization: `Bearer ${token}` })).status).toBe(200)
+    })
 
-  test('also accepts Authorization: Bearer for callers that prefer it', async () => {
-    const app = buildApp()
-    const res = await app.fetch(
-      new Request('http://local/v1/messages', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${TEST_KEY}` }
-      })
-    )
-    expect(res.status).toBe(200)
-  })
-
-  test('401 envelope stays Anthropic-shaped on /v1/messages', async () => {
-    const app = buildApp()
-    const res = await app.fetch(new Request('http://local/v1/messages', { method: 'POST' }))
-    expect(res.status).toBe(401)
-    const body = (await res.json()) as { type?: string; error?: { type?: string } }
-    expect(body.type).toBe('error')
-    expect(body.error?.type).toBe('authentication_error')
+    test('401 envelope stays Anthropic-shaped', async () => {
+      const res = await call(buildApp(), '/v1/messages', {})
+      expect(res.status).toBe(401)
+      const body = (await res.json()) as { type?: string; error?: { type?: string } }
+      expect(body.type).toBe('error')
+      expect(body.error?.type).toBe('authentication_error')
+    })
   })
 })
