@@ -22,7 +22,7 @@ export function Login() {
         // Verify the API key is still valid
         try {
           await api.getConfig()
-          navigate('/models')
+          navigate('/overview')
         } catch {
           // If verification fails, remove the API key
           localStorage.removeItem('apiKey')
@@ -65,19 +65,26 @@ export function Login() {
       // Test the API key by fetching config
       await api.getConfig()
 
-      // Navigate to dashboard
-      // The ConfigProvider will handle fetching the config
-      navigate('/models')
+      // The key works. ConfigProvider refetches on the storage event
+      // dispatched above, so the shell has a config by the time it mounts.
+      // A full reload rather than navigate(): ConfigProvider already
+      // recorded the auth failure, and only a remount clears it.
+      window.location.assign('/overview')
     } catch (error: any) {
       // Clear the API key on failure
       api.setApiKey('')
 
-      // Check if it's an unauthorized error
-      if (error.message && error.message.includes('401')) {
+      // apiFetch throws 'Unauthorized' on a 401; older paths surfaced the
+      // status in the message. Accept either rather than letting a wrong
+      // key look like an unrelated failure.
+      const message = typeof error?.message === 'string' ? error.message : ''
+      if (message === 'Unauthorized' || message.includes('401')) {
         setError(t('login.invalidApiKey'))
       } else {
-        // For other errors, still allow access (restricted mode)
-        navigate('/models')
+        // Anything else is the server being unreachable, not a bad key —
+        // say so instead of waving the operator through to a shell that
+        // cannot load either.
+        setError(message.length > 0 ? message : t('login.invalidApiKey'))
       }
     }
   }

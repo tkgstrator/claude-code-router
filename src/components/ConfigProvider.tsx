@@ -16,6 +16,11 @@ interface ConfigContextType {
   // (possibly-null) payload the editor itself displays.
   reloadConfig: () => Promise<void>
   error: Error | null
+  // True once a request came back 401. The shell reads this to send the
+  // operator to the login screen — including when the failure happened
+  // before the shell mounted, which the 'unauthorized' event alone
+  // cannot cover.
+  authFailed: boolean
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined)
@@ -298,5 +303,9 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
     return <ApiUnreachableScreen />
   }
 
-  return <ConfigContext.Provider value={{ config, setConfig, reloadConfig, error }}>{children}</ConfigContext.Provider>
+  return (
+    <ConfigContext.Provider value={{ config, setConfig, reloadConfig, error, authFailed }}>
+      {children}
+    </ConfigContext.Provider>
+  )
 }

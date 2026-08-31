@@ -10,7 +10,7 @@
  */
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Navigate, NavLink, Outlet } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { Toaster } from '@/components/ui/sonner'
 import { api, type HealthResponse, type IdentityResponse } from '@/lib/api'
@@ -110,7 +110,7 @@ function ServingRow({
 }
 
 export function RialtoShell() {
-  const { config } = useConfig()
+  const { config, authFailed } = useConfig()
   const { resolvedTheme, setTheme } = useTheme()
   const [identity, setIdentity] = useState<IdentityResponse | null>(null)
   const [health, setHealth] = useState<HealthResponse | null>(null)
@@ -137,6 +137,14 @@ export function RialtoShell() {
 
   const port = config?.PORT
   const themeLabel = mounted && resolvedTheme ? resolvedTheme : ''
+
+  // A 401 leaves every screen below with nothing to render and no way to
+  // supply a key. Read from context rather than only listening for the
+  // 'unauthorized' event, because the failure usually happens during
+  // ConfigProvider's first fetch — before this component exists to hear
+  // it. Until Cloudflare Access lands, the login form is the only way
+  // back in.
+  if (authFailed) return <Navigate to='/login' replace />
 
   return (
     <div className='flex h-screen w-full overflow-hidden bg-background text-foreground'>

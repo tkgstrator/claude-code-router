@@ -136,12 +136,18 @@ class ApiClient {
     })
 
     if (response.status === 401) {
-      // 401 invalidates the stored key; the app listens for this event
-      // and routes back to the login screen (memory router — can't push
-      // from here directly).
+      // 401 invalidates the stored key. The event tells the shell to send
+      // the operator to the login screen; the throw is what stops every
+      // caller here.
+      //
+      // This used to `return new Promise(() => {})` — a promise that
+      // never settles — on the theory that navigation would unmount the
+      // caller anyway. It does not: a hanging promise means no `.catch`
+      // and no `.finally` ever runs, so every screen that fetched sat on
+      // its loading state forever with nothing on screen to explain why.
       localStorage.removeItem('apiKey')
       window.dispatchEvent(new CustomEvent('unauthorized'))
-      return new Promise(() => {}) as Promise<T>
+      throw new Error('Unauthorized')
     }
 
     if (!response.ok) {
