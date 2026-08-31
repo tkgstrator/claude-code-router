@@ -110,16 +110,54 @@ const confirm = async (query: string): Promise<boolean> => {
 
 const generateApiKey = () => crypto.randomBytes(32).toString('hex')
 
-const createDefaultConfig = async (): Promise<ConfigEnvelope> => {
+/**
+ * Move an unusable config file aside instead of deleting it.
+ *
+ * A config that fails to parse or validate is still the operator's only
+ * copy of their settings, and there are no backups. Unlinking it meant a
+ * single bad key — including one arriving from a stray environment
+ * variable — destroyed the file and rotated the bootstrap token, locking
+ * out every client. Renaming keeps the boot path working while leaving
+ * the original recoverable.
+ */
+const quarantineConfigFile = async (): Promise<void> => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const aside = `${CONFIG_FILE}.invalid-${stamp}`
+  try {
+    await fs.rename(CONFIG_FILE, aside)
+    logger.error({ from: CONFIG_FILE, to: aside }, 'Config file was unusable — moved aside, not deleted')
+  } catch (err) {
+    logger.error({ path: CONFIG_FILE, err }, 'Could not move the unusable config file aside')
+  }
+}
+
+/**
+ * Values worth carrying out of a config that failed to load.
+ *
+ * `APIKEY` above all: regenerating it locks out every configured client,
+ * and a file that failed schema validation usually still holds a
+ * perfectly good token. Personas are the other envelope-only data with
+ * no copy anywhere else — Providers and Router live in the database.
+ */
+const salvageFromRaw = (raw: unknown): Partial<{ APIKEY: string; Personas: unknown[] }> => {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const obj: Record<string, unknown> = { ...raw }
+  const salvaged: Partial<{ APIKEY: string; Personas: unknown[] }> = {}
+  if (typeof obj.APIKEY === 'string' && obj.APIKEY.length > 0) salvaged.APIKEY = obj.APIKEY
+  if (Array.isArray(obj.Personas) && obj.Personas.length > 0) salvaged.Personas = obj.Personas
+  return salvaged
+}
+
+const createDefaultConfig = async (salvaged: ReturnType<typeof salvageFromRaw> = {}): Promise<ConfigEnvelope> => {
   await initDir()
   const raw = {
     PORT: 3456,
-    APIKEY: generateApiKey(),
+    APIKEY: salvaged.APIKEY === undefined ? generateApiKey() : salvaged.APIKEY,
     Providers: [],
     Router: {},
     // Ship a few ready-made personas in the default config so a fresh
     // install has something to pick on the Router page out of the box.
-    Personas: SEED_PERSONAS
+    Personas: salvaged.Personas === undefined ? SEED_PERSONAS : salvaged.Personas
   }
   await writeConfigFile(raw)
   logger.info({ path: CONFIG_FILE }, 'Created default configuration file')
@@ -160,7 +198,8 @@ export const readConfigFile = async (): Promise<ConfigEnvelope> => {
       parsed = JSON5.parse(raw)
     } catch (parseError) {
       logger.error({ path: CONFIG_FILE, err: parseError }, 'Failed to parse config file')
-      await fs.unlink(CONFIG_FILE)
+      await quarantineConfigFile()
+      // Nothing is salvageable from a file JSON5 could not read.
       return createDefaultConfig()
     }
 
@@ -171,8 +210,11 @@ export const readConfigFile = async (): Promise<ConfigEnvelope> => {
     const result = ConfigEnvelopeSchema.safeParse(overlaid)
     if (!result.success) {
       logger.error({ err: result.error }, 'Config file failed schema validation')
-      await fs.unlink(CONFIG_FILE)
-      return createDefaultConfig()
+      await quarantineConfigFile()
+      // The file parsed as JSON — one key failing validation is no
+      // reason to rotate a working bootstrap token or drop the persona
+      // library, neither of which is stored anywhere else.
+      return createDefaultConfig(salvageFromRaw(parsed))
     }
 
     // Return the schema-parsed envelope (defaults applied, API_TIMEOUT_MS
