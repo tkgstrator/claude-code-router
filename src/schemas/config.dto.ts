@@ -30,7 +30,9 @@ export const ConfigEnvelopeSchema = z
   .object({
     HOST: z.string().default('127.0.0.1'),
     PORT: z.number().int().positive().default(3456),
-    APIKEY: z.string().nonempty(),
+    // Optional break-glass credential for /api/*. Absent on a fresh
+    // install; an operator sets it deliberately or not at all.
+    APIKEY: z.string().default(''),
     LOG: z.boolean().default(false),
     LOG_LEVEL: LogLevelSchema.default('info'),
     PROXY_URL: z.string().default(''),
@@ -147,7 +149,7 @@ export const ConfigSchema = z.object({
   CLAUDE_PATH: z.string().nonempty(),
   HOST: z.string().nonempty(),
   PORT: z.number().int().positive(),
-  APIKEY: z.string().nonempty(),
+  APIKEY: z.string(),
   API_TIMEOUT_MS: z.number().int().nonnegative(),
   PROXY_URL: z.url(),
   CUSTOM_ROUTER_PATH: z.string().nonempty().optional(),

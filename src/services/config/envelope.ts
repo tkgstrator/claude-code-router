@@ -108,8 +108,6 @@ const confirm = async (query: string): Promise<boolean> => {
   return answer.toLowerCase() !== 'n'
 }
 
-const generateApiKey = () => crypto.randomBytes(32).toString('hex')
-
 /**
  * Move an unusable config file aside instead of deleting it.
  *
@@ -148,11 +146,26 @@ const salvageFromRaw = (raw: unknown): Partial<{ APIKEY: string; Personas: unkno
   return salvaged
 }
 
+/**
+ * A fresh install has no bootstrap token.
+ *
+ * It used to mint one, which meant every install carried a master key
+ * for /api/* that bypasses Cloudflare Access for anyone who obtains it —
+ * from config.json, a backup, or shell history. Nothing needs it now: a
+ * browser on this machine is exempt, remote admin access goes through
+ * Access, and /v1 takes issued tokens only.
+ *
+ * Setting APIKEY by hand still works, as a deliberate break-glass for
+ * remote admin access when Access itself is broken. Opting in to a
+ * master key is a different decision from being handed one.
+ */
 const createDefaultConfig = async (salvaged: ReturnType<typeof salvageFromRaw> = {}): Promise<ConfigEnvelope> => {
   await initDir()
   const raw = {
     PORT: 3456,
-    APIKEY: salvaged.APIKEY === undefined ? generateApiKey() : salvaged.APIKEY,
+    // Preserved when recovering a config that failed to load; never
+    // invented.
+    ...(salvaged.APIKEY === undefined ? {} : { APIKEY: salvaged.APIKEY }),
     Providers: [],
     Router: {},
     // Ship a few ready-made personas in the default config so a fresh

@@ -71,7 +71,15 @@ const envelope = await initConfig()
 // instance is constructed at import time before initConfig() has
 // mirrored config.json's LOG_LEVEL onto process.env.
 syncLoggerFromEnv()
-logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
+// Whether a break-glass token is configured, never its value: log files
+// live on disk, are readable from the Logging screen, and outlive the
+// secret. Absent is the default and is not a problem — a browser on this
+// machine is exempt, and everything else authenticates through
+// Cloudflare Access or an issued token.
+logger.info(
+  { bootstrapToken: (process.env.APIKEY ?? '').length > 0 ? 'configured' : 'not set' },
+  'admin credential status'
+)
 // Self-heal subscription providers whose active account binding was
 // orphaned by older toggle code that nulled instead of promoting.
 // Idempotent: a no-op once every provider already has a valid active.

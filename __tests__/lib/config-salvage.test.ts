@@ -59,11 +59,12 @@ describe('readConfigFile — unusable config', () => {
     expect(envelope.PORT).toBe(3456)
   })
 
-  test('mints a token only when the broken file carried none', async () => {
+  test('does not invent a token the broken file never had', async () => {
+    // Minting one here would hand a master key for /api/* to an install
+    // that had deliberately gone without.
     writeFileSync(CONFIG_FILE, JSON.stringify({ PORT: 'bad' }))
     const envelope = await readConfigFile()
-    expect(typeof envelope.APIKEY).toBe('string')
-    expect(envelope.APIKEY.length).toBeGreaterThan(0)
+    expect(envelope.APIKEY).toBe('')
   })
 
   test('preserves a file JSON5 cannot read, even though nothing is salvageable from it', async () => {
