@@ -29,7 +29,7 @@ import type {
   RouterPreferenceEntry,
   RouterPreferenceProfile,
   ScenarioKey
-} from '../schemas'
+} from '../schemas/domain'
 
 // Every scenario the wire shape carries. Kept as a static tuple so
 // adding a new ScenarioKey in Prisma requires touching this file too

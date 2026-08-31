@@ -9,7 +9,7 @@
  *   - The /api/config fixture is skipped (it's the CCR config, not an
  *     LLM response, so a separate schema owns it).
  *
- * The schemas in llm-anthropic-sse.dto.ts are intentionally strict —
+ * The schemas in wire/anthropic/sse.ts are intentionally strict —
  * required fields stay required until a fixture proves the field is
  * actually absent in the wild. This test is what surfaces that.
  */
@@ -23,7 +23,7 @@ import {
   AnthropicIncomingRequestSchema,
   AnthropicMessageResponseSchema,
   AnthropicSSEPayloadSchema,
-} from "@/schemas";
+} from "@/schemas/wire/anthropic";
 
 const FIXTURES_DIR = join(import.meta.dir, "__fixtures__");
 

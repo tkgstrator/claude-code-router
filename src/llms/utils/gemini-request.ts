@@ -10,23 +10,21 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
+import type { UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '@/schemas/domain/unified'
 import {
   type GeminiContent,
   type GeminiGenerationConfig,
   type GeminiInboundContent,
   GeminiInboundRequestSchema,
   type GeminiInboundTool,
-  type GeminiToolConfig,
-  type UnifiedChatRequest,
-  type UnifiedMessage,
-  type UnifiedTool
-} from '@/schemas'
+  type GeminiToolConfig
+} from '@/schemas/wire/gemini/content'
 import { buildGenerationConfig, buildToolConfig, buildTools, isToolChoiceFunctionObject } from './gemini/request-config'
 import { buildContents } from './gemini/request-content'
 import type { GeminiTool } from './gemini-schema'
 
 // ─── Gemini wire shapes ─────────────────────────────────────────────────
-// All schemas live in `@/schemas/llm-gemini.dto`; this file imports the
+// All schemas live in `@/schemas/wire/gemini/content`; this file imports the
 // inferred types and emits values that match them.
 
 /** Gemini `generateContent` request body (what we POST upstream). */

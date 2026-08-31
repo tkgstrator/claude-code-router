@@ -19,8 +19,7 @@
 
 import type { z } from '@hono/zod-openapi'
 import { logger } from '../logger'
-import { VendorModelsResponseSchema } from '../schemas/model.dto'
-
+import { VendorModelsResponseSchema } from '../schemas/api/models'
 export interface ScrapedPriceEntry {
   apiId: string
   // Nullable to accommodate credit-based vendors (Codex) whose pricing

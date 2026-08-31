@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { ConditionSchema, JsonValueSchema, PresetFileSchema, PresetMetadataSchema } from '../../src/schemas'
+import { ConditionSchema, JsonValueSchema, PresetFileSchema, PresetMetadataSchema } from '../../src/schemas/domain/preset'
 import { evaluateCondition } from '../../src/shared/preset/schema'
 
 describe('JsonValueSchema', () => {

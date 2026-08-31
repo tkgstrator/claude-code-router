@@ -5,7 +5,7 @@
  * speak" logic — the part an operator reads when a request misbehaves —
  * can be reasoned about (and unit-tested) without React.
  */
-import type { CatalogEntry, CatalogModel } from '@/schemas'
+import type { CatalogEntry, CatalogModel } from '@/schemas/api/catalog'
 import type { ApiStyle, Provider, SubscriptionWire, TestStatus, Tier, TransformerWire } from './types'
 
 export type ProviderState = 'live' | 'invalid' | 'unknown'

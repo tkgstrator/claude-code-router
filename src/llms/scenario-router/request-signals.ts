@@ -10,7 +10,7 @@
  * a thinking request.
  */
 
-import type { RequestedModelTier } from '@/schemas'
+import type { RequestedModelTier } from '@/schemas/domain/router'
 import type { RouterRequestBody } from './types'
 
 // Whether the request opts INTO extended thinking. Anthropic's

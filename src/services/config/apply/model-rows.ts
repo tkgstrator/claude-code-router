@@ -4,7 +4,7 @@
  * Model.enabled from the transformer's `_disabledModels` selection.
  */
 
-import type { Provider } from '@/schemas'
+import type { Provider } from '@/schemas/domain/provider'
 import { isDeprecatedModel } from '@/shared/data'
 import { type Model as DbModel, type Provider as DbProvider, ModelTestStatus } from '../../../generated/prisma/client'
 import { modelApiStyleOverride } from '../api-style'

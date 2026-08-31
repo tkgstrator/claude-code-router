@@ -8,7 +8,8 @@
  * consumed directly by sibling config modules).
  */
 
-import { ApplyConfigPayloadSchema, type Provider, type Router } from '@/schemas'
+import { ApplyConfigPayloadSchema } from '@/schemas/api/config'
+import type { Provider, Router } from '@/schemas/domain'
 import { getPrismaClient } from '../../db/client'
 import type { Prisma } from '../../generated/prisma/client'
 import { resetLlmsContext } from '../../llms'

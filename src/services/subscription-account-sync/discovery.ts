@@ -8,7 +8,7 @@
 import type { SubAccount } from '../../generated/prisma/client'
 import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
-import type { DiscoveredAccount } from '../../schemas/subscription.dto'
+import type { DiscoveredAccount } from '../../schemas/domain/subscription'
 import { fetchClaudeProfile } from '../claude-profile-service'
 import { codexAccessTokenExpiry, codexIdentityFrom } from '../codex-auth/claims'
 import { encryptString, firstString } from './crypto'

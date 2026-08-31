@@ -23,7 +23,7 @@ import {
   CodexRefreshResponseSchema,
   type CodexTokenExchangeResponse,
   CodexTokenExchangeResponseSchema
-} from '../../schemas/llm-oauth.dto'
+} from '../../schemas/wire/oauth'
 
 const CODEX_AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize'
 const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token'

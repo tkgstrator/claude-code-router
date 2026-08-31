@@ -15,7 +15,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { ResolvedProvider } from '../../src/llms/registry/provider'
 import type { Transformer } from '../../src/llms/transformers/base'
-import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas'
+import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 import { processRequestTransformers } from '../../src/llms/pipeline/request-chain'
 
 // Bare-minimum transformer stub — bypass mode doesn't call any hooks

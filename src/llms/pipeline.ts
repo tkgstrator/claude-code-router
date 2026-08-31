@@ -31,13 +31,13 @@
  *   - `session-id.ts`        shared session-id resolution
  */
 
-import type { PipelineBodyView, TransformerHookResult } from '@/schemas'
+import type { PipelineBodyView, TransformerHookResult } from '@/schemas/domain/pipeline'
 import { sendToProvider } from './pipeline/provider-send'
 import { processRequestTransformers, shouldBypass } from './pipeline/request-chain'
 import { processResponseTransformers } from './pipeline/response-chain'
 import type { PipelineDeps, PipelineInput } from './pipeline/types'
 
-export type { MessageRecord, UsageRecord } from '@/schemas'
+export type { MessageRecord, UsageRecord } from '@/schemas/domain/usage-record'
 export type { PipelineDeps, PipelineInput } from './pipeline/types'
 
 /**

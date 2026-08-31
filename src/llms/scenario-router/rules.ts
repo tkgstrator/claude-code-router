@@ -10,7 +10,7 @@
  * because both reach the same `explainRule`.
  */
 
-import type { RouteRule } from '@/schemas'
+import type { RouteRule } from '@/schemas/domain/router'
 import { globMatch, hasMatchingTool, isThinkingEnabled, readEffort, tierOf, toolTypes } from './request-signals'
 import type { RouterRequest } from './types'
 

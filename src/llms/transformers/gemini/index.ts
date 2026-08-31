@@ -20,13 +20,8 @@
  * vertex-gemini.
  */
 
-import {
-  RecordSchema,
-  type RuntimeProvider,
-  type TransformerContext,
-  type TransformerHookResult,
-  type UnifiedChatRequest
-} from '@/schemas'
+import type { RuntimeProvider, TransformerContext, TransformerHookResult, UnifiedChatRequest } from '@/schemas/domain'
+import { RecordSchema } from '@/schemas/primitives/record'
 import { buildRequestBody, transformRequestOut, transformResponseOut } from '../../utils/gemini-conversion'
 import { convertChatCompletionToGemini, convertChatStreamToGeminiSse } from '../../utils/gemini-inbound-response'
 import { Transformer, type TransformerAuthResult } from '../base'

@@ -9,7 +9,7 @@
 import { useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { EFFORT_LEVELS, REQUESTED_MODEL_TIERS, type RouteRule } from '@/schemas'
+import { EFFORT_LEVELS, REQUESTED_MODEL_TIERS, type RouteRule } from '@/schemas/domain/router'
 
 type Predicate = RouteRule['when']
 type Field = 'requestedTier' | 'requestedModel' | 'thinking' | 'minTokens' | 'maxTokens' | 'hasTool' | 'effort'

@@ -2,7 +2,7 @@ import type { z } from '@hono/zod-openapi'
 import { VENDOR_DEFAULTS } from '@/shared'
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
-import type { ProviderTestResponseSchema } from '../schemas/provider.dto'
+import type { ProviderTestResponseSchema } from '../schemas/api/providers'
 import { isJsonObject } from './config/transformer'
 import { getSubscriptionsInfo } from './subscription-info-service'
 

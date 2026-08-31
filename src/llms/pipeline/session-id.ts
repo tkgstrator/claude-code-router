@@ -16,7 +16,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import type { TransformerContext } from '@/schemas'
+import type { TransformerContext } from '@/schemas/domain/pipeline'
 
 // Per-request cache for the random fallback, so every recording of one
 // request shares an id. Keyed on the (stable, per-request) context object;

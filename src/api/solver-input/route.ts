@@ -12,7 +12,7 @@
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { SolverInputSchema } from '../../schemas'
+import { SolverInputSchema } from '../../schemas/domain/solver-input'
 import { collectSolverInput } from '../../services/solver/collect-input'
 
 export const solverInputRoute = new OpenAPIHono()

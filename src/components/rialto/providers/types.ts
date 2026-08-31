@@ -7,8 +7,8 @@
  * and `CatalogEntry` come from `@/schemas` because those ARE the wire
  * contract — re-typing them here would let the two drift.
  */
-import type { CatalogEntry, Provider } from '@/schemas'
-
+import type { CatalogEntry } from '@/schemas/api/catalog'
+import type { Provider } from '@/schemas/domain/provider'
 export type ApiStyle = 'openai_chat' | 'openai_responses' | 'anthropic' | 'gemini'
 export type AuthStatus = 'unknown' | 'live' | 'invalid'
 export type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'

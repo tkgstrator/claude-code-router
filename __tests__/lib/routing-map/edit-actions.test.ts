@@ -9,8 +9,7 @@ import {
   removeRule,
   updateRule
 } from '../../../src/lib/routing-map/edit-actions'
-import type { RouterConfig } from '../../../src/schemas'
-
+import type { RouterConfig } from '../../../src/schemas/domain/router'
 // A fully-unset nested RouterConfig the tests mutate field by field. Each
 // scenario carries an agent + subagent route; the editor helpers edit the
 // agent route only, so the assertions read `<scenario>.agent.*`. `rules`

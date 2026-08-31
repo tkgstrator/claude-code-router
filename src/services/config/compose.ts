@@ -4,8 +4,8 @@
  * API / UI.
  */
 
-import type { AppConfig, Provider, RouteRule, Router } from '@/schemas'
-import { RouteRuleSchema } from '@/schemas'
+import type { AppConfig } from '@/schemas/api/config'
+import { type Provider, type RouteRule, RouteRuleSchema, type Router } from '@/schemas/domain'
 import type { ConfigEnvelope, ScenarioKey } from '@/shared'
 import { getPrismaClient } from '../../db/client'
 import {

@@ -19,7 +19,7 @@
  * injection so an operator can still pin a custom chain.
  */
 
-import type { Provider, ProviderTransformer } from '@/schemas'
+import type { Provider, ProviderTransformer } from '@/schemas/domain/provider'
 
 const CODEX_MODEL = /codex/i
 

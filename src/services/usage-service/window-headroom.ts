@@ -9,7 +9,7 @@
 
 import { z } from '@hono/zod-openapi'
 import dayjs from '../../lib/dayjs'
-import type { ClaudeUsage, CodexUsage, CodexUsageWindowValue } from '../../schemas/usage.dto'
+import type { ClaudeUsage, CodexUsage, CodexUsageWindowValue } from '../../schemas/api/usage'
 import { claudeCache, codexCache } from './cache'
 
 // Window keys as zod enums so a runtime value can be narrowed to the

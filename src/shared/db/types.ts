@@ -1,8 +1,8 @@
 /**
  * Plain-data constants and type re-exports for the Postgres-backed config
- * store. Zod schemas have been relocated to `src/schemas/*.dto.ts` — see
- * `@/schemas/router.dto` (ScenarioKeySchema), `@/schemas/env.dto`
- * (LogLevelSchema), and `@/schemas/config.dto` (ConfigEnvelopeSchema).
+ * store. Zod schemas have been relocated to the `src/schemas` layers — see
+ * `@/schemas/domain/router` (ScenarioKeySchema), `@/schemas/primitives/env`
+ * (LogLevelSchema), and `@/schemas/domain/config` (ConfigEnvelopeSchema).
  *
  * - `SCENARIO_KEYS` mirrors the Prisma `ScenarioKey` enum and the legacy
  *   `Router.*` keys; its iteration order is the order used by the
@@ -14,7 +14,7 @@
  *   seed.
  */
 
-import type { ConfigEnvelope, ScenarioKey } from '@/schemas'
+import type { ConfigEnvelope, ScenarioKey } from '@/schemas/domain'
 
 // Re-export the relocated types so legacy `from '@/shared/db/types'`
 // imports keep working without churn.

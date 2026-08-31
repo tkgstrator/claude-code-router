@@ -17,7 +17,7 @@ import type {
   SessionSummary,
   SurfaceId
 } from '@/lib/api-types'
-import type { RouterConfig } from '@/schemas'
+import type { RouterConfig } from '@/schemas/domain/router'
 import type { Config } from '@/types'
 
 // Every wire type lives in ./api-types and is re-exported here, so

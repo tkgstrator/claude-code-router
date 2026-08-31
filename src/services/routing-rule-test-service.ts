@@ -14,7 +14,7 @@
  * reached, because "rule 4 never fires" is usually caused by rule 2.
  */
 
-import type { RouteRule } from '@/schemas'
+import type { RouteRule } from '@/schemas/domain/router'
 import { getLlmsContext } from '../llms/context'
 import { type ConditionVerdict, explainRule } from '../llms/scenario-router/model-selection'
 import type { RouterRequestBody } from '../llms/scenario-router/types'

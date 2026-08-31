@@ -2,9 +2,9 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import {
   ProviderDeleteResponseSchema,
   ProviderErrorResponseSchema,
-  ProviderSchema,
   ProviderUpsertResponseSchema
-} from '../../../schemas'
+} from '../../../schemas/api/providers'
+import { ProviderSchema } from '../../../schemas/domain/provider'
 import { deleteProviderByName, upsertProvider } from '../../../services/config'
 import { ValidationErrorResponseSchema, validationErrorHook } from '../../zod-response'
 

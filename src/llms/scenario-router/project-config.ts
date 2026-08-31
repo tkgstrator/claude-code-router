@@ -9,7 +9,7 @@
 
 import { opendir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ProjectRouterFileSchema } from '@/schemas'
+import { ProjectRouterFileSchema } from '@/schemas/domain/scenario'
 import { CLAUDE_PROJECTS_DIR, HOME_DIR } from '@/shared/constants'
 import type { RouterConfig, RouterRequest } from './types'
 

@@ -7,8 +7,13 @@
  * `transformRequestIn` chains.
  */
 
-import type { TransformerConfig, UnifiedChatRequest } from '@/schemas'
-import { isProviderModelBlock, isTransformerHookResult, viewPipelineBody } from '@/schemas'
+import {
+  isProviderModelBlock,
+  isTransformerHookResult,
+  type TransformerConfig,
+  type UnifiedChatRequest,
+  viewPipelineBody
+} from '@/schemas/domain'
 import type { ResolvedProviderTransformer } from '../registry/provider'
 import type { Transformer } from '../transformers/base'
 import type { PipelineInput } from './types'

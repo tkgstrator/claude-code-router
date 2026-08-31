@@ -7,8 +7,7 @@
  * re-exports every name here, so `@/lib/api` remains the single import
  * path — nothing outside this pair should reference this module directly.
  */
-import type { RouterConfig } from '@/schemas'
-
+import type { RouterConfig } from '@/schemas/domain/router'
 export interface RoutingPresetItem {
   id: string
   name: string
@@ -45,7 +44,11 @@ export interface RequestLogItem {
   totalCostUsd: number | null
 }
 
-export type InboundType = 'anthropic' | 'openai' | 'gemini'
+// From the schema, not restated: the UI and the server must agree on
+// what an inbound type can be, and a second copy is how they stop.
+import type { InboundType } from '@/schemas/api/request-log'
+
+export type { InboundType }
 
 export interface SessionSummary {
   sessionId: string

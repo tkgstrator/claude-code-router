@@ -9,7 +9,7 @@
  */
 
 import { api } from '@/lib/api'
-import type { RouterConfig } from '@/schemas'
+import type { RouterConfig } from '@/schemas/domain/router'
 import type { Config } from '@/types'
 
 export type ApplyResult = { ok: true; updatedConfig: Config } | { ok: false; message: string }

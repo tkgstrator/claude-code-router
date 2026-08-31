@@ -2,7 +2,7 @@
  * Plain TypeScript types and enums for preset functionality.
  *
  * Zod schemas (and the `InputType` / `MergeStrategy` enums they wrap)
- * have been relocated to `src/schemas/preset.dto.ts` so that all Zod
+ * have been relocated to `src/schemas/domain/preset.ts` so that all Zod
  * schemas in the repo live under `src/schemas/*.dto.ts`. The types and
  * enums below are re-exported from there via the `@/schemas` barrel —
  * this module exists so legacy `from '@/shared/preset/types'` imports
@@ -10,32 +10,33 @@
  * working without churn.
  */
 
-import type {
-  Condition,
-  ConfigMapping,
-  DynamicOptions,
-  InputOption,
-  JsonObject,
-  JsonPrimitive,
-  JsonValue,
-  ManifestFile,
-  PresetConfigSection,
-  PresetFile,
-  PresetIndexEntry,
-  PresetInfo,
-  PresetMetadata,
-  PresetProvider,
-  PresetRegistry,
-  PresetRouterConfig,
-  PresetTransformerConfig,
-  RequiredInput,
-  SanitizeResult,
-  TemplateConfig,
-  UserInputValues,
-  ValidationResult,
-  Validator
-} from '@/schemas'
-import { InputType, MergeStrategy } from '@/schemas'
+import {
+  type Condition,
+  type ConfigMapping,
+  type DynamicOptions,
+  type InputOption,
+  InputType,
+  type JsonObject,
+  type JsonPrimitive,
+  type JsonValue,
+  type ManifestFile,
+  MergeStrategy,
+  type PresetConfigSection,
+  type PresetFile,
+  type PresetIndexEntry,
+  type PresetInfo,
+  type PresetMetadata,
+  type PresetProvider,
+  type PresetRegistry,
+  type PresetRouterConfig,
+  type PresetTransformerConfig,
+  type RequiredInput,
+  type SanitizeResult,
+  type TemplateConfig,
+  type UserInputValues,
+  type ValidationResult,
+  type Validator
+} from '@/schemas/domain/preset'
 
 // Re-export the relocated types so legacy `from '@/shared/preset/types'`
 // imports keep working.

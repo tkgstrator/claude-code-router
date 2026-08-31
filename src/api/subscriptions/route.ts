@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { SubscriptionsResponseSchema } from '../../schemas'
+import { SubscriptionsResponseSchema } from '../../schemas/api/subscriptions'
 import { syncSubAccountProfiles } from '../../services/subscription-account-sync-service'
 import { getSubscriptionsInfo } from '../../services/subscription-info-service'
 

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { solverInputRoute } from '../../src/api/solver-input/route'
-import { SolverInputSchema } from '../../src/schemas'
+import { SolverInputSchema } from '../../src/schemas/domain/solver-input'
 import { HAS_DB, resetDbTables, teardownPrisma } from '../db/helpers'
 
 const describeOrSkip = HAS_DB ? describe : describe.skip

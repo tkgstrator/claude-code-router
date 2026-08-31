@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
-import { UpdatePerformResponseSchema } from '../../../schemas'
+import { UpdatePerformResponseSchema } from '../../../schemas/api/update'
 import { performUpdate } from '../../../services/update'
 
 export const updatePerformRoute = new OpenAPIHono()

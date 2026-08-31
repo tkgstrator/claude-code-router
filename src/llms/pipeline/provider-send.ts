@@ -9,7 +9,12 @@
 import { randomUUID } from 'node:crypto'
 import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
-import { isTransformerHookResult, type TransformerConfig, type TransformerContext, viewPipelineBody } from '@/schemas'
+import {
+  isTransformerHookResult,
+  type TransformerConfig,
+  type TransformerContext,
+  viewPipelineBody
+} from '@/schemas/domain/pipeline'
 import { fetchProvider } from '../provider-fetch'
 import type { ResolvedProvider } from '../registry/provider'
 import type { Transformer } from '../transformers/base'

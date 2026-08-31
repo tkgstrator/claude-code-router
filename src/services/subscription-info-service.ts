@@ -1,7 +1,7 @@
 import type { z } from '@hono/zod-openapi'
 import { getPrismaClient } from '../db/client'
 import type { PrismaClient } from '../generated/prisma/client'
-import type { SubscriptionInfoSchema, SubscriptionProviderInfoSchema } from '../schemas/subscription.dto'
+import type { SubscriptionInfoSchema, SubscriptionProviderInfoSchema } from '../schemas/api/subscriptions'
 import { isJsonObject } from './config/transformer'
 
 export type SubscriptionAccountInfo = z.infer<typeof SubscriptionInfoSchema>

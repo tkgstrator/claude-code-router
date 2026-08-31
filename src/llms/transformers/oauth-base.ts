@@ -9,15 +9,15 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
-import { type OauthCredentials, OauthSubscriptionAuthBlockSchema, type RuntimeProvider } from '@/schemas'
+import type { RuntimeProvider } from '@/schemas/domain/pipeline'
+import { type OauthCredentials, OauthSubscriptionAuthBlockSchema } from '@/schemas/wire/oauth'
 import { logger } from '../../logger'
 import { withRefreshLock } from '../../services/oauth/refresh-lock'
 import { resolveAccountForSession } from '../../services/session-account-router'
 import { updateSubAccountAccessToken } from '../../services/subscription-account-sync-service'
 import { Transformer } from './base'
 
-export type { OauthCredentials } from '@/schemas'
-
+export type { OauthCredentials } from '@/schemas/wire/oauth'
 export interface OAuthRefreshResult {
   accessToken: string
   refreshToken?: string | null

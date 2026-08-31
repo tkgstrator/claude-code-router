@@ -9,7 +9,8 @@
  */
 
 import type { Logger } from 'pino'
-import { type ProviderConfigShape, RecordSchema, type RuntimeProvider, type TransformerUseEntry } from '@/schemas'
+import type { ProviderConfigShape, RuntimeProvider, TransformerUseEntry } from '@/schemas/domain/pipeline'
+import { RecordSchema } from '@/schemas/primitives/record'
 import type { Transformer, TransformerConstructor } from '../transformers/base'
 import type { TransformerRegistry } from './transformer'
 

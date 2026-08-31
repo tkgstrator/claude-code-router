@@ -13,7 +13,7 @@ import path from 'node:path'
 import pino from 'pino'
 import pinoPretty from 'pino-pretty'
 import dayjs from '@/lib/dayjs'
-import { LoggerEnvSchema } from '@/schemas/env.dto'
+import { LoggerEnvSchema } from '@/schemas/primitives/env'
 import { LOG_DIR } from '@/shared/constants'
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'

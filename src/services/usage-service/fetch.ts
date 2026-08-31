@@ -6,17 +6,16 @@
 
 import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
-import {
-  type ClaudeScopedWindow,
-  type ClaudeUsage,
-  ClaudeUsageWireSchema,
-  type CodexUsage,
-  type CodexUsageWindowValue,
-  CodexUsageWireSchema,
-  type GetUsageInput,
-  type GetUsageOutput,
-  type UsageResponse
-} from '../../schemas/usage.dto'
+import type {
+  ClaudeScopedWindow,
+  ClaudeUsage,
+  CodexUsage,
+  CodexUsageWindowValue,
+  GetUsageInput,
+  GetUsageOutput,
+  UsageResponse
+} from '../../schemas/api/usage'
+import { ClaudeUsageWireSchema, CodexUsageWireSchema } from '../../schemas/wire/usage'
 import { ensureFreshCodexAccessToken } from '../codex-auth/token'
 import { getSubAccountTokensForKind, type SubAccountTokenInfo } from '../subscription-account-sync-service'
 import { claudeCache, codexCache, TTL_MS } from './cache'

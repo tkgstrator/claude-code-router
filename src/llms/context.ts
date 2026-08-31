@@ -9,8 +9,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { Provider, ProviderConfigShape } from '@/schemas'
-import { flattenNestedRouter } from '@/schemas'
+import { flattenNestedRouter, type Provider, type ProviderConfigShape } from '@/schemas/domain'
 import { logger } from '../logger'
 import { loadFullConfig } from '../services/config'
 import { applyOpenAIOverlay } from '../services/openai-overlay'

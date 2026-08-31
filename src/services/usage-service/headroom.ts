@@ -6,7 +6,7 @@
  */
 
 import dayjs from '../../lib/dayjs'
-import type { ClaudeUsage, CodexUsage } from '../../schemas/usage.dto'
+import type { ClaudeUsage, CodexUsage } from '../../schemas/api/usage'
 import { claudeCache, codexCache } from './cache'
 
 // Utilization (0-100) at or above which the proactive router treats a

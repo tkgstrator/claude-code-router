@@ -13,7 +13,7 @@
  *   - `candidate-chain.ts` which models are worth attempting, in order
  */
 
-import type { PipelineRequest } from '@/schemas'
+import type { PipelineRequest } from '@/schemas/domain/pipeline'
 import type { LlmsContext, ResolvedProvider, Transformer } from '../../llms'
 import { inboundTypeForPath, surfaceForPath } from '../../llms/inbound/surfaces'
 import { isLongContextDenied } from '../../services/failover-state'

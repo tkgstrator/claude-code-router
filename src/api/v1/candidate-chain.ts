@@ -6,7 +6,7 @@
  * per-provider account rotation that happens inside a single entry).
  */
 
-import type { Provider } from '@/schemas'
+import type { Provider } from '@/schemas/domain/provider'
 import type { LlmsContext } from '../../llms'
 import { isModelExhausted } from '../../services/failover-state'
 import type { RoutePlan } from './route-plan'

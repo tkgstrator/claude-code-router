@@ -20,8 +20,7 @@
 // Three modules, one per stage of the doc above: `request-signals` reads
 // the wire, `rules` judges a predicate against it, and this file holds
 // the config lookup and the classifier that pick which of them to ask.
-import type { RouteRule, ScenarioType } from '@/schemas'
-import { RouteRuleSchema } from '@/schemas'
+import { type RouteRule, RouteRuleSchema, type ScenarioType } from '@/schemas/domain'
 import type { ConfigStore } from '../registry/config'
 import { isHeavyRequest, isThinkingEnabled, isWebSearchTool, stripSubagentTag } from './request-signals'
 import { matchesRule, type RuleEvalContext } from './rules'

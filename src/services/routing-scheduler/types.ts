@@ -7,8 +7,7 @@
  * APIs — those live in the collector and the tick loop.
  */
 
-import type { QuotaAwareConstraints, RouterPreferenceEntry } from '../../schemas'
-
+import type { QuotaAwareConstraints, RouterPreferenceEntry } from '../../schemas/domain/preference'
 // One rate-limit window normalised to the pct-based used/limit +
 // reset shape the collector already writes. `windowLengthMs` is used
 // by drain-target math; null when the collector didn't observe it.

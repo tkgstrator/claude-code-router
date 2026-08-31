@@ -7,16 +7,14 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
+import type { UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '@/schemas/domain/unified'
 import type {
   AnthropicContentBlock,
   AnthropicCustomToolDef,
   AnthropicIncomingMessage,
   AnthropicIncomingRequest,
-  AnthropicToolDef,
-  UnifiedChatRequest,
-  UnifiedMessage,
-  UnifiedTool
-} from '@/schemas'
+  AnthropicToolDef
+} from '@/schemas/wire/anthropic/messages'
 import { formatBase64 } from '../../utils/image'
 
 export function buildSystemMessage(system: AnthropicIncomingRequest['system']): UnifiedMessage | undefined {

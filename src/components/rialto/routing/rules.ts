@@ -6,7 +6,7 @@
  * carries that scope alongside the rule so a flat list can still address
  * the right array when it saves.
  */
-import type { RouteRule, RouterConfig } from '@/schemas'
+import type { RouteRule, RouterConfig } from '@/schemas/domain/router'
 import type { Lane, ScenarioKey } from './types'
 import { LANES, SCENARIOS } from './types'
 

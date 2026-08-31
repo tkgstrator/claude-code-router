@@ -8,8 +8,7 @@
  * requested tier — just the config being edited.
  */
 
-import type { RouterConfig } from '@/schemas'
-
+import type { RouterConfig } from '@/schemas/domain/router'
 // The fixed scenario lanes, top-to-bottom. Mirrors SCENARIO_KEYS; kept
 // local so the editor graph never depends on traffic-side ordering. The
 // former `background` lane is gone — it is now a predicated rule on the

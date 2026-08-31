@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useConfig } from '@/components/ConfigProvider'
 import { api, type RoutingPresetItem } from '@/lib/api'
 import { applyPresetToLive } from '@/lib/routing-map/apply-to-live'
-import type { RouteRule } from '@/schemas'
+import type { RouteRule } from '@/schemas/domain/router'
 import { summarizePredicate, summarizeTarget } from './rules'
 
 const ROW = 'border-l-2 border-l-transparent px-4 py-3 transition-colors hover:border-l-border hover:bg-muted/50'

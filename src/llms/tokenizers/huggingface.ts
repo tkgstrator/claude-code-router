@@ -13,7 +13,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Tokenizer as HFTokenizer } from '@huggingface/tokenizers'
 import type { Logger } from 'pino'
-import type { ProviderTokenizerConfig } from '@/schemas'
+import type { ProviderTokenizerConfig } from '@/schemas/domain/tokenizer'
 import { type TokenizeContentBlock, type TokenizeRequest, Tokenizer } from './base'
 
 export type HuggingFaceTokenizerOptions = {

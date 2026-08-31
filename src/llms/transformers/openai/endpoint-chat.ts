@@ -16,7 +16,7 @@
  * services/openai-overlay.ts), so they never reach this rewrite.
  */
 
-import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '@/schemas'
+import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '@/schemas/domain'
 import { REASONING_MODEL_RE } from '@/shared/reasoning-model'
 import { absorbTopLevelSystem } from '../../utils/system-blocks'
 import { Transformer } from '../base'

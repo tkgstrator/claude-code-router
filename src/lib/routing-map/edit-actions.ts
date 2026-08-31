@@ -12,7 +12,7 @@
  */
 
 import type { EditScenario, RouteKind } from '@/lib/routing-map/edit-graph'
-import type { RouteRule, RouterConfig } from '@/schemas'
+import type { RouteRule, RouterConfig } from '@/schemas/domain/router'
 
 // One caller kind's route target (primary + ordered fallback chain).
 type RouteTarget = RouterConfig[EditScenario]['agent']

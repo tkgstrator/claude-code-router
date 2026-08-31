@@ -2,8 +2,7 @@ import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { ApiUnreachableScreen } from '@/components/rialto/system/ApiUnreachable'
 import { api } from '@/lib/api'
-import type { RouteRule } from '@/schemas'
-import { RouteRuleSchema } from '@/schemas'
+import { type RouteRule, RouteRuleSchema } from '@/schemas/domain/router'
 import type { Config } from '@/types'
 
 interface ConfigContextType {

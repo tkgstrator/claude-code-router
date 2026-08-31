@@ -30,7 +30,7 @@ import {
   type RequestedModelTier,
   type RouterPreferenceEntry,
   type ScenarioKey
-} from '@/schemas'
+} from '@/schemas/domain'
 import { logger } from '../../logger'
 import { loadPreferenceChain } from '../../services/router-preference-service'
 import { getRoutingSnapshot } from '../../services/routing-scheduler'

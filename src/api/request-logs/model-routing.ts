@@ -12,7 +12,7 @@
 import { createRoute } from '@hono/zod-openapi'
 import { getPrismaClient } from '../../db/client'
 import dayjs from '../../lib/dayjs'
-import { ModelRoutingQuerySchema, ModelRoutingResponseSchema } from '../../schemas'
+import { ModelRoutingQuerySchema, ModelRoutingResponseSchema } from '../../schemas/api/request-log'
 import { requestLogsRoute } from './app'
 
 const getModelRoutingRoute = createRoute({

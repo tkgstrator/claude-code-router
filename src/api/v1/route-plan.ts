@@ -15,7 +15,8 @@
 
 import type { Context } from 'hono'
 import '../context'
-import { type PipelineRequest, RecordSchema } from '@/schemas'
+import type { PipelineRequest } from '@/schemas/domain/pipeline'
+import { RecordSchema } from '@/schemas/primitives/record'
 import { type LlmsContext, type RouterRequest, routeScenario, type ScenarioType, type Transformer } from '../../llms'
 import { surfaceForPath } from '../../llms/inbound/surfaces'
 import { buildErrorEnvelope, errorShapeForPath } from './error-shape'

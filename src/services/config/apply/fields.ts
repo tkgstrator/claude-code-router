@@ -4,7 +4,7 @@
  * stay free of the `Tx` type and avoid a circular import with apply.ts.
  */
 
-import type { Provider } from '@/schemas'
+import type { Provider } from '@/schemas/domain/provider'
 import { Prisma } from '../../../generated/prisma/client'
 
 // Normalize an incoming api_key for storage. "Unset" is always NULL in

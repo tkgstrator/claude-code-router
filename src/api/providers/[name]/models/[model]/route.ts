@@ -3,7 +3,7 @@ import {
   UpdateModelBodySchema,
   UpdateModelErrorResponseSchema,
   UpdateModelSuccessResponseSchema
-} from '../../../../../schemas'
+} from '../../../../../schemas/api/models'
 import { setModelEnabled, setModelManualTier, setModelReasoningEffort } from '../../../../../services/config'
 import { ValidationErrorResponseSchema, validationErrorHook } from '../../../../zod-response'
 

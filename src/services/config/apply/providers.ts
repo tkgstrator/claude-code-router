@@ -4,7 +4,7 @@
  * Model row / enabled-flip reconciliation for each.
  */
 
-import type { Provider } from '@/schemas'
+import type { Provider } from '@/schemas/domain/provider'
 import { AuthMode, type Model as DbModel, type Provider as DbProvider } from '../../../generated/prisma/client'
 import { apiStyleForVendor } from '../api-style'
 import type { Tx } from '../apply'

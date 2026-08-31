@@ -9,7 +9,7 @@
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { RouterPreferenceProfileSchema } from '../../schemas'
+import { RouterPreferenceProfileSchema } from '../../schemas/domain/preference'
 import {
   applyRouterPreferences,
   DEFAULT_PROFILE_KEY,

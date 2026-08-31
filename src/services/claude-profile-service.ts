@@ -16,7 +16,7 @@
  */
 
 import type { Logger } from 'pino'
-import { type ClaudeOAuthProfile, ClaudeOAuthProfileSchema } from '@/schemas'
+import { type ClaudeOAuthProfile, ClaudeOAuthProfileSchema } from '@/schemas/wire/oauth'
 
 const PROFILE_URL = 'https://api.anthropic.com/api/oauth/profile'
 const OAUTH_BETA_HEADER = 'oauth-2025-04-20'

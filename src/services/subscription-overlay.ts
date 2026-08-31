@@ -21,8 +21,7 @@
  *    chain actually runs.
  */
 
-import type { Provider } from '@/schemas'
-
+import type { Provider } from '@/schemas/domain/provider'
 // Mirror of getActiveSubAccountAuth's return shape. The pipeline overlay
 // passes this object verbatim onto `provider.transformer.subscriptionAuth`
 // where OAuthTransformer parses it back out with safeParse.

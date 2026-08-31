@@ -8,7 +8,7 @@
  * drift apart about whether a rule fires.
  */
 import { describe, expect, test } from 'bun:test'
-import type { RouteRule } from '../../src/schemas'
+import type { RouteRule } from '../../src/schemas/domain/router'
 import { explainRule, matchesRule } from '../../src/llms/scenario-router/model-selection'
 
 // explainRule reads only body and tokenCount; the logger on RouterRequest

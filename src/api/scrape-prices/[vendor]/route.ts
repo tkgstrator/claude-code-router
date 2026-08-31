@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process'
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { ScrapePricesVendorSchema } from '../../../schemas'
-
+import { ScrapePricesVendorSchema } from '../../../schemas/api/price'
 export const scrapePricesRoute = new OpenAPIHono()
 
 // Spawn the per-vendor scrape script and pipe its output back. Path

@@ -46,7 +46,7 @@
 import { Hono } from 'hono'
 import { getPrismaClient } from '../../db/client'
 import { logger } from '../../logger'
-import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../schemas/llm-oauth.dto'
+import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../schemas/wire/oauth'
 import { buildClaudeAuthorizeUrl, CLAUDE_SCOPES, exchangeClaudeCode } from '../../services/claude-oauth-service'
 import { CODEX_CALLBACK_PORT, ensureCodexCallbackListener } from '../../services/codex-auth/callback-listener'
 import { buildCodexAuthorizeUrl, CODEX_CALLBACK_PATH } from '../../services/codex-auth/oauth'

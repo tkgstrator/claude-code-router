@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
-import { ProviderListResponseSchema, ProviderSchema, ProviderUpsertResponseSchema } from '../../schemas'
+import { ProviderListResponseSchema, ProviderUpsertResponseSchema } from '../../schemas/api/providers'
+import { ProviderSchema } from '../../schemas/domain/provider'
 import { getProviders, upsertProvider } from '../../services/config'
 import { ValidationErrorResponseSchema, validationErrorHook } from '../zod-response'
 

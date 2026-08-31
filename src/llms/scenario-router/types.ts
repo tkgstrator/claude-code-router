@@ -9,7 +9,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { ScenarioRouterConfig, ScenarioType } from '@/schemas'
+import type { ScenarioRouterConfig, ScenarioType } from '@/schemas/domain/scenario'
 import type { ConfigStore } from '../registry/config'
 import type { TokenizerRegistry } from '../registry/tokenizer'
 import type { TokenizeMessage, TokenizeSystem, TokenizeTool } from '../tokenizers/base'

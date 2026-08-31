@@ -8,15 +8,15 @@
 
 import type { Logger } from 'pino'
 import dayjs from '@/lib/dayjs'
-import type {
-  GeminiCandidate,
-  GeminiResponsePart,
-  GeminiStreamChunk,
-  PipelineDelta,
-  PipelineStreamChunk,
-  PipelineToolCall
-} from '@/schemas'
-import { GeminiStreamChunkSchema } from '@/schemas'
+import {
+  type GeminiCandidate,
+  type GeminiResponsePart,
+  type GeminiStreamChunk,
+  GeminiStreamChunkSchema,
+  type PipelineDelta,
+  type PipelineStreamChunk,
+  type PipelineToolCall
+} from '@/schemas/wire'
 import { cloneResponse } from '../response-clone'
 import {
   buildAnnotations,

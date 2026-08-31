@@ -21,7 +21,7 @@ import type { z } from '@hono/zod-openapi'
 import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, VENDOR_DEFAULTS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, Prisma, type PrismaClient } from '../generated/prisma/client'
-import type { PriceSeedOutcomeSchema } from '../schemas/price.dto'
+import type { PriceSeedOutcomeSchema } from '../schemas/api/price'
 import { apiStyleForVendor, modelApiStyleOverride } from './config'
 
 const OFFICIAL_VENDORS = ['openai', 'anthropic', 'google'] as const

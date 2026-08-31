@@ -5,7 +5,7 @@
  * server restart.
  */
 
-import { type Provider, ProviderSchema } from '@/schemas'
+import { type Provider, ProviderSchema } from '@/schemas/domain/provider'
 import { getPrismaClient } from '../../db/client'
 import { ModelTestStatus, type PrismaClient } from '../../generated/prisma/client'
 import { resetLlmsContext } from '../../llms'

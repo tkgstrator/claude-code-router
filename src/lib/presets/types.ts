@@ -1,5 +1,5 @@
 // Shared shapes for the Presets page and its DynamicConfigForm sub-component.
-// These mirror the preset manifest schema (see src/schemas/preset.dto.ts) but
+// These mirror the preset manifest schema (see src/schemas/domain/preset.ts) but
 // are kept local/loose on purpose: the UI only ever reads these fields off of
 // already-parsed API responses, it never re-validates them.
 

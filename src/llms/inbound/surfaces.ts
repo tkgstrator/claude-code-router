@@ -33,7 +33,13 @@ export type SurfaceId = 'anthropic-messages' | 'openai-chat' | 'openai-responses
 
 export type RoutingMode = 'routed' | 'passthrough'
 
-export type InboundType = 'anthropic' | 'openai' | 'gemini'
+// Re-exported from the schema rather than restated. Three hand-written
+// copies of this union had drifted into the tree, so adding a surface
+// meant remembering all three — exactly the cost the plan's "the only
+// source of a type is z.infer" rule exists to avoid.
+import type { InboundType } from '@/schemas/api/request-log'
+
+export type { InboundType }
 
 /** Credential convention a surface's client SDK sends. */
 export type SurfaceAuth = 'x-api-key' | 'bearer' | 'google'

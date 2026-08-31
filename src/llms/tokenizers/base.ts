@@ -4,7 +4,7 @@
  * The pipeline's only consumer (scenario router) calls one method on a
  * tokenizer instance: `countTokens(request)` where `request` is the
  * structured Anthropic-style payload (messages + optional system +
- * optional tools). The request shape lives in `@/schemas/llm-tokenizer.dto`
+ * optional tools). The request shape lives in `@/schemas/domain/tokenizer`
  * so it stays a single source of truth with the rest of the LLM domain.
  *
  * `initialize()` stays optional — tiktoken does its work in the
@@ -13,13 +13,18 @@
  * anything.
  */
 
-import type { TokenizeRequest } from '@/schemas'
+import type { TokenizeRequest } from '@/schemas/domain/tokenizer'
 
 // Re-export the schema-derived request types so tokenizer implementations
 // can `import { Tokenizer, TokenizeRequest, ... } from './base'` without
-// having to know that the data shapes live under `@/schemas`.
-export type { TokenizeContentBlock, TokenizeMessage, TokenizeRequest, TokenizeSystem, TokenizeTool } from '@/schemas'
-
+// having to know that the data shapes live under `@/schemas/domain`.
+export type {
+  TokenizeContentBlock,
+  TokenizeMessage,
+  TokenizeRequest,
+  TokenizeSystem,
+  TokenizeTool
+} from '@/schemas/domain/tokenizer'
 /**
  * Minimum surface every concrete tokenizer must implement. Kept as an
  * abstract class (rather than a bare interface) so concrete classes get

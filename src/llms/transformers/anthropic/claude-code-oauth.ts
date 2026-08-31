@@ -11,13 +11,8 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
-import {
-  OauthRefreshResponseSchema,
-  type RuntimeProvider,
-  type TransformerContext,
-  type TransformerHookResult,
-  type UnifiedChatRequest
-} from '@/schemas'
+import type { RuntimeProvider, TransformerContext, TransformerHookResult, UnifiedChatRequest } from '@/schemas/domain'
+import { OauthRefreshResponseSchema } from '@/schemas/wire/oauth'
 import { cloneResponse } from '../../utils/response-clone'
 import type { TransformerAuthResult } from '../base'
 import { type OAuthRefreshResult, OAuthTransformer } from '../oauth-base'

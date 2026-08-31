@@ -15,7 +15,7 @@ import { useCallback, useState } from 'react'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import type { RouteRule } from '@/schemas'
+import type { RouteRule } from '@/schemas/domain/router'
 import type { ConditionField, RuleCondition, RuleTestResult, RuleVerdict } from './rules'
 
 const SAMPLE = '{"model": "claude-haiku-4-5", "messages": []}'

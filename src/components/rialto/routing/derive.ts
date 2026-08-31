@@ -7,7 +7,7 @@
  * thresholds.
  */
 import type { RoutingSchedulerStateResponse, RoutingSchedulerWeightEntry } from '@/lib/api'
-import type { Provider } from '@/schemas'
+import type { Provider } from '@/schemas/domain/provider'
 import type { EnabledTarget, PreferenceByScenario, TargetState, Tier } from './types'
 import { SCENARIOS } from './types'
 

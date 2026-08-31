@@ -1,6 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { resetLlmsContext } from '../../llms'
-import { ApplyConfigPayloadSchema } from '../../schemas'
+import { ApplyConfigPayloadSchema } from '../../schemas/api/config'
 import { applyUiConfig, composeUiConfig } from '../../services/config'
 export const configRoute = new OpenAPIHono()
 

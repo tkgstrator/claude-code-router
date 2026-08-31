@@ -8,7 +8,8 @@
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { RecordSchema, RouteRuleSchema } from '../../../schemas'
+import { RouteRuleSchema } from '../../../schemas/domain/router'
+import { RecordSchema } from '../../../schemas/primitives/record'
 import { testRules } from '../../../services/routing-rule-test-service'
 
 const ConditionSchema = z

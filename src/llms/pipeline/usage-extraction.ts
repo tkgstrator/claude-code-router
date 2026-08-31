@@ -16,7 +16,7 @@ import {
   type TransformerContext,
   type UsageBlock,
   viewPipelineBody
-} from '@/schemas'
+} from '@/schemas/domain'
 import type { ResolvedProvider } from '../registry/provider'
 import { resolveSessionId } from './session-id'
 import type { PipelineDeps } from './types'

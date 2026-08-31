@@ -16,8 +16,7 @@ export type {
   GetUsageInput,
   GetUsageOutput,
   UsageResponse
-} from '../schemas/usage.dto'
-
+} from '../schemas/api/usage'
 export {
   __clearUsageCachesForTest,
   __seedClaudeCacheForTest,

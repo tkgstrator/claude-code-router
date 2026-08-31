@@ -25,7 +25,7 @@
  * per-session/per-project Router override lookup.
  */
 
-import type { FlatRouter } from '@/schemas'
+import type { FlatRouter } from '@/schemas/domain/router'
 import { isRoutedPath, resolveSurfaceForPath } from '../services/inbound-surface-service'
 import { PASSTHROUGH_PROFILE_KEY } from '../services/router-preference-service'
 import { isSessionInRollout } from '../services/routing-scheduler/rollout'
@@ -95,7 +95,7 @@ const applyPeerFallback = (
   return { primary, fallbacks: expanded.chain.slice(1), peerTargets: expanded.peerTargets }
 }
 
-export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas'
+export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas/domain/scenario'
 export type { SubscriptionKindProvider } from './scenario-router/failover'
 export { applyProactiveFailover, candidateUsable, subscriptionKindOf } from './scenario-router/failover'
 export type { EffortLevel, ModelTier } from './scenario-router/model-selection'

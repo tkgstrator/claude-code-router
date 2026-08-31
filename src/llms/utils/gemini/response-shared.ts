@@ -6,14 +6,14 @@
  * (`response-streaming.ts`).
  */
 
+import type { Annotation } from '@/schemas/domain/unified'
 import type {
-  Annotation,
   GeminiCandidate,
   GeminiResponse,
   GeminiResponsePart,
   PipelineChunkUsage,
   PipelineToolCall
-} from '@/schemas'
+} from '@/schemas/wire'
 
 // Re-exported so the gemini response converters keep their existing
 // `./response-shared` import path — the canonical implementation now

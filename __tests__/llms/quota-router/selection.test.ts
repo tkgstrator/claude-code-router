@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { PreferenceConstraints, RouterPreferenceEntry } from '../../../src/schemas'
+import type { PreferenceConstraints, RouterPreferenceEntry } from '../../../src/schemas/domain/preference'
 import { selectByPreference } from '../../../src/llms/quota-router/selection'
 
 // Strict tier constraint: both directional gates OFF, so only same-tier

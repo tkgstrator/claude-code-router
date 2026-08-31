@@ -6,8 +6,7 @@ import {
   loadPreferenceChain,
   loadRouterPreferences
 } from '../../src/services/router-preference-service'
-import type { PreferenceKind, RouterPreferenceEntry } from '../../src/schemas'
-
+import type { PreferenceKind, RouterPreferenceEntry } from '../../src/schemas/domain/preference'
 const describeOrSkip = HAS_DB ? describe : describe.skip
 
 // Helper: build an entriesByScenario map where only the given

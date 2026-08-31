@@ -24,7 +24,7 @@ import { AuthMode, type Prisma } from '../generated/prisma/client'
 import { logger } from '../logger'
 import type { ScrapedPriceEntry } from '../providers/base'
 import { getVendorProvider, isScrapedVendor } from '../providers/registry'
-import type { RefreshOutcomeSchema } from '../schemas/model.dto'
+import type { RefreshOutcomeSchema } from '../schemas/api/models'
 import { modelApiStyleOverride } from './config'
 
 export type RefreshOutcome = z.infer<typeof RefreshOutcomeSchema>

@@ -19,10 +19,7 @@
 import { createCipheriv, randomBytes } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { oauthRoute } from '../../src/api/oauth/route'
-import {
-  ClaudeCredentialsFileSchema,
-  CodexCredentialsFileSchema
-} from '../../src/schemas/llm-oauth.dto'
+import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../src/schemas/wire/oauth'
 import { HAS_DB, resetDbTables, teardownPrisma } from '../db/helpers'
 
 const TEST_KEY_HEX = 'ab'.repeat(32)
