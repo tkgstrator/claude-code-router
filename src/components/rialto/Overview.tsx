@@ -14,6 +14,16 @@ import { api, type OverviewResponse, type OverviewSpendRow } from '@/lib/api'
 import { fmtAgo, fmtCount, fmtLatency, fmtRate, fmtUntil, shortId } from '@/lib/rialto/format'
 import { fmtCost, fmtTokens } from '@/lib/sessions/format'
 
+// Spend is going up or down, and neither direction is an alarm on its
+// own — a rise past a tenth is the one worth colouring.
+const deltaTone = (ratio: number): 'warn' | 'ok' | 'mute' => {
+  if (ratio > 0.1) return 'warn'
+  if (ratio < 0) return 'ok'
+  return 'mute'
+}
+
+const fmtDelta = (ratio: number): string => `${ratio > 0 ? '+' : ''}${Math.round(ratio * 100)}%`
+
 const SPEND_LABELS: Record<OverviewSpendRow['label'], string> = {
   today: 'Today',
   week: 'This week',
@@ -175,6 +185,9 @@ export function Overview() {
                   </div>
                   <div className='mt-1 flex items-baseline gap-2'>
                     <span className='font-mono text-xl tabular-nums'>{fmtCost(s.usd)}</span>
+                    {s.deltaRatio === null ? null : (
+                      <Pill tone={deltaTone(s.deltaRatio)}>{fmtDelta(s.deltaRatio)}</Pill>
+                    )}
                   </div>
                 </div>
               ))}

@@ -27,6 +27,13 @@ export interface SurfaceTrafficRow {
 export interface SpendRow {
   label: 'today' | 'week' | 'month' | 'savedBySubscription'
   usd: number | null
+  /**
+   * Change against the immediately preceding period of the same length,
+   * as a ratio (0.12 = +12%). Null when either period has no priced
+   * traffic, or when the previous period was zero — there is no
+   * meaningful percentage change from nothing.
+   */
+  deltaRatio: number | null
 }
 
 export interface QuotaRow {
@@ -173,31 +180,54 @@ function buildSurfaces(configs: ResolvedSurfaceLike[], windowLogs: WindowLog[]):
   })
 }
 
-function buildSpend(monthLogs: MonthLog[], priceMap: Map<string, PriceEntry>): SpendRow[] {
-  const dayStart = dayjs().startOf('day')
-  const weekStart = dayjs().subtract(7, 'day')
+/** Cost of the rows inside [from, to), or null when none are priced. */
+function costBetween(
+  logs: MonthLog[],
+  from: dayjs.Dayjs,
+  to: dayjs.Dayjs,
+  priceMap: Map<string, PriceEntry>
+): number | null {
+  return sumCost(
+    logs.filter((l) => {
+      const at = dayjs(l.createdAt)
+      return !at.isBefore(from) && at.isBefore(to)
+    }),
+    priceMap
+  )
+}
+
+// Ratio change from `previous` to `current`. A previous period of zero
+// (or no priced traffic at all) has no percentage change to report — an
+// "+infinity%" tile would be worse than an empty one.
+function delta(current: number | null, previous: number | null): number | null {
+  if (current === null || previous === null || previous === 0) return null
+  return (current - previous) / previous
+}
+
+function buildSpend(spendLogs: MonthLog[], priceMap: Map<string, PriceEntry>): SpendRow[] {
+  const now = dayjs()
+  // Each entry pairs a period with the equally long period before it, so
+  // the delta compares like with like.
+  const periods: Array<{ label: 'today' | 'week' | 'month'; days: number; from: dayjs.Dayjs }> = [
+    { label: 'today', days: 1, from: now.startOf('day') },
+    { label: 'week', days: 7, from: now.subtract(7, 'day') },
+    { label: 'month', days: 30, from: now.subtract(30, 'day') }
+  ]
+
+  const rows: SpendRow[] = periods.map(({ label, days, from }) => {
+    const usd = costBetween(spendLogs, from, now, priceMap)
+    const previous = costBetween(spendLogs, from.subtract(days, 'day'), from, priceMap)
+    return { label, usd, deltaRatio: delta(usd, previous) }
+  })
+
   return [
-    {
-      label: 'today',
-      usd: sumCost(
-        monthLogs.filter((l) => dayjs(l.createdAt).isAfter(dayStart)),
-        priceMap
-      )
-    },
-    {
-      label: 'week',
-      usd: sumCost(
-        monthLogs.filter((l) => dayjs(l.createdAt).isAfter(weekStart)),
-        priceMap
-      )
-    },
-    { label: 'month', usd: sumCost(monthLogs, priceMap) },
+    ...rows,
     // What the subscription seats absorbed: token cost that WOULD have
     // been billed had the same traffic gone to a metered provider.
     // Computing it needs a per-request "what would this have cost on the
     // cheapest metered equivalent" mapping that does not exist yet, so it
     // reports null rather than a confident $0.
-    { label: 'savedBySubscription', usd: null }
+    { label: 'savedBySubscription', usd: null, deltaRatio: null }
   ]
 }
 
@@ -296,9 +326,11 @@ function loadQuotas() {
 export async function getOverview(windowHours: number): Promise<OverviewResponse> {
   const prisma = getPrismaClient()
   const since = dayjs().subtract(windowHours, 'hour').toDate()
-  const monthStart = dayjs().subtract(30, 'day').toDate()
+  // 60 days, not 30: every spend tile compares against the equally long
+  // period before it, and the month tile's predecessor reaches back 60.
+  const spendWindowStart = dayjs().subtract(60, 'day').toDate()
 
-  const [surfaceConfigs, providerCount, enabledModelCount, windowLogs, monthLogs, quotas, weightChanges] =
+  const [surfaceConfigs, providerCount, enabledModelCount, windowLogs, spendLogs, quotas, weightChanges] =
     await Promise.all([
       listSurfaces(),
       prisma.provider.count(),
@@ -322,7 +354,7 @@ export async function getOverview(windowHours: number): Promise<OverviewResponse
         orderBy: { createdAt: 'desc' }
       }),
       prisma.requestLog.findMany({
-        where: { createdAt: { gte: monthStart } },
+        where: { createdAt: { gte: spendWindowStart } },
         select: {
           provider: true,
           model: true,
@@ -337,7 +369,7 @@ export async function getOverview(windowHours: number): Promise<OverviewResponse
       prisma.routingWeightChange.findMany({ orderBy: { createdAt: 'desc' }, take: 6 })
     ])
 
-  const priceMap = await buildPriceMap(prisma, [...new Set(monthLogs.map((l) => priceKey(l.provider, l.model)))])
+  const priceMap = await buildPriceMap(prisma, [...new Set(spendLogs.map((l) => priceKey(l.provider, l.model)))])
 
   return {
     windowHours,
@@ -345,7 +377,7 @@ export async function getOverview(windowHours: number): Promise<OverviewResponse
     providerCount,
     enabledModelCount,
     surfaces: buildSurfaces(surfaceConfigs, windowLogs),
-    spend: buildSpend(monthLogs, priceMap),
+    spend: buildSpend(spendLogs, priceMap),
     quota: buildQuota(quotas),
     failover: buildFailover(quotas, weightChanges),
     recentSessions: buildRecentSessions(windowLogs, priceMap)

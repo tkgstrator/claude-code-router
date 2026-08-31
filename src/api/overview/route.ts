@@ -24,7 +24,8 @@ const SurfaceTrafficSchema = z
 const SpendSchema = z
   .object({
     label: z.enum(['today', 'week', 'month', 'savedBySubscription']),
-    usd: z.number().nullable()
+    usd: z.number().nullable(),
+    deltaRatio: z.number().nullable()
   })
   .openapi('OverviewSpend')
 

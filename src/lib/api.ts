@@ -425,6 +425,7 @@ export interface OverviewSurfaceTraffic {
 export interface OverviewSpendRow {
   label: 'today' | 'week' | 'month' | 'savedBySubscription'
   usd: number | null
+  deltaRatio: number | null
 }
 
 export interface OverviewQuotaRow {
