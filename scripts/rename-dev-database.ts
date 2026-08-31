@@ -134,16 +134,19 @@ async function verify(): Promise<void> {
     const c = new Client({ connectionString: process.env.DATABASE_URL })
     await c.connect()
     try {
-      const r = await c.query<{ name: string; accessToken: string | null; refreshToken: string | null }>(
-        'select name, "accessToken", "refreshToken" from "SubAccount" order by name'
+        const r = await c.query<{ label: string; accessTokenEnc: string | null; refreshTokenEnc: string | null }>(
+        'select label, "accessTokenEnc", "refreshTokenEnc" from "SubAccount" order by label'
       )
       if (r.rows.length === 0) console.log('  (no SubAccount rows)')
       for (const row of r.rows) {
-        const a = decryptString(row.accessToken, key)
-        const rt = decryptString(row.refreshToken, key)
-        const ok = (row.accessToken === null || a !== null) && (row.refreshToken === null || rt !== null)
+        const a = decryptString(row.accessTokenEnc, key)
+        const rt = decryptString(row.refreshTokenEnc, key)
+        // A stored-but-undecryptable value is the failure this whole
+        // check exists to catch, so null-out only counts as fine when
+        // there was nothing stored in the first place.
+        const ok = (row.accessTokenEnc === null || a !== null) && (row.refreshTokenEnc === null || rt !== null)
         const desc = (v: string | null): string => (v === null ? 'none' : `${v.length} chars`)
-        console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${row.name}   access=${desc(a)}  refresh=${desc(rt)}`)
+        console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${row.label}   access=${desc(a)}  refresh=${desc(rt)}`)
       }
     } finally {
       await c.end()
