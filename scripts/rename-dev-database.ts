@@ -22,6 +22,7 @@
 
 import { createHash } from 'node:crypto'
 import 'dotenv/config'
+import dotenv from 'dotenv'
 import { Client } from 'pg'
 import { decryptString, encryptionKey } from '../src/services/subscription-account-sync/crypto'
 
@@ -69,6 +70,15 @@ async function verify(): Promise<void> {
   const fp = (v: string): string => createHash('sha256').update(v).digest('hex').slice(0, 12)
   const isSet = (v: string | undefined): v is string => typeof v === 'string' && v.length > 0
 
+  // The shell's exported values are what the server actually gets:
+  // dotenv does not override an already-exported variable. Parsing the
+  // file separately (into a throwaway object, never process.env) is the
+  // only way to tell "not edited yet" from "edited, but this shell still
+  // holds the old export".
+  const fileVars: Record<string, string> = {}
+  dotenv.config({ processEnv: fileVars, override: true })
+  const fileHas = Object.keys(fileVars).length > 0
+
   const oldKey = process.env.CCR_ACCOUNT_ENCRYPTION_KEY
   const newKey = process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
 
@@ -90,6 +100,33 @@ async function verify(): Promise<void> {
   const test = dbName(process.env.TEST_DATABASE_URL)
   console.log(`DATABASE_URL                  : ${dev} ${dev === 'rialto' ? 'OK' : '<- expected rialto'}`)
   console.log(`TEST_DATABASE_URL             : ${test} ${test === 'rialto_test' ? 'OK' : '<- expected rialto_test'}`)
+
+  // Where the two disagree, the shell wins and the edit looks ineffective.
+  if (fileHas) {
+    const drift: string[] = []
+    const cmp = (name: string, shellVal: string | undefined, render: (v: string | undefined) => string): void => {
+      const inFile = fileVars[name]
+      if (typeof inFile === 'string' && render(inFile) !== render(shellVal)) {
+        drift.push(`  ${name}: file says ${render(inFile)}, this shell has ${render(shellVal)}`)
+      }
+    }
+    cmp('DATABASE_URL', process.env.DATABASE_URL, dbName)
+    cmp('TEST_DATABASE_URL', process.env.TEST_DATABASE_URL, dbName)
+    cmp('RIALTO_ACCOUNT_ENCRYPTION_KEY', newKey, (v) => (isSet(v) ? `set fp=${fp(v)}` : 'unset'))
+    if (drift.length > 0) {
+      console.log('\n--- the file and this shell disagree ---')
+      for (const line of drift) console.log(line)
+      console.log('  The exported value wins: dotenv does not override it, so the server')
+      console.log('  sees what this shell has. Open a new terminal (or `direnv reload`).')
+    } else {
+      // Stated positively so "nothing printed" is never mistaken for
+      // "the edit landed but the shell is stale".
+      console.log(`\n  The env file (${Object.keys(fileVars).length} vars) matches this shell, so what is`)
+      console.log('  shown above is what the file itself says.')
+    }
+  } else {
+    console.log('\n  (no local env file parsed - these came from the shell or the container)')
+  }
 
   console.log('\n--- do existing accounts still decrypt? ---')
   try {
