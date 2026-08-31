@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
 import { ZodError } from 'zod'
+import { accessCheckRoute } from './api/access-check/route'
 import { accessLog } from './api/access-log'
 import { accessTokensRoute } from './api/access-tokens/route'
 import { adminAuth, openaiProxyAuth, proxyAuth } from './api/api-key-auth'
@@ -171,6 +172,7 @@ app.route('/', overviewRoute)
 app.route('/', inboundSurfacesRoute)
 app.route('/', identityRoute)
 app.route('/', accessTokensRoute)
+app.route('/', accessCheckRoute)
 app.route('/', routingRulesTestRoute)
 app.route('/', storageRoute)
 app.route('/', oauthRoute)

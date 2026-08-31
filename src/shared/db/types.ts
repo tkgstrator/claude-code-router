@@ -63,7 +63,13 @@ export const ENVELOPE_ENV_KEYS = [
   // right now that should not be.
   'CAPTURE_REQUESTS',
   'CAPTURE_MESSAGES',
-  'REDACT_TOOL_ARGUMENTS'
+  'REDACT_TOOL_ARGUMENTS',
+  // Cloudflare Access. Envelope keys rather than environment-only so an
+  // operator can turn Access on from the Access screen — the screen that
+  // tells them to. A real environment value still wins, which is what a
+  // container deployment needs.
+  'ACCESS_TEAM_DOMAIN',
+  'ACCESS_AUD'
 ] as const
 export type EnvelopeEnvKey = (typeof ENVELOPE_ENV_KEYS)[number]
 

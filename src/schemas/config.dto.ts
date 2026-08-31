@@ -49,6 +49,13 @@ export const ConfigEnvelopeSchema = z
     CAPTURE_MESSAGES: z.boolean().default(true),
     REDACT_TOOL_ARGUMENTS: z.boolean().default(false),
 
+    // Cloudflare Access, for /api/*. BOTH are required to enable
+    // verification: checking a signature without checking the audience
+    // would accept a token minted for any other application on the same
+    // team, so a half configuration deliberately enables nothing.
+    ACCESS_TEAM_DOMAIN: z.string().default(''),
+    ACCESS_AUD: z.string().default(''),
+
     // Disk-only backing store for the active persona's id (surfaced on
     // the wire as `Router.persona`, not as a top-level field). Absent /
     // empty means "no persona". Round-trips through the disk envelope
@@ -161,6 +168,9 @@ export const ConfigSchema = z.object({
   CAPTURE_REQUESTS: z.boolean().optional(),
   CAPTURE_MESSAGES: z.boolean().optional(),
   REDACT_TOOL_ARGUMENTS: z.boolean().optional(),
+  // Cloudflare Access. Both must be set for /api/* to verify assertions.
+  ACCESS_TEAM_DOMAIN: z.string().optional(),
+  ACCESS_AUD: z.string().optional(),
   // Active persona lives on Router.persona (RouterConfigSchema), not as a
   // top-level field. The persona library stays top-level.
   Personas: z.array(PersonaSchema).default([])
