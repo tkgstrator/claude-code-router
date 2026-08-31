@@ -1,5 +1,6 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { ApiUnreachableScreen } from '@/components/rialto/system/ApiUnreachable'
 import { api } from '@/lib/api'
 import type { RouteRule } from '@/schemas'
 import { RouteRuleSchema } from '@/schemas'
@@ -286,6 +287,15 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
         <div className='text-muted-foreground'>Loading configuration...</div>
       </div>
     )
+  }
+
+  // The config fetch failed for a reason that is not authentication —
+  // the server is down, or the browser cannot reach it. Every screen
+  // below would render an empty shell and blame itself, so show the
+  // state that explains it instead. It keeps probing, so the app comes
+  // back on its own once the server does.
+  if (error !== null && !authFailed) {
+    return <ApiUnreachableScreen />
   }
 
   return <ConfigContext.Provider value={{ config, setConfig, reloadConfig, error }}>{children}</ConfigContext.Provider>
