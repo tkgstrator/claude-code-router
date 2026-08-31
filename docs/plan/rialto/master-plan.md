@@ -456,6 +456,26 @@ src/schemas/
 
 作業:
 - まず重複の実測。`Provider` 形が `config.dto` / `provider.dto` / `llm-pipeline.dto` / `preset.dto` に散っている疑いがあるので、計測してから1本化する（推測で統合しない）
+
+#### 実測結果（2026-08-31）
+
+**Provider 形の重複は無かった。** 3つは重複ではなく、段階的に狭い射影である:
+
+| 定義 | フィールド数 | 何を表しているか |
+|---|---:|---|
+| `provider.dto.ts` `ProviderSchema` | 16 | ドメイン／API の完全形（auth_mode・テスト状態・サブアカウント含む） |
+| `llm-pipeline.dto.ts` `RuntimeProviderSchema` | 6 | リクエスト時にパイプラインが必要とする分だけ |
+| `preset.dto.ts` `PresetProviderSchema` | 5 | 共有可能なプリセットに載せてよい分だけ（秘密と環境依存を除く） |
+
+`config.dto.ts` に `ProviderSchema` の定義は無い（`provider.dto` から import している）。
+**1本化してはいけない。** preset に auth_mode やサブアカウントが載れば共有時に環境が漏れ、
+pipeline が16フィールドを要求すれば実行時に不要な結合が生まれる。層分けの目的からして、
+この3つは別の層に属していて正しい。
+
+**実際の問題は全体 barrel のほうだった。** `@/schemas` を import しているファイルは **97**
+（import 箇所 118）。うち **14 がUI側**（`src/components/**` と `src/lib/**`）で、
+`export *` × 29 により **oauth / pipeline / prisma由来のサーバ専用スキーマがブラウザバンドルに
+入っている**。Phase 4 の主目的はここで、Provider の統合ではない。
 - 移行は旧 barrel を re-export shim にして段階的に。最後に shim を削除
 
 完了条件:
