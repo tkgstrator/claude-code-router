@@ -1,0 +1,100 @@
+/**
+ * Wire shape and pure state logic for the access-token list.
+ *
+ * The one rule worth stating: a token is dead if it has been revoked
+ * **or** if its expiry has passed. `resolveAccessToken` rejects on both
+ * (`revokedAt === null && (expiresAt === null || expiresAt > now)`), so
+ * a UI that only looked at `revokedAt` would show an expired credential
+ * as live — the exact wrong answer on a screen whose job is to say what
+ * can still reach the proxy.
+ */
+
+import dayjs from '@/lib/dayjs'
+
+export interface AccessTokenWire {
+  id: string
+  name: string
+  /** First characters only — enough to tell two rows apart, not to authenticate. */
+  prefix: string
+  /** An InboundSurface id, or null for "every endpoint". */
+  surface: string | null
+  /** A routing profile key, or null for "whatever the surface itself uses". */
+  profileKey: string | null
+  lastUsedAt: string | null
+  requestCount: number
+  expiresAt: string | null
+  revokedAt: string | null
+  createdAt: string
+}
+
+export interface IssuedTokenWire {
+  token: AccessTokenWire
+  /** Returned by the issue call and never again. */
+  plaintext: string
+}
+
+export type TokenState = 'active' | 'expired' | 'revoked'
+
+/** Mirrors the server's accept test, so the badge cannot disagree with the gate. */
+export function tokenState(token: AccessTokenWire, now: number): TokenState {
+  if (token.revokedAt !== null) return 'revoked'
+  if (token.expiresAt !== null && Date.parse(token.expiresAt) <= now) return 'expired'
+  return 'active'
+}
+
+export interface TokenCounts {
+  active: number
+  expired: number
+  revoked: number
+}
+
+export function countTokens(tokens: readonly AccessTokenWire[], now: number): TokenCounts {
+  return tokens.reduce<TokenCounts>(
+    (counts, token) => {
+      const state = tokenState(token, now)
+      return { ...counts, [state]: counts[state] + 1 }
+    },
+    { active: 0, expired: 0, revoked: 0 }
+  )
+}
+
+const STATE_ORDER: Record<TokenState, number> = { active: 0, expired: 1, revoked: 2 }
+
+/**
+ * Live credentials first, dead ones at the bottom — a revoked row still
+ * matters (it keeps the attribution on past requests) but it is not what
+ * someone scanning this table is looking for. Ties break on newest first.
+ */
+export function sortTokens(tokens: readonly AccessTokenWire[], now: number): AccessTokenWire[] {
+  return [...tokens].sort((a, b) => {
+    const byState = STATE_ORDER[tokenState(a, now)] - STATE_ORDER[tokenState(b, now)]
+    if (byState !== 0) return byState
+    return Date.parse(b.createdAt) - Date.parse(a.createdAt)
+  })
+}
+
+export interface ExpiryChoice {
+  id: string
+  label: string
+  days: number | null
+}
+
+/**
+ * Offered lifetimes. `never` is first because it is what most local
+ * setups want, but a bounded token is the safer default for anything
+ * leaving the machine — hence the explicit choices rather than a
+ * free-text date.
+ */
+export const EXPIRY_CHOICES: readonly ExpiryChoice[] = [
+  { id: 'never', label: 'No expiry', days: null },
+  { id: '30d', label: '30 days', days: 30 },
+  { id: '90d', label: '90 days', days: 90 },
+  { id: '365d', label: '1 year', days: 365 }
+]
+
+/** Resolve a choice id to the ISO instant the issue call wants, or null. */
+export function expiryToIso(choiceId: string, now: number): string | null {
+  const choice = EXPIRY_CHOICES.find((c) => c.id === choiceId)
+  if (choice === undefined || choice.days === null) return null
+  return dayjs(now).add(choice.days, 'day').toISOString()
+}
