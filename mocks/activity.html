@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Activity</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn, surfacePill } = window.Shell
+
+// Sessions / Usage / ApiCost / LogViewer were four screens answering the
+// same question at different zoom levels. One screen, three tabs, one
+// shared filter bar.
+const TABS = [
+  { id: 'sessions', label: 'Sessions', count: '128' },
+  { id: 'requests', label: 'Requests', count: '18.7k' },
+  { id: 'logs',     label: 'Logs',     count: '' }
+]
+const ACTIVE_TAB = 'sessions'
+
+const tab = (t) => {
+  const on = t.id === ACTIVE_TAB
+  return `<button class="flex items-center gap-2 border-b-2 px-3 py-2 text-xs transition-colors ${
+    on ? 'border-b-foreground font-medium' : 'border-b-transparent text-muted-foreground hover:text-foreground'
+  }">${t.label}${t.count ? `<span class="font-mono text-[10px] tabular-nums text-muted-foreground">${t.count}</span>` : ''}</button>`
+}
+
+const filter = (label, value) => `
+  <button class="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs transition-colors hover:bg-muted/60">
+    <span class="text-muted-foreground">${label}</span>
+    <span>${value}</span>
+    <i class="ri-arrow-down-s-line text-sm text-muted-foreground"></i>
+  </button>`
+
+// Sparkline as inline SVG — no chart library needed for a 40px trend.
+const spark = (points) => {
+  const max = Math.max(...points)
+  const d = points.map((p, i) => `${(i / (points.length - 1)) * 60},${16 - (p / max) * 14}`).join(' ')
+  return `<svg viewBox="0 0 60 16" class="h-4 w-16 overflow-visible" preserveAspectRatio="none">
+    <polyline points="${d}" fill="none" stroke="currentColor" stroke-width="1" class="text-muted-foreground/60" vector-effect="non-scaling-stroke"/>
+  </svg>`
+}
+
+const SESSIONS = [
+  { id: 'ses_9fa2…c41', title: 'Refactor the inbound surface registry', surface: '/v1/messages',  model: 'claude-opus-4-8',   turns: 42, inTok: '284k', outTok: '34.1k', cache: '78%', cost: '$1.24', ago: '2m',  trend: [2,4,3,6,8,7,9] },
+  { id: 'ses_71bd…08e', title: 'Codex: migrate prisma schema',           surface: '/v1/responses', model: 'gpt-5.5',           turns: 17, inTok: '88.4k', outTok: '7.80k', cache: '41%', cost: '$0.412', ago: '19m', trend: [1,1,2,3,2,4,3] },
+  { id: 'ses_04c7…9aa', title: 'Gemini CLI scratch',                     surface: '/v1beta/models/*',    model: 'gemini-3.1-pro',    turns: 8,  inTok: '38.2k', outTok: '3.50k', cache: '0%',  cost: '$0.0930', ago: '1h',  trend: [1,2,1,1,2,1,1] },
+  { id: 'ses_ba51…2f0', title: 'Long: UI mock diff skill',               surface: '/v1/messages',  model: 'claude-sonnet-4-6', turns: 91, inTok: '641k', outTok: '61.4k', cache: '85%', cost: '$2.06', ago: '3h',  trend: [3,5,8,6,9,11,8] },
+  { id: 'ses_3d90…7bc', title: 'OpenAI SDK smoke test',                  surface: '/v1/chat/completions',      model: 'gpt-5.4-mini',      turns: 4,  inTok: '9.10k', outTok: '1.20k', cache: '0%',  cost: '$0.00610', ago: '5h', trend: [1,1,1,2,1,1,1] },
+  { id: 'ses_c18e…44d', title: 'Zod schema layering spike',              surface: '/v1/messages',  model: 'claude-fable-5',    turns: 63, inTok: '412k', outTok: '48.9k', cache: '81%', cost: '$1.71', ago: '8h',  trend: [4,6,5,7,6,8,7] }
+]
+
+const sessionRow = (s) => `
+  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50">
+    <td class="py-3 pl-6 pr-3">
+      <div class="truncate text-xs font-medium">${s.title}</div>
+      <div class="font-mono text-[11px] text-muted-foreground">${s.id}</div>
+    </td>
+    <td class="px-3">${surfacePill(s.surface)}</td>
+    <td class="px-3 font-mono text-[11px] text-muted-foreground">${s.model}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${s.turns}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${s.inTok}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${s.outTok}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums text-muted-foreground">${s.cache}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${s.cost}</td>
+    <td class="px-3">${spark(s.trend)}</td>
+    <td class="py-3 pl-3 pr-6 text-right text-[11px] text-muted-foreground">${s.ago}</td>
+  </tr>`
+
+const table = `
+  <table class="w-full table-fixed">
+    <colgroup><col><col class="w-40"><col class="w-36"><col class="w-16"><col class="w-20"><col class="w-20"><col class="w-16"><col class="w-24"><col class="w-20"><col class="w-16"></colgroup>
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+        <th class="pb-2 pl-6 pr-3 text-left font-medium">Session</th>
+        <th class="px-3 text-left font-medium">Endpoint</th>
+        <th class="px-3 text-left font-medium">Model</th>
+        <th class="px-3 text-right font-medium">Turns</th>
+        <th class="px-3 text-right font-medium">Input</th>
+        <th class="px-3 text-right font-medium">Output</th>
+        <th class="px-3 text-right font-medium">Cache</th>
+        <th class="px-3 text-right font-medium">Cost</th>
+        <th class="px-3 text-left font-medium">Trend</th>
+        <th class="pb-2 pl-3 pr-6 text-right font-medium">Last</th>
+      </tr>
+    </thead>
+    <tbody>${SESSIONS.map(sessionRow).join('')}</tbody>
+  </table>`
+
+const stat = (label, value, sub) => `
+  <div class="border-l-2 border-l-border px-4 py-3 transition-colors hover:border-l-foreground/30 hover:bg-muted/50">
+    <div class="text-[11px] uppercase tracking-wider text-muted-foreground">${label}</div>
+    <div class="mt-1 font-mono text-lg tabular-nums">${value}</div>
+    <div class="text-[11px] text-muted-foreground">${sub}</div>
+  </div>`
+
+document.getElementById('root').innerHTML = `
+  <div class="flex items-center gap-1 border-b border-border px-6">
+    ${TABS.map(tab).join('')}
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3">
+    ${filter('Surface', 'All')}
+    ${filter('Provider', 'All')}
+    ${filter('Model', 'All')}
+    ${filter('Range', 'Last 7 days')}
+    <div class="ml-auto flex items-center gap-2">
+      <div class="flex h-7 w-56 items-center gap-2 rounded-md border border-border px-2.5 text-xs text-muted-foreground">
+        <i class="ri-search-line text-sm"></i> Search sessions
+      </div>
+      ${btn('Export', 'ghost', 'ri-download-line')}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-4 gap-px border-b border-border px-6 py-4">
+    ${stat('Requests', '18,742', 'last 7 days')}
+    ${stat('Tokens', '41.2M', 'in + out')}
+    ${stat('Cost', '$31.7', 'API-key providers only')}
+    ${stat('Cache hit', '73.4%', 'weighted by input tokens')}
+  </div>
+
+  ${table}
+  <div class="h-10"></div>`
+
+renderShell({
+  active: 'activity',
+  title: 'Activity',
+  subtitle: '128 sessions · 18.7k requests · last 7 days',
+  actions: btn('Live tail', 'outline', 'ri-broadcast-line') + btn('Archive', 'ghost', 'ri-archive-line')
+})
+</script>
+</body>
+</html>

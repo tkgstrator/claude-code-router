@@ -10,7 +10,7 @@
 # client and the Vite SPA dist.
 
 # ---------- builder ----------------------------------------------------
-FROM oven/bun:1.3.14 AS builder
+FROM oven/bun:1.4.0 AS builder
 WORKDIR /app
 
 # Order matters: prisma.config.ts + src/prisma/schema.prisma must be in
@@ -18,7 +18,7 @@ WORKDIR /app
 # `prisma generate`).
 COPY package.json bun.lock ./
 COPY tsconfig.json tsconfig.base.json tsconfig.runtime.json biome.json ./
-COPY index.html vite.config.ts prisma.config.ts ./
+COPY index.html vite.config.mts prisma.config.ts ./
 COPY scripts ./scripts
 COPY src ./src
 
@@ -34,7 +34,7 @@ RUN bun run build
 RUN bun -e "let v='';try{v=require('@openai/codex/package.json').version}catch{};require('fs').writeFileSync('/app/.codex-cli-version',v)"
 
 # ---------- runtime ----------------------------------------------------
-FROM oven/bun:1.3.14
+FROM oven/bun:1.4.0
 WORKDIR /app
 
 # Sources needed to resolve + run.

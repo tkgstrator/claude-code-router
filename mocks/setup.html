@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — First run</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { pill } = window.Shell
+
+// Replaces SetupDialog. First run is the one moment the operator has no
+// mental model yet, so it states what Rialto is before asking for anything.
+const STEPS = [
+  {
+    n: 1, state: 'done', title: 'Database ready',
+    body: 'Migrations applied and the model catalog seeded. 7 providers registered, none authenticated yet.'
+  },
+  {
+    n: 2, state: 'active', title: 'Connect a provider',
+    body: 'Rialto needs at least one place to send requests. A subscription (Claude / Codex / Gemini) reuses a plan you already pay for; an API key bills per token.'
+  },
+  {
+    n: 3, state: 'todo', title: 'Point a client at Rialto',
+    body: 'Export the base URL and token, then run your client as usual.'
+  }
+]
+
+const dot = { done: 'bg-foreground text-background', active: 'bg-foreground text-background', todo: 'bg-muted text-muted-foreground' }
+
+const stepBlock = (s) => `
+  <div class="flex gap-4 border-t border-border px-6 py-5 ${s.state === 'todo' ? 'opacity-50' : ''}">
+    <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium ${dot[s.state]}">
+      ${s.state === 'done' ? '<i class="ri-check-line text-xs"></i>' : s.n}
+    </span>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2">
+        <h2 class="text-xs font-semibold">${s.title}</h2>
+        ${s.state === 'done' ? pill('done', 'ok') : ''}
+      </div>
+      <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">${s.body}</p>
+      ${
+        s.n === 2
+          ? `<div class="mt-3 grid grid-cols-3 gap-2">
+              ${[
+                ['Claude Code', 'ri-sparkling-line', 'Pro / Max'],
+                ['Codex', 'ri-terminal-line', 'ChatGPT plan'],
+                ['Gemini CLI', 'ri-gemini-line', 'AI Pro / Ultra']
+              ].map(([l, i, h]) => `
+                <button class="rounded-md border border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/50">
+                  <i class="${i} text-sm text-muted-foreground"></i>
+                  <div class="mt-1 text-[11px] font-medium">${l}</div>
+                  <div class="text-[10px] text-muted-foreground">${h}</div>
+                </button>`).join('')}
+            </div>
+            <button class="mt-2 text-[11px] text-muted-foreground underline-offset-2 hover:underline">Use an API key instead</button>`
+          : ''
+      }
+      ${
+        s.n === 3
+          ? `<div class="mt-3 rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px] leading-relaxed">
+              export ANTHROPIC_BASE_URL=http://localhost:3456<br>
+              export ANTHROPIC_AUTH_TOKEN=rlt_a91f…<br>
+              claude
+            </div>`
+          : ''
+      }
+    </div>
+  </div>`
+
+document.getElementById('root').innerHTML = `
+<div class="flex min-h-screen items-center justify-center bg-background px-6 py-10">
+  <div class="w-full max-w-2xl rounded-lg border border-border">
+
+    <div class="px-6 pt-6 pb-5">
+      <div class="flex items-center gap-2.5">
+        <div class="flex size-7 items-center justify-center rounded bg-foreground text-background">
+          <i class="ri-route-line text-base leading-none"></i>
+        </div>
+        <span class="text-base font-semibold tracking-tight">Rialto</span>
+        <span class="ml-auto font-mono text-[10px] text-muted-foreground">v3.0.0</span>
+      </div>
+      <p class="mt-4 text-xs leading-relaxed text-muted-foreground">
+        Rialto sits between your coding clients and the model vendors. Clients speak whichever wire
+        format they already speak — <span class="font-mono">/v1/messages</span>,
+        <span class="font-mono">/v1/chat/completions</span>, <span class="font-mono">/v1/responses</span>,
+        or Gemini's — and Rialto decides which model actually serves each request, failing over when
+        a subscription runs out of quota.
+      </p>
+    </div>
+
+    ${STEPS.map(stepBlock).join('')}
+
+    <div class="flex items-center gap-3 border-t border-border px-6 py-4">
+      <span class="text-[11px] text-muted-foreground">
+        Your bootstrap token was written to <span class="font-mono">~/.rialto/config.json</span>.
+      </span>
+      <button class="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:underline">Skip setup</button>
+      <button class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+        Continue <i class="ri-arrow-right-line text-sm"></i>
+      </button>
+    </div>
+
+  </div>
+</div>`
+</script>
+</body>
+</html>

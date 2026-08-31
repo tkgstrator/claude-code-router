@@ -117,7 +117,9 @@ describe('Responses→Chat stream converter — choices index alignment', () => 
     expect(aggregate.usage).toEqual({
       prompt_tokens: 18,
       completion_tokens: 5,
-      total_tokens: 23
+      total_tokens: 23,
+      prompt_tokens_details: { cached_tokens: 0 },
+      completion_tokens_details: { reasoning_tokens: 0 }
     })
   })
 
@@ -141,6 +143,65 @@ describe('Responses→Chat stream converter — choices index alignment', () => 
     ]
     const aggregate = await aggregateOpenAiChatSseToJson(driveStream(events))
     expect(aggregate.usage).toEqual({ prompt_tokens: 12, completion_tokens: 3, total_tokens: 15 })
+  })
+
+  test('reasoning and cached counts survive the Responses -> Chat rename', async () => {
+    const events = [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { id: 'm1', type: 'message', content: [] }
+      },
+      { type: 'response.output_text.delta', item_id: 'm1', output_index: 0, delta: 'ok' },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp_d',
+          model: 'gpt-5.6-luna',
+          output: [{ type: 'message' }],
+          usage: {
+            input_tokens: 1200,
+            input_tokens_details: { cached_tokens: 1024 },
+            output_tokens: 900,
+            // The number that matters for effort tuning: most of the
+            // output on a high-effort run is reasoning, not text.
+            output_tokens_details: { reasoning_tokens: 832, audio_tokens: 0 },
+            total_tokens: 2100
+          }
+        }
+      }
+    ]
+    const aggregate = await aggregateOpenAiChatSseToJson(driveStream(events))
+    expect(aggregate.usage?.prompt_tokens_details).toEqual({ cached_tokens: 1024 })
+    // Unknown sub-fields ride along rather than being filtered to a
+    // known list, so new counters need no change here.
+    expect(aggregate.usage?.completion_tokens_details).toEqual({
+      reasoning_tokens: 832,
+      audio_tokens: 0
+    })
+  })
+
+  test('a usage block with no details still omits the detail keys', async () => {
+    const events = [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { id: 'm1', type: 'message', content: [] }
+      },
+      { type: 'response.output_text.delta', item_id: 'm1', output_index: 0, delta: 'ok' },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp_nd',
+          model: 'gpt-5.6-luna',
+          output: [{ type: 'message' }],
+          usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 }
+        }
+      }
+    ]
+    const aggregate = await aggregateOpenAiChatSseToJson(driveStream(events))
+    expect(aggregate.usage && 'prompt_tokens_details' in aggregate.usage).toBe(false)
+    expect(aggregate.usage && 'completion_tokens_details' in aggregate.usage).toBe(false)
   })
 
   test('completed chunk without upstream usage omits the field (no fabricated zeros)', async () => {

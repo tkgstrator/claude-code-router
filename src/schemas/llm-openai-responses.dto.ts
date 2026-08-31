@@ -119,6 +119,10 @@ export const ResponsesStreamEventSchema = z.object({
       // is optional / null on the earlier `response.created` /
       // `response.in_progress` events. Modelled here so Zod doesn't
       // strip it before the completed-chunk builder reads it.
+      // `.nullish()` rather than `.optional()`: codex sends an explicit
+      // `"usage": null` on those earlier events, which `.optional()`
+      // rejects — the whole event then failed to parse and leaked into
+      // the chat-completions stream as a raw Responses payload.
       usage: z
         .object({
           input_tokens: z.number().int().nonnegative().optional(),
@@ -126,7 +130,7 @@ export const ResponsesStreamEventSchema = z.object({
           total_tokens: z.number().int().nonnegative().optional()
         })
         .loose()
-        .optional()
+        .nullish()
     })
     .loose()
     .optional(),

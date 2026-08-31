@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Access tokens</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn, railItem, SETTINGS_RAIL, surfacePill } = window.Shell
+
+
+// Only the sha256 is stored; `prefix` is a separate column purely so a
+// row is identifiable in the list. The plaintext is shown once, at
+// creation, and never again.
+//
+// `surface` and `profile` are the interesting columns: scoping a token
+// to an inbound surface and a routing profile turns "issue another key"
+// into per-client routing, without inventing a second config axis.
+const TOKENS = [
+  { name: 'MacBook — Claude Code', prefix: 'rlt_a91f…', scope: 'proxy', surface: '/v1/messages', profile: 'live',       used: '2m ago',  reqs: '12.4k', created: '2026-06-04' },
+  { name: 'MacBook — Codex',       prefix: 'rlt_7c02…', scope: 'proxy', surface: '/v1/responses', profile: 'live',      used: '19m ago', reqs: '2.71k', created: '2026-06-04' },
+  { name: 'Gemini CLI',            prefix: 'rlt_be44…', scope: 'proxy', surface: '/v1beta/models/*',   profile: 'live',       used: '1h ago',  reqs: '486',   created: '2026-08-11' },
+  { name: 'CI — nightly evals',    prefix: 'rlt_0d18…', scope: 'proxy', surface: '/v1/chat/completions',     profile: 'cost-first', used: '6h ago',  reqs: '3.10k', created: '2026-07-22' },
+  { name: 'Old laptop',            prefix: 'rlt_2b90…', scope: 'proxy', surface: '/v1/messages', profile: 'live',       used: '41d ago', reqs: '88.1k', created: '2026-03-02', revoked: true }
+]
+
+const scopeTone = { proxy: 'info' }
+
+const tokenRow = (t) => `
+  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50 ${t.revoked ? 'opacity-45' : ''}">
+    <td class="py-2.5 pl-6 pr-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium">${t.name}</span>
+        ${t.revoked ? pill('revoked', 'bad') : ''}
+      </div>
+      <div class="font-mono text-[11px] text-muted-foreground">${t.prefix}</div>
+    </td>
+    <td class="px-3">${pill(t.scope, scopeTone[t.scope])}</td>
+    <td class="px-3">${t.surface ? surfacePill(t.surface) : '<span class="text-[11px] text-muted-foreground/50">all</span>'}</td>
+    <td class="px-3 font-mono text-[11px] text-muted-foreground">${t.profile ?? '—'}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${t.reqs}</td>
+    <td class="px-3 text-right text-[11px] text-muted-foreground">${t.used}</td>
+    <td class="px-3 text-right text-[11px] text-muted-foreground">${t.created}</td>
+    <td class="py-2.5 pl-3 pr-6 text-right">
+      <button class="text-muted-foreground/60 hover:text-foreground"><i class="ri-more-2-fill text-sm"></i></button>
+    </td>
+  </tr>`
+
+const tokens = `
+  <table class="w-full table-fixed">
+    <colgroup><col><col class="w-20"><col class="w-40"><col class="w-24"><col class="w-20"><col class="w-20"><col class="w-24"><col class="w-12"></colgroup>
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+        <th class="pb-2 pl-6 pr-3 text-left font-medium">Token</th>
+        <th class="px-3 text-left font-medium">Scope</th>
+        <th class="px-3 text-left font-medium">Endpoint</th>
+        <th class="px-3 text-left font-medium">Profile</th>
+        <th class="px-3 text-right font-medium">Requests</th>
+        <th class="px-3 text-right font-medium">Last used</th>
+        <th class="px-3 text-right font-medium">Created</th>
+        <th class="pb-2 pl-3 pr-6"></th>
+      </tr>
+    </thead>
+    <tbody>${TOKENS.map(tokenRow).join('')}</tbody>
+  </table>`
+
+document.getElementById('root').innerHTML = `
+  <div class="grid h-full grid-cols-[13rem_1fr]">
+
+    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
+      ${SETTINGS_RAIL.map((r) => railItem(r, 'auth')).join('')}
+    </aside>
+
+    <div class="min-w-0 overflow-y-auto">
+
+      <!-- Break-glass key. Lives in the on-disk envelope, not the DB, so
+           it still works when Postgres is unreachable — which is exactly
+           when you need the UI to diagnose things. -->
+      <div class="flex items-center gap-3 px-6 pt-6 pb-3">
+        <h2 class="text-sm font-semibold">Admin access</h2>
+        ${pill('Cloudflare Access', 'ok')}
+        <span class="text-[11px] text-muted-foreground">rialto.example.com</span>
+        <div class="ml-auto">${btn('Open Zero Trust', 'outline', 'ri-external-link-line')}</div>
+      </div>
+      <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
+        <div>
+          <div class="text-xs font-medium">Signed in as</div>
+          <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            From the <span class="font-mono">Cf-Access-Jwt-Assertion</span> header, verified against
+            your team's JWKS on every request.
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-2">
+            <i class="ri-shield-check-line text-sm text-emerald-600 dark:text-emerald-400"></i>
+            <span class="font-mono text-xs">tkgstrator@example.com</span>
+            ${pill('valid', 'ok')}
+          </div>
+          <div class="font-mono text-[11px] text-muted-foreground">aud 97e2aa…913a · exp in 21h</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
+        <div>
+          <div class="text-xs font-medium">Policy coverage</div>
+          <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            Read from the Access apps on this hostname.
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
+            <span class="font-mono text-[11px]">/</span>
+            <span class="ml-auto text-[11px] text-muted-foreground">Allow · 1 email rule</span>
+          </div>
+          <div class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
+            <span class="font-mono text-[11px]">/v1</span>
+            <span class="ml-auto text-[11px] text-muted-foreground">Bypass · Everyone</span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-muted-foreground">
+            <span class="font-mono">/v1</span> must bypass Access: Claude Code, Codex and Gemini CLI
+            cannot complete an interactive login and do not send service-token headers. The access
+            tokens below are that path's only gate.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 border-t border-border px-6 pt-6 pb-3">
+        <h2 class="text-sm font-semibold">Bootstrap token</h2>
+        ${pill('envelope', 'mute')}
+        <span class="text-[11px] text-muted-foreground">fallback when Access is not in front</span>
+      </div>
+      <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
+        <div>
+          <div class="text-xs font-medium">RIALTO_TOKEN</div>
+          <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            Stored in <span class="font-mono">~/.rialto/config.json</span>. Accepted on
+            <span class="font-mono">/api/*</span> when no valid Access JWT is present — which covers
+            local runs, and a database outage that would otherwise lock you out. Still readable from
+            the legacy <span class="font-mono">APIKEY</span> key.
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex h-8 max-w-md flex-1 items-center rounded-md border border-border px-3 font-mono text-xs">••••••••••••••••••••</div>
+          ${btn('Reveal', 'ghost', 'ri-eye-line')}
+          ${btn('Rotate', 'ghost', 'ri-refresh-line')}
+        </div>
+      </div>
+
+      <div class="px-6 pb-2">
+        <div class="rounded-md border border-border px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Who guards what</div>
+          <div class="mt-2 grid grid-cols-3 gap-4">
+            <div class="border-l-2 border-l-emerald-500/60 pl-3">
+              <div class="text-xs font-medium">Cloudflare Access</div>
+              <div class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Guards this UI and <span class="font-mono">/api/*</span>. Browser logs in at the edge;
+                Rialto only validates the signed JWT.
+              </div>
+              <div class="mt-1.5 font-mono text-[10px] text-muted-foreground">you → Access → Rialto</div>
+            </div>
+            <div class="border-l-2 border-l-foreground/40 pl-3">
+              <div class="text-xs font-medium">Access token</div>
+              <div class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Guards <span class="font-mono">/v1/*</span>. CLI clients cannot do an interactive
+                Access login, so that path is a Bypass app and these tokens are its gate.
+              </div>
+              <div class="mt-1.5 font-mono text-[10px] text-muted-foreground">Claude Code → Rialto</div>
+            </div>
+            <div class="border-l-2 border-l-border pl-3">
+              <div class="text-xs font-medium">Provider API key</div>
+              <div class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                <span class="font-medium text-foreground">Outbound.</span> Rialto presents it to a
+                vendor. Lives on the provider in
+                <a href="providers-apikey.html" class="underline underline-offset-2">Providers</a>.
+              </div>
+              <div class="mt-1.5 font-mono text-[10px] text-muted-foreground">Rialto → OpenAI</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 border-t border-border px-6 pt-6 pb-3">
+        <h2 class="text-sm font-semibold">Access tokens</h2>
+        <span class="text-[11px] text-muted-foreground">4 active · 1 revoked · all <span class="font-mono">/v1/*</span></span>
+        <div class="ml-auto">${btn('Issue token', 'primary', 'ri-add-line')}</div>
+      </div>
+
+      <div class="px-6 pb-4">
+        <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+          <i class="ri-information-line mr-1 align-[-1px]"></i>
+          Only a SHA-256 digest is stored — the plaintext is shown once, when the token is issued.
+          Scoping a token to an endpoint and a routing profile is how a client gets its own routing:
+          the CI token below is pinned to <span class="font-mono">cost-first</span> without touching
+          anyone else's chain.
+        </div>
+      </div>
+
+      ${tokens}
+
+      <!-- Issue dialog, shown inline so the reviewer can judge the
+           one-time-reveal moment without clicking. -->
+      <div class="px-6 py-8">
+        <div class="mx-auto max-w-lg rounded-lg border border-border bg-popover p-5 shadow-sm">
+          <div class="flex items-center gap-2">
+            <h3 class="text-sm font-semibold">Token issued</h3>
+            ${pill('copy it now', 'warn')}
+          </div>
+          <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            This is the only time the full token is shown. Rialto stores a digest, so it cannot be
+            recovered — only replaced.
+          </p>
+          <div class="mt-3 flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+            <span class="flex-1 truncate font-mono text-xs">rlt_a91f4c7e20b8d5169fa3e84c07b21d6f</span>
+            <button class="text-muted-foreground hover:text-foreground"><i class="ri-file-copy-line text-sm"></i></button>
+          </div>
+          <div class="mt-4 space-y-2">
+            <div class="flex items-baseline gap-3">
+              <span class="text-[11px] text-muted-foreground">Scope</span>
+              <span class="ml-auto font-mono text-[11px]">proxy</span>
+            </div>
+            <div class="flex items-baseline gap-3">
+              <span class="text-[11px] text-muted-foreground">Endpoint</span>
+              <span class="ml-auto font-mono text-[11px]">/v1/messages</span>
+            </div>
+            <div class="flex items-baseline gap-3">
+              <span class="text-[11px] text-muted-foreground">Routing profile</span>
+              <span class="ml-auto font-mono text-[11px]">live</span>
+            </div>
+          </div>
+          <div class="mt-4 flex justify-end gap-2">
+            ${btn('Done', 'primary', 'ri-check-line')}
+          </div>
+        </div>
+      </div>
+
+      <div class="h-8"></div>
+    </div>
+
+  </div>`
+
+renderShell({
+  active: 'settings',
+  title: 'Access',
+  subtitle: 'Cloudflare Access on /api · 4 proxy tokens on /v1',
+  actions: btn('Audit log', 'ghost', 'ri-history-line') + btn('Issue token', 'primary', 'ri-add-line')
+})
+</script>
+</body>
+</html>

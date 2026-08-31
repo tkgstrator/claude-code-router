@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — System states</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { pill } = window.Shell
+
+// The full-page states that are easy to forget until one appears. Shown
+// side by side so the reviewer can compare their tone in one pass; each is
+// a standalone route or boundary in the real build.
+//
+// There is no sign-in state. Cloudflare Access authenticates at the edge,
+// so a request that reaches this app has already been authorized — the app
+// never renders a login form.
+
+const frame = (label, note, body) => `
+  <div>
+    <div class="mb-2 flex items-baseline gap-2">
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">${label}</h2>
+      <span class="text-[11px] text-muted-foreground/70">${note}</span>
+    </div>
+    <div class="overflow-hidden rounded-lg border border-border">
+      <div class="flex items-center gap-1.5 border-b border-border bg-muted/40 px-3 py-1.5">
+        <span class="size-2 rounded-full bg-muted-foreground/30"></span>
+        <span class="size-2 rounded-full bg-muted-foreground/30"></span>
+        <span class="size-2 rounded-full bg-muted-foreground/30"></span>
+      </div>
+      <div class="flex min-h-64 items-center justify-center px-6 py-10">${body}</div>
+    </div>
+  </div>`
+
+const oauthOk = `
+  <div class="w-full max-w-xs text-center">
+    <div class="mx-auto flex size-10 items-center justify-center rounded-full bg-emerald-500/10">
+      <i class="ri-check-line text-lg text-emerald-600 dark:text-emerald-400"></i>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold">Gemini CLI connected</h3>
+    <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+      Tokens stored encrypted. You can close this tab — the Providers screen has already updated.
+    </p>
+    <button class="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
+      Back to Rialto <i class="ri-arrow-right-line text-sm"></i>
+    </button>
+  </div>`
+
+// Access is in front but the JWT did not verify. This is OUR page (the edge
+// let the request through), so it has to explain which of the two failure
+// shapes it is: wrong aud, or origin reachable without going through Access.
+const accessRejected = `
+  <div class="w-full max-w-sm">
+    <div class="flex items-center gap-2">
+      <i class="ri-shield-cross-line text-base text-destructive"></i>
+      <h3 class="text-sm font-semibold">Access token not accepted</h3>
+    </div>
+    <p class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+      A <span class="font-mono">Cf-Access-Jwt-Assertion</span> header arrived but failed
+      verification. Rialto will not serve <span class="font-mono">/api/*</span> until it does.
+    </p>
+    <div class="mt-3 rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px] leading-relaxed">
+      aud mismatch<br>expected 97e2aa…913a<br>got&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4b10cc…77de
+    </div>
+    <p class="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+      Set <span class="font-mono">ACCESS_AUD</span> to this application's AUD tag from Zero Trust,
+      or reach the origin through the tunnel rather than directly.
+    </p>
+  </div>`
+
+const oauthErr = `
+  <div class="w-full max-w-sm text-center">
+    <div class="mx-auto flex size-10 items-center justify-center rounded-full bg-destructive/10">
+      <i class="ri-close-line text-lg text-destructive"></i>
+    </div>
+    <h3 class="mt-3 text-sm font-semibold">Could not complete sign-in</h3>
+    <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+      The provider returned an error before Rialto could exchange the code. Nothing was stored.
+    </p>
+    <div class="mt-3 rounded-md bg-muted/60 px-3 py-2 text-left font-mono text-[11px] leading-relaxed">
+      error=access_denied<br>state=8f21c4…
+    </div>
+    <div class="mt-4 flex justify-center gap-2">
+      <button class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+        <i class="ri-refresh-line text-sm"></i> Try again
+      </button>
+      <button class="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs hover:bg-muted/60">Back</button>
+    </div>
+  </div>`
+
+const notFound = `
+  <div class="w-full max-w-xs text-center">
+    <div class="font-mono text-2xl tabular-nums text-muted-foreground/40">404</div>
+    <h3 class="mt-2 text-sm font-semibold">No such page</h3>
+    <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+      <span class="font-mono">/router-tiers</span> moved into Routing when the screens were merged.
+    </p>
+    <button class="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
+      <i class="ri-arrow-left-line text-sm"></i> Overview
+    </button>
+  </div>`
+
+// The one state that must not be a friendly shrug: if the DB is down the
+// proxy is still serving, and the operator needs to know that immediately.
+const backendDown = `
+  <div class="w-full max-w-sm">
+    <div class="flex items-center gap-2">
+      <i class="ri-plug-line text-base text-destructive"></i>
+      <h3 class="text-sm font-semibold">Cannot reach the Rialto API</h3>
+      ${pill('retrying', 'warn')}
+    </div>
+    <p class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+      The UI is loaded but <span class="font-mono">/api/config</span> is not answering. The proxy at
+      <span class="font-mono">/v1/*</span> may still be serving requests from its cached
+      configuration — check before restarting.
+    </p>
+    <div class="mt-3 space-y-1.5">
+      <div class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
+        <span class="size-1.5 rounded-full bg-emerald-500"></span>
+        <span class="text-[11px]">Proxy</span>
+        <span class="ml-auto font-mono text-[11px] text-muted-foreground">200 · /health</span>
+      </div>
+      <div class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
+        <span class="size-1.5 rounded-full bg-destructive"></span>
+        <span class="text-[11px]">Database</span>
+        <span class="ml-auto font-mono text-[11px] text-muted-foreground">ECONNREFUSED :5432</span>
+      </div>
+      <div class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
+        <span class="size-1.5 rounded-full bg-amber-500"></span>
+        <span class="text-[11px]">Redis</span>
+        <span class="ml-auto font-mono text-[11px] text-muted-foreground">degraded</span>
+      </div>
+    </div>
+    <div class="mt-3 rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px]">docker compose up -d postgres</div>
+  </div>`
+
+document.getElementById('root').innerHTML = `
+<div class="mx-auto min-h-screen max-w-5xl px-8 py-10">
+  <div class="flex items-center gap-2.5">
+    <div class="flex size-7 items-center justify-center rounded bg-foreground text-background">
+      <i class="ri-route-line text-base leading-none"></i>
+    </div>
+    <h1 class="text-base font-semibold tracking-tight">System states</h1>
+    <span class="ml-auto font-mono text-[11px] text-muted-foreground">5 states</span>
+  </div>
+  <p class="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+    Full-page states that have no app shell. Grouped here for review; each is its own route or
+    boundary in the build. There is no sign-in state: Cloudflare Access authenticates at the edge,
+    so the app never renders a login form.
+  </p>
+
+  <div class="mt-8 grid grid-cols-2 gap-6">
+    ${frame('OAuth returned', '/oauth-result?status=ok', oauthOk)}
+    ${frame('OAuth failed', '/oauth-result?status=error', oauthErr)}
+    ${frame('Access rejected', '/api/* · 403', accessRejected)}
+    ${frame('Not found', '*', notFound)}
+    ${frame('API unreachable', 'error boundary', backendDown)}
+  </div>
+  <div class="h-10"></div>
+</div>`
+</script>
+</body>
+</html>
