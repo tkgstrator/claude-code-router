@@ -8,7 +8,12 @@
  */
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { createSign, generateKeyPairSync } from 'node:crypto'
-import { readAccessConfig, resetAccessKeyCache, verifyAccessJwt } from '../../src/services/cloudflare-access'
+import {
+  normalizeTeamDomain,
+  readAccessConfig,
+  resetAccessKeyCache,
+  verifyAccessJwt
+} from '../../src/services/cloudflare-access'
 
 const TEAM = 'example.cloudflareaccess.com'
 const AUD = 'aud-tag-for-this-app'
@@ -149,5 +154,30 @@ describe('readAccessConfig', () => {
     process.env.ACCESS_TEAM_DOMAIN = `${TEAM}/`
     process.env.ACCESS_AUD = AUD
     expect(readAccessConfig()).toEqual({ teamDomain: TEAM, aud: AUD })
+  })
+
+  test('a domain pasted with its scheme still resolves to the bare host', async () => {
+    // The lockout this guards: `https://https://team…/cdn-cgi/access/certs`
+    // fetches nothing and the `iss` comparison never matches, so every
+    // admin request is rejected with no way back through the browser.
+    process.env.ACCESS_TEAM_DOMAIN = `https://${TEAM}/`
+    process.env.ACCESS_AUD = AUD
+    expect(readAccessConfig()).toEqual({ teamDomain: TEAM, aud: AUD })
+  })
+
+  test('whitespace alone does not count as configured', async () => {
+    process.env.ACCESS_TEAM_DOMAIN = '   '
+    process.env.ACCESS_AUD = AUD
+    expect(readAccessConfig()).toBeNull()
+  })
+})
+
+describe('normalizeTeamDomain', () => {
+  test('reduces every plausible way of typing the domain to one host', () => {
+    for (const input of [TEAM, `${TEAM}/`, `https://${TEAM}`, `https://${TEAM}/`, `  HTTPS://${TEAM}  `]) {
+      // The check endpoint and the runtime both call this, so a value
+      // that verifies before saving is the value that runs afterwards.
+      expect(normalizeTeamDomain(input).toLowerCase()).toBe(TEAM)
+    }
   })
 })

@@ -32,6 +32,9 @@ export interface EnvelopeWire {
    * default, which is ON for the two capture keys and OFF for redaction
    * — so a reader must not treat a missing key as false.
    */
+  /** Cloudflare Access. Both are required together; either alone enables nothing. */
+  ACCESS_TEAM_DOMAIN?: string
+  ACCESS_AUD?: string
   CAPTURE_REQUESTS?: boolean
   CAPTURE_MESSAGES?: boolean
   REDACT_TOOL_ARGUMENTS?: boolean

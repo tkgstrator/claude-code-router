@@ -20,14 +20,22 @@
  * so it is stated at the top of the page rather than inferred from a
  * missing pill.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Pill, RButton } from '@/components/rialto/primitives'
+import { AccessConfigSection } from '@/components/rialto/settings/access/AccessConfigSection'
 import { AccessTokensSection } from '@/components/rialto/settings/access/AccessTokensSection'
 import { GuardsCard } from '@/components/rialto/settings/access/GuardsCard'
 import { SectionHead } from '@/components/rialto/settings/fields'
 import { SettingsField, SettingsLayout } from '@/components/rialto/settings/SettingsLayout'
 import { api, type IdentityResponse, type InboundSurfaceWire } from '@/lib/api'
+import {
+  type AccessCheckResponse,
+  type AccessInput,
+  accessSaveGate,
+  normalizeAccessInput,
+  sameAccessInput
+} from '@/lib/rialto/settings/access-config'
 import { type EnvelopeWire, SECRET_MASK } from '@/lib/rialto/settings/envelope'
 
 const ZERO_TRUST_URL = 'https://one.dash.cloudflare.com/'
@@ -67,8 +75,8 @@ function ExposureNotice({ identity }: { identity: IdentityResponse }) {
         <i className='ri-alert-line shrink-0 text-sm text-amber-600 dark:text-amber-400' />
         <span>
           <span className='font-medium'>Cloudflare Access is not configured</span> — the bootstrap token alone gates{' '}
-          <span className='font-mono'>/api/*</span>, so anyone holding it has full administrative control. Set{' '}
-          <span className='font-mono'>ACCESS_TEAM_DOMAIN</span> and <span className='font-mono'>ACCESS_AUD</span>.
+          <span className='font-mono'>/api/*</span>, so anyone holding it has full administrative control. Fill in the
+          team domain and AUD below to put an identity check in front of it.
         </span>
       </div>
     </div>
@@ -140,16 +148,40 @@ export function SettingsAccess() {
   const [identity, setIdentity] = useState<IdentityResponse | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [surfaces, setSurfaces] = useState<InboundSurfaceWire[]>([])
+  const [saved, setSaved] = useState<AccessInput | null>(null)
+  const [draft, setDraft] = useState<AccessInput>({ teamDomain: '', aud: '' })
+  const [check, setCheck] = useState<AccessCheckResponse | null>(null)
+  // The exact input `check` was produced against. Compared rather than
+  // trusted, so a pass for one domain cannot authorise saving another.
+  const [checkedFor, setCheckedFor] = useState<AccessInput | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  const loadConfig = useCallback(() => {
+    api
+      .get<EnvelopeWire>('/config')
+      .then((res) => {
+        setApiKey(typeof res.APIKEY === 'string' ? res.APIKEY : '')
+        const next: AccessInput = {
+          teamDomain: typeof res.ACCESS_TEAM_DOMAIN === 'string' ? res.ACCESS_TEAM_DOMAIN : '',
+          aud: typeof res.ACCESS_AUD === 'string' ? res.ACCESS_AUD : ''
+        }
+        setSaved(next)
+        setDraft(next)
+      })
+      .catch((e: Error) => toast.error(`Could not read the config envelope: ${e.message}`))
+  }, [])
+
+  const loadIdentity = useCallback(() => {
     api
       .getIdentity()
       .then(setIdentity)
       .catch((e: Error) => toast.error(`Could not read the caller identity: ${e.message}`))
-    api
-      .get<EnvelopeWire>('/config')
-      .then((res) => setApiKey(typeof res.APIKEY === 'string' ? res.APIKEY : ''))
-      .catch((e: Error) => toast.error(`Could not read the config envelope: ${e.message}`))
+  }, [])
+
+  useEffect(() => {
+    loadIdentity()
+    loadConfig()
     api
       .getInboundSurfaces()
       .then((res) => setSurfaces(res.surfaces))
@@ -157,7 +189,56 @@ export function SettingsAccess() {
         // Scoping pickers fall back to "all endpoints", which is the
         // server's own default when surface is null.
       })
-  }, [])
+  }, [loadIdentity, loadConfig])
+
+  // Normalised once, and used for the check, the gate and the save alike
+  // — the checked string and the saved string must be the same string.
+  const normalized = useMemo(() => normalizeAccessInput(draft), [draft])
+  const gate = accessSaveGate(normalized, check, checkedFor)
+  const stale = checkedFor !== null && !sameAccessInput(normalized, checkedFor)
+  const dirty = saved !== null && !sameAccessInput(normalized, normalizeAccessInput(saved))
+
+  const runCheck = () => {
+    setChecking(true)
+    api
+      .post<AccessCheckResponse>('/access-check', { teamDomain: normalized.teamDomain, aud: normalized.aud })
+      .then((res) => {
+        setCheck(res)
+        setCheckedFor(normalized)
+      })
+      .catch((e: Error) => toast.error(`Check failed: ${e.message}`))
+      .finally(() => setChecking(false))
+  }
+
+  const save = () => {
+    if (!gate.allowed) {
+      toast.error(gate.reason)
+      return
+    }
+    setSaving(true)
+    api
+      .post<{ success: boolean; message: string }>('/config', {
+        ACCESS_TEAM_DOMAIN: normalized.teamDomain,
+        ACCESS_AUD: normalized.aud
+      })
+      .then(() => {
+        toast.success(
+          normalized.teamDomain.length === 0
+            ? 'Access turned off. /api/* now accepts the bootstrap token only.'
+            : 'Access settings saved. They apply to the next request — reload to confirm you are still let in.'
+        )
+        loadConfig()
+        loadIdentity()
+      })
+      .catch((e: Error) => toast.error(`Save failed: ${e.message}`))
+      .finally(() => setSaving(false))
+  }
+
+  const discard = () => {
+    if (saved !== null) setDraft(saved)
+    setCheck(null)
+    setCheckedFor(null)
+  }
 
   const configured = identity?.accessConfigured === true
   const subtitle = configured
@@ -171,6 +252,22 @@ export function SettingsAccess() {
       subtitle={subtitle}
       headerBadge={configured ? <Pill tone='ok'>Cloudflare Access</Pill> : <Pill tone='bad'>No Access in front</Pill>}
       headerNote={window.location.hostname}
+      actions={
+        <>
+          <RButton variant='ghost' onClick={discard} disabled={!dirty}>
+            Discard
+          </RButton>
+          <RButton
+            variant='primary'
+            icon='ri-check-line'
+            onClick={save}
+            disabled={!dirty || saving || !gate.allowed}
+            title={gate.allowed ? undefined : gate.reason}
+          >
+            Save
+          </RButton>
+        </>
+      }
       headerActions={
         <RButton
           variant='outline'
@@ -186,6 +283,22 @@ export function SettingsAccess() {
       <SettingsField label='Signed in as' hint='The caller Rialto verified for this request.'>
         <SignedInAs identity={identity} />
       </SettingsField>
+
+      <AccessConfigSection
+        draft={draft}
+        onChange={setDraft}
+        check={check}
+        checking={checking}
+        onCheck={runCheck}
+        stale={stale}
+      />
+      {dirty && !gate.allowed ? (
+        <div className='px-6 pb-4 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400'>{gate.reason}</div>
+      ) : null}
+      {dirty && gate.allowed && gate.caveat !== null ? (
+        <div className='px-6 pb-4 text-[11px] leading-relaxed text-muted-foreground'>{gate.caveat}</div>
+      ) : null}
+
       <PolicyCoverage />
 
       <BootstrapTokenSection apiKey={apiKey} />

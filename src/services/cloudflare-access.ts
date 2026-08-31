@@ -58,6 +58,26 @@ export interface AccessConfig {
 }
 
 /**
+ * Reduce a team domain to the bare host this module builds URLs from.
+ *
+ * Pasting the domain with its scheme is the most likely way to type
+ * this field, and the consequences used to be invisible until it was
+ * too late: `https://https://team…/cdn-cgi/access/certs` fetches
+ * nothing, and the `iss` comparison below never matches, so every admin
+ * request is rejected with no way back through the browser.
+ *
+ * Exported so the pre-save check normalises identically. Two
+ * normalisers is how a configuration passes validation and then fails
+ * at runtime.
+ */
+export function normalizeTeamDomain(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '')
+}
+
+/**
  * Access is configured only when BOTH values are present. A half
  * configuration must not authenticate anything — verifying a signature
  * without checking the audience would accept every app on the team.
@@ -65,9 +85,10 @@ export interface AccessConfig {
 export function readAccessConfig(): AccessConfig | null {
   const teamDomain = process.env.ACCESS_TEAM_DOMAIN
   const aud = process.env.ACCESS_AUD
-  if (typeof teamDomain !== 'string' || teamDomain.length === 0) return null
-  if (typeof aud !== 'string' || aud.length === 0) return null
-  return { teamDomain: teamDomain.replace(/\/+$/, ''), aud }
+  if (typeof teamDomain !== 'string' || teamDomain.trim().length === 0) return null
+  if (typeof aud !== 'string' || aud.trim().length === 0) return null
+  const host = normalizeTeamDomain(teamDomain)
+  return host.length === 0 ? null : { teamDomain: host, aud: aud.trim() }
 }
 
 const jwksCache = new LRUCache<string, Map<string, string>>({ max: 4, ttl: JWKS_TTL_MS })

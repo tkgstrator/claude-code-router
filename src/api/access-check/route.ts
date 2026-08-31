@@ -14,7 +14,7 @@
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { resetAccessKeyCache, verifyAccessJwt } from '../../services/cloudflare-access'
+import { normalizeTeamDomain, resetAccessKeyCache, verifyAccessJwt } from '../../services/cloudflare-access'
 import '../context'
 
 const BodySchema = z
@@ -59,7 +59,10 @@ accessCheckRoute.openapi(
   }),
   async (c) => {
     const { teamDomain, aud } = c.req.valid('json')
-    const domain = teamDomain.replace(/^https:\/\//, '').replace(/\/+$/, '')
+    // The same normaliser the runtime uses. Checking one string and
+    // running another is how a configuration passes here and locks the
+    // operator out afterwards.
+    const domain = normalizeTeamDomain(teamDomain)
 
     const certs = await fetch(`https://${domain}/cdn-cgi/access/certs`, {
       signal: AbortSignal.timeout(5000)
