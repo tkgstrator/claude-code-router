@@ -395,6 +395,20 @@ class ApiClient {
   async getIdentity(): Promise<IdentityResponse> {
     return this.get<IdentityResponse>('/identity')
   }
+
+  // Liveness. Served outside the API-key gate (it is a probe endpoint),
+  // hence the absolute path rather than the /api base.
+  async getHealth(): Promise<HealthResponse> {
+    const res = await fetch('/health', { headers: { Accept: 'application/json' } })
+    return res.json()
+  }
+}
+
+export interface HealthResponse {
+  status: 'ok' | 'degraded'
+  version: string
+  uptime_seconds: number
+  checks: Record<string, 'ok' | 'fail' | 'skip'>
 }
 
 export type SurfaceId = 'anthropic-messages' | 'openai-chat' | 'openai-responses' | 'gemini-generate'

@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { Toaster } from '@/components/ui/sonner'
-import { api, type IdentityResponse } from '@/lib/api'
+import { api, type HealthResponse, type IdentityResponse } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/version'
 
@@ -76,10 +76,45 @@ function IdentityRow({ identity }: { identity: IdentityResponse | null }) {
   )
 }
 
+/**
+ * Sidebar serving indicator.
+ *
+ * The dot reports what /api/health actually said. A degraded server
+ * (reachable, but a dependency check failed) is the case worth catching
+ * early, and a permanently-green dot would hide exactly that.
+ */
+function ServingRow({
+  health,
+  reachable,
+  port
+}: {
+  health: HealthResponse | null
+  reachable: boolean
+  port: number | undefined
+}) {
+  const state = !reachable ? 'down' : health === null ? 'unknown' : health.status === 'ok' ? 'ok' : 'degraded'
+  const dot = {
+    ok: 'bg-emerald-500',
+    degraded: 'bg-amber-500',
+    down: 'bg-destructive',
+    unknown: 'bg-muted-foreground/40'
+  }[state]
+  const label = { ok: 'Serving', degraded: 'Degraded', down: 'Unreachable', unknown: 'Serving' }[state]
+  return (
+    <div className='flex items-center gap-2 rounded-md px-2.5 py-2'>
+      <span className={cn('size-1.5 shrink-0 rounded-full', dot)} />
+      <span className='text-xs text-sidebar-foreground/70'>{label}</span>
+      <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{port ? `:${port}` : '—'}</span>
+    </div>
+  )
+}
+
 export function RialtoShell() {
   const { config } = useConfig()
   const { resolvedTheme, setTheme } = useTheme()
   const [identity, setIdentity] = useState<IdentityResponse | null>(null)
+  const [health, setHealth] = useState<HealthResponse | null>(null)
+  const [reachable, setReachable] = useState(true)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -91,6 +126,13 @@ export function RialtoShell() {
         // Display-only row; a failed probe just leaves it on the local
         // fallback rather than blocking the shell from rendering.
       })
+    api
+      .getHealth()
+      .then((res) => {
+        setHealth(res)
+        setReachable(true)
+      })
+      .catch(() => setReachable(false))
   }, [])
 
   const port = config?.PORT
@@ -114,11 +156,7 @@ export function RialtoShell() {
         </nav>
 
         <div className='border-t border-sidebar-border p-2'>
-          <div className='flex items-center gap-2 rounded-md px-2.5 py-2'>
-            <span className='size-1.5 shrink-0 rounded-full bg-emerald-500' />
-            <span className='text-xs text-sidebar-foreground/70'>Serving</span>
-            <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{port ? `:${port}` : '—'}</span>
-          </div>
+          <ServingRow health={health} reachable={reachable} port={port} />
           <IdentityRow identity={identity} />
           <button
             type='button'
