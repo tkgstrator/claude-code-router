@@ -397,7 +397,33 @@ class ApiClient {
     return this.post<{ surfaces: InboundSurfaceWire[] }>('/inbound-surfaces', body)
   }
 
-  // Display-only identity for the shell footer. Never a gate.
+  // Access tokens (Phase 3.5). Issue returns the plaintext once; there is
+  // no endpoint that can show it again.
+  async getAccessTokens(): Promise<{ tokens: AccessTokenWire[] }> {
+    return this.get<{ tokens: AccessTokenWire[] }>('/access-tokens')
+  }
+
+  async issueAccessToken(body: {
+    name: string
+    surface?: SurfaceId | null
+    profileKey?: string | null
+    expiresAt?: string | null
+  }): Promise<{ token: AccessTokenWire; plaintext: string }> {
+    return this.post<{ token: AccessTokenWire; plaintext: string }>('/access-tokens', body)
+  }
+
+  async revokeAccessToken(id: string): Promise<AccessTokenWire> {
+    return this.post<AccessTokenWire>(`/access-tokens/${encodeURIComponent(id)}/revoke`, {})
+  }
+
+  // Prefer revoke: deleting a token also deletes the answer to "whose
+  // requests were these" on every RequestLog row it authenticated.
+  async deleteAccessToken(id: string): Promise<{ deleted: boolean }> {
+    return this.deleteRequest<{ deleted: boolean }>(`/access-tokens/${encodeURIComponent(id)}`)
+  }
+
+  // Identity for the shell footer. Verified upstream by adminAuth — a
+  // forged Cf-Access-* header never reaches the handler.
   async getIdentity(): Promise<IdentityResponse> {
     return this.get<IdentityResponse>('/identity')
   }
@@ -431,6 +457,20 @@ export interface InboundSurfaceWire {
   defaultRoutingMode: RoutingMode
   profileKey: string
   overridden: boolean
+}
+
+export interface AccessTokenWire {
+  id: string
+  name: string
+  /** First characters only — identifies a token without being usable. */
+  prefix: string
+  surface: string | null
+  profileKey: string | null
+  lastUsedAt: string | null
+  requestCount: number
+  expiresAt: string | null
+  revokedAt: string | null
+  createdAt: string
 }
 
 export interface IdentityResponse {
