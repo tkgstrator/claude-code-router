@@ -111,3 +111,33 @@ DBマイグレーションは不要（`InboundSurfaceConfig` は行が無けれ�
 
 - `docs/architecture/request-flow.md` — この後段の chain / failover
 - `docs/plan/rialto/master-plan.md` §4.1, §4.2 — 設計の経緯
+
+## 実装状況（Phase 5 時点）
+
+| 画面 | ルート | モック差分 (light / dark) |
+|---|---|---|
+| Overview | `/overview` | 1.76% / 1.85% |
+| Routing — Chain | `/routing` | 3.51% / 3.82% |
+| Routing — Chain (passthrough) | `/routing?surface=openai-responses` | 2.45% / 3.55% |
+| Routing — Map | `/routing/map` | 1.68% / 1.68% |
+| Routing — Rules | `/routing/rules` | 2.97% / 4.87% |
+| Providers — subscription | `/providers/:name` | 3.89% / 7.75% |
+| Providers — api_key | `/providers/:name` | 3.83% / 7.15% |
+| Providers — connect | `/providers/connect` | 7.22% / 14.66% |
+| Activity — Sessions | `/activity` | 1.96% / 2.88% |
+| Activity — Requests | `/activity/requests` | 3.43% / 5.14% |
+| Activity — Logs | `/activity/logs` | 3.22% / 7.12% |
+| Settings — Server | `/settings` | 1.54% / 1.63% |
+| Settings — Access | `/settings/access` | 6.74% / 7.25% |
+| Settings — Logging | `/settings/logging` | 2.28% / 2.29% |
+| Settings — Personas | `/settings/personas` | 4.73% / 5.63% |
+| Settings — Status line | `/settings/statusline` | 2.24% / 3.03% |
+| Settings — Presets | `/settings/presets` | 7.22% / 8.33% |
+| Settings — Advanced | `/settings/advanced` | 4.23% / 4.36% |
+| First run | `/setup` | 2.85% / 3.01% |
+| System states | `/access-denied` ほか | 3.22% / 9.53% |
+| Session detail | 未登録 | セッション実データが無く撮影できない |
+
+差分の大半は**モックのダミー値と実データの差**である（このインストールには provider が3件、モックのフィクスチャには7件、など）。
+`providers-connect` だけが 10% を超えるが、これはモックが**3ステップの2番目**を描いているのに対し
+ルートは当然1ステップ目で開くためで、実装の欠落ではない。

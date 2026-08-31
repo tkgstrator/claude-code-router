@@ -584,11 +584,11 @@ Prismaマイグレーション後は `bun run db:migrate:test`（`ccr_test`）�
 |---|---|---|
 | UIモック先行作成 | **Done → 承認済み** | 21ビュー × light/dark（42枚）。`bun run mocks:serve` で確認 |
 | `ui-mock-diff` スキル | **Done** | `bun run mocks:{css,shoot,diff}` |
-| 0 土台整備 | Not started | envelope.test.ts のフルスイート限定フレークは未解消 |
+| 0 土台整備 | Not started | envelope.test.ts のフルスイート限定フレークは未解消。原因は特定済み（`CONFIG_FILE` がモジュール初回importで固定されるため、`CCR_HOME_DIR` を差し替えるテストがimport順に依存する） |
 | 1 Rialtoリネーム | Not started | UI表記のみ先行（サイドバーが `Rialto`）。HOME_DIR / パッケージ名は未着手 |
 | 2 Inbound集約+多面ルーティング | **In Progress** | 記述子レジストリ + `InboundSurfaceConfig` + 面ごと profileKey は着地。`docs/architecture/inbound-surfaces.md` |
 | 3 Gemini | Not started | 記述子は置いたが `/v1beta/models/*` は未マウント。Code Assist クォータ取得の可否も未確定 |
 | 3.5 認証 | Not started | `/api/identity` は表示専用で認証していない。AccessToken テーブルは未作成 |
 | 4 Zodスキーマ | Not started | |
-| 5 UI刷新 | **In Progress** | 新シェル + Overview が着地。残り20ビューを実装中 |
+| 5 UI刷新 | **In Progress** | 21ビュー中20をルーティング済み。モック差分の中央値 3.55%（40ペア中28が5%未満）。旧コンポーネント98ファイル削除済み。残: activity-session（セッション実データ待ち）、i18n再編、`/login` 削除（Phase 3.5 待ち） |
 | 6 仕上げ・v3.0.0 | Not started | |
