@@ -28,6 +28,24 @@ Access app C:  rialto.example.com/health Bypass (Everyone)  → 外形監視（�
 `/health` は APIKEY ゲートの外にある監視用エンドポイントなので、外形監視を当てているなら
 同様に Bypass しておく。覆ったままだと監視が Access のログインHTMLを掴んで常時赤になる。
 
+### Allow (Everyone) と Bypass は別物
+
+| | Everyone + Allow | Bypass |
+|---|---|---|
+| ログイン画面 | **出る** | 出ない |
+| IdP 認証 | **必要** | 不要 |
+| `Cf-Access-Jwt-Assertion` | 注入される | されない |
+
+**「Everyone」は「誰でも通す」ではなく「認証さえ済めば誰でも許可する」。** 認証自体は必須のまま
+なので、`/v1` を Everyone + Allow にすると CLI はログイン画面にリダイレクトされて詰む。
+ここは Bypass でなければならない。
+
+逆に UI 側（`/`）を Bypass にすると assertion が注入されなくなり、Rialto から見て
+「Access が居ない」状態になって bootstrap token 頼みに落ちる。
+
+Bypass の条件は Everyone でなくてもよい。クライアントの出口IPが固定なら送信元IPで絞れる。
+変動するなら Everyone とし、防御は Rialto の発行済みトークン（個別失効・面スコープ）に委ねる。
+
 ## 1. Access アプリを作る
 
 `/` 用のアプリを作り、**Application Audience (AUD) Tag** を控える。これが `ACCESS_AUD` になる。
