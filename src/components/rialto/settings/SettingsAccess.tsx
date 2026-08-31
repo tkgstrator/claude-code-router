@@ -1,29 +1,39 @@
 /**
  * Settings → Access. Who is allowed to reach Rialto, and with what.
  *
- * The mock designs a hashed, individually revocable access-token table
- * scoped to an inbound surface and a routing profile. That model is
- * Phase 3.5 and does not exist: today the entire `/api/*` and `/v1/*`
- * surface is gated by one shared secret (`process.env.APIKEY`, see
- * src/api/api-key-auth.ts), and `/api/identity` reports the Cloudflare
- * Access headers without verifying them. This screen renders the real
- * pair and labels the token table as the unbuilt capability it is,
- * rather than backing it with invented rows.
+ * Two independent gates, and the screen's job is to make it obvious
+ * which one is actually load-bearing:
+ *
+ *   /api/*  — Cloudflare Access when ACCESS_TEAM_DOMAIN + ACCESS_AUD are
+ *             set (the assertion is verified against the team JWKS
+ *             before any handler runs), otherwise the bootstrap token
+ *             alone.
+ *   /v1/*   — per-client access tokens. This path has to be a Bypass app
+ *             at the edge, because Claude Code, Codex and Gemini CLI
+ *             cannot complete an interactive Access login.
+ *
+ * `accessConfigured: false` on a deployment reachable from the internet
+ * means one shared secret is the only thing in front of the admin API,
+ * so it is stated at the top of the page rather than inferred from a
+ * missing pill.
  */
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Pill, RButton } from '@/components/rialto/primitives'
+import { AccessTokensSection } from '@/components/rialto/settings/access/AccessTokensSection'
 import { GuardsCard } from '@/components/rialto/settings/access/GuardsCard'
 import { SectionHead } from '@/components/rialto/settings/fields'
-import { NotYetAvailable } from '@/components/rialto/settings/notice'
+import { NotYetAvailable, WarnNotice } from '@/components/rialto/settings/notice'
 import { SettingsField, SettingsLayout } from '@/components/rialto/settings/SettingsLayout'
-import { api, type IdentityResponse } from '@/lib/api'
+import { api, type IdentityResponse, type InboundSurfaceWire } from '@/lib/api'
 import { type EnvelopeWire, SECRET_MASK } from '@/lib/rialto/settings/envelope'
 
 const ZERO_TRUST_URL = 'https://one.dash.cloudflare.com/'
 
 function SignedInAs({ identity }: { identity: IdentityResponse | null }) {
-  const viaAccess = identity?.mode === 'cloudflare_access'
+  if (identity === null) return <span className='text-[11px] text-muted-foreground'>Checking…</span>
+
+  const viaAccess = identity.mode === 'cloudflare_access'
   return (
     <div className='space-y-1.5'>
       <div className='flex items-center gap-2'>
@@ -34,47 +44,35 @@ function SignedInAs({ identity }: { identity: IdentityResponse | null }) {
               : 'ri-key-2-line text-sm text-muted-foreground'
           }
         />
-        <span className='font-mono text-xs'>{identity?.email ? identity.email : 'no Access identity'}</span>
-        {viaAccess ? <Pill tone='info'>forwarded</Pill> : <Pill tone='mute'>bootstrap token</Pill>}
+        <span className='font-mono text-xs'>{identity.email === null ? 'bootstrap token' : identity.email}</span>
+        {viaAccess ? <Pill tone='ok'>verified</Pill> : <Pill tone='mute'>no Access identity</Pill>}
       </div>
       <div className='text-[11px] leading-relaxed text-muted-foreground'>
-        Display only. Rialto reads the header but does not yet verify the{' '}
-        <span className='font-mono'>Cf-Access-Jwt-Assertion</span> against your team's JWKS, so nothing gates on this
-        value — the real gate is Access at the edge plus the bootstrap token below.
+        {viaAccess
+          ? 'The assertion was checked for signature, issuer and audience before this request reached a handler, so a forged header cannot produce this name.'
+          : 'This request authenticated with the shared bootstrap token, so Rialto has no idea which person made it.'}
       </div>
     </div>
   )
 }
 
-function AdminAccessSection({ identity }: { identity: IdentityResponse | null }) {
+/**
+ * The exposure statement. Deliberately the loudest thing on the page
+ * when Access is off: behind a public tunnel that configuration means
+ * one leaked string is full admin access.
+ */
+function ExposureNotice({ identity }: { identity: IdentityResponse }) {
+  if (identity.accessConfigured) return null
   return (
-    <>
-      <SettingsField
-        label='Signed in as'
-        hint='From the Cf-Access-Authenticated-User-Email header that Cloudflare adds once the edge policy has passed.'
-      >
-        <SignedInAs identity={identity} />
-      </SettingsField>
-
-      <SettingsField label='Policy coverage' hint='Which Access apps sit on this hostname.'>
-        <div className='space-y-3'>
-          <NotYetAvailable
-            what='Access app list'
-            needs={
-              <>
-                Reading the Access apps for this hostname needs a Cloudflare API token and a server-side proxy for the
-                Zero Trust API. Neither exists — check the policies in the Zero Trust dashboard for now.
-              </>
-            }
-          />
-          <p className='text-[11px] leading-relaxed text-muted-foreground'>
-            <span className='font-mono'>/v1</span> must bypass Access: Claude Code, Codex and Gemini CLI cannot complete
-            an interactive login and do not send service-token headers. The bootstrap token below is that path's only
-            gate.
-          </p>
-        </div>
-      </SettingsField>
-    </>
+    <div className='px-6 pb-4'>
+      <WarnNotice title='Cloudflare Access is not configured' tag='exposure'>
+        Every <span className='font-mono'>/api/*</span> request — this UI, the config document, provider keys — is gated
+        by the single bootstrap token below and nothing else. Anyone who obtains that string has full administrative
+        control. Set <span className='font-mono'>ACCESS_TEAM_DOMAIN</span> and{' '}
+        <span className='font-mono'>ACCESS_AUD</span> to put an identity check in front of it before exposing this host
+        publicly.
+      </WarnNotice>
+    </div>
   )
 }
 
@@ -91,10 +89,14 @@ function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
 
   return (
     <>
-      <SectionHead title='Bootstrap token' lead={<Pill tone='mute'>envelope</Pill>} meta='the only gate on /v1/*' />
+      <SectionHead
+        title='Bootstrap token'
+        lead={<Pill tone='mute'>envelope</Pill>}
+        meta='break-glass admin credential'
+      />
       <SettingsField
         label='APIKEY'
-        hint='Stored in the on-disk envelope and mirrored onto process.env. Accepted as x-api-key or Authorization: Bearer on every /api/* and /v1/* request. One secret, shared by every client.'
+        hint='Stored in the on-disk envelope and mirrored onto process.env. Accepted on /api/* so a database outage or a broken Access policy cannot lock you out. Prefer a scoped access token for anything that is not you.'
       >
         <div className='flex items-center gap-2'>
           <div className='flex h-8 max-w-md flex-1 items-center overflow-hidden rounded-md border border-border px-3 font-mono text-xs'>
@@ -117,54 +119,64 @@ function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
   )
 }
 
-function AccessTokensSection() {
+function PolicyCoverage() {
   return (
-    <>
-      <SectionHead title='Access tokens' meta='per-client credentials' />
-      <div className='px-6 pb-4'>
+    <SettingsField label='Policy coverage' hint='Which Access apps sit on this hostname.'>
+      <div className='space-y-3'>
         <NotYetAvailable
-          what='Per-client token table'
+          what='Access app list'
           needs={
             <>
-              There is no <span className='font-mono'>AccessToken</span> store and no endpoint behind it — every client
-              presents the one bootstrap token above, so nothing here can be listed, scoped or revoked individually.
-              Filling this table needs the Phase 3.5 backend: a table of SHA-256 digests with a name, an inbound
-              endpoint, a routing profile and a last-used timestamp, plus issue and revoke routes. Until then, rotating
-              the shared secret is the only revocation, and it logs out every client at once.
+              Reading the Access apps for this hostname needs a Cloudflare API token and a server-side proxy for the
+              Zero Trust API. Neither exists — check the policies in the Zero Trust dashboard for now.
             </>
           }
         />
+        <p className='text-[11px] leading-relaxed text-muted-foreground'>
+          <span className='font-mono'>/v1</span> must be a <span className='font-medium text-foreground'>Bypass</span>{' '}
+          policy. Claude Code, Codex and Gemini CLI cannot complete an interactive Access login and do not send
+          service-token headers, so putting Access in front of that path locks every client out — the access tokens
+          below are its gate instead.
+        </p>
       </div>
-    </>
+    </SettingsField>
   )
 }
 
 export function SettingsAccess() {
   const [identity, setIdentity] = useState<IdentityResponse | null>(null)
   const [apiKey, setApiKey] = useState('')
+  const [surfaces, setSurfaces] = useState<InboundSurfaceWire[]>([])
 
   useEffect(() => {
     api
       .getIdentity()
       .then(setIdentity)
-      .catch(() => {
-        // Display-only row: a failed probe leaves it on the token
-        // fallback rather than blanking the section.
-      })
+      .catch((e: Error) => toast.error(`Could not read the caller identity: ${e.message}`))
     api
       .get<EnvelopeWire>('/config')
       .then((res) => setApiKey(typeof res.APIKEY === 'string' ? res.APIKEY : ''))
       .catch((e: Error) => toast.error(`Could not read the config envelope: ${e.message}`))
+    api
+      .getInboundSurfaces()
+      .then((res) => setSurfaces(res.surfaces))
+      .catch(() => {
+        // Scoping pickers fall back to "all endpoints", which is the
+        // server's own default when surface is null.
+      })
   }, [])
 
-  const viaAccess = identity?.mode === 'cloudflare_access'
+  const configured = identity?.accessConfigured === true
+  const subtitle = configured
+    ? 'Cloudflare Access on /api · scoped tokens on /v1'
+    : 'Bootstrap token only on /api · scoped tokens on /v1'
 
   return (
     <SettingsLayout
       active='access'
       title='Access'
-      subtitle={`${viaAccess ? 'Cloudflare Access' : 'No Access'} on /api · one shared bootstrap token on /v1`}
-      headerBadge={viaAccess ? <Pill tone='ok'>Cloudflare Access</Pill> : <Pill tone='warn'>No Access in front</Pill>}
+      subtitle={subtitle}
+      headerBadge={configured ? <Pill tone='ok'>Cloudflare Access</Pill> : <Pill tone='bad'>No Access in front</Pill>}
       headerNote={window.location.hostname}
       headerActions={
         <RButton
@@ -176,12 +188,20 @@ export function SettingsAccess() {
         </RButton>
       }
     >
-      <AdminAccessSection identity={identity} />
+      {identity === null ? null : <ExposureNotice identity={identity} />}
+
+      <SettingsField label='Signed in as' hint='The caller Rialto verified for this request.'>
+        <SignedInAs identity={identity} />
+      </SettingsField>
+      <PolicyCoverage />
+
       <BootstrapTokenSection apiKey={apiKey} />
+
       <div className='px-6 pb-2'>
         <GuardsCard />
       </div>
-      <AccessTokensSection />
+
+      <AccessTokensSection surfaces={surfaces} />
       <div className='h-8' />
     </SettingsLayout>
   )

@@ -101,12 +101,12 @@ const app = new OpenAPIHono()
 // loopback `http://localhost:<port>/callback` pattern. It is therefore
 // naturally outside this gate; CSRF protection lives on the single-use
 // `state` issued at POST /api/oauth/initiate/* (still gated).
-// Access log runs BEFORE apiKeyAuth so 401s from the auth gate are
+// Access log runs BEFORE the auth gates so 401s from them are
 // visible too — otherwise a wrong-key probe leaves no trace at all.
 // GET /health mounts BEFORE the auth middleware and BEFORE the SPA
 // catch-all so uptime probes hit a machine-readable JSON body without
 // carrying an APIKEY. Registered here (not inside the /api/* tree) so
-// the outer accessLog / apiKeyAuth don't gate it.
+// the outer accessLog / auth gates don't apply to it.
 app.route('/', healthRoute)
 
 app.use('/api/*', accessLog)

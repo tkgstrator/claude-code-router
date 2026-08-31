@@ -8,7 +8,7 @@ Rialto をトンネル越しに公開するときの設定。**`/api/*` と `/v1
 | 経路 | 呼び手 | 認証 |
 |---|---|---|
 | `/` `/api/*` | ブラウザの人間 | Cloudflare Access（メール等） |
-| `/v1/*` | Claude Code / Codex CLI / Gemini CLI | Rialto の AccessToken |
+| `/v1/*` | Claude Code / Codex CLI / Gemini CLI | Rialto の AccessToken **のみ** |
 
 **`/v1/*` を Access で守ることはできない。** CLI クライアントは対話ログインができず、
 サービストークン（`CF-Access-Client-Id` / `CF-Access-Client-Secret`）ヘッダも送れない。
@@ -56,6 +56,14 @@ export ANTHROPIC_BASE_URL=https://rialto.example.com
 export ANTHROPIC_AUTH_TOKEN=rialto_xxxxxxxx
 ```
 
+UI がまだ無い / 締め出された場合は API から直接発行できる（`APIKEY` は `/api/*` では有効）:
+
+```bash
+curl -s -X POST https://rialto.example.com/api/access-tokens \
+  -H "X-API-Key: $APIKEY" -H 'content-type: application/json' \
+  -d '{"name":"claude-code"}' | jq -r .plaintext
+```
+
 トークンには **面**（どのエンドポイントを叩けるか）と **ルーティングプロファイル**を
 紐づけられる。CI のトークンだけ `cost-first` に固定する、といった運用ができる。
 
@@ -66,17 +74,27 @@ export ANTHROPIC_AUTH_TOKEN=rialto_xxxxxxxx
 bootstrap token だけが門になる。cloudflared 経由のみで到達するようにし、
 `HOST` を loopback に寄せるか、ファイアウォールで塞ぐ。
 
-## bootstrap token を残してある理由
+## bootstrap token の適用範囲
 
-envelope の `APIKEY` は Access 設定後も `/api/*` と `/v1/*` の両方で受理される。
-これは**復旧経路**として意図的に残している:
+envelope の `APIKEY` が効くのは **`/api/*` だけ**。`/v1/*` では受理されない。
+
+`/v1/*` はエッジで Bypass にする以上、このミドルウェアが通すものが
+**課金経路の前に立つ唯一の門**になる。そこにマスターキーを残すと、
+「失効させると全クライアントが同時に切れる」「どのクライアントが焼いたか分からない」
+という、発行済みトークンを導入した理由そのものが復活する。よって `/v1/*` は
+**発行済み AccessToken のみ**。
+
+結果として、**トークンを1本も発行していないインストールは `/v1/*` を通せない**。
+これは意図した形で、「管理キーを持っている者なら誰でも通れる」より
+「誰が呼んでよいかを決めるまで閉じている」を選んでいる。
+
+`/api/*` に `APIKEY` を残しているのは**復旧経路**のため:
 
 - Access 側の障害で管理UIから締め出される
-- Postgres が落ちて AccessToken を引けない
+- Postgres が落ちて AccessToken を引けない（＝UIからトークンを発行できない）
 
-ただし**これは「もう1本のマスターキー」でもある**。公開運用では、
-`APIKEY` を強い値にし、共有しないこと。トークンを配るのはクライアントへ、
-bootstrap token は手元に置く。
+公開運用では `APIKEY` を強い値にし、配らないこと。クライアントに配るのは
+発行したトークン、`APIKEY` は手元に置く。
 
 ## 現状の制限
 

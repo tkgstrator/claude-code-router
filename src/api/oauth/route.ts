@@ -40,7 +40,7 @@
  * protection is the single-use `state` token issued at /initiate;
  * /callback validates against that and rejects unknown / expired
  * states. The callback paths are intentionally outside `/api/*` so
- * the top-level redirect from the IdP isn't subject to apiKeyAuth.
+ * the top-level redirect from the IdP isn't subject to adminAuth.
  */
 
 import { Hono } from 'hono'

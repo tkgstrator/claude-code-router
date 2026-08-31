@@ -104,6 +104,14 @@ describe.skipIf(!HAS_DB)('access-token-service', () => {
     expect(await resolveAccessToken(plaintext)).toBeNull()
   })
 
+  test('the bootstrap token is not an access token', async () => {
+    // /v1/* is a Bypass path at the edge, so whatever resolves here is
+    // the only thing in front of the operator's credits. The envelope
+    // key must not be a second, unrevocable way in.
+    process.env.APIKEY = 'bootstrap-value-that-must-not-work'
+    expect(await resolveAccessToken('bootstrap-value-that-must-not-work')).toBeNull()
+  })
+
   test('deletion also takes effect immediately', async () => {
     const { token, plaintext } = await issueAccessToken({ name: 'ci' })
     expect(await resolveAccessToken(plaintext)).not.toBeNull()

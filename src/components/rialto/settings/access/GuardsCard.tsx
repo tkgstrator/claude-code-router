@@ -22,19 +22,19 @@ const GUARDS: Guard[] = [
     flow: 'you → Access → Rialto',
     body: (
       <>
-        Guards this UI and <span className='font-mono'>/api/*</span> at the edge. The browser logs in at Cloudflare;
-        Rialto currently reads the forwarded identity headers for display only.
+        Guards this UI and <span className='font-mono'>/api/*</span>. The browser logs in at the edge and Rialto
+        verifies the signed assertion against your team's JWKS before the request reaches a handler.
       </>
     )
   },
   {
-    title: 'Bootstrap token',
+    title: 'Access token',
     accent: 'border-l-foreground/40',
     flow: 'Claude Code → Rialto',
     body: (
       <>
-        Guards <span className='font-mono'>/v1/*</span> and <span className='font-mono'>/api/*</span>. CLI clients
-        cannot complete an interactive Access login, so this shared secret is that path's only gate.
+        Guards <span className='font-mono'>/v1/*</span>. CLI clients cannot complete an interactive Access login, so
+        that path is a Bypass app and these per-client tokens are its gate.
       </>
     )
   },

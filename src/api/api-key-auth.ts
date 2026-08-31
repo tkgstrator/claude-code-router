@@ -32,7 +32,13 @@ interface ApiKeyAuthOptions {
   errorShape?: 'anthropic' | 'openai'
 }
 
-function unauthorizedResponse(shape: 'anthropic' | 'openai'): {
+function unauthorizedResponse(
+  shape: 'anthropic' | 'openai',
+  // The proxy and the admin API fail for different reasons and have
+  // different remedies, and the operator reads this text in a CLI where
+  // it is the only diagnostic they get.
+  message = 'Invalid or missing API key'
+): {
   status: 401
   body: Record<string, unknown>
 } {
@@ -40,20 +46,20 @@ function unauthorizedResponse(shape: 'anthropic' | 'openai'): {
     return {
       status: 401,
       body: {
-        error: {
-          message: 'Invalid or missing API key. Send it as Authorization: Bearer <key>.',
-          type: 'invalid_request_error',
-          param: null,
-          code: 'invalid_api_key'
-        }
+        error: { message, type: 'invalid_request_error', param: null, code: 'invalid_api_key' }
       }
     }
   }
   return {
     status: 401,
-    body: { type: 'error', error: { type: 'authentication_error', message: 'Invalid or missing API key' } }
+    body: { type: 'error', error: { type: 'authentication_error', message } }
   }
 }
+
+const PROXY_UNAUTHORIZED =
+  'Invalid, revoked or expired access token. Issue one under Settings → Access and send it as Authorization: Bearer <token>.'
+
+const PROXY_WRONG_SURFACE = 'This access token is not scoped to this endpoint.'
 
 // Gate the billable proxy + config API behind the envelope APIKEY
 // (mirrored onto process.env by initConfig; bootstrap mints one on
@@ -74,20 +80,6 @@ function matchesBootstrapToken(provided: string): boolean {
   const expected = (process.env.APIKEY ?? '').trim()
   return expected.length > 0 && provided.length > 0 && timingSafeEqual(digest(provided), digest(expected))
 }
-
-export function createApiKeyAuth(options: ApiKeyAuthOptions = {}): MiddlewareHandler {
-  const bearerOnly = options.bearerOnly === true
-  const errorShape = options.errorShape ?? (bearerOnly ? 'openai' : 'anthropic')
-  return async (c, next) => {
-    if (!matchesBootstrapToken(presentedSecret(c, bearerOnly))) {
-      const err = unauthorizedResponse(errorShape)
-      return c.json(err.body, err.status)
-    }
-    return next()
-  }
-}
-
-export const apiKeyAuth: MiddlewareHandler = createApiKeyAuth()
 
 /**
  * Gate for /api/* — the admin surface.
@@ -132,13 +124,19 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
 }
 
 /**
- * Gate for /v1/* — the billable proxy.
+ * Gate for /v1/* — the billable proxy. Issued tokens only.
  *
- * Prefers an issued AccessToken, which is individually revocable and
- * attributable, and can pin the caller to one surface and routing
- * profile. Falls back to the bootstrap token so an existing client
- * keeps working through the migration and so a machine can still reach
- * the proxy when the database is down.
+ * The envelope bootstrap token is deliberately NOT accepted here. At
+ * the edge this path is a Bypass policy, because CLI clients cannot do
+ * an interactive Access login — so whatever this middleware accepts is
+ * the only thing standing in front of the operator's subscription and
+ * API credits. A master key that also works here would be a second
+ * route to that: unrevocable without cutting off every client at once,
+ * and unattributable, which is the whole reason issued tokens exist.
+ *
+ * The consequence is that a fresh install cannot proxy until a token is
+ * issued. That is the intended shape: closed until someone decides who
+ * may call, rather than open to whoever holds the admin key.
  *
  * The resolved token is stashed on the context for the route to record
  * against the request and to read its routing scope from.
@@ -148,28 +146,21 @@ export function createProxyAuth(options: ApiKeyAuthOptions = {}): MiddlewareHand
   const errorShape = options.errorShape ?? (bearerOnly ? 'openai' : 'anthropic')
   return async (c, next) => {
     const provided = presentedSecret(c, bearerOnly)
-    if (provided.length === 0) {
-      const err = unauthorizedResponse(errorShape)
+    const token = provided.length === 0 ? null : await resolveAccessToken(provided)
+    if (token === null) {
+      const err = unauthorizedResponse(errorShape, PROXY_UNAUTHORIZED)
       return c.json(err.body, err.status)
     }
 
-    const token = await resolveAccessToken(provided)
-    if (token !== null) {
-      // A token pinned to one surface must not reach another. Checked
-      // here rather than in the route so no handler can forget it.
-      if (token.surface !== null && surfaceForPath(c.req.path)?.id !== token.surface) {
-        const err = unauthorizedResponse(errorShape)
-        return c.json(err.body, err.status)
-      }
-      c.set('accessToken', token)
-      noteTokenUse(token.id)
-      return next()
-    }
-
-    if (!matchesBootstrapToken(provided)) {
-      const err = unauthorizedResponse(errorShape)
+    // A token pinned to one surface must not reach another. Checked
+    // here rather than in the route so no handler can forget it.
+    if (token.surface !== null && surfaceForPath(c.req.path)?.id !== token.surface) {
+      const err = unauthorizedResponse(errorShape, PROXY_WRONG_SURFACE)
       return c.json(err.body, err.status)
     }
+
+    c.set('accessToken', token)
+    noteTokenUse(token.id)
     return next()
   }
 }
