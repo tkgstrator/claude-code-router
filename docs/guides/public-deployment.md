@@ -18,16 +18,31 @@ Rialto をトンネル越しに公開するときの設定。**`/api/*` と `/v1
 ここを間違えて `/v1/*` にも Access ポリシーを掛けると、Claude Code / Codex が全滅する。
 
 ```
-Access app A:  rialto.example.com/      Allow (email)      → UI + /api/*
-Access app B:  rialto.example.com/v1    Bypass (Everyone)  → Rialto の AccessToken
+Access app A:  rialto.example.com/       Allow (email)      → UI + /api/*
+Access app B:  rialto.example.com/v1     Bypass (Everyone)  → Rialto の AccessToken
+Access app C:  rialto.example.com/health Bypass (Everyone)  → 外形監視（任意）
 ```
 
 パスの深い方（`/v1`）が先に評価されるよう、アプリの順序に注意する。
+
+`/health` は APIKEY ゲートの外にある監視用エンドポイントなので、外形監視を当てているなら
+同様に Bypass しておく。覆ったままだと監視が Access のログインHTMLを掴んで常時赤になる。
 
 ## 1. Access アプリを作る
 
 `/` 用のアプリを作り、**Application Audience (AUD) Tag** を控える。これが `ACCESS_AUD` になる。
 チームドメインは `<team>.cloudflareaccess.com`。
+
+> **Policy ID と間違えないこと。** ポリシー一覧に出る `a26eca84-65d8-4b67-...` のような
+> **ハイフン区切りUUID**は Policy ID であって AUD ではない。AUD は**64桁の16進数**（ハイフン無し）で、
+> ポリシーではなく**アプリケーション**に属する。Policy ID を入れると署名は通っても audience 検証で落ち、
+> assertion がある以上 bootstrap にフォールバックしないので**ブラウザから締め出される**。
+>
+> 迷ったら、Access 経由で開いた状態で `GET /api/access-check/detect` を叩けば、
+> そのリクエストの assertion から両方の値が読める。
+
+**Destination にパスを付けないと、ホスト名全体が対象になる。** `llm.example.com` とだけ書いた
+アプリは `/v1/*` も `/health` も覆う。次節の Bypass アプリを必ず併せて作ること。
 
 ## 2. Rialto に渡す
 
