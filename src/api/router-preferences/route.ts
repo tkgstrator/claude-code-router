@@ -38,7 +38,10 @@ const ProfileListSchema = z
       z.object({
         key: z.string().nonempty(),
         entryCount: z.number().int().nonnegative(),
-        updatedAt: z.string().nonempty().nullable()
+        updatedAt: z.string().nonempty().nullable(),
+        // 'passthrough' is reserved and holds no chain — it means the
+        // traffic skips the selector entirely.
+        kind: z.enum(['chain', 'passthrough'])
       })
     )
   })

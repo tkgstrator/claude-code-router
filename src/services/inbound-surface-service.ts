@@ -19,7 +19,7 @@ import {
   type SurfaceId,
   surfaceById
 } from '../llms/inbound/surfaces'
-import { DEFAULT_PROFILE_KEY } from './router-preference-service'
+import { DEFAULT_PROFILE_KEY, PASSTHROUGH_PROFILE_KEY } from './router-preference-service'
 
 export interface ResolvedSurface extends InboundSurface {
   routingMode: RoutingMode
@@ -82,7 +82,11 @@ export async function resolveSurfaceForPath(path: string | undefined): Promise<R
  */
 export async function isRoutedPath(path: string | undefined): Promise<boolean> {
   const surface = await resolveSurfaceForPath(path)
-  return surface === undefined ? true : surface.routingMode === 'routed'
+  if (surface === undefined) return true
+  // The reserved key means the same thing wherever it appears, so a
+  // surface pointed at it is passthrough even if its mode says routed.
+  if (surface.profileKey === PASSTHROUGH_PROFILE_KEY) return false
+  return surface.routingMode === 'routed'
 }
 
 export interface SurfaceUpdate {

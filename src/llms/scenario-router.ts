@@ -27,6 +27,7 @@
 
 import type { FlatRouter } from '@/schemas'
 import { isRoutedPath, resolveSurfaceForPath } from '../services/inbound-surface-service'
+import { PASSTHROUGH_PROFILE_KEY } from '../services/router-preference-service'
 import { isSessionInRollout } from '../services/routing-scheduler/rollout'
 import { getRoutingSnapshot } from '../services/routing-scheduler/state'
 import { logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
@@ -127,7 +128,12 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
   // shipped defaults reproduce the previous hardcoded list exactly
   // (/v1/chat/completions and /v1/responses passthrough, /v1/messages
   // routed); an operator can flip any surface from the Routing screen.
-  if (!(await isRoutedPath(req.inboundPath))) {
+  // A token may name the reserved passthrough profile, which opts that
+  // one client out of routing without changing the mode for everyone
+  // else sharing the endpoint.
+  const forcedPassthrough = req.profileKeyOverride === PASSTHROUGH_PROFILE_KEY
+
+  if (forcedPassthrough || !(await isRoutedPath(req.inboundPath))) {
     req.scenarioType = 'default'
     req.isSubagent = false
     req.resolvedFallbacks = []
