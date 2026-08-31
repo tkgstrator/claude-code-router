@@ -139,10 +139,10 @@ document.getElementById('root').innerHTML = `
         <div>
           <div class="text-xs font-medium">RIALTO_TOKEN</div>
           <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-            Stored in <span class="font-mono">~/.rialto/config.json</span>. Accepted on
-            <span class="font-mono">/api/*</span> when no valid Access JWT is present — which covers
-            local runs, and a database outage that would otherwise lock you out. Still readable from
-            the legacy <span class="font-mono">APIKEY</span> key.
+            Optional, and absent unless you set one. Accepted on
+            <span class="font-mono">/api/*</span> when no valid Access JWT is present — the way back
+            in if Access itself breaks. A browser on this machine is already exempt, and the proxy
+            refuses it outright.
           </div>
         </div>
         <div class="flex items-center gap-2">
