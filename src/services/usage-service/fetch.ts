@@ -17,6 +17,7 @@ import {
   type GetUsageOutput,
   type UsageResponse
 } from '../../schemas/usage.dto'
+import { ensureFreshCodexAccessToken } from '../codex-auth/token'
 import { getSubAccountTokensForKind, type SubAccountTokenInfo } from '../subscription-account-sync-service'
 import { claudeCache, codexCache, TTL_MS } from './cache'
 
@@ -115,9 +116,19 @@ const fetchClaudeUsage = async (): Promise<ClaudeUsage[]> => {
 
 const requestCodexUsage = async (info: SubAccountTokenInfo): Promise<CodexUsage | null> => {
   try {
+    // The poller runs on its own schedule, so the token it read from the
+    // DB is routinely older than the request path's. Rotate it through
+    // the shared codex-auth path (same in-flight lock as the proxy and
+    // profile-sync) instead of spending a poll on a guaranteed 401.
+    const accessToken = await ensureFreshCodexAccessToken({
+      subAccountId: info.subAccountId,
+      accessToken: info.accessToken,
+      refreshToken: info.refreshToken,
+      expiresAt: info.expiresAt
+    })
     const res = await fetch('https://chatgpt.com/backend-api/wham/usage', {
       headers: {
-        authorization: `Bearer ${info.accessToken}`,
+        authorization: `Bearer ${accessToken}`,
         'content-type': 'application/json',
         ...(info.accountId ? { 'chatgpt-account-id': info.accountId } : {})
       }

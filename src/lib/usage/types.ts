@@ -67,7 +67,10 @@ export interface SubscriptionAccount {
   userEmail: string | null
   plan: string | null
   monthlyPriceUsd: number | null
+  // Access-token expiry (rotated automatically); NOT a health signal.
   expiresAt: number | null
+  // Codex only: when the paid subscription lapses.
+  subscriptionEndsAt: number | null
   authStatus: AuthStatus
   authCheckedAt: number | null
   authError: string | null

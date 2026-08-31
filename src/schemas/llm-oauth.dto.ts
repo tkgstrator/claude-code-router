@@ -20,6 +20,30 @@ export const OauthRefreshResponseSchema = z.object({
 })
 export type OauthRefreshResponse = z.infer<typeof OauthRefreshResponseSchema>
 
+// ─── OpenAI (Codex) token endpoint responses ───────────────────────────
+//
+// POST https://auth.openai.com/oauth/token, form-urlencoded per
+// RFC 6749. Both grants return the same envelope; the difference is that
+// a refresh may omit `id_token` when nothing about the user's session
+// changed, while an authorization_code exchange always carries one (it
+// is where the account identity comes from).
+
+export const CodexTokenExchangeResponseSchema = z.object({
+  access_token: z.string().nonempty(),
+  id_token: z.string().nonempty(),
+  refresh_token: z.string().nonempty(),
+  expires_in: z.number().int().nonnegative().optional()
+})
+export type CodexTokenExchangeResponse = z.infer<typeof CodexTokenExchangeResponseSchema>
+
+export const CodexRefreshResponseSchema = z.object({
+  access_token: z.string().nonempty(),
+  refresh_token: z.string().nonempty(),
+  id_token: z.string().nonempty().optional(),
+  expires_in: z.number().int().nonnegative().optional()
+})
+export type CodexRefreshResponse = z.infer<typeof CodexRefreshResponseSchema>
+
 // ─── Anthropic OAuth profile response ──────────────────────────────────
 //
 // GET https://api.anthropic.com/api/oauth/profile (with the
@@ -127,19 +151,30 @@ export const ClaudeCredentialsFileSchema = z.union([
 export type ClaudeCredentialsFile = z.infer<typeof ClaudeCredentialsFileSchema>
 
 // ~/.codex/auth.json nests tokens under a `tokens` key using snake_case.
+//
+// The file carries `account_id` alongside the tokens, and that is the
+// value we actually need — the id_token is only ever read to derive it
+// (plus display fields). So accept either: a file with `account_id` is
+// importable without an id_token, matching what chatmock reads. One of
+// the two must be present or the account cannot be identified at all.
 export const CodexCredentialsFileSchema = z
   .object({
     tokens: z.object({
       access_token: z.string().nonempty(),
       refresh_token: z.string().default(''),
-      id_token: z.string().nonempty()
+      id_token: z.string().nonempty().nullable().optional(),
+      account_id: z.string().nonempty().nullable().optional()
     })
   })
   .transform((v) => ({
     accessToken: v.tokens.access_token,
     refreshToken: v.tokens.refresh_token,
-    idToken: v.tokens.id_token
+    idToken: typeof v.tokens.id_token === 'string' ? v.tokens.id_token : null,
+    accountId: typeof v.tokens.account_id === 'string' ? v.tokens.account_id : null
   }))
+  .refine((v) => v.idToken !== null || v.accountId !== null, {
+    message: 'codex credentials must carry either tokens.id_token or tokens.account_id'
+  })
 export type CodexCredentialsFile = z.infer<typeof CodexCredentialsFileSchema>
 
 // ─── PackageJson (codex CLI version probe) ─────────────────────────────

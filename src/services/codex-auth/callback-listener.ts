@@ -26,10 +26,10 @@
  */
 
 import { createServer, type Server, type ServerResponse } from 'node:http'
-import { logger } from '../logger'
-import { exchangeCodexCode } from './codex-oauth-service'
-import { consumePendingFlow } from './oauth-flow-service'
-import { recordCodexOAuthAccount } from './subscription-account-sync-service'
+import { logger } from '../../logger'
+import { consumePendingFlow } from '../oauth-flow-service'
+import { recordCodexOAuthAccount } from '../subscription-account-sync-service'
+import { exchangeCodexCode } from './oauth'
 
 export const CODEX_CALLBACK_PORT = 1455
 export const CODEX_CALLBACK_HOST = '127.0.0.1'

@@ -141,7 +141,10 @@ export const recordCodexOAuthAccount = async (
   tokens: {
     accessToken: string
     refreshToken: string
-    idToken: string
+    // Optional: an ~/.codex/auth.json that carries `tokens.account_id`
+    // identifies the account without one.
+    idToken: string | null
+    accountId?: string | null
   },
   prisma: PrismaClient = getPrismaClient()
 ): Promise<void> => {

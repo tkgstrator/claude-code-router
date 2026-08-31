@@ -22,9 +22,9 @@ import {
   type TransformerHookResult,
   type UnifiedChatRequest
 } from '@/schemas'
-import { refreshCodexToken } from '../../../services/codex-oauth-service'
+import { ensureFreshCodexAccessToken } from '../../../services/codex-auth/token'
 import { cloneResponse } from '../../utils/response-clone'
-import { type OAuthRefreshResult, OAuthTransformer } from '../oauth-base'
+import { OAuthTransformer, type SubscriptionTokenState } from '../oauth-base'
 
 // Identify as the official Codex CLI. The ChatGPT backend classifies a
 // request as "CLI" (subscription allotment) vs "Other" (overage) by
@@ -65,20 +65,20 @@ export class CodexOauthTransformer extends OAuthTransformer {
   readonly name = 'codex-oauth'
 
   // The OAuth grant requested `offline_access`, so the token endpoint
-  // issues a rotating refresh_token alongside the access_token. Hit
-  // /oauth/token with grant_type=refresh_token when the current access
-  // token is within the base class's expiry leeway so we don't 401
-  // mid-request. The base class serialises concurrent refreshes per
-  // subAccountId and persists the rotated token via
-  // updateSubAccountAccessToken.
-  protected async refresh(input: { refreshToken: string }): Promise<OAuthRefreshResult | null> {
-    const rotated = await refreshCodexToken({ refreshToken: input.refreshToken })
-    const expiresInSec = rotated.expires_in !== undefined ? rotated.expires_in : 3600
-    return {
-      accessToken: rotated.access_token,
-      refreshToken: rotated.refresh_token,
-      expiresAt: new Date(Date.now() + expiresInSec * 1000)
-    }
+  // issues a rotating refresh_token alongside the access_token. Delegate
+  // to the shared codex-auth path rather than the base class's default:
+  // it decides freshness from the access token's own `exp` claim (the
+  // stored `expiresAt` used to hold the SUBSCRIPTION end date for Codex,
+  // which suppressed every refresh), and it shares one in-flight lock
+  // with the profile-sync job and the usage poller so the rotating
+  // refresh_token is never spent twice.
+  protected async ensureFreshToken(auth: SubscriptionTokenState): Promise<string> {
+    return ensureFreshCodexAccessToken({
+      subAccountId: auth.subAccountId,
+      accessToken: auth.accessToken,
+      refreshToken: auth.refreshToken,
+      expiresAt: auth.expiresAt
+    })
   }
 
   async transformRequestIn(

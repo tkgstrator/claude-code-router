@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import type { SubscriptionAccount } from '@/lib/usage/types'
 
-// Codex's expiresAt is the subscription end date; warn when it is within
-// this window so the operator can renew before access lapses.
+// Warn once the Codex subscription is this close to lapsing, so the
+// operator can renew before access stops.
 const SOON_MS = 3 * 24 * 60 * 60 * 1000
 
 const BADGE = 'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium'
@@ -35,14 +35,15 @@ export function AccountAuthBadge({
     )
   }
 
-  // Codex subscription ending/ended — still authenticated, but flag the
-  // upcoming lapse (Codex has no token refresh, so a lapse means re-auth).
-  if (kind === 'codex' && account.expiresAt !== null && account.expiresAt - Date.now() <= SOON_MS) {
-    const ended = account.expiresAt <= Date.now()
+  // Codex subscription ending/ended — still authenticated, and access
+  // tokens keep refreshing on their own, but once the subscription
+  // lapses the upstream stops accepting them entirely.
+  if (kind === 'codex' && account.subscriptionEndsAt !== null && account.subscriptionEndsAt - Date.now() <= SOON_MS) {
+    const ended = account.subscriptionEndsAt <= Date.now()
     return (
       <span
         className={`${BADGE} bg-amber-500/15 text-amber-600 dark:text-amber-400`}
-        title={`${dayjs(account.expiresAt).format('YYYY/MM/DD')}`}
+        title={`${dayjs(account.subscriptionEndsAt).format('YYYY/MM/DD')}`}
       >
         {ended ? t('usage.subEnded') : t('usage.subEndingSoon')}
       </span>
