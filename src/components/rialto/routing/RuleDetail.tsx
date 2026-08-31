@@ -161,7 +161,16 @@ export function RuleDetail({
       </div>
       <div className='flex flex-wrap gap-2 px-6'>
         {surfaces.map((surface) => (
-          <SurfaceChip key={surface.id} path={surface.path} on={surface.routingMode === 'routed'} />
+          <SurfaceChip
+            key={surface.id}
+            path={surface.path}
+            on={surface.routingMode === 'routed'}
+            readOnlyHint={
+              surface.routingMode === 'routed'
+                ? `${surface.path} runs the rule stack. Change its mode under Routing → Chain.`
+                : `${surface.path} is in passthrough, so no rule is evaluated for it. Change its mode under Routing → Chain.`
+            }
+          />
         ))}
         <span className='self-center text-[11px] text-muted-foreground'>only endpoints in routed mode can match</span>
       </div>

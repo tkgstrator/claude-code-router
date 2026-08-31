@@ -84,18 +84,28 @@ function AppliesToBar({ surfaces }: { surfaces: InboundSurfaceWire[] }) {
     <div className='flex items-center gap-2 border-b border-border px-6 py-2.5'>
       <span className='text-[11px] text-muted-foreground'>Applies to</span>
       {surfaces.map((surface) => (
-        <SurfaceChip key={surface.id} path={surface.path} on={surface.routingMode === 'routed'} />
+        <SurfaceChip
+          key={surface.id}
+          path={surface.path}
+          on={surface.routingMode === 'routed'}
+          readOnlyHint={
+            surface.routingMode === 'routed'
+              ? `${surface.path} is routed, so the active persona is injected into its requests. Change this under Routing.`
+              : `${surface.path} is in passthrough, so its requests are forwarded unmodified and no persona is injected. Change this under Routing.`
+          }
+        />
       ))}
       <span className='mx-1 h-4 w-px bg-border' />
       <span className='text-[11px] text-muted-foreground'>Lane</span>
-      <button
-        type='button'
-        disabled
-        title='Persona injection is not lane-scoped — both the agent and subagent lanes receive it.'
-        className='inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-[11px]'
+      {/* Not a control: persona injection is not lane-scoped, so there is
+          nothing to choose. A disabled button still reads as a control
+          someone is being denied, which is a different and wrong story. */}
+      <span
+        title='Persona injection is not lane-scoped — the agent and subagent lanes both receive it.'
+        className='inline-flex h-7 items-center rounded-md border border-border px-2.5 text-[11px] text-muted-foreground'
       >
-        both <i className='ri-arrow-down-s-line text-sm text-muted-foreground' />
-      </button>
+        both
+      </span>
     </div>
   )
 }

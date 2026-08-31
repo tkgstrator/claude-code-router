@@ -212,21 +212,50 @@ export function SurfacePill({ path }: { path: string }) {
   )
 }
 
-/** Toggle chip for "which surfaces does this apply to" pickers. */
-export function SurfaceChip({ path, on, onClick }: { path: string; on: boolean; onClick?: () => void }) {
-  return (
-    <button
-      type='button'
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors',
-        on
-          ? 'border-foreground/40 bg-muted/60 text-foreground'
-          : 'border-border text-muted-foreground hover:bg-muted/50'
-      )}
-    >
+/**
+ * Chip for "which surfaces does this apply to".
+ *
+ * Renders as a button only when it does something. Several screens show
+ * this as a derived read-out — a persona reaches whichever surfaces are
+ * in routed mode, and that is not a per-persona setting — and a chip
+ * that looks pressable but is inert reads as a broken control rather
+ * than as information. Without `onClick` it becomes a span, keeps the
+ * same weight, and explains itself on hover instead.
+ */
+export function SurfaceChip({
+  path,
+  on,
+  onClick,
+  readOnlyHint
+}: {
+  path: string
+  on: boolean
+  onClick?: () => void
+  /** Tooltip for the read-only form: why this is showing, not settable. */
+  readOnlyHint?: string
+}) {
+  const base = cn(
+    'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors',
+    on ? 'border-foreground/40 bg-muted/60 text-foreground' : 'border-border text-muted-foreground'
+  )
+  const content = (
+    <>
       {on ? <i className='ri-check-line text-xs' /> : null}
       {path}
+    </>
+  )
+
+  if (onClick === undefined) {
+    return (
+      <span className={base} title={readOnlyHint}>
+        {content}
+      </span>
+    )
+  }
+
+  return (
+    <button type='button' onClick={onClick} className={cn(base, on ? '' : 'hover:bg-muted/50')}>
+      {content}
     </button>
   )
 }
