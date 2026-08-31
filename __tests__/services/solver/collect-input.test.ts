@@ -105,7 +105,7 @@ describeOrSkip('collectSolverInput (DB)', () => {
         priority: 1,
         modelId: secondModel.id,
         enabled: true,
-        subagentTiers: ['sonnet']
+        kind: 'subagent'
       }
     })
 
@@ -130,7 +130,7 @@ describeOrSkip('collectSolverInput (DB)', () => {
     expect(opusTarget.inputPer1M).toBe(15.0)
     expect(opusTarget.outputPer1M).toBe(75.0)
     expect(opusTarget.chainMemberships).toEqual([
-      { scenario: 'think', priority: 1, enabled: true, subagentTiers: ['sonnet'] }
+      { scenario: 'think', kind: 'subagent', priority: 1, enabled: true }
     ])
     expect(opusTarget.observed.requestCount).toBe(2)
     expect(opusTarget.observed.totalInputTokens).toBe(750)

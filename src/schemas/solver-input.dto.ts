@@ -12,6 +12,7 @@
  */
 
 import { z } from '@hono/zod-openapi'
+import { PreferenceKindSchema } from './preference-router.dto'
 import { ScenarioKeySchema } from './router.dto'
 
 // Per-scenario aggregate traffic snapshot for the observation window.
@@ -32,14 +33,19 @@ export const SolverInputScenarioSchema = z
 export type SolverInputScenario = z.infer<typeof SolverInputScenarioSchema>
 
 // Per-target chain membership. A target may participate in several
-// scenarios at different priorities; each membership is emitted as a
-// separate row so the solver can reason per-scenario.
+// scenarios at different priorities, and in both lanes of the same
+// scenario; each membership is emitted as a separate row so the solver
+// can reason per (scenario, kind).
+//
+// `kind` replaces the pre-split `subagentTiers` filter: a preference
+// entry now belongs to exactly one lane (agent / subagent) rather than
+// carrying a per-entry tier restriction.
 export const SolverInputChainMembershipSchema = z
   .object({
     scenario: ScenarioKeySchema,
+    kind: PreferenceKindSchema,
     priority: z.number().int().positive(),
-    enabled: z.boolean(),
-    subagentTiers: z.array(z.string().nonempty())
+    enabled: z.boolean()
   })
   .openapi('SolverInputChainMembership')
 export type SolverInputChainMembership = z.infer<typeof SolverInputChainMembershipSchema>

@@ -160,9 +160,9 @@ async function loadTargets(prisma: PrismaClient, windowHours: number): Promise<S
       const existing = membershipsByTarget.get(target)
       const membership: SolverInputChainMembership = {
         scenario,
+        kind: entry.kind,
         priority: entry.priority,
-        enabled: entry.enabled,
-        subagentTiers: [...entry.subagentTiers]
+        enabled: entry.enabled
       }
       if (existing === undefined) membershipsByTarget.set(target, [membership])
       else existing.push(membership)
