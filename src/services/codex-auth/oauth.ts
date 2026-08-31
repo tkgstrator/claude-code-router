@@ -1,5 +1,13 @@
 /**
- * OpenAI / ChatGPT OAuth code-grant for the Codex provider.
+ * OpenAI / ChatGPT OAuth code-grant for the Codex provider — the HTTP
+ * layer only. The rest of the domain sits beside it: claims.ts reads the
+ * JWTs these endpoints return, token.ts owns freshness and rotation, and
+ * callback-listener.ts serves the loopback redirect.
+ *
+ * `refreshCodexToken` must NOT be called directly outside token.ts: the
+ * refresh_token rotates, so concurrent calls for one account leave the
+ * loser holding a dead token. Go through
+ * `ensureFreshCodexAccessToken`, which serialises per account.
  *
  * Mirrors what `codex login` does on a fresh device — same authorize
  * host (auth.openai.com), same client_id, same custom params
@@ -9,7 +17,13 @@
  * land encrypted in the DB; nothing is written to disk.
  */
 
-import { logger } from '../logger'
+import { logger } from '../../logger'
+import {
+  type CodexRefreshResponse,
+  CodexRefreshResponseSchema,
+  type CodexTokenExchangeResponse,
+  CodexTokenExchangeResponseSchema
+} from '../../schemas/llm-oauth.dto'
 
 const CODEX_AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize'
 const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token'
@@ -49,48 +63,6 @@ export const buildCodexAuthorizeUrl = (opts: { redirectUri: string; state: strin
   return `${CODEX_AUTHORIZE_URL}?${params}`
 }
 
-interface CodexTokenExchangeResponse {
-  access_token: string
-  id_token: string
-  refresh_token: string
-  expires_in?: number
-}
-
-const isCodexTokenResponse = (value: unknown): value is CodexTokenExchangeResponse => {
-  if (typeof value !== 'object' || value === null) return false
-  const v = value as Record<string, unknown>
-  return (
-    typeof v.access_token === 'string' &&
-    v.access_token.length > 0 &&
-    typeof v.id_token === 'string' &&
-    v.id_token.length > 0 &&
-    typeof v.refresh_token === 'string' &&
-    v.refresh_token.length > 0
-  )
-}
-
-// refresh_token grants return the same shape as an authorization_code
-// exchange, but the id_token may be omitted when nothing about the
-// user's session changed — accept the response as long as access_token
-// and refresh_token are non-empty.
-export interface CodexRefreshResponse {
-  access_token: string
-  refresh_token: string
-  id_token?: string
-  expires_in?: number
-}
-
-const isCodexRefreshResponse = (value: unknown): value is CodexRefreshResponse => {
-  if (typeof value !== 'object' || value === null) return false
-  const v = value as Record<string, unknown>
-  return (
-    typeof v.access_token === 'string' &&
-    v.access_token.length > 0 &&
-    typeof v.refresh_token === 'string' &&
-    v.refresh_token.length > 0
-  )
-}
-
 export const exchangeCodexCode = async (opts: {
   code: string
   codeVerifier: string
@@ -123,11 +95,11 @@ export const exchangeCodexCode = async (opts: {
     }
     throw new Error(`codex token exchange failed: ${res.status} ${body}`.trim())
   }
-  const raw = await res.json()
-  if (!isCodexTokenResponse(raw)) {
+  const parsed = CodexTokenExchangeResponseSchema.safeParse(await res.json())
+  if (!parsed.success) {
     throw new Error('codex token exchange returned an unexpected payload')
   }
-  return raw
+  return parsed.data
 }
 
 // Rotate a codex access_token using a stored refresh_token. Mirrors the
@@ -159,9 +131,9 @@ export const refreshCodexToken = async (opts: { refreshToken: string }): Promise
     }
     throw new Error(`codex token refresh failed: ${res.status} ${body}`.trim())
   }
-  const raw = await res.json()
-  if (!isCodexRefreshResponse(raw)) {
+  const parsed = CodexRefreshResponseSchema.safeParse(await res.json())
+  if (!parsed.success) {
     throw new Error('codex token refresh returned an unexpected payload')
   }
-  return raw
+  return parsed.data
 }

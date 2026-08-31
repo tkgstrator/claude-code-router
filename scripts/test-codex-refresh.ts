@@ -16,7 +16,7 @@
  */
 
 import 'dotenv/config'
-import { refreshCodexToken } from '../src/services/codex-oauth-service'
+import { refreshCodexToken } from '../src/services/codex-auth/oauth'
 import { getSubAccountTokensForKind, updateSubAccountAccessToken } from '../src/services/subscription-account-sync/read'
 
 const write = process.argv.includes('--write')

@@ -131,7 +131,15 @@ model SubAccount {
   accountId       String?
   plan            String?
   rateLimitTier   String?
+  // Expiry of the stored access token. Refreshed in place whenever the
+  // grant rotates. Codex derives it from the token's own `exp` claim, so
+  // a row written before this column meant that is self-correcting.
   expiresAt       DateTime?
+  // When the paid subscription itself lapses — Codex only, read from the
+  // id_token's `chatgpt_subscription_active_until`. Kept apart from
+  // expiresAt: conflating them made every near-expiry refresh check
+  // conclude an hour-long access token was good for months.
+  subscriptionEndsAt DateTime?
   scopes          Json?
   // Encrypted token payloads. Plain tokens are never persisted.
   accessTokenEnc  String?

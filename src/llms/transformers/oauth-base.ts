@@ -11,6 +11,7 @@
 import { HTTPException } from 'hono/http-exception'
 import { type OauthCredentials, OauthSubscriptionAuthBlockSchema, type RuntimeProvider } from '@/schemas'
 import { logger } from '../../logger'
+import { withRefreshLock } from '../../services/oauth/refresh-lock'
 import { resolveAccountForSession } from '../../services/session-account-router'
 import { updateSubAccountAccessToken } from '../../services/subscription-account-sync-service'
 import { Transformer } from './base'
@@ -23,11 +24,17 @@ export interface OAuthRefreshResult {
   expiresAt?: Date | null
 }
 
+/** The stored credential state a freshness check operates on. */
+export interface SubscriptionTokenState {
+  subAccountId: string
+  accessToken: string
+  refreshToken: string
+  expiresAt: Date | null
+}
+
 // Refresh ~5 minutes before the upstream-stated expiry so a long-running
 // request started right at the threshold doesn't 401 mid-flight.
 const REFRESH_LEEWAY_MS = 5 * 60 * 1000
-
-const refreshInFlight = new Map<string, Promise<string>>()
 
 export abstract class OAuthTransformer extends Transformer {
   /**
@@ -49,7 +56,7 @@ export abstract class OAuthTransformer extends Transformer {
     if (sessionId && kind) {
       const account = await resolveAccountForSession(sessionId, kind)
       if (account) {
-        const live = await this.refreshIfNearExpiry({
+        const live = await this.ensureFreshToken({
           subAccountId: account.subAccountId,
           accessToken: account.accessToken,
           refreshToken: account.refreshToken ?? '',
@@ -71,7 +78,7 @@ export abstract class OAuthTransformer extends Transformer {
       })
     }
     const auth = parsed.data
-    const live = await this.refreshIfNearExpiry({
+    const live = await this.ensureFreshToken({
       subAccountId: auth.subAccountId,
       accessToken: auth.accessToken,
       refreshToken: typeof auth.refreshToken === 'string' ? auth.refreshToken : '',
@@ -81,20 +88,24 @@ export abstract class OAuthTransformer extends Transformer {
     return accountId ? { token: live, accountId } : { token: live }
   }
 
-  private async refreshIfNearExpiry(auth: {
-    subAccountId: string
-    accessToken: string
-    refreshToken: string
-    expiresAt: Date | null
-  }): Promise<string> {
+  /**
+   * Return a usable access token for the resolved account, rotating it
+   * first when it is at or near expiry.
+   *
+   * The default reads the stored `expiresAt` and delegates the actual
+   * grant call to `refresh()`. Vendors whose token states its own expiry
+   * (Codex, via the JWT `exp` claim) override this so a stale or
+   * mis-written column cannot suppress the refresh.
+   *
+   * Never throws: on failure it returns the token we already hold and
+   * lets the upstream 401 drive re-authentication.
+   */
+  protected async ensureFreshToken(auth: SubscriptionTokenState): Promise<string> {
     if (auth.expiresAt === null) return auth.accessToken
     if (auth.expiresAt.valueOf() - Date.now() > REFRESH_LEEWAY_MS) return auth.accessToken
     if (auth.refreshToken.length === 0) return auth.accessToken
 
-    const existing = refreshInFlight.get(auth.subAccountId)
-    if (existing) return existing
-
-    const inFlight = (async () => {
+    return withRefreshLock(auth.subAccountId, async () => {
       try {
         const next = await this.refresh({ refreshToken: auth.refreshToken })
         if (!next) return auth.accessToken
@@ -117,11 +128,7 @@ export abstract class OAuthTransformer extends Transformer {
           '[oauth-base] on-demand token refresh failed, falling back to existing access token'
         )
         return auth.accessToken
-      } finally {
-        refreshInFlight.delete(auth.subAccountId)
       }
-    })()
-    refreshInFlight.set(auth.subAccountId, inFlight)
-    return inFlight
+    })
   }
 }
