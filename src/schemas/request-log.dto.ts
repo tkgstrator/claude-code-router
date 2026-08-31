@@ -8,6 +8,11 @@ export const SessionSummarySchema = z.object({
   // Which wire format the session first came in on. Null on
   // pre-migration sessions.
   inboundType: InboundTypeSchema.nullable(),
+  // Surface of the session's most recent request. A session normally
+  // stays on one surface for its whole life, so this is the session's
+  // surface in practice; it is derived rather than stored because
+  // Session predates the column.
+  surface: z.string().nonempty().nullable(),
   requestCount: z.number().int().nonnegative(),
   providers: z.array(z.string().nonempty()),
   models: z.array(z.string().nonempty()),
@@ -36,6 +41,11 @@ export const RequestLogItemSchema = z.object({
   // Null on rows written before routing capture landed.
   requestedModel: z.string().nullable(),
   scenario: z.string().nullable(),
+  // Which inbound surface served the request, as an `InboundSurface.id`
+  // slug. Finer than `inboundType`, which cannot tell
+  // /v1/chat/completions from /v1/responses. Null on rows written before
+  // the column landed — render those as untracked, never as a guess.
+  surface: z.string().nonempty().nullable(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   cacheReadTokens: z.number().int().nonnegative(),

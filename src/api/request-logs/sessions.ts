@@ -27,6 +27,17 @@ function narrowInboundType(raw: string | null): 'anthropic' | 'openai' | null {
   return null
 }
 
+// A session's surface, taken from its most recent request. Sessions do
+// not carry the column themselves — Session predates it — and in practice
+// a session stays on one surface for its whole life, so the newest row is
+// the session's surface. Null when nothing in the session was tracked.
+function latestSurface(logs: Array<{ surface: string | null; createdAt: Date }>): string | null {
+  const tracked = logs.filter((l) => l.surface !== null)
+  if (tracked.length === 0) return null
+  const newest = tracked.reduce((a, b) => (a.createdAt >= b.createdAt ? a : b))
+  return newest.surface
+}
+
 // ── GET /api/request-logs/sessions ───────────────────────────────────────────
 
 const getSessionsRoute = createRoute({
@@ -92,6 +103,7 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
           select: {
             provider: true,
             model: true,
+            surface: true,
             inputTokens: true,
             outputTokens: true,
             cacheReadTokens: true,
@@ -137,6 +149,7 @@ requestLogsRoute.openapi(getSessionsRoute, async (c) => {
     return {
       sessionId: s.id,
       inboundType: narrowInboundType(s.inboundType),
+      surface: latestSurface(logs),
       requestCount: logs.length,
       providers,
       models,
@@ -167,6 +180,7 @@ requestLogsRoute.openapi(getSessionSummaryRoute, async (c) => {
         select: {
           provider: true,
           model: true,
+          surface: true,
           inputTokens: true,
           outputTokens: true,
           cacheReadTokens: true,
@@ -208,6 +222,7 @@ requestLogsRoute.openapi(getSessionSummaryRoute, async (c) => {
     {
       sessionId,
       inboundType: narrowInboundType(session.inboundType),
+      surface: latestSurface(logs),
       requestCount: logs.length,
       providers,
       models,

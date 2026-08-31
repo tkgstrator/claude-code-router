@@ -18,6 +18,10 @@ export interface RequestLogItem {
   // Null on rows written before routing capture landed.
   requestedModel: string | null
   scenario: string | null
+  // Which inbound surface served the request (an `InboundSurface.id`
+  // slug). Finer than inboundType: /v1/chat/completions and
+  // /v1/responses are both 'openai'. Null on pre-migration rows.
+  surface: string | null
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
@@ -40,6 +44,8 @@ export interface SessionSummary {
   // Wire format the session first came in on. Null on pre-migration
   // sessions.
   inboundType: InboundType | null
+  // Surface of the session's most recent request; null when untracked.
+  surface: string | null
   requestCount: number
   providers: string[]
   models: string[]
