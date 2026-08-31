@@ -17,10 +17,24 @@
  *      migration `20260728_router_rules_drop_background`).
  */
 
-import type { RequestedModelTier, RouteRule, ScenarioType } from '@/schemas'
+// Three modules, one per stage of the doc above: `request-signals` reads
+// the wire, `rules` judges a predicate against it, and this file holds
+// the config lookup and the classifier that pick which of them to ask.
+import type { RouteRule, ScenarioType } from '@/schemas'
 import { RouteRuleSchema } from '@/schemas'
 import type { ConfigStore } from '../registry/config'
-import type { RouterConfig, RouterRequest, RouterRequestBody } from './types'
+import { isHeavyRequest, isThinkingEnabled, isWebSearchTool, stripSubagentTag } from './request-signals'
+import { matchesRule, type RuleEvalContext } from './rules'
+import type { RouterConfig, RouterRequest } from './types'
+
+// `selectModel` is the only entry point most callers need, but the
+// pieces it is built from are public API in their own right — the Rule
+// Tester screen and the quota router import them directly. Re-exported
+// here so `scenario-router/model-selection` stays the one import path.
+export type { EffortLevel, ModelTier } from './request-signals'
+export { isHeavyRequest, tierOf } from './request-signals'
+export type { ConditionVerdict, RuleEvalContext } from './rules'
+export { explainRule, matchesRule } from './rules'
 
 const DEFAULT_LONG_CONTEXT_THRESHOLD = 128_000
 // Fraction of the default agent primary's contextWindow used as the
@@ -48,86 +62,6 @@ export function effectiveLongContextThreshold(router: RouterConfig | undefined):
 // Which route within a scenario a request uses: `agent` for normal /
 // main-agent traffic, `subagent` when a <CCR-SUBAGENT-MODEL> tag is present.
 export type RouteKind = 'agent' | 'subagent'
-
-// Whether the request opts INTO extended thinking. Anthropic's
-// `thinking` field carries a `type` discriminator with three real
-// values observed in Claude Code traffic:
-//   - 'enabled'  → explicit budget request (older builds, haiku)
-//   - 'adaptive' → newer builds (opus 4-7, sonnet 4-6) explicitly
-//                  choose adaptive so the model decides at runtime
-//                  whether (and how much) to think. Distinct from
-//                  omitting the field entirely: an absent `thinking`
-//                  falls back to adaptive on Anthropic's side but
-//                  isn't an explicit client-intent signal.
-//   - 'disabled' → the caller explicitly opted OUT of thinking
-// The router treats `thinking` as a client-intent signal: the field
-// being present with a non-disabled discriminator means the client
-// asked to be routed as a thinking request. Omitting the field is
-// NOT an opt-in even though Anthropic will still run adaptive server-
-// side — cheap default traffic (Bash judger, tool calls, cache reads)
-// omits the field and must land on the default lane. Boolean-truthy
-// on the object routes 'disabled' to the think lane (wrong — Claude
-// Code sends 'disabled' on every non-Plan-Mode request, silently
-// redirecting cheap default traffic onto the expensive think slot).
-// Checking `type !== 'disabled'` matches the pre-fix routing for
-// 'enabled'/'adaptive' while excluding 'disabled'. A field that
-// isn't an object at all (or a discriminator that isn't a string)
-// is treated as "not thinking" — same as the boolean check for
-// those shapes.
-function isThinkingEnabled(body: RouterRequestBody): boolean {
-  const t = body.thinking
-  if (t === null || typeof t !== 'object') return false
-  const type: unknown = Reflect.get(t, 'type')
-  if (typeof type !== 'string') return false
-  return type !== 'disabled'
-}
-
-// Effort levels Claude Code sends in `output_config.effort`. The router
-// reads this as a "how heavy is this work" hint to bias toward the
-// Sonnet (default) lane for light traffic and escalate to the longContext
-// (Opus) lane for heavy traffic. Per the Phase 6 plan an explicit
-// low/medium suppresses the tier-based opus escalation so callers can
-// override Claude Code's default model when the work is genuinely light.
-export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-
-function readEffort(body: RouterRequestBody): EffortLevel | undefined {
-  const cfg = body.output_config
-  if (cfg === null || typeof cfg !== 'object') return undefined
-  const eff: unknown = Reflect.get(cfg, 'effort')
-  if (typeof eff !== 'string') return undefined
-  if (eff === 'low' || eff === 'medium' || eff === 'high' || eff === 'xhigh' || eff === 'max') return eff
-  return undefined
-}
-
-export type ModelTier = 'opus' | 'sonnet' | 'haiku'
-
-function classifyModelTier(model: string): ModelTier | undefined {
-  if (typeof model !== 'string') return undefined
-  const lower = model.toLowerCase()
-  if (lower.includes('opus')) return 'opus'
-  if (lower.includes('sonnet')) return 'sonnet'
-  if (lower.includes('haiku')) return 'haiku'
-  return undefined
-}
-
-// Whether the request looks heavy enough to land in the Opus / long
-// lane. Reads two signals in priority order:
-//
-//   1. `output_config.effort` — high/xhigh/max → heavy; low/medium →
-//      explicitly light (suppresses the tier fallback so callers can
-//      downgrade an opus request).
-//   2. requested model tier — opus → heavy. Used only when effort is
-//      absent so older Claude Code traffic still grades correctly.
-//
-// thinking presence and message size are NOT consulted here — they are
-// already routed by the `think` / `longContext`-by-threshold lanes in
-// classifyScenario and would double-count if we mixed them in.
-export function isHeavyRequest(body: RouterRequestBody): boolean {
-  const effort = readEffort(body)
-  if (effort === 'high' || effort === 'xhigh' || effort === 'max') return true
-  if (effort === 'low' || effort === 'medium') return false
-  return classifyModelTier(body.model) === 'opus'
-}
 
 export function selectModel(
   req: RouterRequest,
@@ -183,14 +117,6 @@ export function rulesFor(router: RouterConfig | undefined, kind: RouteKind, scen
   return out
 }
 
-// Context available to predicate evaluation. All rule predicates read
-// through this shape so adding a new predicate never has to thread a
-// new argument through selectModel's call sites.
-export interface RuleEvalContext {
-  req: RouterRequest
-  tokenCount: number
-}
-
 // Resolve the primary target for (scenario, kind, request): walk the
 // scenario's rule stack; the first rule whose predicate matches wins
 // and its `target` becomes the primary. The failover chain then
@@ -230,150 +156,6 @@ function resolveTarget(
   }
   if (scenarioPrimary === undefined) return undefined
   return { primary: scenarioPrimary, fallbacks: catchAllFallbacks }
-}
-
-/** One predicate field's verdict, with the value it was judged against. */
-export interface ConditionVerdict {
-  field: 'requestedTier' | 'requestedModel' | 'thinking' | 'minTokens' | 'maxTokens' | 'hasTool' | 'effort'
-  expected: string
-  /** What the request actually presented. Null when it presented nothing. */
-  actual: string | null
-  matched: boolean
-}
-
-const show = (value: unknown): string => (Array.isArray(value) ? value.join(', ') : String(value))
-
-/**
- * Evaluate a rule's predicate and report each populated field separately.
- *
- * An empty predicate matches everything (catch-all rule). Absent fields
- * are unconstrained; each populated field is an AND with the others —
- * which is precisely why a per-field verdict is worth having. "This rule
- * did not match" leaves the operator to guess which of five conditions
- * was responsible.
- *
- * `matchesRule` is defined in terms of this, so the tester and the
- * router cannot disagree about a rule: there is only one implementation.
- */
-export function explainRule(
-  rule: RouteRule,
-  ctx: RuleEvalContext
-): { matched: boolean; conditions: ConditionVerdict[] } {
-  const when = rule.when
-  const { req, tokenCount } = ctx
-  const conditions: ConditionVerdict[] = []
-
-  if (when.requestedTier !== undefined) {
-    const tier = tierOf(req.body.model)
-    conditions.push({
-      field: 'requestedTier',
-      expected: show(when.requestedTier),
-      actual: tier === undefined ? null : tier,
-      matched: tier !== undefined && when.requestedTier.includes(tier)
-    })
-  }
-  if (when.requestedModel !== undefined) {
-    conditions.push({
-      field: 'requestedModel',
-      expected: when.requestedModel,
-      actual: req.body.model,
-      matched: globMatch(when.requestedModel, req.body.model)
-    })
-  }
-  if (when.thinking !== undefined) {
-    const thinking = isThinkingEnabled(req.body)
-    conditions.push({
-      field: 'thinking',
-      expected: show(when.thinking),
-      actual: show(thinking),
-      matched: thinking === when.thinking
-    })
-  }
-  if (when.minTokens !== undefined) {
-    conditions.push({
-      field: 'minTokens',
-      expected: `>= ${when.minTokens}`,
-      actual: String(tokenCount),
-      matched: tokenCount >= when.minTokens
-    })
-  }
-  if (when.maxTokens !== undefined) {
-    conditions.push({
-      field: 'maxTokens',
-      expected: `<= ${when.maxTokens}`,
-      actual: String(tokenCount),
-      matched: tokenCount <= when.maxTokens
-    })
-  }
-  if (when.hasTool !== undefined) {
-    conditions.push({
-      field: 'hasTool',
-      expected: when.hasTool,
-      actual: toolTypes(req.body.tools),
-      matched: hasMatchingTool(req.body.tools, when.hasTool)
-    })
-  }
-  if (when.effort !== undefined) {
-    const effort = readEffort(req.body)
-    conditions.push({
-      field: 'effort',
-      expected: show(when.effort),
-      actual: effort === undefined ? null : effort,
-      matched: effort !== undefined && when.effort.includes(effort)
-    })
-  }
-
-  return { matched: conditions.every((c) => c.matched), conditions }
-}
-
-export function matchesRule(rule: RouteRule, ctx: RuleEvalContext): boolean {
-  return explainRule(rule, ctx).matched
-}
-
-// The tool types the request actually carried, for the hasTool verdict —
-// "no tool matched `web_*`" is only actionable alongside what was there.
-function toolTypes(tools: unknown): string | null {
-  if (!Array.isArray(tools)) return null
-  const types = tools
-    .map((tool) => (tool !== null && typeof tool === 'object' ? Reflect.get(tool, 'type') : undefined))
-    .filter((t): t is string => typeof t === 'string')
-  return types.length === 0 ? null : types.join(', ')
-}
-
-// Bucket a model string into one of the four CC families. Case-
-// insensitive substring match: `claude-opus-4-7` → 'opus', `gpt-5` →
-// undefined. Order matters — `fable` is checked before `opus` because
-// a hypothetical `claude-fable-opus-mix` string should still tier to
-// fable (the family the user explicitly asked for).
-export function tierOf(model: string): RequestedModelTier | undefined {
-  if (typeof model !== 'string') return undefined
-  const lower = model.toLowerCase()
-  if (lower.includes('fable')) return 'fable'
-  if (lower.includes('opus')) return 'opus'
-  if (lower.includes('sonnet')) return 'sonnet'
-  if (lower.includes('haiku')) return 'haiku'
-  return undefined
-}
-
-function hasMatchingTool(tools: unknown, pattern: string): boolean {
-  if (!Array.isArray(tools)) return false
-  for (const tool of tools) {
-    if (tool === null || typeof tool !== 'object') continue
-    const type: unknown = Reflect.get(tool, 'type')
-    if (typeof type === 'string' && globMatch(pattern, type)) return true
-  }
-  return false
-}
-
-// Match a shell-style glob against a string. `*` = any run of chars
-// (including empty); every other char is literal. Anchored to the full
-// input on both ends (so `*haiku*` matches "claude-haiku-4-5" but
-// `haiku` does not — matching a raw substring would require the user
-// to write `*haiku*`).
-function globMatch(pattern: string, value: string): boolean {
-  if (typeof value !== 'string') return false
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
-  return new RegExp(`^${escaped}$`).test(value)
 }
 
 // Classify the request into a scenario. A scenario only wins when the
@@ -430,28 +212,4 @@ function classifyScenario(
   }
 
   return 'default'
-}
-
-function isWebSearchTool(tool: unknown): tool is { type: string } {
-  if (tool === null || typeof tool !== 'object' || !('type' in tool)) return false
-  const type: unknown = Reflect.get(tool, 'type')
-  return typeof type === 'string' && type.startsWith('web_search')
-}
-
-// Detect a <CCR-SUBAGENT-MODEL> tag in the second system block and strip
-// it in place so the CCR-internal marker never leaks upstream. Returns
-// true when the tag is present — its PRESENCE selects the subagent route;
-// its VALUE is not used for routing. Only a well-formed (closed) tag is
-// stripped, matching the old extractSubagentModel behaviour; a malformed
-// (unclosed) tag still counts as present but is left untouched.
-function stripSubagentTag(system: RouterRequestBody['system']): boolean {
-  if (!Array.isArray(system) || system.length < 2) return false
-  const block = system[1]
-  const text = typeof block?.text === 'string' ? block.text : undefined
-  if (text?.startsWith('<CCR-SUBAGENT-MODEL>') !== true) return false
-  const match = text.match(/<CCR-SUBAGENT-MODEL>(.*?)<\/CCR-SUBAGENT-MODEL>/s)
-  if (match) {
-    block.text = text.replace(`<CCR-SUBAGENT-MODEL>${match[1]}</CCR-SUBAGENT-MODEL>`, '')
-  }
-  return true
 }
