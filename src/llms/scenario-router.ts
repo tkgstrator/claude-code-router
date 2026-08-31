@@ -26,7 +26,7 @@
  */
 
 import type { FlatRouter } from '@/schemas'
-import { isRoutedPath } from '../services/inbound-surface-service'
+import { isRoutedPath, resolveSurfaceForPath } from '../services/inbound-surface-service'
 import { isSessionInRollout } from '../services/routing-scheduler/rollout'
 import { getRoutingSnapshot } from '../services/routing-scheduler/state'
 import { logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
@@ -153,6 +153,12 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // session falls into the rollout bucket. Outside the bucket
     // (or when preferences resolve to nothing) we fall back to the
     // scenario router's output so behaviour degrades gracefully.
+    // Which preference profile this request's surface points at. A
+    // surface with no override resolves to the default profile, so this
+    // is the previous single-profile behaviour unless someone changed it.
+    const surface = await resolveSurfaceForPath(req.inboundPath)
+    const profileKey = surface === undefined ? undefined : surface.profileKey
+
     let model = scenarioResult.model
     let fallbacks: string[] = scenarioResult.fallbacks
     if (mode === 'quota-aware' && inRollout) {
@@ -161,7 +167,8 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
         requestedModel,
         isSubagent: scenarioResult.isSubagent,
         scenario: scenarioResult.scenarioType,
-        requestTokenCount: tokenCount
+        requestTokenCount: tokenCount,
+        profileKey
       })
       if (quotaAware.selection.primary !== null) {
         model = quotaAware.selection.primary
@@ -197,7 +204,8 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
         requestedModel,
         isSubagent: scenarioResult.isSubagent,
         scenario: scenarioResult.scenarioType,
-        requestTokenCount: tokenCount
+        requestTokenCount: tokenCount,
+        profileKey
       }).catch((err) => {
         req.log.warn({ err }, '[routing-shadow] resolveQuotaAwareSelection threw — dropping shadow log')
         return null

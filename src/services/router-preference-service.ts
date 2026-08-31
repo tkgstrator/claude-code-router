@@ -86,14 +86,26 @@ const emptyEntriesByScenario = (): PreferenceEntriesByScenario => ({
   image: emptyByKind()
 })
 
-// Load the singleton profile with entries in priority order, grouped
-// by scenario then by kind. Returns an empty per-scenario map + null
-// constraints when the seed row hasn't been created yet.
+/**
+ * The profile every surface uses until it is pointed somewhere else.
+ *
+ * `RouterPreferenceProfile.key` was always intended to key more than one
+ * profile; it just had a single 'live' row. Per-surface routing gives it
+ * its purpose, so the literal lives here — the module that owns profiles
+ * — rather than being repeated at each call site.
+ */
+export const DEFAULT_PROFILE_KEY = 'live'
+
+// Load one profile with entries in priority order, grouped by scenario
+// then by kind. Returns an empty per-scenario map + null constraints
+// when the row hasn't been created yet — which is also what a surface
+// pointed at a profile nobody has configured should see.
 export async function loadRouterPreferences(
-  prisma: PrismaClient = getPrismaClient()
+  prisma: PrismaClient = getPrismaClient(),
+  profileKey: string = DEFAULT_PROFILE_KEY
 ): Promise<RouterPreferenceProfile> {
   const profile = await prisma.routerPreferenceProfile.findUnique({
-    where: { key: 'live' },
+    where: { key: profileKey },
     include: {
       entries: {
         orderBy: [{ scenario: 'asc' }, { kind: 'asc' }, { priority: 'asc' }],
@@ -125,9 +137,11 @@ export async function loadRouterPreferences(
 export async function loadPreferenceChain(
   scenario: ScenarioKey,
   kind: PreferenceKind,
-  prisma: PrismaClient = getPrismaClient()
+  prisma: PrismaClient = getPrismaClient(),
+  profileKey: string | undefined = DEFAULT_PROFILE_KEY
 ): Promise<{ entries: readonly RouterPreferenceEntry[]; constraints: Record<string, unknown> | null }> {
-  const profile = await loadRouterPreferences(prisma)
+  const key = profileKey === undefined ? DEFAULT_PROFILE_KEY : profileKey
+  const profile = await loadRouterPreferences(prisma, key)
   return { entries: profile.entriesByScenario[scenario][kind], constraints: profile.constraints }
 }
 
@@ -184,7 +198,8 @@ async function resolveEntries(
 // earlier UI session doesn't fail the whole apply.
 export async function applyRouterPreferences(
   input: RouterPreferenceProfile,
-  prisma: PrismaClient = getPrismaClient()
+  prisma: PrismaClient = getPrismaClient(),
+  profileKey: string = DEFAULT_PROFILE_KEY
 ): Promise<ApplyOutcome> {
   const warnings: string[] = []
   const resolvedPerChain = new Map<string, ResolvedInsert[]>()
@@ -202,9 +217,9 @@ export async function applyRouterPreferences(
 
   await prisma.$transaction(async (tx) => {
     const profile = await tx.routerPreferenceProfile.upsert({
-      where: { key: 'live' },
+      where: { key: profileKey },
       update: { constraints: constraintsWrite },
-      create: { key: 'live', constraints: constraintsWrite }
+      create: { key: profileKey, constraints: constraintsWrite }
     })
     // Total-order replacement across every (scenario, kind) chain in
     // one shot so callers can't observe a partial chain mid-write.
@@ -234,4 +249,28 @@ export async function applyRouterPreferences(
     logger.warn({ warnings }, '[router-preferences] apply completed with warnings')
   }
   return { success: true, warnings }
+}
+
+/**
+ * Every configured profile key, with how many entries each holds.
+ *
+ * The Routing screen offers these when pointing a surface at a profile.
+ * The default key is always present even with no row yet, because a
+ * surface may reference it before anyone has configured it.
+ */
+export async function listPreferenceProfiles(
+  prisma: PrismaClient = getPrismaClient()
+): Promise<Array<{ key: string; entryCount: number; updatedAt: string | null }>> {
+  const rows = await prisma.routerPreferenceProfile.findMany({
+    orderBy: { key: 'asc' },
+    include: { _count: { select: { entries: true } } }
+  })
+  const listed = rows.map((r) => ({
+    key: r.key,
+    entryCount: r._count.entries,
+    updatedAt: r.updatedAt.toISOString()
+  }))
+  return listed.some((p) => p.key === DEFAULT_PROFILE_KEY)
+    ? listed
+    : [{ key: DEFAULT_PROFILE_KEY, entryCount: 0, updatedAt: null }, ...listed]
 }

@@ -19,6 +19,7 @@ import {
   type SurfaceId,
   surfaceById
 } from '../llms/inbound/surfaces'
+import { DEFAULT_PROFILE_KEY } from './router-preference-service'
 
 export interface ResolvedSurface extends InboundSurface {
   routingMode: RoutingMode
@@ -27,8 +28,6 @@ export interface ResolvedSurface extends InboundSurface {
   /** True when an operator has overridden the descriptor default. */
   overridden: boolean
 }
-
-export const DEFAULT_PROFILE_KEY = 'live'
 
 // Resolved snapshot, rebuilt on write. `null` means "not loaded yet".
 // Deliberately module-level: one process serves the router, and a stale

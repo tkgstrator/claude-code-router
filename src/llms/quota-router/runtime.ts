@@ -127,6 +127,11 @@ export interface QuotaAwareSelectionInput {
   requestedModel: string | undefined
   isSubagent: boolean
   scenario: ScenarioKey
+  // Which RouterPreferenceProfile the chain comes from. Resolved from
+  // the request's inbound surface, so two surfaces can run different
+  // chains — a CI token's surface on cost-first while interactive
+  // traffic stays on the default. Omitted = the default profile.
+  profileKey?: string
   // Estimated input-token count for this request. The scenario router
   // computes it via tokenizers/base before classification; passing it
   // through lets the selector's context-window gate skip candidates
@@ -145,7 +150,7 @@ export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput
   // are ordered independently in the DB, so the same scenario can
   // route very differently based on the caller lane.
   const kind = input.isSubagent ? 'subagent' : 'agent'
-  const chain = await loadPreferenceChain(input.scenario, kind)
+  const chain = await loadPreferenceChain(input.scenario, kind, undefined, input.profileKey)
   const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(chain.constraints ?? {})
   const constraints: QuotaAwareConstraints = constraintsParsed.success
     ? constraintsParsed.data
