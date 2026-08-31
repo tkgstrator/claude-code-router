@@ -14,9 +14,7 @@ import pino from 'pino'
 import pinoPretty from 'pino-pretty'
 import dayjs from '@/lib/dayjs'
 import { LoggerEnvSchema } from '@/schemas/env.dto'
-import { HOME_DIR } from '@/shared/constants'
-
-const LOG_DIR = path.join(HOME_DIR, 'logs')
+import { LOG_DIR } from '@/shared/constants'
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
 
