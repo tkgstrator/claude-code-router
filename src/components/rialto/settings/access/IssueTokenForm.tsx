@@ -75,7 +75,6 @@ export function IssueTokenForm({
         <input
           type='text'
           value={draft.name}
-          autoFocus
           placeholder='MacBook — Claude Code'
           onChange={(e) => set('name', e.target.value)}
           className='flex h-8 w-full max-w-md items-center rounded-md border border-border bg-transparent px-3 font-mono text-xs outline-none focus:border-foreground/40'
