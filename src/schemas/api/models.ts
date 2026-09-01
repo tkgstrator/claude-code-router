@@ -94,7 +94,13 @@ export const VendorModelsResponseSchema = z
       .array(
         z.object({
           id: z.string().nonempty().optional(),
-          context_window: z.number().int().positive().optional()
+          context_window: z.number().int().positive().optional(),
+          // Anthropic's Models API spelling of the same figure. Its docs
+          // name `max_input_tokens` and `max_tokens` on every entry, and
+          // the comparison table on the docs site only covers the current
+          // four models — so this is the only per-model source for the
+          // rest of the lineup.
+          max_input_tokens: z.number().int().positive().optional()
         })
       )
       .optional(),

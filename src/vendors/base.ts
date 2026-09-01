@@ -48,9 +48,10 @@ type VendorModelsResponse = z.infer<typeof VendorModelsResponseSchema>
 const extractContextWindows = (data: VendorModelsResponse): Map<string, number> => {
   const out = new Map<string, number>()
   for (const m of data.data === undefined ? [] : data.data) {
-    if (typeof m.id === 'string' && m.id.length > 0 && m.context_window !== undefined) {
-      out.set(m.id, m.context_window)
-    }
+    if (typeof m.id !== 'string' || m.id.length === 0) continue
+    // Two vendors, two names for one number.
+    const limit = m.context_window === undefined ? m.max_input_tokens : m.context_window
+    if (limit !== undefined) out.set(m.id, limit)
   }
   for (const m of data.models === undefined ? [] : data.models) {
     if (typeof m.name === 'string' && m.name.length > 0 && m.inputTokenLimit !== undefined) {

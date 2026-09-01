@@ -82,9 +82,19 @@ if (overview) {
   // The comparison table also carries a "Context window" feature row.
   const ctxRow = overview.rows.find((r) => /context\s*window/i.test(r[0] ?? ''))
   // headerCells[0] is "Feature"; columns 1..N are display names.
+  //
+  // The header cell holds the model name and its one-line blurb with no
+  // separator once textContent flattens the markup — "Claude Fable
+  // 5.1For demanding reasoning and long-horizon agentic work". Keying the
+  // maps on that string meant no pricing row ever matched, so the
+  // "Context window" feature row was read and then thrown away: every
+  // model shipped with a null context. The name ends where the digits do.
   for (let i = 1; i < overview.headerCells.length; i++) {
-    const display = overview.headerCells[i]
-    if (!display) continue
+    const raw = overview.headerCells[i]
+    if (!raw) continue
+    const named = raw.match(/^(Claude\s+(?:Opus|Sonnet|Haiku|Fable|Mythos)\s+\d+(?:\.\d+)?)/i)
+    if (!named) continue
+    const display = named[1]
     const apiId = apiIdRow?.[i]
     if (apiId) displayToApiId[display] = apiId
     const ctx = ctxRow ? parseContext(ctxRow[i] ?? '') : null

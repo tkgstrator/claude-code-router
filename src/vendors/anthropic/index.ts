@@ -108,14 +108,33 @@ const recordContext = (display: string, cell: string | undefined, maps: Overview
   if (ctx !== null) maps.displayToContext[display] = ctx
 }
 
+/**
+ * The model name out of a comparison-table header cell.
+ *
+ * The cell holds the name and its blurb with no separator between them
+ * once the markup is stripped: "Claude Fable 5.1For demanding reasoning
+ * and long-horizon agentic work". Registering that whole string as the
+ * key meant nothing on the pricing page ever matched it, which is why
+ * every model's context window came back null and the newest ids had to
+ * fall back to the slug rule.
+ *
+ * `modelPrefix` cannot be reused here: its trailing `\b` fails between
+ * "1" and "F", and the engine backtracks to "Claude Fable 5" — the wrong
+ * model. The name simply ends where the digits do.
+ */
+const headerModelName = (cell: string): string | null => {
+  const m = cell.match(/^(Claude\s+(?:Opus|Sonnet|Haiku|Fable|Mythos)\s+\d+(?:\.\d+)?)/i)
+  return m === null ? null : m[1]
+}
+
 const readOverviewTable = (rows: string[][], maps: OverviewMaps): void => {
   const header = rows[0]
   if (!header.some((c) => /claude/i.test(c))) return
   const apiIdRow = rows.find((r) => /^claude api id$/i.test(orEmpty(r[0])))
   const ctxRow = rows.find((r) => /context\s*window/i.test(orEmpty(r[0])))
   for (let i = 1; i < header.length; i++) {
-    const display = header[i]
-    if (display === '') continue
+    const display = headerModelName(orEmpty(header[i]))
+    if (display === null) continue
     recordApiId(display, apiIdRow === undefined ? undefined : apiIdRow[i], maps)
     recordContext(display, ctxRow === undefined ? undefined : ctxRow[i], maps)
   }
@@ -238,4 +257,4 @@ export const scrapeAnthropicPricing = (): Promise<ScrapedPriceEntry[]> => new An
 // know is skipped; an invented `.0` produces an id the vendor never
 // published), and both failures are invisible from the scrape's output
 // alone — the model simply is not there.
-export const __testables = { claude4PlusSlug }
+export const __testables = { claude4PlusSlug, headerModelName }

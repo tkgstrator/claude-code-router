@@ -19,7 +19,7 @@
 import { describe, expect, test } from 'bun:test'
 import { __testables } from '../../src/vendors/anthropic'
 
-const { claude4PlusSlug } = __testables
+const { claude4PlusSlug, headerModelName } = __testables
 
 describe('claude4PlusSlug', () => {
   test('5 世代は minor 無しなら接尾辞も付かない', () => {
@@ -64,5 +64,36 @@ describe('claude4PlusSlug', () => {
     expect(produced).not.toContain('claude-opus-5-0')
     expect(produced).not.toContain('claude-sonnet-5-0')
     expect(produced).not.toContain('claude-fable-5-0')
+  })
+})
+
+describe('headerModelName', () => {
+  test('説明文が地続きに繋がったヘッダーからモデル名だけを取る', () => {
+    // 比較表のヘッダーはマークアップを剥がすと名前と説明が区切り無しで
+    // 連結される。これを丸ごとキーにしていたため、価格ページ側の
+    // "Claude Fable 5.1" と永久に一致せず、contextWindow が全モデルで
+    // null になっていた。
+    expect(headerModelName('Claude Fable 5.1For demanding reasoning and long-horizon agentic work')).toBe(
+      'Claude Fable 5.1'
+    )
+    expect(headerModelName('Claude Haiku 4.5The fastest model with near-frontier intelligence')).toBe(
+      'Claude Haiku 4.5'
+    )
+  })
+
+  test('マイナー番号を落とさない', () => {
+    // 既存の modelPrefix は末尾に \b を要求するので "1" と "F" の間で
+    // 失敗し、"Claude Fable 5" までバックトラックする。別モデルになる。
+    expect(headerModelName('Claude Fable 5.1For demanding')).not.toBe('Claude Fable 5')
+  })
+
+  test('説明の無いヘッダーもそのまま取れる', () => {
+    expect(headerModelName('Claude Opus 5')).toBe('Claude Opus 5')
+    expect(headerModelName('Claude Sonnet 5')).toBe('Claude Sonnet 5')
+  })
+
+  test('モデル名でないヘッダーは null', () => {
+    expect(headerModelName('Feature')).toBeNull()
+    expect(headerModelName('')).toBeNull()
   })
 })
