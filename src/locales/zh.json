@@ -325,13 +325,16 @@
       "apiKeys": "API key",
       "oauth": "OAuth",
       "apiKey": "API key",
+      "stateOff": "已关闭",
       "stateLive": "正常",
       "stateInvalid": "无效",
       "stateUnknown": "未知"
     },
     "detail": {
       "testAll": "全部测试",
-      "syncModels": "同步模型"
+      "syncModels": "同步模型",
+      "routable": "可路由",
+      "toggleProvider": "切换 {{provider}}"
     },
     "credentials": {
       "title": "凭据",

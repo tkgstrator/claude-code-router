@@ -7,7 +7,7 @@
  * price still publishes the other two.
  */
 import { useTranslation } from 'react-i18next'
-import { Pill } from '@/components/rialto/primitives'
+import { Pill, Toggle } from '@/components/rialto/primitives'
 import { fmtCost } from '@/lib/sessions/format'
 import { cn } from '@/lib/utils'
 import { fmtContext, type ModelRow } from './derive'
@@ -21,25 +21,6 @@ const TEST_ICON: Record<TestStatus, string> = {
 
 function TestIcon({ status }: { status: TestStatus }) {
   return <i className={TEST_ICON[status]} />
-}
-
-/**
- * The 16×28 switch. A real button rather than the mock's static span, so
- * the row is operable from the keyboard without a second affordance.
- */
-function Toggle({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
-  return (
-    <button type='button' onClick={onClick} aria-pressed={on} aria-label={label} className='align-middle'>
-      <span
-        className={cn(
-          'inline-flex h-4 w-7 items-center rounded-full px-0.5 align-middle',
-          on ? 'bg-foreground' : 'bg-muted-foreground/30'
-        )}
-      >
-        <span className={cn('size-3 rounded-full bg-background', on ? 'translate-x-3' : '')} />
-      </span>
-    </button>
-  )
 }
 
 const NUM_CELL = 'px-2 text-right font-mono text-xs tabular-nums'

@@ -259,3 +259,23 @@ export function SurfaceChip({
     </button>
   )
 }
+
+/**
+ * The 16×28 switch. A real button rather than the mock's static span, so
+ * whatever it controls is operable from the keyboard without a second
+ * affordance.
+ */
+export function Toggle({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+  return (
+    <button type='button' onClick={onClick} aria-pressed={on} aria-label={label} className='align-middle'>
+      <span
+        className={cn(
+          'inline-flex h-4 w-7 items-center rounded-full px-0.5 align-middle',
+          on ? 'bg-foreground' : 'bg-muted-foreground/30'
+        )}
+      >
+        <span className={cn('size-3 rounded-full bg-background', on ? 'translate-x-3' : '')} />
+      </span>
+    </button>
+  )
+}

@@ -325,13 +325,16 @@
       "apiKeys": "API キー",
       "oauth": "OAuth",
       "apiKey": "API キー",
+      "stateOff": "オフ",
       "stateLive": "稼働中",
       "stateInvalid": "無効",
       "stateUnknown": "不明"
     },
     "detail": {
       "testAll": "すべてテスト",
-      "syncModels": "モデルを同期"
+      "syncModels": "モデルを同期",
+      "routable": "振り分け対象",
+      "toggleProvider": "{{provider}} の振り分け対象を切り替え"
     },
     "credentials": {
       "title": "認証情報",

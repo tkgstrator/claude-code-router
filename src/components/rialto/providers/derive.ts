@@ -9,7 +9,7 @@ import type { CatalogEntry, CatalogModel } from '@/schemas/api/catalog'
 import { transformerChain } from '@/shared/transformer-chain'
 import type { ApiStyle, Provider, SubscriptionWire, TestStatus, Tier, TransformerWire } from './types'
 
-export type ProviderState = 'live' | 'invalid' | 'unknown'
+export type ProviderState = 'off' | 'live' | 'invalid' | 'unknown'
 
 /** Models the operator has switched off. Mirrors the DB's Model.enabled. */
 export function disabledModelsOf(p: Provider): string[] {
@@ -71,15 +71,25 @@ export function apiStyleOverrideOf(p: Provider, model: string): ApiStyle | null 
 }
 
 /**
- * Health of the provider as a whole.
+ * State of the provider as a whole: will it take traffic, and if it may,
+ * is its credential good.
  *
- * Subscription providers have an authoritative answer — the auth probe
- * result on each SubAccount. api_key providers have none: nothing checks
- * a key until something uses it, so the closest real signal is the last
- * per-model inference test. A provider nobody has tested reads `unknown`
- * rather than being optimistically called live.
+ * `off` wins over the health answer because it is the operative one. A
+ * switched-off provider is dropped by `enabledTargets` and by
+ * `getEnabledModels`, so however live its credential is, nothing routes
+ * to it — and reporting `live` there is what let a signed-in Claude Code
+ * sit invisible to Routing while this screen called it healthy. The
+ * per-account auth status is still on the detail screen, so nothing is
+ * lost by leading with the switch.
+ *
+ * Below that, subscription providers have an authoritative answer — the
+ * auth probe result on each SubAccount. api_key providers have none:
+ * nothing checks a key until something uses it, so the closest real
+ * signal is the last per-model inference test. A provider nobody has
+ * tested reads `unknown` rather than being optimistically called live.
  */
 export function providerState(p: Provider, sub: SubscriptionWire | undefined): ProviderState {
+  if (p.enabled === false) return 'off'
   if (p.auth_mode === 'subscription') {
     if (sub === undefined || sub.accounts.length === 0) return 'unknown'
     if (sub.accounts.some((a) => a.authStatus === 'live')) return 'live'

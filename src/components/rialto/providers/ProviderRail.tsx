@@ -14,9 +14,10 @@ import { cn } from '@/lib/utils'
 import { enabledCountOf, listedModelsOf, type ProviderState, planOf, providerQuotaPct, type QuotaIndex } from './derive'
 import type { Provider, SubscriptionWire } from './types'
 
-const STATE_TONE = { live: 'ok', invalid: 'bad', unknown: 'mute' } as const
+const STATE_TONE = { off: 'mute', live: 'ok', invalid: 'bad', unknown: 'mute' } as const
 
 const STATE_LABEL_KEYS: Record<ProviderState, string> = {
+  off: 'providers.rail.stateOff',
   live: 'providers.rail.stateLive',
   invalid: 'providers.rail.stateInvalid',
   unknown: 'providers.rail.stateUnknown'

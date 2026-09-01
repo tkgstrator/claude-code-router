@@ -325,13 +325,16 @@
       "apiKeys": "API keys",
       "oauth": "OAuth",
       "apiKey": "API key",
+      "stateOff": "off",
       "stateLive": "live",
       "stateInvalid": "invalid",
       "stateUnknown": "unknown"
     },
     "detail": {
       "testAll": "Test all",
-      "syncModels": "Sync models"
+      "syncModels": "Sync models",
+      "routable": "Routable",
+      "toggleProvider": "Toggle {{provider}}"
     },
     "credentials": {
       "title": "Credentials",
