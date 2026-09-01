@@ -8,6 +8,7 @@
  */
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { type LogGroup, type LogLine, lineDetail, shortReqId } from '@/components/rialto/activity/log-lines'
 import { chipFor, GUTTER, LEVEL_TEXT, LEVEL_TONE } from '@/components/rialto/activity/log-view'
 import { NoteBox } from '@/components/rialto/activity/shared'
@@ -54,7 +55,13 @@ export function LogBody({
   const lines = group === null ? [] : group.lines
   const shown = query === '' ? lines : lines.filter((l) => l.raw.toLowerCase().includes(query.toLowerCase()))
   const copy = () => {
-    void navigator.clipboard.writeText(lines.map((l) => l.raw).join('\n'))
+    // Clipboard writes are permission-gated, and a refused one leaves the
+    // pane looking exactly like a successful copy — the operator only finds
+    // out when they paste. `?.` covers the API being absent altogether,
+    // which it is on a non-secure origin.
+    navigator.clipboard
+      ?.writeText(lines.map((l) => l.raw).join('\n'))
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : String(err)))
   }
   return (
     <div className='min-w-0 overflow-y-auto'>

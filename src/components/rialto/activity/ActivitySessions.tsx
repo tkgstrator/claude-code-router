@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
   type ActivityRequestLog,
   downloadCsv,
@@ -156,7 +157,13 @@ export function ActivitySessions() {
 
   const archiveAll = () => {
     if (!window.confirm(t('activity.sessions.archiveConfirm'))) return
-    void api.archiveAllSessions().then(load)
+    // The confirm makes this the one destructive action on the screen, and
+    // a rejected archive re-reads the same rows — identical to a click that
+    // never landed. It has to say which of the two happened.
+    void api
+      .archiveAllSessions()
+      .then(load)
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : String(err)))
   }
 
   const exportCsv = () => {

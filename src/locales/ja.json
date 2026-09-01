@@ -772,6 +772,7 @@
       "applyFailed": "適用に失敗しました: {{message}}",
       "deleted": "{{name}} を削除しました",
       "deleteFailed": "削除に失敗しました: {{message}}",
+      "marketFailed": "プリセットマーケットを読み込めませんでした: {{message}}",
       "tabInstalled": "インストール済み",
       "tabBrowse": "探す",
       "installFromGithub": "GitHub からインストール",

@@ -72,8 +72,11 @@ function PresetsBrowser({ config }: { config: Config }) {
     api
       .get<MarketResponse>('/presets/market')
       .then((res) => setMarket(res.presets))
-      .catch((err: unknown) => setError(errorText(err)))
-  }, [tab])
+      // A toast rather than the pane's error slot: the market list is the
+      // left column, so its failure says nothing about the preset the pane
+      // is showing, and that slot is occupied whenever one is selected.
+      .catch((err: unknown) => toast.error(t('settings.presets.marketFailed', { message: errorText(err) })))
+  }, [tab, t])
 
   // The list endpoint carries metadata only; the manifest (its input
   // schema and the config it would write) needs a second fetch.
@@ -86,11 +89,18 @@ function PresetsBrowser({ config }: { config: Config }) {
       .get<PresetDetail>(`/presets/${encodeURIComponent(selectedId)}`)
       .then((res) => {
         setDetail(res)
+        setError(null)
         const seeded = seedInputs(res.schema === undefined ? [] : res.schema, res.userValues)
         setValues(seeded.values)
         setStoredIds(seeded.storedIds)
       })
-      .catch((err: unknown) => setError(errorText(err)))
+      // Drop the preset that was on screen too. Leaving it up would put
+      // preset A under a list highlighting B, and Apply reads `detail` —
+      // so the failed click would silently write the wrong preset.
+      .catch((err: unknown) => {
+        setDetail(null)
+        setError(errorText(err))
+      })
   }, [selectedId])
 
   const install = useCallback(async () => {
@@ -188,14 +198,14 @@ function PresetsBrowser({ config }: { config: Config }) {
           onInstallRepoChange={setInstallRepo}
           onInstall={install}
         />
-        {detail === null ? (
-          <div className='min-w-0 px-6 py-6 text-xs'>
-            {error === null ? (
-              <span className='text-muted-foreground'>{t('settings.presets.selectOne')}</span>
-            ) : (
-              <span className='text-destructive'>{error}</span>
-            )}
-          </div>
+        {/* A failed read wins the pane. It used to render only in the
+            empty-pane branch, so any read that failed while a preset was
+            selected — the library refetch after an install, apply or
+            delete — reported nothing at all. */}
+        {error !== null ? (
+          <div className='min-w-0 px-6 py-6 text-xs text-destructive'>{error}</div>
+        ) : detail === null ? (
+          <div className='min-w-0 px-6 py-6 text-xs text-muted-foreground'>{t('settings.presets.selectOne')}</div>
         ) : (
           <PresetPane
             preset={detail}

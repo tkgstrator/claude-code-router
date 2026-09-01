@@ -772,6 +772,7 @@
       "applyFailed": "应用失败：{{message}}",
       "deleted": "已删除 {{name}}",
       "deleteFailed": "删除失败：{{message}}",
+      "marketFailed": "无法读取预设市场：{{message}}",
       "tabInstalled": "已安装",
       "tabBrowse": "浏览",
       "installFromGithub": "从 GitHub 安装",

@@ -165,7 +165,15 @@ function PresetsMenu({ onNotify }: { onNotify: (text: string, ok: boolean) => vo
 
   const remove = useCallback(
     async (preset: RoutingPresetItem) => {
-      await api.deleteRoutingPreset(preset.id)
+      // A rejected delete leaves the row exactly where it was, which reads
+      // as a click that never registered rather than as a refusal — and
+      // the operator's next move is to click it again.
+      try {
+        await api.deleteRoutingPreset(preset.id)
+      } catch (err: unknown) {
+        onNotify(err instanceof Error ? err.message : String(err), false)
+        return
+      }
       setPresets((rows) => rows.filter((r) => r.id !== preset.id))
       onNotify(t('routing.map.presetDeleted', { name: preset.name }), true)
     },

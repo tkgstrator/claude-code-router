@@ -110,7 +110,11 @@ export function ApiUnreachableScreen() {
   useEffect(() => {
     const mounted = { value: true }
     const run = () => {
-      probeHealth().then((next) => {
+      // Deliberately floating. `probeHealth` resolves either way — its own
+      // try/catch turns a rejection into `{ health: null, detail }`, which
+      // is the failure this screen exists to render — so a `.catch` here
+      // would be unreachable rather than a missing one.
+      void probeHealth().then((next) => {
         if (mounted.value) setProbe(next)
       })
     }

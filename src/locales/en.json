@@ -772,6 +772,7 @@
       "applyFailed": "Apply failed: {{message}}",
       "deleted": "{{name}} deleted",
       "deleteFailed": "Delete failed: {{message}}",
+      "marketFailed": "Could not read the preset market: {{message}}",
       "tabInstalled": "Installed",
       "tabBrowse": "Browse",
       "installFromGithub": "Install from GitHub",

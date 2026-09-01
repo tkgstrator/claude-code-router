@@ -8,6 +8,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { type ActivityRequestLog, downloadText, fetchSessionRequestLogs } from '@/components/rialto/activity/data'
 import { LANE_KEYS, lane as laneOf } from '@/components/rialto/activity/requests-rows'
 import { DASH, ScreenMessage, StatusPill } from '@/components/rialto/activity/shared'
@@ -271,6 +272,10 @@ export function ActivitySessionDetail() {
             : { ...prevData, messages: [...res.items, ...prevData.messages], nextCursor: res.nextCursor }
         )
       )
+      // A toast rather than the screen's `error`: that slot replaces the
+      // whole transcript, so a failed page-back would take the turns
+      // already on screen down with it.
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : String(err)))
   }
 
   const downloadRaw = () => {

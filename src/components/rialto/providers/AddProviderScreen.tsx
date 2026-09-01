@@ -9,6 +9,7 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
 import { toggleModel } from './actions'
@@ -24,6 +25,16 @@ import { vendorLabel } from './vendor-labels'
 const NEXT_STEP: Record<ConnectStep, ConnectStep> = { 1: 2, 2: 3, 3: 3 }
 const PREV_STEP: Record<ConnectStep, ConnectStep> = { 1: 1, 2: 1, 3: 2 }
 
+/**
+ * Step 3's writes sit outside `useConnectFlow`'s guard, so they have no
+ * inline failure card to land in — the card belongs to the auth step. A
+ * toast is the only surface left, and it is needed: both actions here fail
+ * by leaving the screen exactly as it was.
+ */
+const fail = (err: unknown): void => {
+  toast.error(err instanceof Error ? err.message : String(err))
+}
+
 function ConnectPane({ flow, now, reload }: { flow: ConnectFlow; now: number; reload: () => Promise<void> }) {
   const { t } = useTranslation()
   const { entry, provider } = flow
@@ -37,7 +48,7 @@ function ConnectPane({ flow, now, reload }: { flow: ConnectFlow; now: number; re
         provider={provider}
         onToggle={(model, next) => {
           if (provider === undefined) return
-          toggleModel(provider, model, next).then(reload)
+          toggleModel(provider, model, next).then(reload).catch(fail)
         }}
       />
     )
@@ -92,7 +103,12 @@ export function AddProviderScreen() {
       return
     }
     if (provider === undefined) return
-    await enableProvider(provider)
+    try {
+      await enableProvider(provider)
+    } catch (err: unknown) {
+      fail(err)
+      return
+    }
     navigate(`/providers/${encodeURIComponent(provider.name)}`)
   }, [step, setStep, provider, navigate])
 
