@@ -8,12 +8,13 @@
  * three unsortable and unscannable.
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Meter, Pill } from '@/components/rialto/primitives'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { RoutingSchedulerWeightEntry } from '@/lib/api'
 import { fmtRate } from '@/lib/rialto/format'
 import { cn } from '@/lib/utils'
-import { inferTier, quotaUsedPct, STATE_TONE, splitTarget, targetState } from './derive'
+import { inferTier, quotaUsedPct, STATE_LABEL_KEYS, STATE_TONE, splitTarget, targetState } from './derive'
 import type { PreferenceEntry } from './types'
 
 export interface ChainRowActions {
@@ -23,6 +24,7 @@ export interface ChainRowActions {
 }
 
 function RowMenu({ index, count, actions }: { index: number; count: number; actions: ChainRowActions }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const run = (fn: () => void) => () => {
     fn()
@@ -32,7 +34,11 @@ function RowMenu({ index, count, actions }: { index: number; count: number; acti
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type='button' aria-label='Row actions' className='ml-1 text-muted-foreground/60 hover:text-foreground'>
+        <button
+          type='button'
+          aria-label={t('routing.chain.rowActions')}
+          className='ml-1 text-muted-foreground/60 hover:text-foreground'
+        >
           <i className='ri-more-2-fill text-sm' />
         </button>
       </PopoverTrigger>
@@ -43,7 +49,7 @@ function RowMenu({ index, count, actions }: { index: number; count: number; acti
           disabled={index === 0}
           onClick={run(() => actions.onMove(index, index - 1))}
         >
-          Move up
+          {t('routing.chain.moveUp')}
         </button>
         <button
           type='button'
@@ -51,10 +57,10 @@ function RowMenu({ index, count, actions }: { index: number; count: number; acti
           disabled={index === count - 1}
           onClick={run(() => actions.onMove(index, index + 1))}
         >
-          Move down
+          {t('routing.chain.moveDown')}
         </button>
         <button type='button' className={cn(item, 'text-destructive')} onClick={run(() => actions.onRemove(index))}>
-          Remove
+          {t('common.remove')}
         </button>
       </PopoverContent>
     </Popover>
@@ -92,6 +98,7 @@ function ChainRow({
   onDragOver: (event: React.DragEvent) => void
   onDrop: () => void
 }) {
+  const { t } = useTranslation()
   const state = targetState(live)
   const declared = entry.resolvedTier
   const tier = declared === null || declared === undefined ? inferTier(splitTarget(entry.target).model) : declared
@@ -112,7 +119,7 @@ function ChainRow({
       <td className='px-2 font-mono text-xs'>{entry.target}</td>
       <td className='px-2'>{tier === null ? null : <Pill tone='mute'>{tier}</Pill>}</td>
       <td className='px-2'>
-        <Pill tone={STATE_TONE[state]}>{state}</Pill>
+        <Pill tone={STATE_TONE[state]}>{t(STATE_LABEL_KEYS[state])}</Pill>
       </td>
       <td className='px-2 text-right font-mono text-xs tabular-nums'>
         {live === undefined ? '–' : live.weight.toFixed(2)}
@@ -129,7 +136,7 @@ function ChainRow({
             type='button'
             role='switch'
             aria-checked={entry.enabled}
-            aria-label={`Enable ${entry.target}`}
+            aria-label={t('routing.chain.enableTarget', { target: entry.target })}
             onClick={() => actions.onToggle(index, !entry.enabled)}
             className={cn(
               'inline-flex h-4 w-7 items-center rounded-full px-0.5',
@@ -154,6 +161,7 @@ export function ChainTable({
   weights: Map<string, RoutingSchedulerWeightEntry>
   actions: ChainRowActions
 }) {
+  const { t } = useTranslation()
   // Index of the row currently being dragged. Held here rather than in the
   // row so a drop knows both ends of the move without a dataTransfer round
   // trip (which Safari only populates on drop).
@@ -179,13 +187,13 @@ export function ChainTable({
       <thead>
         <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
           <th className='pb-2 pl-6 pr-2 text-left font-medium'>#</th>
-          <th className='px-2 text-left font-medium'>Target</th>
-          <th className='px-2 text-left font-medium'>Tier</th>
-          <th className='px-2 text-left font-medium'>State</th>
-          <th className='px-2 text-right font-medium'>Weight</th>
-          <th className='px-2 text-left font-medium'>Quota</th>
-          <th className='px-2 text-right font-medium'>Health</th>
-          <th className='pb-2 pl-2 pr-6 text-right font-medium'>On</th>
+          <th className='px-2 text-left font-medium'>{t('routing.common.colTarget')}</th>
+          <th className='px-2 text-left font-medium'>{t('routing.common.colTier')}</th>
+          <th className='px-2 text-left font-medium'>{t('routing.common.colState')}</th>
+          <th className='px-2 text-right font-medium'>{t('routing.chain.colWeight')}</th>
+          <th className='px-2 text-left font-medium'>{t('routing.chain.colQuota')}</th>
+          <th className='px-2 text-right font-medium'>{t('routing.chain.colHealth')}</th>
+          <th className='pb-2 pl-2 pr-6 text-right font-medium'>{t('routing.chain.colOn')}</th>
         </tr>
       </thead>
       <tbody>

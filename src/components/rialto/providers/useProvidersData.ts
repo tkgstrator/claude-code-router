@@ -8,6 +8,7 @@
  * empty so a cold install still renders its providers instead of an error.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { indexQuota, type QuotaIndex } from './derive'
 import type {
@@ -41,6 +42,7 @@ const EMPTY_CATALOG: CatalogResponse = { entries: [] }
 const EMPTY_TRANSFORMERS: TransformersResponse = { transformers: [] }
 
 export function useProvidersData() {
+  const { t } = useTranslation()
   const [data, setData] = useState<ProvidersData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -67,11 +69,11 @@ export function useProvidersData() {
       })
       setError(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load providers')
+      setError(e instanceof Error ? e.message : t('providers.screen.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     load()

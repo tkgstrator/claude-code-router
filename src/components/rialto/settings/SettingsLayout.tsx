@@ -8,18 +8,38 @@
  * by each section.
  */
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { type RailEntry, RailItem } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
 
-export const SETTINGS_RAIL: RailEntry[] = [
-  { id: 'server', label: 'Server', icon: 'ri-server-line', href: '/settings' },
-  { id: 'access', label: 'Access', icon: 'ri-key-2-line', href: '/settings/access' },
-  { id: 'logging', label: 'Logging', icon: 'ri-file-list-2-line', href: '/settings/logging' },
-  { id: 'personas', label: 'Personas', icon: 'ri-user-voice-line', href: '/settings/personas' },
-  { id: 'statusline', label: 'Status line', icon: 'ri-layout-bottom-line', href: '/settings/statusline' },
-  { id: 'presets', label: 'Presets', icon: 'ri-archive-drawer-line', href: '/settings/presets' },
-  { id: 'advanced', label: 'Advanced', icon: 'ri-terminal-box-line', href: '/settings/advanced' }
+/**
+ * The rail, with labels still to be resolved. `RailEntry.label` is prose,
+ * so the table holds keys and `settingsRail` turns them into entries —
+ * a module-level constant would be built once, before i18n has a language.
+ */
+const SETTINGS_RAIL_KEYS: readonly { id: string; labelKey: string; icon: string; href: string }[] = [
+  { id: 'server', labelKey: 'settings.rail.server', icon: 'ri-server-line', href: '/settings' },
+  { id: 'access', labelKey: 'settings.rail.access', icon: 'ri-key-2-line', href: '/settings/access' },
+  { id: 'logging', labelKey: 'settings.rail.logging', icon: 'ri-file-list-2-line', href: '/settings/logging' },
+  { id: 'personas', labelKey: 'settings.rail.personas', icon: 'ri-user-voice-line', href: '/settings/personas' },
+  {
+    id: 'statusline',
+    labelKey: 'settings.rail.statusline',
+    icon: 'ri-layout-bottom-line',
+    href: '/settings/statusline'
+  },
+  { id: 'presets', labelKey: 'settings.rail.presets', icon: 'ri-archive-drawer-line', href: '/settings/presets' },
+  { id: 'advanced', labelKey: 'settings.rail.advanced', icon: 'ri-terminal-box-line', href: '/settings/advanced' }
 ]
+
+export function settingsRail(t: (key: string) => string): RailEntry[] {
+  return SETTINGS_RAIL_KEYS.map((entry) => ({
+    id: entry.id,
+    label: t(entry.labelKey),
+    icon: entry.icon,
+    href: entry.href
+  }))
+}
 
 export function SettingsLayout({
   active,
@@ -51,12 +71,14 @@ export function SettingsLayout({
   showHeading?: boolean
   children: ReactNode
 }) {
-  const section = SETTINGS_RAIL.find((r) => r.id === active)
+  const { t } = useTranslation()
+  const rail = settingsRail(t)
+  const section = rail.find((r) => r.id === active)
   return (
     <Screen title={title} subtitle={subtitle} actions={actions}>
       <div className='grid h-full grid-cols-[13rem_1fr]'>
         <aside className='min-w-0 overflow-y-auto border-r border-border py-3'>
-          {SETTINGS_RAIL.map((item) => (
+          {rail.map((item) => (
             <RailItem key={item.id} item={item} active={active} />
           ))}
         </aside>

@@ -8,6 +8,7 @@
  * for the inbound path and runs that surface's profile.
  */
 import { useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { InboundSurfaceWire, RoutingMode } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -52,10 +53,11 @@ function ProfilePicker({
   profiles: readonly ProfileSummary[]
   onSelect: (key: string) => void
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <div className='flex items-center gap-2'>
-      <span className='text-xs text-muted-foreground'>Profile</span>
+      <span className='text-xs text-muted-foreground'>{t('routing.chain.profile')}</span>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -89,7 +91,9 @@ function ProfilePicker({
                 {/* An unconfigured profile is a real choice with a real
                   consequence, so it says so rather than showing a bare 0. */}
                 {profile.entryCount === 0 ? (
-                  <span className='ml-auto shrink-0 text-[10px] text-muted-foreground'>not configured</span>
+                  <span className='ml-auto shrink-0 text-[10px] text-muted-foreground'>
+                    {t('routing.common.notConfigured')}
+                  </span>
                 ) : (
                   <span className='ml-auto shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground'>
                     {profile.entryCount}
@@ -103,19 +107,9 @@ function ProfilePicker({
   )
 }
 
-const EXPLAINER = {
-  routed: (
-    <>
-      Passthrough sends the caller&rsquo;s <span className='font-mono'>provider,model</span> straight upstream. Routed
-      applies scenarios, rules and quota-aware failover.
-    </>
-  ),
-  passthrough: (
-    <>
-      The caller&rsquo;s <span className='font-mono'>provider,model</span> goes upstream unchanged. Scenarios, rules,
-      quota-aware selection and failover are all skipped.
-    </>
-  )
+const EXPLAINER_KEY = {
+  routed: 'routing.chain.explainerRouted',
+  passthrough: 'routing.chain.explainerPassthrough'
 } as const
 
 export function SurfaceModeBar({
@@ -129,15 +123,16 @@ export function SurfaceModeBar({
   onMode: (mode: RoutingMode) => void
   onProfile: (key: string) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className='flex items-center gap-4 border-b border-border bg-muted/30 px-6 py-3'>
       <div className='flex items-center gap-2'>
-        <span className='text-xs text-muted-foreground'>Routing</span>
+        <span className='text-xs text-muted-foreground'>{t('routing.chain.routing')}</span>
         <Segmented
           value={surface.routingMode}
           options={[
-            { value: 'routed', label: 'Routed' },
-            { value: 'passthrough', label: 'Passthrough' }
+            { value: 'routed', label: t('routing.chain.modeRoutedLabel') },
+            { value: 'passthrough', label: t('routing.chain.modePassthroughLabel') }
           ]}
           onChange={onMode}
         />
@@ -146,7 +141,7 @@ export function SurfaceModeBar({
         <ProfilePicker current={surface.profileKey} profiles={profiles} onSelect={onProfile} />
       ) : null}
       <p className='ml-auto max-w-md text-right text-[11px] leading-snug text-muted-foreground'>
-        {EXPLAINER[surface.routingMode]}
+        <Trans i18nKey={EXPLAINER_KEY[surface.routingMode]} components={{ mono: <span className='font-mono' /> }} />
       </p>
     </div>
   )

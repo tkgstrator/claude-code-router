@@ -9,6 +9,7 @@
  * Assist onboarding — that the reason is the only actionable part.
  */
 import { useRef } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { fmtAgo } from '@/lib/rialto/format'
 import { cn } from '@/lib/utils'
@@ -18,18 +19,23 @@ import { vendorBrand, vendorLabel } from './vendor-labels'
 export type OAuthKind = 'claude' | 'codex'
 
 function VendorIntro({ entry }: { entry: CatalogEntry }) {
+  const { t } = useTranslation()
   const subscription = entry.authMode === 'subscription'
   const brand = vendorBrand(entry.name, entry.vendor)
   return (
     <div className='border-b border-border px-6 py-4'>
       <div className='flex items-center gap-2'>
         <h2 className='text-sm font-semibold'>{vendorLabel(entry.name, entry.displayName)}</h2>
-        {subscription ? <Pill tone='info'>subscription</Pill> : <Pill tone='mute'>api key</Pill>}
+        {subscription ? (
+          <Pill tone='info'>{t('providers.connect.pillSubscription')}</Pill>
+        ) : (
+          <Pill tone='mute'>{t('providers.connect.pillApiKey')}</Pill>
+        )}
       </div>
       <p className='mt-1 text-[11px] leading-relaxed text-muted-foreground'>
         {subscription
-          ? `Uses your ${brand} subscription entitlement. Rialto never sees your password — it exchanges an OAuth code and stores only the encrypted tokens.`
-          : `Calls ${entry.apiBaseUrl} with a key you provide. The key is stored on this Rialto install and sent only to ${brand}.`}
+          ? t('providers.connect.introSubscription', { brand })
+          : t('providers.connect.introApiKey', { url: entry.apiBaseUrl, brand })}
       </p>
     </div>
   )
@@ -50,6 +56,7 @@ function ChoiceCard({
   disabled: boolean
   onClick: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <button
       type='button'
@@ -64,7 +71,7 @@ function ChoiceCard({
       <div className='flex items-center gap-2'>
         <i className={cn(icon, 'text-sm', selected ? '' : 'text-muted-foreground')} />
         <span className='text-xs font-medium'>{title}</span>
-        {selected ? <Pill tone='ok'>recommended</Pill> : null}
+        {selected ? <Pill tone='ok'>{t('providers.connect.recommended')}</Pill> : null}
       </div>
       <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>{body}</p>
     </button>
@@ -84,36 +91,35 @@ function WaitingCard({
   onSubmitManual: () => void
   busy: boolean
 }) {
+  const { t } = useTranslation()
   return (
     <div className='px-6 py-5'>
       <div className='rounded-md border border-border px-4 py-4'>
         <div className='flex items-center gap-2'>
           <i className='ri-loader-4-line text-sm text-muted-foreground' />
-          <span className='text-xs font-medium'>Waiting for the vendor…</span>
+          <span className='text-xs font-medium'>{t('providers.connect.waitingTitle')}</span>
         </div>
-        <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>
-          A browser tab should have opened. Finish there and this page will continue on its own.
-        </p>
+        <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>{t('providers.connect.waitingBody')}</p>
         {/* Only the claude flow accepts a pasted redirect: codex's OAuth
             client whitelists a single loopback port, which the standalone
             listener on :1455 already owns. */}
         {kind === 'claude' ? (
           <div className='mt-3 rounded-md bg-muted/50 px-3 py-2'>
-            <div className='text-[11px] text-muted-foreground'>Or paste the redirect URL manually</div>
+            <div className='text-[11px] text-muted-foreground'>{t('providers.connect.pasteRedirect')}</div>
             <div className='mt-1.5 flex items-center gap-2'>
               <input
                 value={manualUrl}
                 onChange={(e) => onManualUrlChange(e.target.value)}
-                placeholder='http://localhost:3456/callback?code=…&state=…'
+                placeholder={t('providers.connect.redirectPlaceholder')}
                 spellCheck={false}
                 className='h-8 flex-1 rounded-md border border-border bg-background px-3 font-mono text-[11px] text-muted-foreground outline-none focus:text-foreground'
               />
               <RButton variant='outline' onClick={onSubmitManual} disabled={busy || manualUrl.trim() === ''}>
-                Submit
+                {t('providers.connect.submit')}
               </RButton>
             </div>
             <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>
-              Needed when Rialto runs behind a tunnel and the browser cannot reach loopback.
+              {t('providers.connect.pasteRedirectHint')}
             </p>
           </div>
         ) : null}
@@ -129,14 +135,17 @@ export interface AuthFailure {
 }
 
 function FailureCard({ failure, now }: { failure: AuthFailure; now: number }) {
+  const { t } = useTranslation()
   return (
     <div className='px-6 pb-6'>
       <div className='rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3'>
         <div className='flex items-center gap-2'>
           <i className='ri-error-warning-line text-sm text-destructive' />
-          <span className='text-xs font-medium'>Previous attempt failed</span>
+          <span className='text-xs font-medium'>{t('providers.connect.failureTitle')}</span>
           {failure.at === null ? null : (
-            <span className='ml-auto text-[11px] text-muted-foreground'>{fmtAgo(failure.at, now)} ago</span>
+            <span className='ml-auto text-[11px] text-muted-foreground'>
+              {t('providers.connect.failureAgo', { ago: fmtAgo(failure.at, now) })}
+            </span>
           )}
         </div>
         <p className='mt-1.5 font-mono text-[11px] leading-relaxed text-muted-foreground'>{failure.message}</p>
@@ -158,37 +167,42 @@ function ApiKeyForm({
   onSave: () => void
   busy: boolean
 }) {
+  const { t } = useTranslation()
   return (
     <>
       <div className='px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>How to authenticate</h3>
+        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('providers.connect.howToAuth')}
+        </h3>
       </div>
       <div className='space-y-3 px-6 pb-5'>
         <div>
-          <div className='mb-1 text-[11px] text-muted-foreground'>API key</div>
+          <div className='mb-1 text-[11px] text-muted-foreground'>{t('providers.credentials.apiKey')}</div>
           <div className='flex items-center gap-2'>
             <input
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              placeholder={`Key for ${vendorBrand(entry.name, entry.vendor)}`}
+              placeholder={t('providers.connect.keyFor', { brand: vendorBrand(entry.name, entry.vendor) })}
               spellCheck={false}
               autoComplete='off'
               className='h-8 flex-1 rounded-md border border-border bg-transparent px-3 font-mono text-xs outline-none focus:border-foreground/40'
             />
             <RButton variant='primary' icon='ri-check-line' onClick={onSave} disabled={busy || value.trim() === ''}>
-              Save key
+              {t('providers.connect.saveKey')}
             </RButton>
           </div>
         </div>
         <div>
-          <div className='mb-1 text-[11px] text-muted-foreground'>Base URL</div>
+          <div className='mb-1 text-[11px] text-muted-foreground'>{t('providers.credentials.baseUrl')}</div>
           <div className='flex h-8 items-center rounded-md border border-border px-3 font-mono text-xs'>
             {entry.apiBaseUrl}
           </div>
         </div>
         <p className='text-[11px] leading-relaxed text-muted-foreground'>
-          Supports <span className='font-mono'>$VAR</span> interpolation — the key is read from the environment at boot
-          rather than stored, if you prefer.
+          <Trans
+            i18nKey='providers.credentials.interpolationNote'
+            components={{ mono: <span className='font-mono' /> }}
+          />
         </p>
       </div>
     </>
@@ -226,41 +240,50 @@ function SubscriptionChoices({
   onSignIn: () => void
   onImport: (file: File) => void
 }) {
+  const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
   const brand = vendorBrand(entry.name, entry.vendor)
-  const credPath = entry.credentialsPath === null ? "the CLI's credentials file" : entry.credentialsPath
+  const credPath = entry.credentialsPath === null ? t('providers.connect.credentialsFile') : entry.credentialsPath
   return (
     <>
       <div className='px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>How to authenticate</h3>
+        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('providers.connect.howToAuth')}
+        </h3>
       </div>
       <div className='grid grid-cols-2 gap-3 px-6'>
         <ChoiceCard
           icon='ri-external-link-line'
-          title={`Sign in with ${brand}`}
+          title={t('providers.connect.signInWith', { brand })}
           selected={oauthKind !== null}
           disabled={busy || oauthKind === null}
           onClick={onSignIn}
           body={
             oauthKind === null ? (
-              <>This Rialto build has no OAuth exchange for {brand}. Import the CLI's credentials instead.</>
+              t('providers.connect.noOauthExchange', { brand })
             ) : (
-              <>
-                Opens {brand} in your browser and returns to <span className='font-mono'>/callback</span>.
-              </>
+              <Trans
+                i18nKey='providers.connect.opensBrowser'
+                values={{ brand }}
+                components={{ mono: <span className='font-mono' /> }}
+              />
             )
           }
         />
         <ChoiceCard
           icon='ri-folder-open-line'
-          title={`Import from ${entry.cli === null ? 'the CLI' : entry.cli}`}
+          title={t('providers.connect.importFrom', {
+            cli: entry.cli === null ? t('providers.connect.theCli') : entry.cli
+          })}
           selected={false}
           disabled={busy || oauthKind === null}
           onClick={() => fileRef.current?.click()}
           body={
-            <>
-              Reads <span className='font-mono'>{credPath}</span> if you have already signed in on this machine.
-            </>
+            <Trans
+              i18nKey='providers.connect.importBody'
+              values={{ path: credPath }}
+              components={{ mono: <span className='font-mono' /> }}
+            />
           }
         />
       </div>

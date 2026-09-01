@@ -12,6 +12,7 @@
  * hoist both when the shared settings layout lands.
  */
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
 
 /** Amber callout — a standing condition the operator should know about. */
@@ -43,12 +44,13 @@ export function InfoNotice({ children }: { children: ReactNode }) {
  * an operator must never mistake this for a real, empty list.
  */
 export function NotYetAvailable({ what, needs }: { what: string; needs: ReactNode }) {
+  const { t } = useTranslation()
   return (
     <div className='rounded-md border border-dashed border-border px-4 py-4'>
       <div className='flex items-center gap-2'>
         <i className='ri-tools-line text-sm text-muted-foreground' />
         <span className='text-xs font-medium'>{what}</span>
-        <Pill tone='mute'>not yet available</Pill>
+        <Pill tone='mute'>{t('settings.common.notYetAvailable')}</Pill>
       </div>
       <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>{needs}</p>
     </div>

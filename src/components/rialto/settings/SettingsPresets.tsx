@@ -8,6 +8,7 @@
  * before the operator commits.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
@@ -39,6 +40,7 @@ interface InstallResponse {
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
 function PresetsBrowser({ config }: { config: Config }) {
+  const { t } = useTranslation()
   const [params] = useSearchParams()
   const tab: PresetTab = params.get('tab') === 'market' ? 'market' : 'installed'
 
@@ -99,33 +101,33 @@ function PresetsBrowser({ config }: { config: Config }) {
       setInstallRepo('')
       loadInstalled()
       if (res.presetName !== undefined) setSelectedId(res.presetName)
-      toast.success('Preset installed')
+      toast.success(t('settings.presets.installed'))
     } catch (err) {
-      toast.error(`Install failed: ${errorText(err)}`)
+      toast.error(t('settings.presets.installFailed', { message: errorText(err) }))
     } finally {
       setBusy(false)
     }
-  }, [installRepo, loadInstalled])
+  }, [installRepo, loadInstalled, t])
 
   const apply = useCallback(async () => {
     if (detail === null) return
     const schema = detail.schema === undefined ? [] : detail.schema
     const missing = missingInputIds(schema, values, storedIds)
     if (missing.length > 0) {
-      toast.warning(`Fill in ${missing.join(', ')} before applying.`)
+      toast.warning(t('settings.presets.fillMissing', { fields: missing.join(', ') }))
       return
     }
     setBusy(true)
     try {
       await api.post<ApplyResponse>(`/presets/${encodeURIComponent(detail.id)}/apply`, { secrets: values })
-      toast.success(`${detail.name} applied`)
+      toast.success(t('settings.presets.applied', { name: detail.name }))
       loadInstalled()
     } catch (err) {
-      toast.error(`Apply failed: ${errorText(err)}`)
+      toast.error(t('settings.presets.applyFailed', { message: errorText(err) }))
     } finally {
       setBusy(false)
     }
-  }, [detail, values, storedIds, loadInstalled])
+  }, [detail, values, storedIds, loadInstalled, t])
 
   const remove = useCallback(async () => {
     if (detail === null) return
@@ -134,22 +136,24 @@ function PresetsBrowser({ config }: { config: Config }) {
       await api.deletePreset(detail.id)
       setSelectedId(null)
       loadInstalled()
-      toast.success(`${detail.name} deleted`)
+      toast.success(t('settings.presets.deleted', { name: detail.name }))
     } catch (err) {
-      toast.error(`Delete failed: ${errorText(err)}`)
+      toast.error(t('settings.presets.deleteFailed', { message: errorText(err) }))
     } finally {
       setBusy(false)
     }
-  }, [detail, loadInstalled])
+  }, [detail, loadInstalled, t])
 
   const isInstalled = detail !== null && installed.some((p) => p.id === detail.id)
   const subtitle =
-    detail === null ? `${installed.length} installed` : `${installed.length} installed · ${detail.name} selected`
+    detail === null
+      ? t('settings.presets.subtitle', { count: installed.length })
+      : t('settings.presets.subtitleSelected', { count: installed.length, name: detail.name })
 
   return (
     <SettingsLayout
       active='presets'
-      title='Presets'
+      title={t('settings.rail.presets')}
       subtitle={subtitle}
       // The library column opens on its own tab strip, exactly the case
       // the frame hides its heading for.
@@ -160,12 +164,12 @@ function PresetsBrowser({ config }: { config: Config }) {
             variant='ghost'
             icon='ri-arrow-go-back-line'
             disabled
-            title='No revert endpoint yet — save your routing from Routing → Library before applying.'
+            title={t('settings.presets.revertUnavailable')}
           >
-            Revert last apply
+            {t('settings.presets.revertLast')}
           </RButton>
           <RButton variant='primary' icon='ri-check-line' onClick={apply} disabled={detail === null || busy}>
-            Apply
+            {t('routing.common.apply')}
           </RButton>
         </>
       }
@@ -187,7 +191,7 @@ function PresetsBrowser({ config }: { config: Config }) {
         {detail === null ? (
           <div className='min-w-0 px-6 py-6 text-xs'>
             {error === null ? (
-              <span className='text-muted-foreground'>Select a preset to see what applying it would change.</span>
+              <span className='text-muted-foreground'>{t('settings.presets.selectOne')}</span>
             ) : (
               <span className='text-destructive'>{error}</span>
             )}
@@ -210,11 +214,12 @@ function PresetsBrowser({ config }: { config: Config }) {
 }
 
 export function SettingsPresets() {
+  const { t } = useTranslation()
   const { config } = useConfig()
   if (config === null) {
     return (
-      <SettingsLayout active='presets' title='Presets' showHeading={false}>
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+      <SettingsLayout active='presets' title={t('settings.rail.presets')} showHeading={false}>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       </SettingsLayout>
     )
   }

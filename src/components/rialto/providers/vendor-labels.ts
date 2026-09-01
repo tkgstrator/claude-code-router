@@ -66,17 +66,17 @@ const VENDOR_BRAND: Record<string, string> = {
   xai: 'xAI'
 }
 
-const VENDOR_HINT: Record<string, string> = {
-  'claude-code': 'Pro / Max via Claude CLI OAuth',
-  codex: 'ChatGPT plan via Codex CLI OAuth',
-  'gemini-cli': 'AI Pro / Ultra via Gemini CLI OAuth',
-  anthropic: 'Pay-as-you-go API key',
-  openai: 'Pay-as-you-go API key',
-  google: 'AI Studio API key',
-  deepseek: 'Pay-as-you-go API key',
-  groq: 'OpenAI-compatible',
-  openrouter: 'OpenAI-compatible aggregator',
-  custom: 'Any OpenAI / Anthropic / Gemini-shaped endpoint'
+const VENDOR_HINT_KEY: Record<string, string> = {
+  'claude-code': 'providers.vendorHint.claudeCode',
+  codex: 'providers.vendorHint.codex',
+  'gemini-cli': 'providers.vendorHint.geminiCli',
+  anthropic: 'providers.vendorHint.payAsYouGo',
+  openai: 'providers.vendorHint.payAsYouGo',
+  google: 'providers.vendorHint.aiStudio',
+  deepseek: 'providers.vendorHint.payAsYouGo',
+  groq: 'providers.vendorHint.openaiCompatible',
+  openrouter: 'providers.vendorHint.aggregator',
+  custom: 'providers.vendorHint.custom'
 }
 
 /** Trust `displayName` only when the catalog gave it a value of its own. */
@@ -95,11 +95,24 @@ export function vendorBrand(name: string, vendor: string): string {
   return catalogLabel(name, vendor)
 }
 
-export function vendorHint(entry: CatalogEntry): string {
-  const named = VENDOR_HINT[entry.name]
-  if (named !== undefined) return named
-  if (entry.authMode !== 'subscription') return 'Pay-as-you-go API key'
-  return entry.cli === null ? 'Subscription via browser OAuth' : `Subscription via ${entry.cli} OAuth`
+/**
+ * The hint as a translation key plus its interpolation values. Returning a
+ * key rather than prose keeps this module free of `react-i18next`, which
+ * is what lets the sort below stay a pure comparison the tests can call.
+ */
+export interface VendorHint {
+  key: string
+  values: { cli: string }
+}
+
+export function vendorHint(entry: CatalogEntry): VendorHint {
+  const named = VENDOR_HINT_KEY[entry.name]
+  const values = { cli: entry.cli === null ? '' : entry.cli }
+  if (named !== undefined) return { key: named, values }
+  if (entry.authMode !== 'subscription') return { key: 'providers.vendorHint.payAsYouGo', values }
+  return entry.cli === null
+    ? { key: 'providers.vendorHint.browserOauth', values }
+    : { key: 'providers.vendorHint.cliOauth', values }
 }
 
 const groupOf = (entry: CatalogEntry): number => (entry.authMode === 'subscription' ? 0 : 1)

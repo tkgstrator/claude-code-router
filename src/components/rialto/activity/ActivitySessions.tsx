@@ -10,6 +10,7 @@
  * the table is paginated.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   type ActivityRequestLog,
   downloadCsv,
@@ -46,29 +47,35 @@ const JOIN_LOG_LIMIT = 500
 const SESSION_PAGE = 100
 
 function StatsRow({ totals, rangeLabel }: { totals: WindowTotals | null; rangeLabel: string }) {
+  const { t } = useTranslation()
   return (
     <div className='grid grid-cols-4 gap-px border-b border-border px-6 py-4'>
       <StatTile
-        label='Requests'
+        label={t('activity.sessions.statRequests')}
         value={totals === null ? '–' : totals.requests.toLocaleString()}
         sub={rangeLabel.toLowerCase()}
       />
-      <StatTile label='Tokens' value={totals === null ? '–' : fmtTokens(totals.tokens)} sub='in + out' />
       <StatTile
-        label='Cost'
-        value={totals === null ? '–' : fmtCost(totals.apiKeyCostUsd)}
-        sub='API-key providers only'
+        label={t('activity.sessions.statTokens')}
+        value={totals === null ? '–' : fmtTokens(totals.tokens)}
+        sub={t('activity.sessions.statTokensSub')}
       />
       <StatTile
-        label='Cache hit'
+        label={t('activity.sessions.statCost')}
+        value={totals === null ? '–' : fmtCost(totals.apiKeyCostUsd)}
+        sub={t('activity.sessions.statCostSub')}
+      />
+      <StatTile
+        label={t('activity.sessions.statCacheHit')}
         value={totals === null ? '–' : fmtRate(totals.cacheHitRate)}
-        sub='weighted by input tokens'
+        sub={t('activity.sessions.statCacheHitSub')}
       />
     </div>
   )
 }
 
 export function ActivitySessions() {
+  const { t } = useTranslation()
   const [range, setRange] = useState<RangeId>('7d')
   const [sessions, setSessions] = useState<SessionSummary[] | null>(null)
   const [logs, setLogs] = useState<ActivityRequestLog[]>([])
@@ -137,13 +144,18 @@ export function ActivitySessions() {
   )
 
   const spec = rangeSpec(range)
+  const rangeLabel = t(spec.labelKey)
   const subtitle =
     sessions === null
       ? undefined
-      : `${fmtCount(totalSessions === undefined ? sessions.length : totalSessions)} sessions · ${totals === null ? '–' : fmtCount(totals.requests)} requests · ${spec.label.toLowerCase()}`
+      : t('activity.sessions.subtitle', {
+          sessions: fmtCount(totalSessions === undefined ? sessions.length : totalSessions),
+          requests: totals === null ? '–' : fmtCount(totals.requests),
+          range: rangeLabel.toLowerCase()
+        })
 
   const archiveAll = () => {
-    if (!window.confirm('Archive every active session? Their cost totals are kept.')) return
+    if (!window.confirm(t('activity.sessions.archiveConfirm'))) return
     void api.archiveAllSessions().then(load)
   }
 
@@ -166,7 +178,7 @@ export function ActivitySessions() {
 
   return (
     <Screen
-      title='Activity'
+      title={t('activity.sessions.title')}
       subtitle={subtitle}
       actions={
         <>
@@ -177,10 +189,10 @@ export function ActivitySessions() {
             onClick={() => setLive((v) => !v)}
             className={live ? 'bg-muted/60' : ''}
           >
-            Live tail
+            {t('activity.sessions.liveTail')}
           </RButton>
           <RButton variant='ghost' icon='ri-archive-line' onClick={archiveAll}>
-            Archive
+            {t('activity.sessions.archive')}
           </RButton>
         </>
       }
@@ -189,27 +201,36 @@ export function ActivitySessions() {
 
       <div className='flex flex-wrap items-center gap-2 border-b border-border px-6 py-3'>
         <FilterSelect
-          label='Surface'
+          label={t('activity.sessions.filterSurface')}
           value={surfaceFilter}
-          options={options(surfaces.surfaces.map((s) => s.path))}
+          options={options(
+            surfaces.surfaces.map((s) => s.path),
+            t('activity.common.all')
+          )}
           onChange={setSurfaceFilter}
         />
         <FilterSelect
-          label='Provider'
+          label={t('activity.sessions.filterProvider')}
           value={providerFilter}
-          options={options(rows.flatMap((r) => r.session.providers))}
+          options={options(
+            rows.flatMap((r) => r.session.providers),
+            t('activity.common.all')
+          )}
           onChange={setProviderFilter}
         />
         <FilterSelect
-          label='Model'
+          label={t('activity.sessions.filterModel')}
           value={modelFilter}
-          options={options(rows.flatMap((r) => r.session.models))}
+          options={options(
+            rows.flatMap((r) => r.session.models),
+            t('activity.common.all')
+          )}
           onChange={setModelFilter}
         />
         <FilterSelect
-          label='Range'
+          label={t('activity.sessions.filterRange')}
           value={range}
-          options={RANGES.map((r) => ({ id: r.id, label: r.label }))}
+          options={RANGES.map((r) => ({ id: r.id, label: t(r.labelKey) }))}
           onChange={setRange}
         />
         <div className='ml-auto flex items-center gap-2'>
@@ -218,24 +239,24 @@ export function ActivitySessions() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder='Search sessions'
+              placeholder={t('activity.sessions.searchPlaceholder')}
               className='min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground'
             />
           </div>
           <RButton variant='ghost' icon='ri-download-line' onClick={exportCsv} disabled={visible.length === 0}>
-            Export
+            {t('activity.sessions.export')}
           </RButton>
         </div>
       </div>
 
-      <StatsRow totals={totals} rangeLabel={spec.label} />
+      <StatsRow totals={totals} rangeLabel={rangeLabel} />
 
       {error !== null ? (
         <ScreenMessage tone='bad'>{error}</ScreenMessage>
       ) : sessions === null ? (
-        <ScreenMessage>Loading…</ScreenMessage>
+        <ScreenMessage>{t('common.loading')}</ScreenMessage>
       ) : visible.length === 0 ? (
-        <ScreenMessage>No sessions in this window.</ScreenMessage>
+        <ScreenMessage>{t('activity.sessions.empty')}</ScreenMessage>
       ) : (
         <SessionsTable rows={visible} now={now} />
       )}

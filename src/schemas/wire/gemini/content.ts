@@ -125,20 +125,78 @@ export type GeminiStreamChunk = z.infer<typeof GeminiStreamChunkSchema>
 
 // ─── Inbound Gemini-shaped request (for transformRequestOut) ───────────
 
-// Empty default so consumers don't need `?? ''` fallbacks. The inbound
-// Gemini wire shape always carries at least an empty text field on each
-// part (Gemini emits `text: ''` when there is no content).
-const GeminiInboundPartSchema = z
+// Google's JSON mapping accepts both the camelCase names its SDKs emit
+// and the snake_case proto names, and our own outbound builders emit a
+// mix of the two. Every inbound alias is therefore declared here and
+// collapsed by the conversion helper rather than guessed at call sites.
+const GeminiInboundBlobSchema = z
   .object({
-    text: z.string().default('')
+    mimeType: z.string().nonempty().optional(),
+    mime_type: z.string().nonempty().optional(),
+    data: z.string().nonempty().optional()
   })
   .loose()
+export type GeminiInboundBlob = z.infer<typeof GeminiInboundBlobSchema>
+
+const GeminiInboundFileRefSchema = z
+  .object({
+    mimeType: z.string().nonempty().optional(),
+    mime_type: z.string().nonempty().optional(),
+    fileUri: z.string().nonempty().optional(),
+    file_uri: z.string().nonempty().optional()
+  })
+  .loose()
+export type GeminiInboundFileRef = z.infer<typeof GeminiInboundFileRefSchema>
+
+const GeminiInboundFunctionCallSchema = z
+  .object({
+    id: z.string().nonempty().optional(),
+    name: z.string().nonempty().optional(),
+    args: z.record(z.string().nonempty(), z.unknown()).default({})
+  })
+  .loose()
+
+// `response` stays `unknown`: Gemini lets the client put any JSON under
+// it, and the conversion helper has to stringify whatever it finds.
+const GeminiInboundFunctionResponseSchema = z
+  .object({
+    id: z.string().nonempty().optional(),
+    name: z.string().nonempty().optional(),
+    response: z.unknown().optional()
+  })
+  .loose()
+export type GeminiInboundFunctionResponse = z.infer<typeof GeminiInboundFunctionResponseSchema>
+
+// `text` is deliberately NOT defaulted. A default made every part look
+// like a text part, which is what let `inboundContentToMessage` short
+// out before it ever reached the image / functionCall branches — the
+// whole gemini column of the inbound parity matrix hung off it.
+// `.min(0)` keeps the empty string legal (Gemini emits `text: ''` for a
+// contentless part) while still declaring that intent explicitly.
+const GeminiInboundPartSchema = z
+  .object({
+    text: z.string().min(0).optional(),
+    thought: z.boolean().default(false),
+    thoughtSignature: z.string().nonempty().optional(),
+    inlineData: GeminiInboundBlobSchema.optional(),
+    inline_data: GeminiInboundBlobSchema.optional(),
+    fileData: GeminiInboundFileRefSchema.optional(),
+    file_data: GeminiInboundFileRefSchema.optional(),
+    functionCall: GeminiInboundFunctionCallSchema.optional(),
+    functionResponse: GeminiInboundFunctionResponseSchema.optional()
+  })
+  .loose()
+export type GeminiInboundPart = z.infer<typeof GeminiInboundPartSchema>
 
 const GeminiInboundContentObjectSchema = z
   .object({
     role: z.string().nonempty().optional(),
     parts: z.array(GeminiInboundPartSchema).default([]),
-    text: z.string().default('')
+    // Legacy `{ text: '…' }` content object. Gemini's own SDKs never
+    // send it, but it was the only shape this converter understood
+    // before parts[] worked, so it is still accepted — undefaulted, for
+    // the same reason as the part-level `text`.
+    text: z.string().min(0).optional()
   })
   .loose()
 
@@ -161,11 +219,56 @@ const GeminiInboundToolSchema = z
   .loose()
 export type GeminiInboundTool = z.infer<typeof GeminiInboundToolSchema>
 
+// `thinkingLevel` / `mode` are read as free strings rather than enums on
+// purpose: Google adds values to both (`VALIDATED`, new think levels)
+// faster than we ship, and a strict enum here would turn an unknown
+// value into a 500 for the whole request instead of one ignored field.
+const GeminiInboundThinkingConfigSchema = z
+  .object({
+    includeThoughts: z.boolean().default(false),
+    thinkingLevel: z.string().nonempty().optional(),
+    thinkingBudget: z.number().int().optional()
+  })
+  .loose()
+export type GeminiInboundThinkingConfig = z.infer<typeof GeminiInboundThinkingConfigSchema>
+
+const GeminiInboundGenerationConfigSchema = z
+  .object({
+    maxOutputTokens: z.number().int().positive().optional(),
+    temperature: z.number().optional(),
+    thinkingConfig: GeminiInboundThinkingConfigSchema.optional()
+  })
+  .loose()
+export type GeminiInboundGenerationConfig = z.infer<typeof GeminiInboundGenerationConfigSchema>
+
+const GeminiInboundFunctionCallingConfigSchema = z
+  .object({
+    mode: z.string().nonempty().optional(),
+    allowedFunctionNames: z.array(z.string().nonempty()).default([])
+  })
+  .loose()
+
+const GeminiInboundToolConfigSchema = z
+  .object({
+    functionCallingConfig: GeminiInboundFunctionCallingConfigSchema.optional()
+  })
+  .loose()
+export type GeminiInboundToolConfig = z.infer<typeof GeminiInboundToolConfigSchema>
+
 export const GeminiInboundRequestSchema = z
   .object({
     contents: z.array(GeminiInboundContentSchema).default([]),
+    // Gemini carries the system prompt beside `contents`, not inside it.
+    systemInstruction: GeminiInboundContentSchema.optional(),
+    system_instruction: GeminiInboundContentSchema.optional(),
     tools: z.array(GeminiInboundToolSchema).default([]),
+    toolConfig: GeminiInboundToolConfigSchema.optional(),
+    generationConfig: GeminiInboundGenerationConfigSchema.optional(),
+    generation_config: GeminiInboundGenerationConfigSchema.optional(),
     model: z.string().nonempty(),
+    // OpenAI-vocabulary siblings of `generationConfig.*`. No Gemini
+    // client sends these; they are kept as a fallback because the
+    // schema has always accepted them.
     max_tokens: z.number().int().positive().optional(),
     temperature: z.number().optional(),
     stream: z.boolean().default(false),

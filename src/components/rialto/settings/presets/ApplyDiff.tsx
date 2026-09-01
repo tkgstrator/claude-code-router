@@ -7,6 +7,7 @@
  * the live config, so it costs nothing to show before the operator
  * commits.
  */
+import { useTranslation } from 'react-i18next'
 import type { DiffRow } from '@/lib/rialto/settings-content/presets'
 
 const MARK: Record<DiffRow['kind'], { glyph: string; className: string }> = {
@@ -39,15 +40,18 @@ function Row({ row }: { row: DiffRow }) {
 }
 
 export function ApplyDiff({ rows }: { rows: DiffRow[] }) {
+  const { t } = useTranslation()
   return (
     <>
       <div className='flex items-center gap-2 border-t border-border px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>What it changes</h3>
-        <span className='text-[11px] text-muted-foreground'>diff against your current config</span>
+        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('settings.presets.whatItChanges')}
+        </h3>
+        <span className='text-[11px] text-muted-foreground'>{t('settings.presets.diffAgainst')}</span>
       </div>
       <div className='space-y-1 px-6 pb-5 font-mono text-[11px]'>
         {rows.length === 0 ? (
-          <div className='text-muted-foreground'>Nothing — this preset matches your current config.</div>
+          <div className='text-muted-foreground'>{t('settings.presets.diffEmpty')}</div>
         ) : (
           rows.map((row) => <Row key={row.key} row={row} />)
         )}

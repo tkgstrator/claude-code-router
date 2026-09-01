@@ -8,6 +8,7 @@
  * usually nothing — rides under the store name instead, because
  * "unbounded" is the fact this panel exists to surface.
  */
+import { useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
 import { fmtBytes } from '@/lib/rialto/settings/envelope'
 
@@ -32,17 +33,18 @@ export interface StorageStats {
 export const CUTOFF_DAYS = [7, 30, 90, 365] as const
 
 function CutoffSelect({ value, onChange, label }: { value: number; onChange: (days: number) => void; label: string }) {
+  const { t } = useTranslation()
   return (
     <div className='relative inline-flex'>
       <select
         value={value}
-        aria-label={`Prune ${label} older than`}
+        aria-label={t('settings.logging.pruneOlderThanLabel', { store: label })}
         onChange={(e) => onChange(Number(e.target.value))}
         className='inline-flex h-7 appearance-none items-center rounded-md border border-border bg-transparent pl-2.5 pr-7 text-xs transition-colors hover:bg-muted/60'
       >
         {CUTOFF_DAYS.map((d) => (
           <option key={d} value={d}>
-            {d} days
+            {t('settings.logging.days', { n: d })}
           </option>
         ))}
       </select>
@@ -64,12 +66,13 @@ function StoreRow({
   onPrune: () => void
   pruning: boolean
 }) {
+  const { t } = useTranslation()
   return (
     <tr className='border-t border-border/60 transition-colors hover:bg-muted/50'>
       <td className='py-2.5 pl-6 pr-3'>
         <div className='font-mono text-xs'>{store.label}</div>
         <div className='mt-0.5 text-[11px] text-muted-foreground'>
-          {store.retention === null ? <Pill tone='warn'>unbounded</Pill> : store.retention}
+          {store.retention === null ? <Pill tone='warn'>{t('settings.logging.unbounded')}</Pill> : store.retention}
         </div>
       </td>
       <td className='px-3 text-right font-mono text-xs tabular-nums text-muted-foreground'>
@@ -86,7 +89,7 @@ function StoreRow({
           disabled={pruning}
           className='text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50'
         >
-          Prune now
+          {t('settings.logging.pruneNow')}
         </button>
       </td>
     </tr>
@@ -106,6 +109,7 @@ export function RetentionTable({
   onPrune: (store: StoreStats, days: number) => void
   pruning: StoreId | null
 }) {
+  const { t } = useTranslation()
   return (
     <table className='w-full table-fixed'>
       <colgroup>
@@ -117,10 +121,10 @@ export function RetentionTable({
       </colgroup>
       <thead>
         <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>Store</th>
-          <th className='px-3 text-right font-medium'>Rows</th>
-          <th className='px-3 text-right font-medium'>Size</th>
-          <th className='px-3 text-left font-medium'>Prune older than</th>
+          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('settings.logging.colStore')}</th>
+          <th className='px-3 text-right font-medium'>{t('settings.logging.colRows')}</th>
+          <th className='px-3 text-right font-medium'>{t('settings.logging.colSize')}</th>
+          <th className='px-3 text-left font-medium'>{t('settings.logging.colPruneOlderThan')}</th>
           <th className='pb-2 pl-3 pr-6' />
         </tr>
       </thead>

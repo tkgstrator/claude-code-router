@@ -20,15 +20,34 @@ export const UsageBlockSchema = z.object({
   // OpenAI Chat Completions
   prompt_tokens: z.number().int().nonnegative().optional(),
   completion_tokens: z.number().int().nonnegative().optional(),
-  // OpenAI Responses
-  input_tokens_details: z.object({ cached_tokens: z.number().int().nonnegative().optional() }).optional()
+  // OpenAI: the cached-input breakdown. The two surfaces spell the same
+  // number differently — Chat Completions puts it under
+  // `prompt_tokens_details`, Responses under `input_tokens_details` —
+  // and declaring only one of them silently records every Chat cache hit
+  // as zero, which overstates cost in the Activity view.
+  prompt_tokens_details: z.object({ cached_tokens: z.number().int().nonnegative().optional() }).optional(),
+  input_tokens_details: z.object({ cached_tokens: z.number().int().nonnegative().optional() }).optional(),
+  // Gemini. Not a stylistic variant of the two above — without these the
+  // block never parses for a Google upstream, `extractUsage` returns
+  // null, and `captureUsage` returns before writing anything, so Gemini
+  // traffic leaves no RequestLog row at all rather than an incomplete
+  // one. Like OpenAI (and unlike Anthropic), `promptTokenCount` already
+  // contains `cachedContentTokenCount` — the SDK says so verbatim:
+  // "When `cached_content` is set, this also includes the number of
+  // tokens in the cached content."
+  promptTokenCount: z.number().int().nonnegative().optional(),
+  candidatesTokenCount: z.number().int().nonnegative().optional(),
+  cachedContentTokenCount: z.number().int().nonnegative().optional()
 })
 export type UsageBlock = z.infer<typeof UsageBlockSchema>
 
 // ─── Non-stream JSON response envelope ─────────────────────────────────
 
 export const JsonResponseWithUsageSchema = z.object({
-  usage: UsageBlockSchema.optional()
+  usage: UsageBlockSchema.optional(),
+  // Gemini hangs its counters off the response root under a different
+  // key rather than nesting them in `usage`.
+  usageMetadata: UsageBlockSchema.optional()
 })
 export type JsonResponseWithUsage = z.infer<typeof JsonResponseWithUsageSchema>
 
@@ -58,6 +77,16 @@ export const ResponsesCompletedEventSchema = z.object({
 export const ChatCompletionUsageChunkSchema = z.object({
   usage: UsageBlockSchema.refine(
     (u): u is UsageBlock & { prompt_tokens: number } => typeof u.prompt_tokens === 'number'
+  )
+})
+
+// Gemini SSE: every `streamGenerateContent` chunk MAY carry usageMetadata,
+// and the counts are cumulative, so the last one seen wins. Matched by
+// presence of `promptTokenCount` for the same reason as above — there is
+// no event type to discriminate on.
+export const GeminiUsageChunkSchema = z.object({
+  usageMetadata: UsageBlockSchema.refine(
+    (u): u is UsageBlock & { promptTokenCount: number } => typeof u.promptTokenCount === 'number'
   )
 })
 

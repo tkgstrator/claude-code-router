@@ -7,6 +7,7 @@
  * worth knowing when a request misbehaves.
  */
 import type { ReactNode } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { apiStyleOf, authLabelOf, endpointOf, pipelineOf } from './derive'
 import type { Provider, TransformerWire } from './types'
@@ -26,10 +27,13 @@ function ShapeRow({ label, value, accent }: { label: string; value: string; acce
 }
 
 function Frame({ pad, children }: { pad: string; children: ReactNode }) {
+  const { t } = useTranslation()
   return (
     <div>
       <div className='px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Request shape</h3>
+        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('providers.shape.title')}
+        </h3>
       </div>
       <div className={pad}>{children}</div>
     </div>
@@ -54,16 +58,17 @@ export function SubscriptionRequestShape({
   provider: Provider
   transformers: TransformerWire[]
 }) {
+  const { t } = useTranslation()
   const v = shapeValues(provider)
   const endpoint = endpointOf(provider, transformers)
   return (
     <Frame pad='px-6 pb-4'>
-      <ShapeRow label='API style' value={v.style} accent />
-      <ShapeRow label='Auth' value={v.auth} accent />
-      <ShapeRow label='Pipeline' value={v.pipeline} accent />
-      <ShapeRow label='Endpoint' value={endpoint === null ? '—' : endpoint} accent />
+      <ShapeRow label={t('providers.shape.apiStyle')} value={v.style} accent />
+      <ShapeRow label={t('providers.shape.auth')} value={v.auth} accent />
+      <ShapeRow label={t('providers.shape.pipeline')} value={v.pipeline} accent />
+      <ShapeRow label={t('providers.shape.endpoint')} value={endpoint === null ? '—' : endpoint} accent />
       <p className='mt-3 text-[11px] leading-relaxed text-muted-foreground'>
-        Derived from the API style — not configurable. Per-model overrides live in the model row below.
+        {t('providers.shape.derivedWithOverrides')}
       </p>
     </Frame>
   )
@@ -77,20 +82,24 @@ function overrideStyles(provider: Provider): string[] {
 }
 
 export function ApiKeyRequestShape({ provider }: { provider: Provider }) {
+  const { t } = useTranslation()
   const v = shapeValues(provider)
   const overrides = overrideStyles(provider)
   return (
     <Frame pad='px-6 pb-5'>
-      <ShapeRow label='API style' value={v.style} accent={false} />
-      <ShapeRow label='Auth' value={v.auth} accent={false} />
-      <ShapeRow label='Pipeline' value={v.pipeline} accent={false} />
+      <ShapeRow label={t('providers.shape.apiStyle')} value={v.style} accent={false} />
+      <ShapeRow label={t('providers.shape.auth')} value={v.auth} accent={false} />
+      <ShapeRow label={t('providers.shape.pipeline')} value={v.pipeline} accent={false} />
       <p className='mt-3 text-[11px] leading-relaxed text-muted-foreground'>
-        Derived from the API style — not configurable.
+        {t('providers.shape.derived')}
         {overrides.length === 0 ? null : (
           <>
             {' '}
-            Some models here override to <span className='font-mono'>{overrides.join(', ')}</span>; see the Override
-            column.
+            <Trans
+              i18nKey='providers.shape.overrideNote'
+              values={{ styles: overrides.join(', ') }}
+              components={{ mono: <span className='font-mono' /> }}
+            />
           </>
         )}
       </p>

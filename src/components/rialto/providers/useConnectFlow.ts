@@ -9,6 +9,7 @@
  * step advance "on its own" rather than asking the operator to refresh.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import type { AuthFailure } from './ConnectAuthStep'
 import {
@@ -29,6 +30,7 @@ export type ConnectStep = 1 | 2 | 3
 export type ConnectFlow = ReturnType<typeof useConnectFlow>
 
 export function useConnectFlow(data: ProvidersData | null, reload: () => Promise<void>) {
+  const { t } = useTranslation()
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [step, setStep] = useState<ConnectStep>(1)
   const [pending, setPending] = useState(false)
@@ -64,17 +66,20 @@ export function useConnectFlow(data: ProvidersData | null, reload: () => Promise
     }
   }, [pending, subscription, baseline])
 
-  const guard = useCallback(async (work: () => Promise<void>) => {
-    setBusy(true)
-    setSessionError(null)
-    try {
-      await work()
-    } catch (e) {
-      setSessionError(e instanceof Error ? e.message : 'Request failed')
-    } finally {
-      setBusy(false)
-    }
-  }, [])
+  const guard = useCallback(
+    async (work: () => Promise<void>) => {
+      setBusy(true)
+      setSessionError(null)
+      try {
+        await work()
+      } catch (e) {
+        setSessionError(e instanceof Error ? e.message : t('providers.connect.errorRequest'))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [t]
+  )
 
   const selectVendor = useCallback((next: CatalogEntry) => {
     setSelectedName(next.name)
@@ -92,34 +97,34 @@ export function useConnectFlow(data: ProvidersData | null, reload: () => Promise
       await ensureProvider(entry)
       await reload()
       setBaseline(new Set(subscription === undefined ? [] : subscription.accounts.map((a) => a.id)))
-      await startOAuth(oauthKind)
+      await startOAuth(oauthKind, t)
       setPending(true)
     })
-  }, [entry, oauthKind, guard, reload, subscription])
+  }, [entry, oauthKind, guard, reload, subscription, t])
 
   const importFile = useCallback(
     (file: File) => {
       if (entry === undefined || oauthKind === null) return
       guard(async () => {
         await ensureProvider(entry)
-        await importCredentials(oauthKind, file)
+        await importCredentials(oauthKind, file, t)
         await reload()
         setPending(false)
         setStep(3)
       })
     },
-    [entry, oauthKind, guard, reload]
+    [entry, oauthKind, guard, reload, t]
   )
 
   const submitManual = useCallback(() => {
     guard(async () => {
-      await submitManualCallback(manualUrl)
+      await submitManualCallback(manualUrl, t)
       await reload()
       setPending(false)
       setManualUrl('')
       setStep(3)
     })
-  }, [manualUrl, guard, reload])
+  }, [manualUrl, guard, reload, t])
 
   const saveApiKey = useCallback(() => {
     if (entry === undefined) return

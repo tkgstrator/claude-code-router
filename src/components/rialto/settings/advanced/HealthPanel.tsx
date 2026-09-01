@@ -8,6 +8,7 @@
  * every check reads unreachable.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { SectionHead } from '@/components/rialto/settings/fields'
 import { SettingsField } from '@/components/rialto/settings/SettingsLayout'
@@ -16,6 +17,7 @@ import { api, type HealthResponse } from '@/lib/api'
 const CHECK_TONES = { ok: 'ok', fail: 'bad', skip: 'mute' } as const
 
 export function HealthPanel() {
+  const { t } = useTranslation()
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [reachable, setReachable] = useState(true)
 
@@ -34,37 +36,34 @@ export function HealthPanel() {
   return (
     <>
       <SectionHead
-        title='Health'
-        meta='GET /health · unauthenticated'
+        title={t('settings.advanced.healthTitle')}
+        meta={t('settings.advanced.healthMeta')}
         actions={
           <RButton variant='ghost' icon='ri-refresh-line' onClick={load}>
-            Refresh
+            {t('settings.advanced.refresh')}
           </RButton>
         }
       />
-      <SettingsField
-        label='Status'
-        hint='Degraded means the server answered but a dependency check failed. Unreachable means it did not answer at all.'
-      >
+      <SettingsField label={t('settings.advanced.status')} hint={t('settings.advanced.statusHint')}>
         {!reachable ? (
-          <Pill tone='bad'>unreachable</Pill>
+          <Pill tone='bad'>{t('settings.advanced.unreachable')}</Pill>
         ) : health === null ? (
-          <Pill tone='mute'>probing…</Pill>
+          <Pill tone='mute'>{t('settings.advanced.probing')}</Pill>
         ) : health.status === 'ok' ? (
-          <Pill tone='ok'>ok</Pill>
+          <Pill tone='ok'>{t('settings.advanced.statusOk')}</Pill>
         ) : (
-          <Pill tone='warn'>degraded</Pill>
+          <Pill tone='warn'>{t('settings.advanced.degraded')}</Pill>
         )}
       </SettingsField>
-      <SettingsField label='Reported version' hint='The version the running process believes it is.'>
+      <SettingsField label={t('settings.advanced.reportedVersion')} hint={t('settings.advanced.reportedVersionHint')}>
         <span className='font-mono text-xs'>{health === null ? '–' : `v${health.version}`}</span>
       </SettingsField>
-      <SettingsField label='Uptime' hint='Seconds since the process booted.'>
+      <SettingsField label={t('settings.advanced.uptime')} hint={t('settings.advanced.uptimeHint')}>
         <span className='font-mono text-xs tabular-nums'>{health === null ? '–' : health.uptime_seconds}</span>
       </SettingsField>
-      <SettingsField label='Dependency checks' hint='One entry per dependency the probe touches.'>
+      <SettingsField label={t('settings.advanced.dependencyChecks')} hint={t('settings.advanced.dependencyChecksHint')}>
         {health === null ? (
-          <span className='text-[11px] text-muted-foreground'>Nothing reported.</span>
+          <span className='text-[11px] text-muted-foreground'>{t('settings.advanced.nothingReported')}</span>
         ) : (
           <div className='flex flex-wrap items-center gap-2'>
             {Object.entries(health.checks).map(([name, state]) => (

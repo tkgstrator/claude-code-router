@@ -11,6 +11,7 @@
  * operator reaches for this switch in.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { RButton } from '@/components/rialto/primitives'
@@ -58,9 +59,9 @@ const toDraft = (w: EnvelopeWire): LoggingDraft => ({
  * so deleting them silently lowers historical spend. Say it in the
  * confirm, where it cannot be missed.
  */
-const EXTRA_WARNING: Partial<Record<StoreId, string>> = {
-  requestLog: 'Usage and cost totals are computed from these rows, so historical spend figures will drop.',
-  message: 'The session view replays these turns; pruned conversations can no longer be read back.'
+const EXTRA_WARNING_KEYS: Partial<Record<StoreId, string>> = {
+  requestLog: 'settings.logging.pruneWarnRequestLog',
+  message: 'settings.logging.pruneWarnMessage'
 }
 
 function CaptureSection({
@@ -70,34 +71,32 @@ function CaptureSection({
   draft: LoggingDraft
   onChange: <K extends keyof LoggingDraft>(key: K, value: LoggingDraft[K]) => void
 }) {
+  const { t } = useTranslation()
   return (
     <>
-      <SectionHead title='Request capture' meta='what lands in Activity' />
+      <SectionHead title={t('settings.logging.captureTitle')} meta={t('settings.logging.captureMeta')} />
       <ToggleField
-        label='Record requests'
-        hint='One RequestLog row per upstream call — tokens, cost, latency, routing decision.'
+        label={t('settings.logging.recordRequests')}
+        hint={t('settings.logging.recordRequestsHint')}
         value={draft.CAPTURE_REQUESTS}
         onChange={(v) => onChange('CAPTURE_REQUESTS', v)}
       />
       <ToggleField
-        label='Record messages'
-        hint='Chat turns for the session view. Never includes the system prompt or tool definitions.'
+        label={t('settings.logging.recordMessages')}
+        hint={t('settings.logging.recordMessagesHint')}
         value={draft.CAPTURE_MESSAGES}
         onChange={(v) => onChange('CAPTURE_MESSAGES', v)}
       />
       <ToggleField
-        label='Redact tool args'
-        hint='Store tool_use blocks with arguments stripped.'
+        label={t('settings.logging.redactToolArgs')}
+        hint={t('settings.logging.redactToolArgsHint')}
         value={draft.REDACT_TOOL_ARGUMENTS}
         onChange={(v) => onChange('REDACT_TOOL_ARGUMENTS', v)}
       />
 
       <div className='px-6 py-4'>
-        <WarnNotice title='Message capture stores conversation content' tag='privacy'>
-          User and assistant turns are written to Postgres in the clear so the session view can replay them. Turn Record
-          messages off if this database is shared, or prune the Message store below. Anything not recorded is gone for
-          good: Usage and cost keep a permanent gap for the period capture was off, and redaction is applied before the
-          turn is stored.
+        <WarnNotice title={t('settings.logging.privacyTitle')} tag={t('settings.logging.privacyTag')}>
+          {t('settings.logging.privacyBody')}
         </WarnNotice>
       </div>
     </>
@@ -105,22 +104,23 @@ function CaptureSection({
 }
 
 function RetentionSection({ stats, reload }: { stats: StorageStats | null; reload: () => void }) {
+  const { t } = useTranslation()
   const [cutoffs, setCutoffs] = useState<Record<string, number>>({})
   const [pruning, setPruning] = useState<StoreId | null>(null)
 
   const prune = (store: StoreStats, days: number) => {
-    const extra = EXTRA_WARNING[store.id]
-    const tail = extra === undefined ? '' : `\n\n${extra}`
-    const unit = store.rows === null ? 'files' : 'rows'
-    if (!window.confirm(`Delete ${store.label} ${unit} older than ${days} days? This cannot be undone.${tail}`)) return
+    const extraKey = EXTRA_WARNING_KEYS[store.id]
+    const tail = extraKey === undefined ? '' : `\n\n${t(extraKey)}`
+    const unit = t(store.rows === null ? 'settings.logging.unitFiles' : 'settings.logging.unitRows')
+    if (!window.confirm(`${t('settings.logging.pruneConfirm', { store: store.label, unit, days })}${tail}`)) return
     setPruning(store.id)
     api
       .post<{ store: StoreId; deleted: number }>('/storage/prune', { store: store.id, olderThanDays: days })
       .then((res) => {
-        toast.success(`${res.deleted} ${unit} deleted from ${store.label}.`)
+        toast.success(t('settings.logging.pruned', { n: res.deleted, unit, store: store.label }))
         reload()
       })
-      .catch((e: Error) => toast.error(`Prune failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.logging.pruneFailed', { message: e.message })))
       .finally(() => setPruning(null))
   }
 
@@ -129,15 +129,19 @@ function RetentionSection({ stats, reload }: { stats: StorageStats | null; reloa
   return (
     <>
       <SectionHead
-        title='Retention'
+        title={t('settings.logging.retentionTitle')}
         meta={
           stats === null
-            ? 'reading…'
-            : `${fmtBytes(totalBytes(stats.stores))} total · ${unbounded} of ${stats.stores.length} stores unbounded`
+            ? t('settings.logging.reading')
+            : t('settings.logging.retentionMeta', {
+                total: fmtBytes(totalBytes(stats.stores)),
+                unbounded,
+                stores: stats.stores.length
+              })
         }
       />
       {stats === null ? (
-        <div className='px-6 py-4 text-xs text-muted-foreground'>Measuring the stores…</div>
+        <div className='px-6 py-4 text-xs text-muted-foreground'>{t('settings.logging.measuring')}</div>
       ) : (
         <RetentionTable
           stores={stats.stores}
@@ -148,14 +152,14 @@ function RetentionSection({ stats, reload }: { stats: StorageStats | null; reloa
         />
       )}
       <div className='px-6 py-4 text-[11px] leading-relaxed text-muted-foreground'>
-        The cutoff above is the argument to the button beside it, not a stored policy — nothing prunes on a schedule.
-        Sizes include indexes and TOAST.
+        {t('settings.logging.retentionNote')}
       </div>
     </>
   )
 }
 
 export function SettingsLogging() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [wire, setWire] = useState<EnvelopeWire | null>(null)
   const [draft, setDraft] = useState<LoggingDraft | null>(null)
@@ -167,8 +171,8 @@ export function SettingsLogging() {
     api
       .get<StorageStats>('/storage')
       .then(setStats)
-      .catch((e: Error) => toast.error(`Could not measure the stores: ${e.message}`))
-  }, [])
+      .catch((e: Error) => toast.error(t('settings.logging.measureFailed', { message: e.message })))
+  }, [t])
 
   const load = useCallback(() => {
     api
@@ -193,7 +197,7 @@ export function SettingsLogging() {
     if (draft === null) return
     const LOG_MAX_MB = parseCount(draft.LOG_MAX_MB)
     if (LOG_MAX_MB === null || LOG_MAX_MB === 0) {
-      toast.error('Rotate size must be a whole number of megabytes above zero.')
+      toast.error(t('settings.logging.rotateSizeInvalid'))
       return
     }
     setSaving(true)
@@ -210,7 +214,7 @@ export function SettingsLogging() {
         toast.success(res.message)
         load()
       })
-      .catch((e: Error) => toast.error(`Save failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.common.saveFailed', { message: e.message })))
       .finally(() => setSaving(false))
   }
 
@@ -225,12 +229,12 @@ export function SettingsLogging() {
   return (
     <SettingsLayout
       active='logging'
-      title='Logging'
-      subtitle={`level ${level} · ${captured} captured`}
-      headerNote='pino, to the logs directory under the config home'
+      title={t('settings.rail.logging')}
+      subtitle={t('settings.logging.subtitle', { level, captured })}
+      headerNote={t('settings.logging.headerNote')}
       headerActions={
         <RButton variant='outline' icon='ri-external-link-line' onClick={() => navigate('/activity/logs')}>
-          Open in Activity
+          {t('settings.logging.openInActivity')}
         </RButton>
       }
       actions={
@@ -240,10 +244,10 @@ export function SettingsLogging() {
             onClick={() => (wire === null ? undefined : setDraft(toDraft(wire)))}
             disabled={!dirty}
           >
-            Discard
+            {t('common.discard')}
           </RButton>
           <RButton variant='primary' icon='ri-check-line' onClick={save} disabled={!dirty || saving}>
-            Save
+            {t('common.save')}
           </RButton>
         </>
       }
@@ -251,32 +255,32 @@ export function SettingsLogging() {
       {error !== null ? (
         <div className='px-6 py-6 text-xs text-destructive'>{error}</div>
       ) : draft === null ? (
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       ) : (
         <>
           <ToggleField
-            label='Write to file'
-            hint='Off keeps logging to stdout only.'
+            label={t('settings.logging.writeToFile')}
+            hint={t('settings.logging.writeToFileHint')}
             value={draft.LOG}
             onChange={(v) => set('LOG', v)}
           />
           <SelectField
-            label='Level'
-            hint='fatal · error · warn · info · debug · trace'
+            label={t('settings.logging.level')}
+            hint={t('settings.logging.levelHint')}
             value={draft.LOG_LEVEL}
             options={LOG_LEVELS}
             onChange={(v) => set('LOG_LEVEL', v)}
           />
           <TextField
-            label='Rotate at'
-            hint='Megabytes. A new file is started past this size.'
+            label={t('settings.logging.rotateAt')}
+            hint={t('settings.logging.rotateAtHint')}
             value={draft.LOG_MAX_MB}
             inputMode='numeric'
             onChange={(v) => set('LOG_MAX_MB', v)}
           />
           <StaticField
-            label='Keep files'
-            hint='Rotation never deletes; prune below.'
+            label={t('settings.logging.keepFiles')}
+            hint={t('settings.logging.keepFilesHint')}
             value={logFiles === undefined || logFiles.retention === null ? '–' : logFiles.retention}
           />
           <CaptureSection draft={draft} onChange={set} />

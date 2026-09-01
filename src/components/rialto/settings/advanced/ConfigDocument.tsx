@@ -14,6 +14,7 @@
  * itself survive on disk; they do not survive this round trip.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { InfoNotice } from '@/components/rialto/settings/notice'
@@ -26,6 +27,7 @@ import { formatJson, isValidJson, lineNumbers } from '@/lib/rialto/settings/enve
 const LINE = 'font-mono text-[11px] leading-[20.5px]'
 
 export function ConfigDocument() {
+  const { t } = useTranslation()
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -33,8 +35,8 @@ export function ConfigDocument() {
     api
       .get<unknown>('/config')
       .then((raw) => setText(JSON.stringify(raw, null, 2)))
-      .catch((e: Error) => toast.error(`Could not read the config document: ${e.message}`))
-  }, [])
+      .catch((e: Error) => toast.error(t('settings.advanced.readFailed', { message: e.message })))
+  }, [t])
 
   useEffect(load, [load])
 
@@ -43,7 +45,7 @@ export function ConfigDocument() {
   const format = () => {
     const pretty = formatJson(text)
     if (pretty === null) {
-      toast.error('Cannot format: the document does not parse.')
+      toast.error(t('settings.advanced.cannotFormat'))
       return
     }
     setText(pretty)
@@ -51,7 +53,7 @@ export function ConfigDocument() {
 
   const save = () => {
     if (!valid) {
-      toast.error('Cannot save: the document does not parse.')
+      toast.error(t('settings.advanced.cannotSave'))
       return
     }
     setSaving(true)
@@ -61,7 +63,7 @@ export function ConfigDocument() {
         toast.success(res.message)
         load()
       })
-      .catch((e: Error) => toast.error(`Save failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.common.saveFailed', { message: e.message })))
       .finally(() => setSaving(false))
   }
 
@@ -70,17 +72,21 @@ export function ConfigDocument() {
       <div className='flex items-center gap-3 border-b border-border px-6 py-3'>
         <span className='font-mono text-[11px] text-muted-foreground'>config.json</span>
         <Pill tone='mute'>JSON</Pill>
-        {valid ? <Pill tone='ok'>valid</Pill> : <Pill tone='bad'>invalid</Pill>}
-        <span className='text-[11px] text-muted-foreground'>3 backups kept</span>
+        {valid ? (
+          <Pill tone='ok'>{t('settings.advanced.valid')}</Pill>
+        ) : (
+          <Pill tone='bad'>{t('settings.advanced.invalid')}</Pill>
+        )}
+        <span className='text-[11px] text-muted-foreground'>{t('settings.advanced.backupsKept')}</span>
         <div className='ml-auto flex gap-2'>
           <RButton variant='ghost' icon='ri-refresh-line' onClick={load}>
-            Reload
+            {t('settings.advanced.reload')}
           </RButton>
           <RButton variant='ghost' icon='ri-code-line' onClick={format} disabled={!valid}>
-            Format
+            {t('settings.advanced.format')}
           </RButton>
           <RButton variant='primary' icon='ri-check-line' onClick={save} disabled={!valid || saving}>
-            Save
+            {t('common.save')}
           </RButton>
         </div>
       </div>
@@ -95,7 +101,7 @@ export function ConfigDocument() {
         </div>
         <textarea
           value={text}
-          aria-label='Config document'
+          aria-label={t('settings.advanced.configDocument')}
           spellCheck={false}
           rows={lineNumbers(text).length}
           onChange={(e) => setText(e.target.value)}
@@ -105,10 +111,7 @@ export function ConfigDocument() {
 
       <div className='px-6 py-4'>
         <InfoNotice>
-          <span className='font-mono'>$VAR</span> is interpolated at boot, so a key can live in the environment rather
-          than this file, and the last three versions are kept as backups beside it. The file on disk is JSON5 and keeps
-          its comments; this view is the composed document the API returns, so saving from here rewrites it as plain
-          JSON. Boot scalars need a restart — the screens above apply live.
+          <Trans i18nKey='settings.advanced.configNote' components={{ mono: <span className='font-mono' /> }} />
         </InfoNotice>
       </div>
     </>

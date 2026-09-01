@@ -10,7 +10,8 @@
  */
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-import { Navigate, NavLink, Outlet } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { Toaster } from '@/components/ui/sonner'
 import { api, type HealthResponse, type IdentityResponse } from '@/lib/api'
@@ -19,20 +20,21 @@ import { APP_VERSION } from '@/version'
 
 interface NavEntry {
   id: string
-  label: string
+  labelKey: string
   icon: string
   href: string
 }
 
 const NAV: NavEntry[] = [
-  { id: 'overview', label: 'Overview', icon: 'ri-dashboard-3-line', href: '/overview' },
-  { id: 'routing', label: 'Routing', icon: 'ri-git-branch-line', href: '/routing' },
-  { id: 'providers', label: 'Providers', icon: 'ri-plug-line', href: '/providers' },
-  { id: 'activity', label: 'Activity', icon: 'ri-pulse-line', href: '/activity' },
-  { id: 'settings', label: 'Settings', icon: 'ri-settings-3-line', href: '/settings' }
+  { id: 'overview', labelKey: 'shell.navOverview', icon: 'ri-dashboard-3-line', href: '/overview' },
+  { id: 'routing', labelKey: 'shell.navRouting', icon: 'ri-git-branch-line', href: '/routing' },
+  { id: 'providers', labelKey: 'shell.navProviders', icon: 'ri-plug-line', href: '/providers' },
+  { id: 'activity', labelKey: 'shell.navActivity', icon: 'ri-pulse-line', href: '/activity' },
+  { id: 'settings', labelKey: 'shell.navSettings', icon: 'ri-settings-3-line', href: '/settings' }
 ]
 
 function NavItem({ item }: { item: NavEntry }) {
+  const { t } = useTranslation()
   return (
     <NavLink
       to={item.href}
@@ -46,7 +48,7 @@ function NavItem({ item }: { item: NavEntry }) {
       }
     >
       <i className={cn(item.icon, 'text-base leading-none opacity-80')} />
-      <span>{item.label}</span>
+      <span>{t(item.labelKey)}</span>
     </NavLink>
   )
 }
@@ -59,6 +61,7 @@ function NavItem({ item }: { item: NavEntry }) {
  * Access) and in the API-key middleware, never in a rendered string.
  */
 function IdentityRow({ identity }: { identity: IdentityResponse | null }) {
+  const { t } = useTranslation()
   const mode = identity === null ? null : identity.mode
   // A local request presents no credential, so labelling it 'token' said
   // one had been checked when none was.
@@ -68,12 +71,18 @@ function IdentityRow({ identity }: { identity: IdentityResponse | null }) {
       : mode === 'local'
         ? 'ri-computer-line text-muted-foreground'
         : 'ri-key-2-line text-muted-foreground'
-  const label = mode === 'cloudflare_access' ? 'Access' : mode === 'local' ? 'local' : 'token'
+  const label = t(
+    mode === 'cloudflare_access'
+      ? 'shell.identityAccess'
+      : mode === 'local'
+        ? 'shell.identityLocal'
+        : 'shell.identityToken'
+  )
   return (
     <div className='flex items-center gap-2 rounded-md px-2.5 py-2'>
       <i className={cn('shrink-0 text-sm leading-none', icon)} />
       <span className='truncate text-xs text-sidebar-foreground/70'>
-        {identity?.email ? identity.email : 'this machine'}
+        {identity?.email ? identity.email : t('settings.access.viaThisMachine')}
       </span>
       <span className='ml-auto shrink-0 font-mono text-[10px] text-muted-foreground'>{label}</span>
     </div>
@@ -96,6 +105,7 @@ function ServingRow({
   reachable: boolean
   port: number | undefined
 }) {
+  const { t } = useTranslation()
   const state = !reachable ? 'down' : health === null ? 'unknown' : health.status === 'ok' ? 'ok' : 'degraded'
   const dot = {
     ok: 'bg-emerald-500',
@@ -103,7 +113,14 @@ function ServingRow({
     down: 'bg-destructive',
     unknown: 'bg-muted-foreground/40'
   }[state]
-  const label = { ok: 'Serving', degraded: 'Degraded', down: 'Unreachable', unknown: 'Serving' }[state]
+  const label = t(
+    {
+      ok: 'shell.serving',
+      degraded: 'shell.degraded',
+      down: 'shell.unreachable',
+      unknown: 'shell.serving'
+    }[state]
+  )
   return (
     <div className='flex items-center gap-2 rounded-md px-2.5 py-2'>
       <span className={cn('size-1.5 shrink-0 rounded-full', dot)} />
@@ -114,7 +131,10 @@ function ServingRow({
 }
 
 export function RialtoShell() {
-  const { config, authFailed } = useConfig()
+  // No auth branch here: a 401 never reaches this component, because
+  // ProtectedRoute sends it to /access-denied before the shell mounts.
+  const { t } = useTranslation()
+  const { config } = useConfig()
   const { resolvedTheme, setTheme } = useTheme()
   const [identity, setIdentity] = useState<IdentityResponse | null>(null)
   const [health, setHealth] = useState<HealthResponse | null>(null)
@@ -142,14 +162,6 @@ export function RialtoShell() {
   const port = config?.PORT
   const themeLabel = mounted && resolvedTheme ? resolvedTheme : ''
 
-  // A 401 leaves every screen below with nothing to render and no way to
-  // supply a key. Read from context rather than only listening for the
-  // 'unauthorized' event, because the failure usually happens during
-  // ConfigProvider's first fetch — before this component exists to hear
-  // it. Until Cloudflare Access lands, the login form is the only way
-  // back in.
-  if (authFailed) return <Navigate to='/login' replace />
-
   return (
     <div className='flex h-screen w-full overflow-hidden bg-background text-foreground'>
       <aside className='flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar'>
@@ -176,7 +188,7 @@ export function RialtoShell() {
             className='flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/60'
           >
             <i className='ri-contrast-2-line text-base leading-none opacity-80' />
-            <span>Theme</span>
+            <span>{t('shell.theme')}</span>
             <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{themeLabel}</span>
           </button>
         </div>

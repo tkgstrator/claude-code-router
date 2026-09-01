@@ -6,6 +6,7 @@
  * carries that scope alongside the rule so a flat list can still address
  * the right array when it saves.
  */
+import type { TFunction } from 'i18next'
 import type { RouteRule, RouterConfig } from '@/schemas/domain/router'
 import type { Lane, ScenarioKey } from './types'
 import { LANES, SCENARIOS } from './types'
@@ -67,20 +68,25 @@ export function conditionsOf(rule: RouteRule): Condition[] {
   return out
 }
 
-/** Single-line predicate summary for list rows and the chain rail. */
-export function summarizePredicate(rule: RouteRule): string {
+/**
+ * Single-line predicate summary for list rows and the chain rail.
+ *
+ * Field names and operators stay verbatim — they are the predicate keys the
+ * editor writes, not prose — so only the "no conditions" case is localised.
+ */
+export function summarizePredicate(rule: RouteRule, t: TFunction): string {
   const conditions = conditionsOf(rule)
-  if (conditions.length === 0) return 'matches every request'
+  if (conditions.length === 0) return t('routing.rules.matchesEveryRequest')
   return conditions.map((c) => `${c.field} ${c.op} ${c.value}`).join(' · ')
 }
 
 /** What a matched rule routes to. A null target is a legitimate "leave it alone". */
-export function summarizeTarget(rule: RouteRule): string {
-  return rule.target === null || rule.target.length === 0 ? 'caller model (no rewrite)' : rule.target
+export function summarizeTarget(rule: RouteRule, t: TFunction): string {
+  return rule.target === null || rule.target.length === 0 ? t('routing.rules.callerModelNoRewrite') : rule.target
 }
 
-export function ruleLabel(rule: RouteRule, index: number): string {
-  return rule.name === undefined || rule.name === '' ? `Rule ${index + 1}` : rule.name
+export function ruleLabel(rule: RouteRule, index: number, t: TFunction): string {
+  return rule.name === undefined || rule.name === '' ? t('routing.rules.ruleN', { n: index + 1 }) : rule.name
 }
 
 // ─── Tester ───────────────────────────────────────────────────────────

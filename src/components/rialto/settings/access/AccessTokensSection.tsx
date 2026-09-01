@@ -8,6 +8,7 @@
  * drift from what the gate actually recorded.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { RButton } from '@/components/rialto/primitives'
 import { IssuedTokenPanel } from '@/components/rialto/settings/access/IssuedTokenPanel'
@@ -17,6 +18,9 @@ import { SectionHead } from '@/components/rialto/settings/fields'
 import { type AccessTokenWire, api, type InboundSurfaceWire } from '@/lib/api'
 import { countTokens, EXPIRY_CHOICES, expiryToIso } from '@/lib/rialto/settings/access-tokens'
 
+// react-i18next's t(), trimmed to what these two helpers call.
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
 interface Revealed {
   plaintext: string
   name: string
@@ -25,19 +29,20 @@ interface Revealed {
   expiry: string
 }
 
-const expiryLabel = (choiceId: string): string => {
+const expiryLabel = (choiceId: string, t: Translate): string => {
   const choice = EXPIRY_CHOICES.find((c) => c.id === choiceId)
-  return choice === undefined ? 'No expiry' : choice.label
+  return choice === undefined ? t('settings.access.noExpiry') : choice.label
 }
 
-const summary = (counts: { active: number; expired: number; revoked: number }): string => {
-  const parts = [`${counts.active} active`]
-  if (counts.expired > 0) parts.push(`${counts.expired} expired`)
-  if (counts.revoked > 0) parts.push(`${counts.revoked} revoked`)
+const summary = (counts: { active: number; expired: number; revoked: number }, t: Translate): string => {
+  const parts = [t('settings.access.countActive', { n: counts.active })]
+  if (counts.expired > 0) parts.push(t('settings.access.countExpired', { n: counts.expired }))
+  if (counts.revoked > 0) parts.push(t('settings.access.countRevoked', { n: counts.revoked }))
   return parts.join(' · ')
 }
 
 export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire[] }) {
+  const { t } = useTranslation()
   const [tokens, setTokens] = useState<AccessTokenWire[]>([])
   const [profiles, setProfiles] = useState<{ key: string }[]>([])
   const [draft, setDraft] = useState<IssueDraft | null>(null)
@@ -55,8 +60,8 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
         setTokens(res.tokens)
         setNow(Date.now())
       })
-      .catch((e: Error) => toast.error(`Could not list access tokens: ${e.message}`))
-  }, [])
+      .catch((e: Error) => toast.error(t('settings.access.listFailed', { message: e.message })))
+  }, [t])
 
   useEffect(() => {
     load()
@@ -88,46 +93,42 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
         setRevealed({
           plaintext: res.plaintext,
           name: res.token.name,
-          scope: surfacePath === undefined ? 'all endpoints' : surfacePath,
-          profile: res.token.profileKey === null ? 'follow the endpoint' : res.token.profileKey,
-          expiry: expiryLabel(draft.expiry)
+          scope: surfacePath === undefined ? t('settings.access.allEndpoints') : surfacePath,
+          profile: res.token.profileKey === null ? t('settings.access.followEndpoint') : res.token.profileKey,
+          expiry: expiryLabel(draft.expiry, t)
         })
         setDraft(null)
         load()
       })
-      .catch((e: Error) => toast.error(`Could not issue the token: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.access.issueFailed', { message: e.message })))
       .finally(() => setIssuing(false))
   }
 
   const revoke = (token: AccessTokenWire) => {
-    if (!window.confirm(`Revoke "${token.name}"? Any client using it stops working immediately.`)) return
+    if (!window.confirm(t('settings.access.revokeConfirm', { name: token.name }))) return
     setBusyId(token.id)
     api
       .revokeAccessToken(token.id)
       .then(() => {
-        toast.success(`"${token.name}" revoked.`)
+        toast.success(t('settings.access.revoked', { name: token.name }))
         load()
       })
-      .catch((e: Error) => toast.error(`Revoke failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.access.revokeFailed', { message: e.message })))
       .finally(() => setBusyId(null))
   }
 
   const remove = (token: AccessTokenWire) => {
-    if (
-      !window.confirm(
-        `Delete "${token.name}" permanently?\n\nIt is already revoked, so this changes nothing about access. What it does lose is attribution: past requests in Activity will no longer resolve to this token's name.`
-      )
-    ) {
+    if (!window.confirm(t('settings.access.deleteConfirm', { name: token.name }))) {
       return
     }
     setBusyId(token.id)
     api
       .deleteAccessToken(token.id)
       .then(() => {
-        toast.success(`"${token.name}" deleted.`)
+        toast.success(t('settings.access.deleted', { name: token.name }))
         load()
       })
-      .catch((e: Error) => toast.error(`Delete failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.access.deleteFailed', { message: e.message })))
       .finally(() => setBusyId(null))
   }
 
@@ -136,16 +137,18 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
   return (
     <>
       <SectionHead
-        title='Access tokens'
+        title={t('settings.access.tokensTitle')}
         meta={
-          <>
-            {summary(counts)} · all on <span className='font-mono'>/v1/*</span>
-          </>
+          <Trans
+            i18nKey='settings.access.tokensMeta'
+            values={{ summary: summary(counts, t) }}
+            components={{ mono: <span className='font-mono' /> }}
+          />
         }
         actions={
           draft === null && revealed === null ? (
             <RButton variant='primary' icon='ri-add-line' onClick={() => setDraft(emptyDraft())}>
-              Issue token
+              {t('settings.access.issueToken')}
             </RButton>
           ) : null
         }
@@ -168,10 +171,13 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
           <div className='px-6 pb-4'>
             <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
               <i className='ri-information-line mr-1 align-[-1px]' />
-              Only the SHA-256 digest is stored, so the plaintext is shown once, at issue. These are the only
-              credentials <span className='font-mono'>/v1/*</span> accepts. Scoping to an endpoint and a profile gives
-              one client its own routing; <span className='font-medium text-foreground'>revoke</span> keeps the row so
-              past requests still say whose traffic they were, delete drops that attribution.
+              <Trans
+                i18nKey='settings.access.tokensNote'
+                components={{
+                  mono: <span className='font-mono' />,
+                  strong: <span className='font-medium text-foreground' />
+                }}
+              />
             </div>
           </div>
           <TokenTable

@@ -6,6 +6,7 @@
  * router applies at all is a per-surface fact. `ViewTabs` is the ordinary
  * sub-view strip the Map and Rules screens carry.
  */
+import { useTranslation } from 'react-i18next'
 import { Tabs } from '@/components/rialto/primitives'
 import type { InboundSurfaceWire, SurfaceId } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ export function SurfaceTabs({
   active: SurfaceId | null
   onSelect: (id: SurfaceId) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className='flex items-stretch gap-0 border-b border-border px-2'>
       {surfaces.map((surface) => {
@@ -39,9 +41,9 @@ export function SurfaceTabs({
             <span className='flex items-center gap-1.5 text-[11px] text-muted-foreground'>
               {`${surface.client} · `}
               {surface.routingMode === 'routed' ? (
-                <span className='text-emerald-600 dark:text-emerald-400'>routed</span>
+                <span className='text-emerald-600 dark:text-emerald-400'>{t('routing.common.modeRouted')}</span>
               ) : (
-                'passthrough'
+                t('routing.common.modePassthrough')
               )}
             </span>
           </button>
@@ -52,13 +54,14 @@ export function SurfaceTabs({
 }
 
 export function RoutingViewTabs({ active, ruleCount }: { active: 'chain' | 'map' | 'rules'; ruleCount: number }) {
+  const { t } = useTranslation()
   return (
     <div className='flex items-center gap-1 border-b border-border px-6'>
       <Tabs
         items={[
-          { id: 'chain', label: 'Chain', href: '/routing' },
-          { id: 'map', label: 'Map', href: '/routing/map' },
-          { id: 'rules', label: 'Rules', count: ruleCount, href: '/routing/rules' }
+          { id: 'chain', label: t('routing.common.tabChain'), href: '/routing' },
+          { id: 'map', label: t('routing.common.tabMap'), href: '/routing/map' },
+          { id: 'rules', label: t('routing.common.tabRules'), count: ruleCount, href: '/routing/rules' }
         ]}
         active={active}
       />

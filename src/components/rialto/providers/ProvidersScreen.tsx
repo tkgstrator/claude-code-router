@@ -6,7 +6,9 @@
  * an operator had to visit three of them to answer "can this vendor serve
  * this model right now".
  */
+import type { TFunction } from 'i18next'
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
@@ -42,15 +44,16 @@ function buildRail(data: ProvidersData): RailProvider[] {
   })
 }
 
-function summarySubtitle(data: ProvidersData): string {
+function summarySubtitle(data: ProvidersData, t: TFunction): string {
   const providers = data.counts === null ? data.providers.length : data.counts.providers
   const models =
     data.counts === null ? data.providers.reduce((sum, p) => sum + enabledCountOf(p), 0) : data.counts.enabledModels
   const accounts = [...data.subscriptions.values()].reduce((sum, s) => sum + s.accounts.length, 0)
-  return `${providers} providers · ${models} models enabled · ${accounts} subscription accounts`
+  return t('providers.screen.summarySubtitle', { providers, models, accounts })
 }
 
 export function ProvidersScreen() {
+  const { t } = useTranslation()
   const { name } = useParams<{ name?: string }>()
   const navigate = useNavigate()
   const { data, error, loading, reload } = useProvidersData()
@@ -78,15 +81,19 @@ export function ProvidersScreen() {
 
   const subtitle = (() => {
     if (data === null) return undefined
-    if (selected === undefined) return summarySubtitle(data)
+    if (selected === undefined) return summarySubtitle(data, t)
     const p = selected.provider
-    if (p.auth_mode === 'subscription') return summarySubtitle(data)
-    return `${selected.label} · API key · ${enabledCountOf(p)} of ${listedModelsOf(p).length} models enabled`
+    if (p.auth_mode === 'subscription') return summarySubtitle(data, t)
+    return t('providers.screen.apiKeySubtitle', {
+      label: selected.label,
+      enabled: enabledCountOf(p),
+      total: listedModelsOf(p).length
+    })
   })()
 
   return (
     <Screen
-      title='Providers'
+      title={t('providers.screen.title')}
       subtitle={subtitle}
       actions={
         <>
@@ -96,10 +103,10 @@ export function ProvidersScreen() {
             onClick={() => run(refreshPrices)}
             disabled={busy || loading}
           >
-            Refresh prices
+            {t('providers.screen.refreshPrices')}
           </RButton>
           <RButton variant='primary' icon='ri-add-line' onClick={goAdd}>
-            Add provider
+            {t('providers.screen.addProvider')}
           </RButton>
         </>
       }
@@ -107,7 +114,7 @@ export function ProvidersScreen() {
       {error !== null ? (
         <div className='px-6 py-6 text-xs text-destructive'>{error}</div>
       ) : data === null ? (
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       ) : (
         <div className='grid h-full grid-cols-[18rem_1fr]'>
           <ProviderRail
@@ -117,9 +124,7 @@ export function ProvidersScreen() {
             onAdd={goAdd}
           />
           {selected === undefined ? (
-            <div className='px-6 py-6 text-xs text-muted-foreground'>
-              No providers configured yet. Use Add provider to connect one.
-            </div>
+            <div className='px-6 py-6 text-xs text-muted-foreground'>{t('providers.screen.emptyRail')}</div>
           ) : (
             <ProviderDetail
               provider={selected.provider}

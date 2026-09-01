@@ -7,6 +7,7 @@
  * that tall left no room for both the line and its properties.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
 import { RButton } from '@/components/rialto/primitives'
@@ -26,14 +27,18 @@ function WireUpNote() {
     <div className='px-6 py-5'>
       <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
         <i className='ri-terminal-line mr-1 align-[-1px]' />
-        Wire it up in <span className='font-mono'>~/.claude/settings.json</span>:{' '}
-        <span className='font-mono'>{'"statusLine": { "type": "command", "command": "rialto statusline" }'}</span>
+        <Trans
+          i18nKey='settings.statusline.wireUp'
+          values={{ snippet: '"statusLine": { "type": "command", "command": "rialto statusline" }' }}
+          components={{ mono: <span className='font-mono' /> }}
+        />
       </div>
     </div>
   )
 }
 
 function StatuslineEditor({ config }: { config: Config }) {
+  const { t } = useTranslation()
   const { reloadConfig } = useConfig()
   // Memoised because it seeds the draft: a fresh default object on every
   // render would make the re-sync effect below fire forever.
@@ -98,21 +103,21 @@ function StatuslineEditor({ config }: { config: Config }) {
     try {
       await api.updateConfig({ ...config, StatusLine: draft })
       await reloadConfig()
-      toast.success('Status line saved')
+      toast.success(t('settings.statusline.saved'))
     } catch (err) {
-      toast.error(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(t('settings.common.saveFailed', { message: err instanceof Error ? err.message : String(err) }))
     } finally {
       setSaving(false)
     }
-  }, [config, draft, reloadConfig])
+  }, [config, draft, reloadConfig, t])
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(persisted)
 
   return (
     <SettingsLayout
       active='statusline'
-      title='Status line'
-      subtitle={`${modules.length} modules · rialto statusline`}
+      title={t('settings.rail.statusline')}
+      subtitle={t('settings.statusline.subtitle', { count: modules.length })}
       // Opens straight into the module palette: the four panes are one
       // continuous editor, and a heading above them would offset only the
       // rightmost column.
@@ -120,10 +125,10 @@ function StatuslineEditor({ config }: { config: Config }) {
       actions={
         <>
           <RButton variant='ghost' onClick={reset} disabled={!dirty || saving}>
-            Discard
+            {t('common.discard')}
           </RButton>
           <RButton variant='primary' icon='ri-check-line' onClick={save} disabled={!dirty || saving}>
-            Save
+            {t('common.save')}
           </RButton>
         </>
       }
@@ -156,11 +161,12 @@ function StatuslineEditor({ config }: { config: Config }) {
 }
 
 export function SettingsStatusline() {
+  const { t } = useTranslation()
   const { config } = useConfig()
   if (config === null) {
     return (
-      <SettingsLayout active='statusline' title='Status line' showHeading={false}>
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+      <SettingsLayout active='statusline' title={t('settings.rail.statusline')} showHeading={false}>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       </SettingsLayout>
     )
   }

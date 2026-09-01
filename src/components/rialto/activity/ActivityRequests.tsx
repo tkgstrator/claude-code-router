@@ -7,6 +7,7 @@
  * only readable by grepping pino output.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { type ActivityRequestLog, downloadCsv, fetchRequestLogs, percentile } from '@/components/rialto/activity/data'
 import { COLUMNS, type ColumnId, ColumnMenu, RequestsTable } from '@/components/rialto/activity/RequestsTable'
 import {
@@ -16,7 +17,7 @@ import {
   options,
   RANGES,
   type Row,
-  STATUSES
+  statusOptions
 } from '@/components/rialto/activity/requests-rows'
 import { ActivityTabs, FilterSelect, NoteBox, ScreenMessage, StatTile } from '@/components/rialto/activity/shared'
 import { useActivityCounts } from '@/components/rialto/activity/use-activity-counts'
@@ -56,24 +57,36 @@ function summarise(rows: Row[]): Counts {
 }
 
 function StatsRow({ counts, rangeLabel }: { counts: Counts; rangeLabel: string }) {
+  const { t } = useTranslation()
   const share = (n: number): string => (counts.total === 0 ? '–' : fmtRate(n / counts.total))
   return (
     <div className='grid grid-cols-5 gap-px border-b border-border px-6 py-4'>
-      <StatTile size='base' label='Requests' value={counts.total.toLocaleString()} sub={rangeLabel.toLowerCase()} />
+      <StatTile
+        size='base'
+        label={t('activity.requests.statRequests')}
+        value={counts.total.toLocaleString()}
+        sub={rangeLabel.toLowerCase()}
+      />
       <StatTile size='base' label='2xx' value={counts.ok.toLocaleString()} sub={share(counts.ok)} />
-      <StatTile size='base' label='429' value={counts.rateLimited.toLocaleString()} sub='failed over' />
+      <StatTile
+        size='base'
+        label='429'
+        value={counts.rateLimited.toLocaleString()}
+        sub={t('activity.requests.statRateLimitedSub')}
+      />
       <StatTile size='base' label='4xx / 5xx' value={counts.failed.toLocaleString()} sub={share(counts.failed)} />
       <StatTile
         size='base'
         label='p50 / p95'
         value={`${fmtLatency(counts.p50)} / ${fmtLatency(counts.p95)}`}
-        sub='end to end'
+        sub={t('activity.requests.statLatencySub')}
       />
     </div>
   )
 }
 
 export function ActivityRequests() {
+  const { t } = useTranslation()
   const [page, setPage] = useState<{ items: ActivityRequestLog[]; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
@@ -141,11 +154,16 @@ export function ActivityRequests() {
   const counts = useMemo(() => summarise(visible), [visible])
   const columns = useMemo(() => COLUMNS.filter((c) => !hidden.has(c.id)), [hidden])
 
-  const rangeLabel = RANGES.find((r) => r.id === filters.range)
+  const range = RANGES.find((r) => r.id === filters.range)
+  const rangeLabel = range === undefined ? '' : t(range.labelKey)
   const subtitle =
     page === null
       ? undefined
-      : `${fmtCount(page.total)} requests logged · ${counts.rateLimited} failovers · newest ${page.items.length}`
+      : t('activity.requests.subtitle', {
+          logged: fmtCount(page.total),
+          failovers: counts.rateLimited,
+          newest: page.items.length
+        })
 
   const exportCsv = () => {
     downloadCsv('rialto-requests.csv', [
@@ -168,12 +186,12 @@ export function ActivityRequests() {
 
   return (
     <Screen
-      title='Requests'
+      title={t('activity.requests.title')}
       subtitle={subtitle}
       actions={
         <>
           <RButton variant='outline' icon='ri-broadcast-line' aria-pressed={live} onClick={() => setLive((v) => !v)}>
-            Live tail
+            {t('activity.requests.liveTail')}
           </RButton>
           <ColumnMenu hidden={hidden} onChange={setHidden} />
         </>
@@ -187,63 +205,71 @@ export function ActivityRequests() {
 
       <div className='flex flex-wrap items-center gap-2 border-b border-border px-6 py-3'>
         <FilterSelect
-          label='Surface'
+          label={t('activity.requests.filterSurface')}
           value={filters.surface}
-          options={options(surfaces.surfaces.map((s) => s.path))}
+          options={options(
+            surfaces.surfaces.map((s) => s.path),
+            t('activity.common.all')
+          )}
           onChange={(surface) => setFilters((f) => ({ ...f, surface }))}
         />
         <FilterSelect
-          label='Status'
+          label={t('activity.requests.filterStatus')}
           value={filters.status}
-          options={STATUSES}
+          options={statusOptions(t('activity.common.all'))}
           onChange={(status) => setFilters((f) => ({ ...f, status }))}
         />
         <FilterSelect
-          label='Token'
+          label={t('activity.requests.filterToken')}
           value={filters.client}
-          options={options(rows.map((r) => r.client))}
+          options={options(
+            rows.map((r) => r.client),
+            t('activity.common.all')
+          )}
           onChange={(client) => setFilters((f) => ({ ...f, client }))}
         />
         <FilterSelect
-          label='Rule'
+          label={t('activity.requests.filterRule')}
           value={filters.rule}
-          options={options(rows.map((r) => r.rule))}
+          options={options(
+            rows.map((r) => r.rule),
+            t('activity.common.all')
+          )}
           onChange={(rule) => setFilters((f) => ({ ...f, rule }))}
         />
         <FilterSelect
-          label='Range'
+          label={t('activity.requests.filterRange')}
           value={filters.range}
-          options={RANGES.map((r) => ({ id: r.id, label: r.label }))}
-          onChange={(range) => setFilters((f) => ({ ...f, range }))}
+          options={RANGES.map((r) => ({ id: r.id, label: t(r.labelKey) }))}
+          onChange={(next) => setFilters((f) => ({ ...f, range: next }))}
         />
         <div className='ml-auto flex items-center gap-2'>
           {live ? (
             <span className='flex items-center gap-1.5 text-[11px] text-muted-foreground'>
-              <span className='size-1.5 animate-pulse rounded-full bg-emerald-500' /> live
+              <span className='size-1.5 animate-pulse rounded-full bg-emerald-500' /> {t('activity.requests.live')}
             </span>
           ) : null}
           <RButton variant='ghost' icon='ri-download-line' onClick={exportCsv} disabled={visible.length === 0}>
-            Export
+            {t('activity.requests.export')}
           </RButton>
         </div>
       </div>
 
-      <StatsRow counts={counts} rangeLabel={rangeLabel === undefined ? '' : rangeLabel.label} />
+      <StatsRow counts={counts} rangeLabel={rangeLabel} />
 
       {error !== null ? (
         <ScreenMessage tone='bad'>{error}</ScreenMessage>
       ) : page === null ? (
-        <ScreenMessage>Loading…</ScreenMessage>
+        <ScreenMessage>{t('common.loading')}</ScreenMessage>
       ) : visible.length === 0 ? (
-        <ScreenMessage>No requests match these filters.</ScreenMessage>
+        <ScreenMessage>{t('activity.requests.empty')}</ScreenMessage>
       ) : (
         <RequestsTable rows={visible} columns={columns} />
       )}
 
       <div className='px-6 py-4'>
         <NoteBox>
-          A <span className='font-mono'>429</span> row is not an error the client saw — it is a failover step, paired
-          with the retry that served the same turn. Subscription rows have no cost: the plan is already paid for.
+          <Trans i18nKey='activity.requests.note' components={{ mono: <span className='font-mono' /> }} />
         </NoteBox>
       </div>
       <div className='h-6' />

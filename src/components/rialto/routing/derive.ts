@@ -98,6 +98,19 @@ export const STATE_TONE = {
   unknown: 'mute'
 } as const
 
+/**
+ * Translation keys for the four target states.
+ *
+ * Kept beside STATE_TONE so the pill in the chain table, the node subtitle
+ * on the map and the map legend can never name the same state differently.
+ */
+export const STATE_LABEL_KEYS: Record<TargetState, string> = {
+  ready: 'routing.common.stateReady',
+  throttled: 'routing.common.stateThrottled',
+  exhausted: 'routing.common.stateExhausted',
+  unknown: 'routing.common.stateUnknown'
+}
+
 /** Empty profile shape — every scenario and lane present, so tabs never branch on "missing". */
 export function emptyByScenario(): PreferenceByScenario {
   return {

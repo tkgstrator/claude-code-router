@@ -8,6 +8,7 @@
  * after every save.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { SectionHead, StaticField, TextField, ToggleField } from '@/components/rialto/settings/fields'
@@ -41,6 +42,7 @@ interface UpdateState {
 }
 
 function UpdateSection() {
+  const { t } = useTranslation()
   const [state, setState] = useState<UpdateState | null>(null)
   const [checkedAt, setCheckedAt] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
@@ -55,29 +57,32 @@ function UpdateSection() {
         setCheckedAt(dayjs().toISOString())
         setNow(Date.now())
       })
-      .catch((e: Error) => toast.error(`Update check failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.server.updateCheckFailed', { message: e.message })))
       .finally(() => setChecking(false))
-  }, [])
+  }, [t])
 
   useEffect(check, [check])
 
-  const hint = checkedAt === null ? 'Not checked yet' : `Checked ${fmtAgo(checkedAt, now)} ago`
+  const hint =
+    checkedAt === null
+      ? t('settings.server.notCheckedYet')
+      : t('settings.server.checkedAgo', { ago: fmtAgo(checkedAt, now) })
 
   return (
     <>
-      <SectionHead title='Update' />
-      <SettingsField label='Version' hint={hint}>
+      <SectionHead title={t('settings.server.updateTitle')} />
+      <SettingsField label={t('settings.server.version')} hint={hint}>
         <div className='flex items-center gap-3'>
           <span className='font-mono text-xs'>v{APP_VERSION}</span>
           {state === null ? (
-            <Pill tone='mute'>unknown</Pill>
+            <Pill tone='mute'>{t('settings.server.versionUnknown')}</Pill>
           ) : state.hasUpdate ? (
-            <Pill tone='warn'>v{state.latestVersion} available</Pill>
+            <Pill tone='warn'>{t('settings.server.versionAvailable', { version: state.latestVersion })}</Pill>
           ) : (
-            <Pill tone='ok'>up to date</Pill>
+            <Pill tone='ok'>{t('settings.server.upToDate')}</Pill>
           )}
           <RButton variant='ghost' icon='ri-refresh-line' onClick={check} disabled={checking}>
-            Check now
+            {t('settings.server.checkNow')}
           </RButton>
         </div>
       </SettingsField>
@@ -86,11 +91,16 @@ function UpdateSection() {
 }
 
 const CHECK_TONES = { ok: 'ok', fail: 'bad', skip: 'mute' } as const
-const CHECK_LABELS = { ok: 'reachable', fail: 'unreachable', skip: 'not configured' } as const
+const CHECK_LABEL_KEYS = {
+  ok: 'settings.server.checkReachable',
+  fail: 'settings.server.checkUnreachable',
+  skip: 'settings.server.checkNotConfigured'
+} as const
 
 function CheckPill({ state }: { state: 'ok' | 'fail' | 'skip' | undefined }) {
-  if (state === undefined) return <Pill tone='mute'>not reported</Pill>
-  return <Pill tone={CHECK_TONES[state]}>{CHECK_LABELS[state]}</Pill>
+  const { t } = useTranslation()
+  if (state === undefined) return <Pill tone='mute'>{t('settings.server.checkNotReported')}</Pill>
+  return <Pill tone={CHECK_TONES[state]}>{t(CHECK_LABEL_KEYS[state])}</Pill>
 }
 
 /**
@@ -100,6 +110,7 @@ function CheckPill({ state }: { state: 'ok' | 'fail' | 'skip' | undefined }) {
  * server, so that row says so rather than guessing at a path.
  */
 function DataSection() {
+  const { t } = useTranslation()
   const [health, setHealth] = useState<HealthResponse | null>(null)
 
   useEffect(() => {
@@ -115,16 +126,23 @@ function DataSection() {
 
   return (
     <>
-      <SectionHead title='Data' meta={health === null ? 'health probe unavailable' : `up ${health.uptime_seconds}s`} />
-      <StaticField
-        label='Home directory'
-        hint='Config envelope, plugins, tokenizer cache. Not surfaced by the API.'
-        value={<span className='text-muted-foreground'>server-side only</span>}
+      <SectionHead
+        title={t('settings.server.dataTitle')}
+        meta={
+          health === null
+            ? t('settings.server.healthUnavailable')
+            : t('settings.server.uptime', { seconds: health.uptime_seconds })
+        }
       />
-      <SettingsField label='Database' hint='Providers, models, routing, sessions, usage.'>
+      <StaticField
+        label={t('settings.server.homeDirectory')}
+        hint={t('settings.server.homeDirectoryHint')}
+        value={<span className='text-muted-foreground'>{t('settings.server.serverSideOnly')}</span>}
+      />
+      <SettingsField label={t('settings.server.database')} hint={t('settings.server.databaseHint')}>
         <CheckPill state={health?.checks.db} />
       </SettingsField>
-      <SettingsField label='Redis' hint='Usage capture + auth-health job queue.'>
+      <SettingsField label={t('settings.server.redis')} hint={t('settings.server.redisHint')}>
         <CheckPill state={health?.checks.redis} />
       </SettingsField>
     </>
@@ -140,39 +158,45 @@ function ServerFields({
   wire: EnvelopeWire
   onChange: (next: ServerDraft) => void
 }) {
+  const { t } = useTranslation()
   const set = <K extends keyof ServerDraft>(key: K, value: ServerDraft[K]) => onChange({ ...draft, [key]: value })
   return (
     <>
       <TextField
-        label='Host'
-        hint='Bind address. Put Cloudflare Access in front before exposing beyond loopback.'
+        label={t('settings.server.host')}
+        hint={t('settings.server.hostHint')}
         value={draft.HOST}
         onChange={(v) => set('HOST', v)}
         placeholder='127.0.0.1'
       />
-      <TextField label='Port' value={draft.PORT} inputMode='numeric' onChange={(v) => set('PORT', v)} />
+      <TextField
+        label={t('settings.server.port')}
+        value={draft.PORT}
+        inputMode='numeric'
+        onChange={(v) => set('PORT', v)}
+      />
       <StaticField
-        label='Bootstrap token'
-        hint='Gates /api/* only — the admin recovery path. Clients call /v1/* with an issued access token.'
+        label={t('settings.server.bootstrapToken')}
+        hint={t('settings.server.bootstrapTokenHint')}
         value={maskSecret(wire.APIKEY)}
       />
       <TextField
-        label='Request timeout'
-        hint='Milliseconds. Applies to every upstream call.'
+        label={t('settings.server.requestTimeout')}
+        hint={t('settings.server.requestTimeoutHint')}
         value={draft.API_TIMEOUT_MS}
         inputMode='numeric'
         onChange={(v) => set('API_TIMEOUT_MS', v)}
       />
       <TextField
-        label='Proxy URL'
-        hint='Routes upstream traffic through an HTTPS proxy.'
+        label={t('settings.server.proxyUrl')}
+        hint={t('settings.server.proxyUrlHint')}
         value={draft.PROXY_URL}
         onChange={(v) => set('PROXY_URL', v)}
-        placeholder='unset'
+        placeholder={t('settings.server.unset')}
       />
       <ToggleField
-        label='Non-interactive'
-        hint='Skip prompts that expect a TTY.'
+        label={t('settings.server.nonInteractive')}
+        hint={t('settings.server.nonInteractiveHint')}
         value={draft.NON_INTERACTIVE_MODE}
         onChange={(v) => set('NON_INTERACTIVE_MODE', v)}
       />
@@ -181,6 +205,7 @@ function ServerFields({
 }
 
 export function SettingsServer() {
+  const { t } = useTranslation()
   const [wire, setWire] = useState<EnvelopeWire | null>(null)
   const [draft, setDraft] = useState<ServerDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -209,7 +234,7 @@ export function SettingsServer() {
     const PORT = parseCount(draft.PORT)
     const API_TIMEOUT_MS = parseCount(draft.API_TIMEOUT_MS)
     if (PORT === null || API_TIMEOUT_MS === null) {
-      toast.error('Port and request timeout must be whole numbers.')
+      toast.error(t('settings.server.numbersRequired'))
       return
     }
     setSaving(true)
@@ -225,26 +250,26 @@ export function SettingsServer() {
         toast.success(res.message)
         load()
       })
-      .catch((e: Error) => toast.error(`Save failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.common.saveFailed', { message: e.message })))
       .finally(() => setSaving(false))
   }
 
   const restart = () => {
     api
       .restartService()
-      .then(() => toast.success('Restart requested.'))
-      .catch((e: Error) => toast.error(`Restart failed: ${e.message}`))
+      .then(() => toast.success(t('settings.server.restartRequested')))
+      .catch((e: Error) => toast.error(t('settings.server.restartFailed', { message: e.message })))
   }
 
   return (
     <SettingsLayout
       active='server'
-      title='Settings'
-      subtitle={`Rialto v${APP_VERSION} · config envelope on disk`}
-      headerNote='Boot-time values. A change needs a restart.'
+      title={t('settings.common.title')}
+      subtitle={t('settings.server.subtitle', { version: APP_VERSION })}
+      headerNote={t('settings.server.headerNote')}
       headerActions={
         <RButton variant='outline' icon='ri-restart-line' onClick={restart}>
-          Restart
+          {t('settings.server.restart')}
         </RButton>
       }
       actions={
@@ -254,10 +279,10 @@ export function SettingsServer() {
             onClick={() => (wire === null ? undefined : setDraft(toDraft(wire)))}
             disabled={!dirty}
           >
-            Discard
+            {t('common.discard')}
           </RButton>
           <RButton variant='primary' icon='ri-check-line' onClick={save} disabled={!dirty || saving}>
-            Save
+            {t('common.save')}
           </RButton>
         </>
       }
@@ -265,7 +290,7 @@ export function SettingsServer() {
       {error !== null ? (
         <div className='px-6 py-6 text-xs text-destructive'>{error}</div>
       ) : draft === null || wire === null ? (
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       ) : (
         <ServerFields draft={draft} wire={wire} onChange={setDraft} />
       )}

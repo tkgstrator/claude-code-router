@@ -12,6 +12,7 @@
  */
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { Pill, RButton } from '@/components/rialto/primitives'
@@ -31,6 +32,8 @@ const DOT: Record<StepState, string> = {
 // Only claude and codex have an OAuth initiate endpoint. Gemini is listed
 // because it is one of the four inbound surfaces, and every card hands off
 // to the Providers screen, which owns the connect flow either way.
+// The labels are product names and the hints are plan names, so both are
+// the same in every language — only the surrounding prose is translated.
 const CONNECT_OPTIONS: Array<{ label: string; icon: string; hint: string }> = [
   { label: 'Claude Code', icon: 'ri-sparkling-line', hint: 'Pro / Max' },
   { label: 'Codex', icon: 'ri-terminal-line', hint: 'ChatGPT plan' },
@@ -55,9 +58,10 @@ const isLive = (token: AccessTokenWire, now: number): boolean => {
   return token.expiresAt === null ? true : Date.parse(token.expiresAt) > now
 }
 
-const plural = (n: number, word: string): string => `${n} ${n === 1 ? word : `${word}s`}`
+type Translate = (key: string, options?: Record<string, unknown>) => string
 
-const nextTokenName = (live: number): string => (live === 0 ? 'first client' : `client ${live + 1}`)
+const nextTokenName = (live: number, t: Translate): string =>
+  live === 0 ? t('system.setup.firstClient') : t('system.setup.nthClient', { n: live + 1 })
 
 function Step({
   n,
@@ -72,6 +76,7 @@ function Step({
   body: string
   children?: ReactNode
 }) {
+  const { t } = useTranslation()
   return (
     <div className={cn('flex gap-4 border-t border-border px-6 py-5', state === 'todo' ? 'opacity-50' : '')}>
       <span
@@ -85,7 +90,7 @@ function Step({
       <div className='min-w-0 flex-1'>
         <div className='flex items-center gap-2'>
           <h2 className='text-xs font-semibold'>{title}</h2>
-          {state === 'done' ? <Pill tone='ok'>done</Pill> : null}
+          {state === 'done' ? <Pill tone='ok'>{t('system.setup.stepDone')}</Pill> : null}
         </div>
         <p className='mt-1 text-[11px] leading-relaxed text-muted-foreground'>{body}</p>
         {children}
@@ -104,6 +109,7 @@ function Step({
  * and pasting it is the entire point of this block.
  */
 function ExportBlock({ baseUrl, plaintext }: { baseUrl: string; plaintext: string | null }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [clipboardError, setClipboardError] = useState<string | null>(null)
 
@@ -111,7 +117,7 @@ function ExportBlock({ baseUrl, plaintext }: { baseUrl: string; plaintext: strin
     if (plaintext === null) return
     navigator.clipboard.writeText(plaintext).then(
       () => setCopied(true),
-      () => setClipboardError('Clipboard was refused — select the token above and copy it by hand.')
+      () => setClipboardError(t('system.setup.clipboardRefused'))
     )
   }
 
@@ -134,12 +140,10 @@ function ExportBlock({ baseUrl, plaintext }: { baseUrl: string; plaintext: strin
             className='shrink-0'
             onClick={copy}
           >
-            {copied ? 'Copied' : 'Copy'}
+            {t(copied ? 'settings.access.tokenCopiedShort' : 'common.copy')}
           </RButton>
           <span className='text-[11px] leading-relaxed text-muted-foreground'>
-            {clipboardError === null
-              ? 'Shown once. Rialto stores only a hash of it, so leaving this page loses the value — issuing a replacement is the only way back.'
-              : clipboardError}
+            {clipboardError === null ? t('system.setup.shownOnce') : clipboardError}
           </span>
         </div>
       )}
@@ -148,6 +152,7 @@ function ExportBlock({ baseUrl, plaintext }: { baseUrl: string; plaintext: strin
 }
 
 export function SetupScreen() {
+  const { t } = useTranslation()
   const { config } = useConfig()
   const navigate = useNavigate()
   const [tokens, setTokens] = useState<AccessTokenWire[] | null>(null)
@@ -178,18 +183,20 @@ export function SetupScreen() {
     setIssuing(true)
     setIssueError(null)
     api
-      .issueAccessToken({ name: nextTokenName(live) })
+      .issueAccessToken({ name: nextTokenName(live, t) })
       .then((result) => {
         setIssued(result.plaintext)
         setTokens(tokens === null ? [result.token] : [result.token, ...tokens])
       })
-      .catch((err: unknown) => setIssueError(err instanceof Error ? err.message : 'Could not issue a token.'))
+      .catch((err: unknown) => setIssueError(err instanceof Error ? err.message : t('system.setup.issueFailed')))
       .finally(() => setIssuing(false))
   }
 
-  const catalogBody = `Migrations applied and the model catalog seeded. ${plural(providers.length, 'provider')} registered, ${
-    connected === 0 ? 'none authenticated yet' : `${connected} authenticated`
-  }.`
+  const catalogBody = t('system.setup.databaseBody', {
+    n: providers.length,
+    authenticated:
+      connected === 0 ? t('system.setup.noneAuthenticated') : t('system.setup.someAuthenticated', { n: connected })
+  })
 
   return (
     <div className='flex min-h-screen items-center justify-center bg-background px-6 py-10'>
@@ -203,21 +210,17 @@ export function SetupScreen() {
             <span className='ml-auto font-mono text-[10px] text-muted-foreground'>v{APP_VERSION}</span>
           </div>
           <p className='mt-4 text-xs leading-relaxed text-muted-foreground'>
-            Rialto sits between your coding clients and the model vendors. Clients speak whichever wire format they
-            already speak — <span className='font-mono'>/v1/messages</span>,{' '}
-            <span className='font-mono'>/v1/chat/completions</span>, <span className='font-mono'>/v1/responses</span>,
-            or Gemini's — and Rialto decides which model actually serves each request, failing over when a subscription
-            runs out of quota.
+            <Trans i18nKey='system.setup.intro' components={{ mono: <span className='font-mono' /> }} />
           </p>
         </div>
 
-        <Step n={1} state='done' title='Database ready' body={catalogBody} />
+        <Step n={1} state='done' title={t('system.setup.databaseTitle')} body={catalogBody} />
 
         <Step
           n={2}
           state={connected === 0 ? 'active' : 'done'}
-          title='Connect a provider'
-          body='Rialto needs at least one place to send requests. A subscription (Claude / Codex / Gemini) reuses a plan you already pay for; an API key bills per token.'
+          title={t('system.setup.connectTitle')}
+          body={t('system.setup.connectBody')}
         >
           <div className='mt-3 grid grid-cols-3 gap-2'>
             {CONNECT_OPTIONS.map((option) => (
@@ -236,26 +239,24 @@ export function SetupScreen() {
             to='/providers'
             className='mt-2 inline-block text-[11px] text-muted-foreground underline-offset-2 hover:underline'
           >
-            Use an API key instead
+            {t('system.setup.useApiKey')}
           </Link>
         </Step>
 
         <Step
           n={3}
           state={connected === 0 ? 'todo' : 'active'}
-          title='Point a client at Rialto'
-          body='The proxy answers only to an issued access token — a fresh install can serve nothing until one exists. Issue one, export it with the base URL, then run your client as usual.'
+          title={t('system.setup.clientTitle')}
+          body={t('system.setup.clientBody')}
         >
           <ExportBlock baseUrl={baseUrl} plaintext={issued} />
           {issued === null ? (
             <div className='mt-2 flex items-start gap-2'>
               <RButton variant='outline' icon='ri-key-2-line' className='shrink-0' onClick={issue} disabled={issuing}>
-                {issuing ? 'Issuing…' : 'Issue a token'}
+                {t(issuing ? 'system.setup.issuing' : 'system.setup.issueToken')}
               </RButton>
               <span className='text-[11px] leading-relaxed text-muted-foreground'>
-                {live === 0
-                  ? 'Nothing can call the proxy yet.'
-                  : `You already have ${plural(live, 'token')}. Issue another, or paste one you saved — the plaintext of an existing token cannot be shown again.`}
+                {live === 0 ? t('system.setup.nothingCanCall') : t('system.setup.alreadyHave', { n: live })}
               </span>
             </div>
           ) : null}
@@ -264,14 +265,13 @@ export function SetupScreen() {
 
         <div className='flex items-center gap-3 border-t border-border px-6 py-4'>
           <span className='text-[11px] text-muted-foreground'>
-            The token in <span className='font-mono'>~/.rialto/config.json</span> signs you into this UI. Clients use an
-            access token.
+            <Trans i18nKey='system.setup.footerNote' components={{ mono: <span className='font-mono' /> }} />
           </span>
           <Link to='/overview' className='ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:underline'>
-            Skip setup
+            {t('system.setup.skip')}
           </Link>
           <RButton variant='primary' onClick={() => navigate(connected === 0 ? '/providers' : '/overview')}>
-            Continue <i className='ri-arrow-right-line text-sm' />
+            {t('common.continue')} <i className='ri-arrow-right-line text-sm' />
           </RButton>
         </div>
       </div>

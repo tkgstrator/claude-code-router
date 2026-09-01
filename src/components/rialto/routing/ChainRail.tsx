@@ -6,7 +6,9 @@
  * they sit beside the table instead of above it — the operator reads them
  * while reordering, not before.
  */
+import type { TFunction } from 'i18next'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/components/ConfigProvider'
 import { api, type RoutingPresetItem } from '@/lib/api'
 import { applyPresetToLive } from '@/lib/routing-map/apply-to-live'
@@ -28,11 +30,11 @@ const readNum = (raw: Record<string, unknown> | null, key: string, fallback: num
 
 // Two directional gates read better as one four-state answer than as two
 // booleans the operator has to combine in their head.
-const substitutionLabel = (up: boolean, down: boolean): string => {
-  if (up && down) return 'up + down'
-  if (up) return 'up only'
-  if (down) return 'down only'
-  return 'same tier'
+const substitutionLabel = (up: boolean, down: boolean, t: TFunction): string => {
+  if (up && down) return t('routing.chain.substitutionUpDown')
+  if (up) return t('routing.chain.substitutionUp')
+  if (down) return t('routing.chain.substitutionDown')
+  return t('routing.chain.substitutionSame')
 }
 
 function ConstraintRow({ label, value, hint }: { label: string; value: string; hint: string }) {
@@ -48,47 +50,50 @@ function ConstraintRow({ label, value, hint }: { label: string; value: string; h
 }
 
 function Constraints({ constraints }: { constraints: Record<string, unknown> | null }) {
+  const { t } = useTranslation()
   const escalation = readBool(constraints, 'allowEscalation', true)
   const demotion = readBool(constraints, 'allowDemotion', true)
   const exhausted = constraints === null ? '429' : constraints.exhaustedBehavior
   return (
     <>
       <ConstraintRow
-        label='Tier substitution'
-        value={substitutionLabel(escalation, demotion)}
-        hint='which tiers may stand in for the requested one'
+        label={t('routing.chain.tierSubstitution')}
+        value={substitutionLabel(escalation, demotion, t)}
+        hint={t('routing.chain.tierSubstitutionHint')}
       />
       <ConstraintRow
-        label='Weight floor'
+        label={t('routing.chain.weightFloor')}
         value={`${Math.round(readNum(constraints, 'healthinessThreshold', 0.05) * 100)}%`}
-        hint='skip targets below this'
+        hint={t('routing.chain.weightFloorHint')}
       />
       <ConstraintRow
-        label='When exhausted'
-        value={exhausted === 'passthrough' ? 'passthrough' : '429'}
-        hint='429 / passthrough'
+        label={t('routing.chain.whenExhausted')}
+        value={exhausted === 'passthrough' ? t('routing.common.modePassthrough') : '429'}
+        hint={t('routing.chain.whenExhaustedHint')}
       />
       <ConstraintRow
-        label='Quota skip'
+        label={t('routing.chain.quotaSkip')}
         value={`${readNum(constraints, 'quotaSkipPct', 100)}%`}
-        hint='skip a target at or above this usage'
+        hint={t('routing.chain.quotaSkipHint')}
       />
     </>
   )
 }
 
 function RuleSummary({ rule }: { rule: RouteRule }) {
+  const { t } = useTranslation()
   return (
     <div className={ROW}>
-      <div className='text-[11px] uppercase tracking-wider text-muted-foreground'>when</div>
-      <div className='mt-0.5 text-xs'>{summarizePredicate(rule)}</div>
-      <div className='mt-2 text-[11px] uppercase tracking-wider text-muted-foreground'>then</div>
-      <div className='mt-0.5 font-mono text-xs'>{summarizeTarget(rule)}</div>
+      <div className='text-[11px] uppercase tracking-wider text-muted-foreground'>{t('routing.chain.when')}</div>
+      <div className='mt-0.5 text-xs'>{summarizePredicate(rule, t)}</div>
+      <div className='mt-2 text-[11px] uppercase tracking-wider text-muted-foreground'>{t('routing.chain.then')}</div>
+      <div className='mt-0.5 font-mono text-xs'>{summarizeTarget(rule, t)}</div>
     </div>
   )
 }
 
 function Presets({ onNotify }: { onNotify: (message: string, ok: boolean) => void }) {
+  const { t } = useTranslation()
   const { config, setConfig } = useConfig()
   const [presets, setPresets] = useState<RoutingPresetItem[]>([])
   const [busy, setBusy] = useState(false)
@@ -111,16 +116,16 @@ function Presets({ onNotify }: { onNotify: (message: string, ok: boolean) => voi
       setBusy(false)
       if (result.ok) {
         setConfig(result.updatedConfig)
-        onNotify(`Applied "${preset.name}" to live routing`, true)
+        onNotify(t('routing.common.presetApplied', { name: preset.name }), true)
       } else {
         onNotify(result.message, false)
       }
     },
-    [config, setConfig, onNotify]
+    [config, setConfig, onNotify, t]
   )
 
   if (presets.length === 0) {
-    return <div className='px-4 pb-6 text-[11px] text-muted-foreground'>No saved snapshots yet.</div>
+    return <div className='px-4 pb-6 text-[11px] text-muted-foreground'>{t('routing.common.noSnapshots')}</div>
   }
   return (
     <div className='px-4 pb-6'>
@@ -136,7 +141,7 @@ function Presets({ onNotify }: { onNotify: (message: string, ok: boolean) => voi
         >
           <i className='ri-bookmark-line text-sm text-muted-foreground' />
           <span className='truncate'>{preset.name}</span>
-          <span className='ml-auto shrink-0 text-[11px] text-muted-foreground'>Apply</span>
+          <span className='ml-auto shrink-0 text-[11px] text-muted-foreground'>{t('routing.common.apply')}</span>
         </button>
       ))}
     </div>
@@ -152,18 +157,19 @@ export function ChainRail({
   rules: readonly RouteRule[]
   onNotify: (message: string, ok: boolean) => void
 }) {
+  const { t } = useTranslation()
   return (
     <aside className='min-w-0'>
       <div className='px-4 pt-5 pb-2'>
-        <h2 className={HEADING}>Constraints</h2>
+        <h2 className={HEADING}>{t('routing.chain.constraints')}</h2>
       </div>
       <Constraints constraints={constraints} />
 
       <div className='border-t border-border px-4 pt-5 pb-2'>
-        <h2 className={HEADING}>Rules</h2>
+        <h2 className={HEADING}>{t('routing.common.rules')}</h2>
       </div>
       {rules.length === 0 ? (
-        <div className='px-4 pb-2 text-[11px] text-muted-foreground'>No rules on this lane.</div>
+        <div className='px-4 pb-2 text-[11px] text-muted-foreground'>{t('routing.chain.noLaneRules')}</div>
       ) : (
         rules.map((rule, index) => (
           // Rules are order-defined and unnamed by default, so position is
@@ -174,7 +180,7 @@ export function ChainRail({
       )}
 
       <div className='border-t border-border px-4 pt-5 pb-2'>
-        <h2 className={HEADING}>Presets</h2>
+        <h2 className={HEADING}>{t('routing.common.presets')}</h2>
       </div>
       <Presets onNotify={onNotify} />
     </aside>

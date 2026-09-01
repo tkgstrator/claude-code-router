@@ -11,6 +11,7 @@
  * thrown message in the same frame as the other system states rather
  * than inventing a diagnosis it cannot support.
  */
+import { useTranslation } from 'react-i18next'
 import { isRouteErrorResponse, useNavigate, useRouteError } from 'react-router-dom'
 import { RButton } from '@/components/rialto/primitives'
 import { NotFound } from '@/components/rialto/system/NotFound'
@@ -23,6 +24,7 @@ const messageOf = (error: unknown): string | null => {
 }
 
 export function RouteError() {
+  const { t } = useTranslation()
   const error = useRouteError()
   const navigate = useNavigate()
 
@@ -39,11 +41,8 @@ export function RouteError() {
     <SystemPage>
       <div className='w-full max-w-sm text-center'>
         <div className='font-mono text-2xl tabular-nums text-muted-foreground/40'>!</div>
-        <h3 className='mt-2 text-sm font-semibold'>This screen failed to render</h3>
-        <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>
-          The server may be fine — this is a fault in the page itself. Reloading is worth trying; if it repeats, the
-          message below is what to report.
-        </p>
+        <h3 className='mt-2 text-sm font-semibold'>{t('system.crash.title')}</h3>
+        <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>{t('system.crash.body')}</p>
         {message === null ? null : (
           <div className='mt-3 overflow-x-auto rounded-md border border-border px-3 py-2 text-left font-mono text-[11px] text-muted-foreground'>
             {message}
@@ -51,10 +50,10 @@ export function RouteError() {
         )}
         <div className='mt-4 flex items-center justify-center gap-2'>
           <RButton variant='outline' icon='ri-refresh-line' onClick={() => window.location.reload()}>
-            Reload
+            {t('settings.advanced.reload')}
           </RButton>
           <RButton variant='ghost' icon='ri-arrow-left-line' onClick={() => navigate('/overview')}>
-            Overview
+            {t('shell.navOverview')}
           </RButton>
         </div>
       </div>

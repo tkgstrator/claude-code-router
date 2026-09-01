@@ -5,6 +5,7 @@
  * pixel-diff harness measures design differences, not markup drift.
  */
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Mono, Pill, SurfacePill, type TabItem, Tabs } from '@/components/rialto/primitives'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { fmtCount } from '@/lib/rialto/format'
@@ -29,20 +30,21 @@ export function ActivityTabs({
   sessionCount?: number
   requestCount?: number
 }) {
+  const { t } = useTranslation()
   const items: TabItem[] = [
     {
       id: 'sessions',
-      label: 'Sessions',
+      label: t('activity.common.tabSessions'),
       count: sessionCount === undefined ? undefined : fmtCount(sessionCount),
       href: '/activity'
     },
     {
       id: 'requests',
-      label: 'Requests',
+      label: t('activity.common.tabRequests'),
       count: requestCount === undefined ? undefined : fmtCount(requestCount),
       href: '/activity/requests'
     },
-    { id: 'logs', label: 'Logs', href: '/activity/logs' }
+    { id: 'logs', label: t('activity.common.tabLogs'), href: '/activity/logs' }
   ]
   return (
     <div className='flex items-center gap-1 border-b border-border px-6'>
@@ -72,12 +74,13 @@ export function FilterSelect<T extends string>({
   options: readonly FilterOption<T>[]
   onChange: (next: T) => void
 }) {
+  const { t } = useTranslation()
   const current = options.find((o) => o.id === value)
   return (
     <Popover>
       <PopoverTrigger className='inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs transition-colors hover:bg-muted/60'>
         <span className='text-muted-foreground'>{label}</span>
-        <span>{current === undefined ? 'All' : current.label}</span>
+        <span>{current === undefined ? t('activity.common.all') : current.label}</span>
         <i className='ri-arrow-down-s-line text-sm text-muted-foreground' />
       </PopoverTrigger>
       <PopoverContent align='start' className='w-48 gap-0 p-1'>
@@ -156,7 +159,8 @@ export function StatusPill({ status }: { status: number }) {
 
 /** Endpoint cell. A row with no surface recorded says so instead of guessing one. */
 export function SurfaceCell({ path }: { path: string | null }) {
-  return path === null ? <Mono>untracked</Mono> : <SurfacePill path={path} />
+  const { t } = useTranslation()
+  return path === null ? <Mono>{t('activity.common.untracked')}</Mono> : <SurfacePill path={path} />
 }
 
 /** The dashed explanatory block the mocks close their tables with. */

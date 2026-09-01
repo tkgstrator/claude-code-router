@@ -8,6 +8,7 @@
  * come from the server (`/api/inbound-surfaces`,
  * `/api/router-preferences/profiles`); nothing about them is hardcoded.
  */
+import { useTranslation } from 'react-i18next'
 import { RButton } from '@/components/rialto/primitives'
 import { SettingsField } from '@/components/rialto/settings/SettingsLayout'
 import type { InboundSurfaceWire } from '@/lib/api'
@@ -66,23 +67,24 @@ export function IssueTokenForm({
   onSubmit: () => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const set = <K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) => onChange({ ...draft, [key]: value })
 
   return (
     <>
-      <SettingsField label='Name' hint='How this client is identified in the list and in Activity.'>
+      <SettingsField label={t('settings.access.issueName')} hint={t('settings.access.issueNameHint')}>
         <input
           type='text'
           value={draft.name}
-          placeholder='MacBook — Claude Code'
+          placeholder={t('settings.access.issueNamePlaceholder')}
           onChange={(e) => set('name', e.target.value)}
           className='flex h-8 w-full max-w-md items-center rounded-md border border-border bg-transparent px-3 font-mono text-xs outline-none focus:border-foreground/40'
         />
       </SettingsField>
 
-      <SettingsField label='Endpoint' hint='Restrict the token to one inbound surface. Unset lets it call all of them.'>
-        <Picker label='Endpoint' value={draft.surface} onChange={(v) => set('surface', v)}>
-          <option value={ANY}>all endpoints</option>
+      <SettingsField label={t('settings.access.issueEndpoint')} hint={t('settings.access.issueEndpointHint')}>
+        <Picker label={t('settings.access.issueEndpoint')} value={draft.surface} onChange={(v) => set('surface', v)}>
+          <option value={ANY}>{t('settings.access.allEndpoints')}</option>
           {surfaces.map((s) => (
             <option key={s.id} value={s.id}>
               {s.path}
@@ -91,12 +93,13 @@ export function IssueTokenForm({
         </Picker>
       </SettingsField>
 
-      <SettingsField
-        label='Routing profile'
-        hint="Route this client's traffic through a named profile. Unset follows the endpoint's own routing."
-      >
-        <Picker label='Routing profile' value={draft.profileKey} onChange={(v) => set('profileKey', v)}>
-          <option value={ANY}>follow the endpoint</option>
+      <SettingsField label={t('settings.access.issueProfile')} hint={t('settings.access.issueProfileHint')}>
+        <Picker
+          label={t('settings.access.issueProfile')}
+          value={draft.profileKey}
+          onChange={(v) => set('profileKey', v)}
+        >
+          <option value={ANY}>{t('settings.access.followEndpoint')}</option>
           {profiles.map((p) => (
             <option key={p.key} value={p.key}>
               {p.key}
@@ -105,8 +108,8 @@ export function IssueTokenForm({
         </Picker>
       </SettingsField>
 
-      <SettingsField label='Expires' hint='A bounded token limits the damage if it leaks. Revoke works either way.'>
-        <Picker label='Expires' value={draft.expiry} onChange={(v) => set('expiry', v)}>
+      <SettingsField label={t('settings.access.issueExpires')} hint={t('settings.access.issueExpiresHint')}>
+        <Picker label={t('settings.access.issueExpires')} value={draft.expiry} onChange={(v) => set('expiry', v)}>
           {EXPIRY_CHOICES.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
@@ -116,12 +119,10 @@ export function IssueTokenForm({
       </SettingsField>
 
       <div className='flex items-center gap-2 border-t border-border/60 px-6 py-4'>
-        <span className='text-[11px] text-muted-foreground'>
-          The token is shown once, immediately after issuing, and never again.
-        </span>
+        <span className='text-[11px] text-muted-foreground'>{t('settings.access.issueOnceNote')}</span>
         <div className='ml-auto flex gap-2'>
           <RButton variant='ghost' onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </RButton>
           <RButton
             variant='primary'
@@ -129,7 +130,7 @@ export function IssueTokenForm({
             onClick={onSubmit}
             disabled={issuing || draft.name.trim().length === 0}
           >
-            Issue token
+            {t('settings.access.issueToken')}
           </RButton>
         </div>
       </div>

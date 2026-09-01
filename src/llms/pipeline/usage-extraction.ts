@@ -11,6 +11,8 @@ import {
   AnthropicMessageDeltaEventSchema,
   AnthropicMessageStartEventSchema,
   ChatCompletionUsageChunkSchema,
+  GeminiUsageChunkSchema,
+  type JsonResponseWithUsage,
   JsonResponseWithUsageSchema,
   ResponsesCompletedEventSchema,
   type TransformerContext,
@@ -80,16 +82,63 @@ type TokenStats = {
   cacheHitPct: number
 }
 
+/**
+ * Cached input tokens, plus whether the vendor already counted them
+ * inside the input total it reported.
+ *
+ * The two conventions are opposites and have to be told apart before
+ * anything is summed. Anthropic reports `input_tokens` as the
+ * **non-cached remainder** and puts the cache hit beside it, so the
+ * pieces add up. OpenAI documents `cached_tokens` as "cached tokens
+ * present in the prompt" — a breakdown of `prompt_tokens` /
+ * `input_tokens`, which already contains them. Adding the two for an
+ * OpenAI response inflates the input of every cached request by exactly
+ * the cached amount.
+ *
+ * Which surface a number came from is what identifies the convention:
+ * `cache_read_input_tokens` is Anthropic's spelling, the two `*_details`
+ * blocks are OpenAI's (Responses and Chat Completions respectively).
+ */
+type CachedInput = { tokens: number; countedInsideReportedInput: boolean }
+
+function cachedInputTokens(usage: UsageBlock): CachedInput {
+  const anthropic = numberOrZero(usage.cache_read_input_tokens)
+  if (anthropic > 0) {
+    return { tokens: anthropic, countedInsideReportedInput: false }
+  }
+  const responses = numberOrZero(usage.input_tokens_details?.cached_tokens)
+  if (responses > 0) {
+    return { tokens: responses, countedInsideReportedInput: true }
+  }
+  const chat = numberOrZero(usage.prompt_tokens_details?.cached_tokens)
+  if (chat > 0) {
+    return { tokens: chat, countedInsideReportedInput: true }
+  }
+  // Gemini follows OpenAI's convention, not Anthropic's.
+  return { tokens: numberOrZero(usage.cachedContentTokenCount), countedInsideReportedInput: true }
+}
+
 function computeTokenStats(usage: UsageBlock): TokenStats {
-  const cachedTokens =
-    numberOrZero(usage.cache_read_input_tokens) || numberOrZero(usage.input_tokens_details?.cached_tokens)
+  const cached = cachedInputTokens(usage)
   const writtenTokens = numberOrZero(usage.cache_creation_input_tokens)
-  const outputTokens = numberOrZero(usage.output_tokens) || numberOrZero(usage.completion_tokens)
-  // Anthropic input_tokens is the non-cached portion only; OpenAI uses prompt_tokens.
-  const rawInput = numberOrZero(usage.input_tokens) || numberOrZero(usage.prompt_tokens)
-  const totalInputTokens = rawInput + writtenTokens + cachedTokens
-  const cacheHitPct = totalInputTokens > 0 ? Math.round((cachedTokens / totalInputTokens) * 100) : 0
-  return { cachedTokens, writtenTokens, outputTokens, rawInput, totalInputTokens, cacheHitPct }
+  const outputTokens =
+    numberOrZero(usage.output_tokens) ||
+    numberOrZero(usage.completion_tokens) ||
+    numberOrZero(usage.candidatesTokenCount)
+  // Anthropic input_tokens is the non-cached portion only; OpenAI uses
+  // prompt_tokens and Gemini promptTokenCount, both of which are totals.
+  const reportedInput =
+    numberOrZero(usage.input_tokens) || numberOrZero(usage.prompt_tokens) || numberOrZero(usage.promptTokenCount)
+  // The row is written in Anthropic's convention — `inputTokens` is the
+  // non-cached remainder and `totalInputTokens` is everything the prompt
+  // cost — so an OpenAI total has to have its cached portion taken back
+  // out before the pieces are re-added. Clamped at zero because a vendor
+  // that ever reports a cache count larger than its own input total
+  // should skew a row, not make it negative.
+  const rawInput = cached.countedInsideReportedInput ? Math.max(reportedInput - cached.tokens, 0) : reportedInput
+  const totalInputTokens = rawInput + writtenTokens + cached.tokens
+  const cacheHitPct = totalInputTokens > 0 ? Math.round((cached.tokens / totalInputTokens) * 100) : 0
+  return { cachedTokens: cached.tokens, writtenTokens, outputTokens, rawInput, totalInputTokens, cacheHitPct }
 }
 
 /** Coerce an optional `unknown` numeric usage field to a finite number, defaulting to 0. */
@@ -115,7 +164,13 @@ async function extractJsonUsage(resp: Response): Promise<UsageBlock | null> {
   const json = await resp.json().catch(() => null)
   const result = JsonResponseWithUsageSchema.safeParse(json)
   if (!result.success) return null
-  return result.data.usage !== undefined ? result.data.usage : null
+  return usageFromEnvelope(result.data)
+}
+
+/** `usage` (Anthropic / OpenAI) or `usageMetadata` (Gemini), whichever the upstream sent. */
+function usageFromEnvelope(data: JsonResponseWithUsage): UsageBlock | null {
+  if (data.usage !== undefined) return data.usage
+  return data.usageMetadata !== undefined ? data.usageMetadata : null
 }
 
 async function extractStreamUsage(resp: Response): Promise<UsageBlock | null> {
@@ -152,13 +207,17 @@ function applySseBlock(block: string, current: UsageBlock | null): UsageBlock | 
   const chunk = ChatCompletionUsageChunkSchema.safeParse(obj)
   if (chunk.success) return { ...chunk.data.usage }
 
+  // Gemini repeats cumulative counts on many chunks, so the last one wins.
+  const gemini = GeminiUsageChunkSchema.safeParse(obj)
+  if (gemini.success) return { ...gemini.data.usageMetadata }
+
   return current
 }
 
 function fallbackJsonParse(text: string): UsageBlock | null {
   try {
     const result = JsonResponseWithUsageSchema.safeParse(JSON.parse(text))
-    if (result.success && result.data.usage) return result.data.usage
+    if (result.success) return usageFromEnvelope(result.data)
   } catch {
     // not JSON
   }

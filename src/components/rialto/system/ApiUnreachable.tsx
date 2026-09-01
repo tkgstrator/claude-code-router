@@ -8,6 +8,7 @@
  * restart anything.
  */
 import { useEffect, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
 import { api, type HealthResponse } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -25,7 +26,7 @@ interface Probe {
   detail: string
 }
 
-const CHECK_LABELS: Record<string, string> = { db: 'Database' }
+const CHECK_LABEL_KEYS: Record<string, string> = { db: 'settings.server.database' }
 
 const CHECK_DOTS: Record<CheckState, string> = {
   ok: 'bg-emerald-500',
@@ -57,6 +58,7 @@ function StatusRow({ label, tone, detail }: { label: string; tone: string; detai
 }
 
 export function ApiUnreachable({ probe }: { probe: Probe | null }) {
+  const { t } = useTranslation()
   // Unknown check names render as themselves rather than being dropped: a
   // check the UI has never heard of is still one the operator should see
   // failing.
@@ -70,24 +72,27 @@ export function ApiUnreachable({ probe }: { probe: Probe | null }) {
     <div className='w-full max-w-sm'>
       <div className='flex items-center gap-2'>
         <i className='ri-plug-line text-base text-destructive' />
-        <h3 className='text-sm font-semibold'>Cannot reach the Rialto API</h3>
-        <Pill tone='warn'>retrying</Pill>
+        <h3 className='text-sm font-semibold'>{t('system.unreachable.title')}</h3>
+        <Pill tone='warn'>{t('system.unreachable.retrying')}</Pill>
       </div>
       <p className='mt-2 text-[11px] leading-relaxed text-muted-foreground'>
-        The UI is loaded but <span className='font-mono'>/api/config</span> is not answering. The proxy at{' '}
-        <span className='font-mono'>/v1/*</span> may still be serving requests from its cached configuration — check
-        before restarting.
+        <Trans i18nKey='system.unreachable.body' components={{ mono: <span className='font-mono' /> }} />
       </p>
       <div className='mt-3 space-y-1.5'>
         <StatusRow
-          label='Proxy'
+          label={t('system.unreachable.proxy')}
           tone={probe === null ? 'bg-muted-foreground/40' : probe.health === null ? 'bg-destructive' : 'bg-emerald-500'}
-          detail={probe === null ? 'probing…' : probe.detail}
+          detail={probe === null ? t('settings.advanced.probing') : probe.detail}
         />
         {checks.map(([name, state]) => {
-          const known = CHECK_LABELS[name]
+          const knownKey = CHECK_LABEL_KEYS[name]
           return (
-            <StatusRow key={name} label={known === undefined ? name : known} tone={CHECK_DOTS[state]} detail={state} />
+            <StatusRow
+              key={name}
+              label={knownKey === undefined ? name : t(knownKey)}
+              tone={CHECK_DOTS[state]}
+              detail={state}
+            />
           )
         })}
       </div>

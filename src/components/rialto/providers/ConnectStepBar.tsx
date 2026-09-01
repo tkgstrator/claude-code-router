@@ -6,6 +6,7 @@
  * OAuth vs. importing the CLI's credentials) and that fails often enough
  * to need a visible failure state.
  */
+import { useTranslation } from 'react-i18next'
 import { RButton } from '@/components/rialto/primitives'
 import { cn } from '@/lib/utils'
 
@@ -30,7 +31,7 @@ function Step({ n, label, state }: { n: number; label: string; state: StepState 
   )
 }
 
-const LABELS = ['Pick a vendor', 'Authenticate', 'Choose models']
+const LABEL_KEYS = ['providers.connect.stepVendor', 'providers.connect.stepAuth', 'providers.connect.stepModels']
 
 const stateFor = (index: number, current: number): StepState => {
   if (index < current) return 'done'
@@ -38,17 +39,18 @@ const stateFor = (index: number, current: number): StepState => {
 }
 
 export function ConnectStepBar({ current, onCancel }: { current: number; onCancel: () => void }) {
+  const { t } = useTranslation()
   return (
     <div className='flex items-center gap-6 border-b border-border px-6 py-3'>
-      {LABELS.map((label, i) => (
-        <div key={label} className='flex items-center gap-6'>
+      {LABEL_KEYS.map((key, i) => (
+        <div key={key} className='flex items-center gap-6'>
           {i === 0 ? null : <i className='ri-arrow-right-s-line text-sm text-muted-foreground/50' />}
-          <Step n={i + 1} label={label} state={stateFor(i + 1, current)} />
+          <Step n={i + 1} label={t(key)} state={stateFor(i + 1, current)} />
         </div>
       ))}
       <div className='ml-auto'>
         <RButton variant='ghost' onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </RButton>
       </div>
     </div>

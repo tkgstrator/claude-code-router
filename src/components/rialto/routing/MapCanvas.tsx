@@ -10,8 +10,9 @@
  * that three of the four surfaces never entered the graph at all.
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { InboundSurfaceWire, RoutingSchedulerWeightEntry, SurfaceId } from '@/lib/api'
-import { targetState } from './derive'
+import { STATE_LABEL_KEYS, targetState } from './derive'
 import type { PreferenceByScenario, ScenarioKey, TargetState } from './types'
 import { SCENARIOS } from './types'
 
@@ -152,6 +153,7 @@ export function MapCanvas({
   onDropOnScenario,
   onToggleSurface
 }: MapCanvasProps) {
+  const { t } = useTranslation()
   // Which surface the pointer went down on, so a release over a scenario
   // reads as "route this surface" and a release over the same node reads
   // as a plain click.
@@ -168,7 +170,7 @@ export function MapCanvas({
       style={{ height }}
       onPointerUp={() => setPressed(null)}
     >
-      <title>Inbound surfaces routed through scenarios to upstream targets</title>
+      <title>{t('routing.map.canvasTitle')}</title>
 
       {surfaces.map((surface, i) =>
         surface.routingMode === 'routed' ? (
@@ -215,9 +217,9 @@ export function MapCanvas({
         })
       )}
 
-      <ColumnLabel x={SURFACE_X} text='INBOUND SURFACE' />
-      <ColumnLabel x={SCENARIO_X} text='SCENARIO' />
-      <ColumnLabel x={TARGET_X + 10} text='TARGET' />
+      <ColumnLabel x={SURFACE_X} text={t('routing.map.columnSurface')} />
+      <ColumnLabel x={SCENARIO_X} text={t('routing.map.columnScenario')} />
+      <ColumnLabel x={TARGET_X + 10} text={t('routing.map.columnTarget')} />
 
       {surfaces.map((surface, i) => (
         <g
@@ -233,7 +235,7 @@ export function MapCanvas({
             y={surfaceY(i)}
             w={SURFACE_W}
             label={surface.path}
-            sub={surface.routingMode}
+            sub={t(surface.routingMode === 'routed' ? 'routing.common.modeRouted' : 'routing.common.modePassthrough')}
             accent={surface.routingMode === 'routed' ? 'fill-emerald-500' : 'fill-muted-foreground/40'}
           />
         </g>
@@ -255,7 +257,7 @@ export function MapCanvas({
               y={scenarioY(j)}
               w={SCENARIO_W}
               label={SCENARIO_LABELS[scenario]}
-              sub={`${count} targets`}
+              sub={t('routing.common.targetCount', { n: count })}
               accent='fill-foreground/30'
             />
           </g>
@@ -266,14 +268,14 @@ export function MapCanvas({
         const state = targetState(weights.get(target))
         return (
           <g key={target}>
-            <Node x={TARGET_X} y={targetY(i)} w={TARGET_W} label={target} sub={state} />
+            <Node x={TARGET_X} y={targetY(i)} w={TARGET_W} label={target} sub={t(STATE_LABEL_KEYS[state])} />
             <circle cx={TARGET_X + TARGET_W - 14} cy={targetY(i) + 20} r='3.5' className={DOT_FILL[state]} />
           </g>
         )
       })}
 
       {passthrough.length === 0 ? null : (
-        <Node x={TARGET_X} y={callerY} w={TARGET_W} label='body.model' sub='whatever the caller named' dashed />
+        <Node x={TARGET_X} y={callerY} w={TARGET_W} label='body.model' sub={t('routing.map.callerNamed')} dashed />
       )}
     </svg>
   )

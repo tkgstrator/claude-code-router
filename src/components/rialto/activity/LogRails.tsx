@@ -8,6 +8,7 @@
  * lists from drifting apart visually.
  */
 
+import { useTranslation } from 'react-i18next'
 import { type LogGroup, shortReqId } from '@/components/rialto/activity/log-lines'
 import { chipFor, groupKey, LEVEL_CHIPS, LEVEL_TONE, type LevelChip } from '@/components/rialto/activity/log-view'
 import { Pill } from '@/components/rialto/primitives'
@@ -29,10 +30,13 @@ export function FileRail({
   levels: Set<LevelChip>
   onToggleLevel: (level: LevelChip) => void
 }) {
+  const { t } = useTranslation()
   return (
     <aside className='min-w-0 overflow-y-auto border-r border-border'>
       <div className='flex items-center gap-2 px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Files</h2>
+        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('activity.logs.railFiles')}
+        </h2>
       </div>
       {files.map((file) => (
         <button
@@ -54,7 +58,7 @@ export function FileRail({
         </button>
       ))}
       <div className='border-t border-border px-4 py-3'>
-        <div className='text-[11px] text-muted-foreground'>Level</div>
+        <div className='text-[11px] text-muted-foreground'>{t('activity.logs.railLevel')}</div>
         <div className='mt-1.5 flex flex-wrap gap-1'>
           {LEVEL_CHIPS.map((level) => (
             <button
@@ -86,10 +90,13 @@ export function GroupRail({
   activeKey: string
   onSelect: (key: string) => void
 }) {
+  const { t } = useTranslation()
   return (
     <aside className='min-w-0 overflow-y-auto border-r border-border'>
       <div className='flex items-center gap-2 px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Requests</h2>
+        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('activity.logs.railRequests')}
+        </h2>
         <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{groups.length}</span>
       </div>
       {groups.map((group) => {
@@ -111,7 +118,9 @@ export function GroupRail({
                 {group.firstTime === 0 ? '--:--:--' : dayjs(group.firstTime).format('HH:mm:ss')}
               </span>
               <Pill tone={LEVEL_TONE[chip]}>{chip}</Pill>
-              <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{group.lines.length} lines</span>
+              <span className='ml-auto font-mono text-[10px] text-muted-foreground'>
+                {t('activity.logs.lineCount', { n: group.lines.length })}
+              </span>
             </div>
             <div className='mt-1 truncate text-[11px]'>{group.summary}</div>
             <div className='mt-0.5 font-mono text-[10px] text-muted-foreground'>{shortReqId(group.id)}</div>

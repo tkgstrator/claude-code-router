@@ -8,6 +8,7 @@
  * is a mode you will get wrong.
  */
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
@@ -17,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { api, type RoutingPresetItem, type SurfaceId } from '@/lib/api'
 import { applyPresetToLive } from '@/lib/routing-map/apply-to-live'
 import { usePreferences, useProfiles, useScheduler, useSurfaces } from './data'
-import { profileEntryCount, profileTargets, weightIndex } from './derive'
+import { profileEntryCount, profileTargets, STATE_LABEL_KEYS, weightIndex } from './derive'
 import { MapCanvas } from './MapCanvas'
 import { RoutingViewTabs } from './RoutingTabs'
 import { allRules } from './rules'
@@ -27,21 +28,27 @@ import { SCENARIOS } from './types'
 const ZOOM_STEP = 1.2
 
 function ZoomControls({ onZoom, onFit }: { onZoom: (factor: number) => void; onFit: () => void }) {
+  const { t } = useTranslation()
   const cls = 'px-2 py-1.5 text-muted-foreground hover:bg-muted/60'
   return (
     <div className='absolute left-4 top-4 z-10 flex flex-col overflow-hidden rounded-md border border-border bg-background'>
-      <button type='button' aria-label='Zoom in' className={cls} onClick={() => onZoom(ZOOM_STEP)}>
+      <button type='button' aria-label={t('routing.map.zoomIn')} className={cls} onClick={() => onZoom(ZOOM_STEP)}>
         <i className='ri-add-line text-sm' />
       </button>
       <button
         type='button'
-        aria-label='Zoom out'
+        aria-label={t('routing.map.zoomOut')}
         className={`border-t border-border ${cls}`}
         onClick={() => onZoom(1 / ZOOM_STEP)}
       >
         <i className='ri-subtract-line text-sm' />
       </button>
-      <button type='button' aria-label='Fit' className={`border-t border-border ${cls}`} onClick={onFit}>
+      <button
+        type='button'
+        aria-label={t('routing.map.fit')}
+        className={`border-t border-border ${cls}`}
+        onClick={onFit}
+      >
         <i className='ri-focus-3-line text-sm' />
       </button>
     </div>
@@ -49,22 +56,25 @@ function ZoomControls({ onZoom, onFit }: { onZoom: (factor: number) => void; onF
 }
 
 function Legend() {
+  const { t } = useTranslation()
   const item = 'flex items-center gap-1.5 text-[11px] text-muted-foreground'
   return (
     <div className='absolute bottom-4 right-4 z-10 flex items-center gap-3 rounded-md border border-border bg-background px-3 py-1.5'>
       <span className={item}>
         <span className='size-1.5 rounded-full bg-emerald-500' />
-        ready
+        {t(STATE_LABEL_KEYS.ready)}
       </span>
       <span className={item}>
         <span className='size-1.5 rounded-full bg-amber-500' />
-        throttled
+        {t(STATE_LABEL_KEYS.throttled)}
       </span>
       <span className={item}>
         <span className='size-1.5 rounded-full bg-destructive' />
-        exhausted
+        {t(STATE_LABEL_KEYS.exhausted)}
       </span>
-      <span className='ml-1 border-l border-border pl-3 text-[11px] text-muted-foreground'>┄ passthrough</span>
+      <span className='ml-1 border-l border-border pl-3 text-[11px] text-muted-foreground'>
+        {`┄ ${t('routing.common.modePassthrough')}`}
+      </span>
     </div>
   )
 }
@@ -78,6 +88,7 @@ function ProfileButton({
   profiles: readonly ProfileSummary[]
   onSelect: (key: string) => void
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -107,7 +118,7 @@ function ProfileButton({
                 it would read as an empty one. */}
             <span className='ml-auto shrink-0 text-[10px] text-muted-foreground'>
               {profile.kind === 'passthrough' ? (
-                'skips routing'
+                t('routing.map.skipsRouting')
               ) : (
                 <span className='font-mono tabular-nums'>{profile.entryCount}</span>
               )}
@@ -120,6 +131,7 @@ function ProfileButton({
 }
 
 function PresetsMenu({ onNotify }: { onNotify: (text: string, ok: boolean) => void }) {
+  const { t } = useTranslation()
   const { config, setConfig } = useConfig()
   const [open, setOpen] = useState(false)
   const [presets, setPresets] = useState<RoutingPresetItem[]>([])
@@ -142,34 +154,34 @@ function PresetsMenu({ onNotify }: { onNotify: (text: string, ok: boolean) => vo
       const result = await applyPresetToLive(config, preset.config, preset.name)
       if (result.ok) {
         setConfig(result.updatedConfig)
-        onNotify(`Applied "${preset.name}" to live routing`, true)
+        onNotify(t('routing.common.presetApplied', { name: preset.name }), true)
       } else {
         onNotify(result.message, false)
       }
       setOpen(false)
     },
-    [config, setConfig, onNotify]
+    [config, setConfig, onNotify, t]
   )
 
   const remove = useCallback(
     async (preset: RoutingPresetItem) => {
       await api.deleteRoutingPreset(preset.id)
       setPresets((rows) => rows.filter((r) => r.id !== preset.id))
-      onNotify(`Deleted "${preset.name}"`, true)
+      onNotify(t('routing.map.presetDeleted', { name: preset.name }), true)
     },
-    [onNotify]
+    [onNotify, t]
   )
 
   return (
     <Popover open={open} onOpenChange={load}>
       <PopoverTrigger asChild>
         <RButton variant='outline' icon='ri-archive-drawer-line'>
-          Presets
+          {t('routing.common.presets')}
         </RButton>
       </PopoverTrigger>
       <PopoverContent align='end' className='w-64 p-1'>
         {presets.length === 0 ? (
-          <p className='px-2 py-1.5 text-[11px] text-muted-foreground'>No saved snapshots yet.</p>
+          <p className='px-2 py-1.5 text-[11px] text-muted-foreground'>{t('routing.common.noSnapshots')}</p>
         ) : (
           presets.map((preset) => (
             <div key={preset.id} className='flex items-center gap-1 rounded px-2 py-1.5 text-xs hover:bg-muted/60'>
@@ -179,11 +191,11 @@ function PresetsMenu({ onNotify }: { onNotify: (text: string, ok: boolean) => vo
                 className='ml-auto shrink-0 text-[11px] text-muted-foreground hover:text-foreground'
                 onClick={() => void apply(preset)}
               >
-                Apply
+                {t('routing.common.apply')}
               </button>
               <button
                 type='button'
-                aria-label={`Delete ${preset.name}`}
+                aria-label={t('routing.map.deletePreset', { name: preset.name })}
                 className='shrink-0 text-muted-foreground/60 hover:text-destructive'
                 onClick={() => void remove(preset)}
               >
@@ -198,6 +210,7 @@ function PresetsMenu({ onNotify }: { onNotify: (text: string, ok: boolean) => vo
 }
 
 export function RoutingMap() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { config } = useConfig()
   const { surfaces, reload: reloadSurfaces, setMode } = useSurfaces()
@@ -217,6 +230,11 @@ export function RoutingMap() {
   const weights = useMemo(() => weightIndex(scheduler), [scheduler])
   const targets = useMemo(() => profileTargets(profile.entriesByScenario), [profile])
   const ruleCount = config === null ? 0 : allRules(config.Router).length
+  const counts = t('routing.map.counts', {
+    surfaces: surfaces.length,
+    scenarios: SCENARIOS.length,
+    targets: targets.length
+  })
 
   const notify = useCallback((text: string, ok: boolean) => {
     if (ok) toast.success(text)
@@ -246,22 +264,23 @@ export function RoutingMap() {
 
   const saveAsPreset = useCallback(() => {
     if (config === null) return
-    const name = `Snapshot ${new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(Date.now())}`
+    const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(Date.now())
+    const name = t('routing.map.snapshotName', { when })
     api
       .createRoutingPreset({ name, config: config.Router })
-      .then(() => notify(`Saved "${name}"`, true))
+      .then(() => notify(t('routing.map.presetSaved', { name }), true))
       .catch((err: unknown) => notify(err instanceof Error ? err.message : String(err), false))
-  }, [config, notify])
+  }, [config, notify, t])
 
   return (
     <Screen
-      title='Routing map'
-      subtitle={`${profileKey} · ${surfaces.length} surfaces · ${SCENARIOS.length} scenarios · ${targets.length} targets`}
+      title={t('routing.map.title')}
+      subtitle={`${profileKey} · ${counts}`}
       actions={
         <>
           <PresetsMenu onNotify={notify} />
           <RButton variant='ghost' icon='ri-play-line' onClick={() => navigate('/routing/rules')}>
-            Simulate
+            {t('routing.common.simulate')}
           </RButton>
         </>
       }
@@ -272,16 +291,16 @@ export function RoutingMap() {
         <ProfileButton current={profileKey} profiles={profiles} onSelect={setChosenProfile} />
         {/* An empty graph could mean "unconfigured" or "nothing routes"; only
             the first is true, so it says which. */}
-        {profileEntryCount(profile.entriesByScenario) === 0 ? <Pill tone='warn'>not configured</Pill> : null}
-        <span className='text-[11px] text-muted-foreground'>
-          {surfaces.length} surfaces · {SCENARIOS.length} scenarios · {targets.length} targets
-        </span>
+        {profileEntryCount(profile.entriesByScenario) === 0 ? (
+          <Pill tone='warn'>{t('routing.common.notConfigured')}</Pill>
+        ) : null}
+        <span className='text-[11px] text-muted-foreground'>{counts}</span>
         <div className='ml-auto flex gap-2'>
           <RButton variant='outline' icon='ri-bookmark-line' onClick={saveAsPreset}>
-            Save as preset
+            {t('routing.map.saveAsPreset')}
           </RButton>
           <RButton variant='primary' icon='ri-refresh-line' onClick={refresh}>
-            Refresh
+            {t('routing.map.refresh')}
           </RButton>
         </div>
       </div>
@@ -307,8 +326,7 @@ export function RoutingMap() {
       <div className='px-6 py-4'>
         <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
           <i className='ri-information-line mr-1 align-[-1px]' />
-          Dashed edges bypass the router entirely — that surface is in passthrough and jumps straight to whatever target
-          the caller named. Drag a surface onto a scenario to switch it to routed.
+          {t('routing.map.note')}
         </div>
       </div>
       <div className='h-6' />

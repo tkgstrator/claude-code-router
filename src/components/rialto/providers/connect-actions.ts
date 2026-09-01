@@ -11,6 +11,10 @@ import { api } from '@/lib/api'
 import type { OAuthKind } from './ConnectAuthStep'
 import type { CatalogEntry, OAuthInitiateResponse, OAuthSubmitResponse, Provider } from './types'
 
+// react-i18next's t(), trimmed to the shape these fallbacks call. Taking it
+// as a parameter keeps this module free of React, the way form-logic.ts is.
+type Translate = (key: string) => string
+
 /**
  * Which token exchange the server can run for a vendor.
  *
@@ -69,19 +73,19 @@ export async function ensureProvider(entry: CatalogEntry): Promise<void> {
 }
 
 /** Open the vendor's consent page in a new tab. Returns the flow's state token. */
-export async function startOAuth(kind: OAuthKind): Promise<string> {
+export async function startOAuth(kind: OAuthKind, t: Translate): Promise<string> {
   const res = await api.post<OAuthInitiateResponse>(`/oauth/initiate/${kind}`, {})
   if (!res.success || res.authorizeUrl === undefined) {
-    throw new Error(res.error === undefined ? 'Failed to start the OAuth flow.' : res.error)
+    throw new Error(res.error === undefined ? t('providers.connect.errorStartOauth') : res.error)
   }
   window.open(res.authorizeUrl, '_blank', 'noopener,noreferrer')
   return res.state === undefined ? '' : res.state
 }
 
 /** Relay a redirect URL the browser could not deliver to the loopback callback. */
-export async function submitManualCallback(url: string): Promise<void> {
+export async function submitManualCallback(url: string, t: Translate): Promise<void> {
   const res = await api.post<OAuthSubmitResponse>('/oauth/manual-callback', { url: url.trim() })
-  if (!res.success) throw new Error(res.error === undefined ? 'The redirect URL was rejected.' : res.error)
+  if (!res.success) throw new Error(res.error === undefined ? t('providers.connect.errorRedirect') : res.error)
 }
 
 /** undefined signals "not valid JSON" — JSON.parse never returns it for a well-formed document. */
@@ -93,11 +97,11 @@ async function parseJsonFile(file: File): Promise<unknown> {
   }
 }
 
-export async function importCredentials(kind: OAuthKind, file: File): Promise<void> {
+export async function importCredentials(kind: OAuthKind, file: File, t: Translate): Promise<void> {
   const parsed = await parseJsonFile(file)
   if (parsed === undefined) throw new Error(`${file.name} is not valid JSON.`)
   const res = await api.post<OAuthSubmitResponse>('/oauth/import-credentials', { provider: kind, credentials: parsed })
-  if (!res.success) throw new Error(res.error === undefined ? 'The credentials were rejected.' : res.error)
+  if (!res.success) throw new Error(res.error === undefined ? t('providers.connect.errorCredentials') : res.error)
 }
 
 /** Seed the row and its key in one upsert, then switch the provider on. */

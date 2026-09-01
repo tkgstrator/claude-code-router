@@ -5,6 +5,7 @@
  * be a modal over a modal; it is a tab here, so installing and inspecting
  * happen against the same detail pane.
  */
+import { useTranslation } from 'react-i18next'
 import { RButton, Tabs } from '@/components/rialto/primitives'
 import type { MarketPreset, PresetMetadata } from '@/lib/presets/types'
 import { cn } from '@/lib/utils'
@@ -62,32 +63,28 @@ function InstallBox({
   onRepoChange: (next: string) => void
   onInstall: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className='space-y-2 p-4'>
       <RButton variant='outline' icon='ri-upload-line' onClick={onOpen}>
-        Install from GitHub
+        {t('settings.presets.installFromGithub')}
       </RButton>
       {open ? (
         <div className='flex items-center gap-2'>
           <input
             value={repo}
             onChange={(e) => onRepoChange(e.target.value)}
-            placeholder='owner/repo'
-            aria-label='GitHub repository'
+            placeholder={t('settings.presets.repoPlaceholder')}
+            aria-label={t('settings.presets.repoLabel')}
             className='h-8 min-w-0 flex-1 rounded-md border border-border bg-transparent px-2.5 font-mono text-[11px] outline-none focus:border-foreground/40'
           />
           <RButton variant='primary' onClick={onInstall} disabled={repo === '' || busy}>
-            {busy ? 'Installing…' : 'Install'}
+            {t(busy ? 'settings.presets.installing' : 'settings.presets.install')}
           </RButton>
         </div>
       ) : null}
-      <RButton
-        variant='ghost'
-        icon='ri-download-line'
-        disabled
-        title='Exporting a preset is a CLI command: rialto preset export'
-      >
-        Export current
+      <RButton variant='ghost' icon='ri-download-line' disabled title={t('settings.presets.exportUnavailable')}>
+        {t('settings.presets.exportCurrent')}
       </RButton>
     </div>
   )
@@ -118,13 +115,19 @@ export function PresetList({
   onInstallRepoChange: (next: string) => void
   onInstall: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <aside className='min-w-0 overflow-y-auto border-r border-border'>
       <div className='flex items-center gap-1 border-b border-border px-3'>
         <Tabs
           items={[
-            { id: 'installed', label: 'Installed', count: installed.length, href: '/settings/presets' },
-            { id: 'market', label: 'Browse', href: '/settings/presets?tab=market' }
+            {
+              id: 'installed',
+              label: t('settings.presets.tabInstalled'),
+              count: installed.length,
+              href: '/settings/presets'
+            },
+            { id: 'market', label: t('settings.presets.tabBrowse'), href: '/settings/presets?tab=market' }
           ]}
           active={tab}
         />
@@ -166,10 +169,7 @@ export function PresetList({
       />
 
       <div className='border-t border-border px-4 py-4'>
-        <p className='text-[11px] leading-relaxed text-muted-foreground'>
-          A preset is a snapshot of providers, models and routing with secrets stripped — the shareable half of a
-          configuration.
-        </p>
+        <p className='text-[11px] leading-relaxed text-muted-foreground'>{t('settings.presets.libraryNote')}</p>
       </div>
     </aside>
   )

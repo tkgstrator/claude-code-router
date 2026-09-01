@@ -8,6 +8,7 @@
  * it active are one save instead of two page transitions.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
 import { RButton } from '@/components/rialto/primitives'
@@ -22,6 +23,7 @@ const activeFromConfig = (config: Config): string | null =>
   typeof config.Router.persona === 'string' && config.Router.persona !== '' ? config.Router.persona : null
 
 function PersonasEditor({ config }: { config: Config }) {
+  const { t } = useTranslation()
   const { reloadConfig } = useConfig()
   const persisted = useMemo(() => toDrafts(config.Personas), [config.Personas])
   const persistedActive = activeFromConfig(config)
@@ -63,10 +65,10 @@ function PersonasEditor({ config }: { config: Config }) {
   )
 
   const create = useCallback(() => {
-    const draft: PersonaDraft = { id: crypto.randomUUID(), name: 'New persona', prompt: '' }
+    const draft: PersonaDraft = { id: crypto.randomUUID(), name: t('settings.personas.newName'), prompt: '' }
     setDrafts((prev) => [...prev, draft])
     setSelectedId(draft.id)
-  }, [])
+  }, [t])
 
   const duplicate = useCallback(() => {
     if (current === undefined) return
@@ -97,13 +99,13 @@ function PersonasEditor({ config }: { config: Config }) {
       // whether the key is present, and JSON.stringify drops undefined.
       await api.updateConfig({ ...config, Personas: drafts, Router: { ...config.Router, persona: activeId } })
       await reloadConfig()
-      toast.success('Personas saved')
+      toast.success(t('settings.personas.saved'))
     } catch (err) {
-      toast.error(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(t('settings.common.saveFailed', { message: err instanceof Error ? err.message : String(err) }))
     } finally {
       setSaving(false)
     }
-  }, [config, drafts, activeId, reloadConfig])
+  }, [config, drafts, activeId, reloadConfig, t])
 
   const dirty = activeId !== persistedActive || JSON.stringify(drafts) !== JSON.stringify(persisted)
   const activeCount = activeId === null ? 0 : 1
@@ -111,8 +113,11 @@ function PersonasEditor({ config }: { config: Config }) {
   return (
     <SettingsLayout
       active='personas'
-      title='Personas'
-      subtitle={`${drafts.length} personas · ${activeCount === 0 ? 'none active' : '1 active'}`}
+      title={t('settings.rail.personas')}
+      subtitle={t('settings.personas.subtitle', {
+        count: drafts.length,
+        active: t(activeCount === 0 ? 'settings.personas.noneActive' : 'settings.personas.oneActive')
+      })}
       // The body's first element is the library column, which carries its
       // own heading and count — a section heading above it would push the
       // three panes out of alignment with each other.
@@ -120,10 +125,10 @@ function PersonasEditor({ config }: { config: Config }) {
       actions={
         <>
           <RButton variant='ghost' onClick={reset} disabled={!dirty || saving}>
-            Discard
+            {t('common.discard')}
           </RButton>
           <RButton variant='primary' icon='ri-check-line' onClick={save} disabled={!dirty || saving}>
-            Save
+            {t('common.save')}
           </RButton>
         </>
       }
@@ -137,9 +142,7 @@ function PersonasEditor({ config }: { config: Config }) {
           onCreate={create}
         />
         {current === undefined ? (
-          <div className='min-w-0 px-6 py-6 text-xs text-muted-foreground'>
-            No personas yet. A persona is prepended to the system prompt of every routed request.
-          </div>
+          <div className='min-w-0 px-6 py-6 text-xs text-muted-foreground'>{t('settings.personas.empty')}</div>
         ) : (
           <PersonaDetail
             persona={current}
@@ -158,11 +161,12 @@ function PersonasEditor({ config }: { config: Config }) {
 }
 
 export function SettingsPersonas() {
+  const { t } = useTranslation()
   const { config } = useConfig()
   if (config === null) {
     return (
-      <SettingsLayout active='personas' title='Personas' showHeading={false}>
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+      <SettingsLayout active='personas' title={t('settings.rail.personas')} showHeading={false}>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       </SettingsLayout>
     )
   }

@@ -7,7 +7,9 @@
  * traffic that will not walk it. The old build had no such axis, which is
  * how a routing screen could quietly be about one endpoint only.
  */
+import type { TFunction } from 'i18next'
 import { useCallback, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
@@ -28,12 +30,12 @@ import { SCENARIOS } from './types'
 import { useChainEditing } from './useChainEditing'
 import { useRoutingSelection } from './useRoutingSelection'
 
-const SCENARIO_LABELS: Record<ScenarioKey, string> = {
-  default: 'Default',
-  think: 'Think',
-  longContext: 'Long context',
-  webSearch: 'Web search',
-  image: 'Image'
+const SCENARIO_LABEL_KEYS: Record<ScenarioKey, string> = {
+  default: 'routing.chain.scenarioDefault',
+  think: 'routing.chain.scenarioThink',
+  longContext: 'routing.chain.scenarioLongContext',
+  webSearch: 'routing.chain.scenarioWebSearch',
+  image: 'routing.chain.scenarioImage'
 }
 
 function ScenarioTabs({
@@ -45,6 +47,7 @@ function ScenarioTabs({
   active: ScenarioKey
   onSelect: (scenario: ScenarioKey) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className='flex items-center gap-1 border-b border-border px-6'>
       {SCENARIOS.map((scenario) => (
@@ -59,7 +62,7 @@ function ScenarioTabs({
               : 'border-b-transparent text-muted-foreground hover:text-foreground'
           )}
         >
-          {SCENARIO_LABELS[scenario]}
+          {t(SCENARIO_LABEL_KEYS[scenario])}
           <span className='font-mono text-[10px] tabular-nums text-muted-foreground'>{counts[scenario]}</span>
         </button>
       ))}
@@ -84,6 +87,7 @@ function ChainToolbar({
   onSave: () => void
   saveDisabled: boolean
 }) {
+  const { t } = useTranslation()
   const disabled = entries.filter((e) => !e.enabled).length
   const taken = useMemo(() => new Set(entries.map((e) => e.target)), [entries])
   return (
@@ -91,19 +95,19 @@ function ChainToolbar({
       <Segmented
         value={lane}
         options={[
-          { value: 'agent', label: 'Agent' },
-          { value: 'subagent', label: 'Subagent' }
+          { value: 'agent', label: t('routing.common.laneAgent') },
+          { value: 'subagent', label: t('routing.common.laneSubagent') }
         ]}
         onChange={onLane}
       />
       <span className='text-[11px] text-muted-foreground'>
-        {entries.length} targets
-        {disabled === 0 ? '' : ` · ${disabled} disabled`}
+        {t('routing.common.targetCount', { n: entries.length })}
+        {disabled === 0 ? '' : ` · ${t('routing.chain.disabledCount', { n: disabled })}`}
       </span>
       <div className='ml-auto flex gap-2'>
         <AddTargetDialog targets={targets} taken={taken} onAdd={onAdd} />
         <RButton variant='primary' icon='ri-check-line' onClick={onSave} disabled={saveDisabled}>
-          Save
+          {t('common.save')}
         </RButton>
       </div>
     </div>
@@ -115,9 +119,7 @@ function ChainNote() {
     <div className='px-6 py-4'>
       <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
         <i className='ri-information-line mr-1 align-[-1px]' />
-        Order is preference, top first. A target is skipped when it is disabled, exhausted, or its scheduler weight is{' '}
-        <span className='font-mono'>0.00</span>. Weights are published by the routing scheduler every tick — edit the
-        chain, not the weights.
+        <Trans i18nKey='routing.chain.note' components={{ mono: <span className='font-mono' /> }} />
       </div>
     </div>
   )
@@ -134,9 +136,11 @@ function UnconfiguredProfile({ surface }: { surface: InboundSurfaceWire }) {
     <div className='border-t border-border/60 px-6 py-6'>
       <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
         <i className='ri-information-line mr-1 align-[-1px]' />
-        Profile <span className='font-mono'>{surface.profileKey}</span> has no chain configured on any scenario.{' '}
-        <span className='font-mono'>{surface.path}</span> still routes — it falls through to the scenario router in the
-        Router config. Add a target to make this profile take over.
+        <Trans
+          i18nKey='routing.chain.unconfiguredProfile'
+          values={{ profile: surface.profileKey, path: surface.path }}
+          components={{ mono: <span className='font-mono' /> }}
+        />
       </div>
     </div>
   )
@@ -158,6 +162,7 @@ interface RoutedBodyProps {
 }
 
 function RoutedBody(props: RoutedBodyProps) {
+  const { t } = useTranslation()
   const { config } = useConfig()
   const { entries, actions, addTarget, counts } = useChainEditing(
     props.profile,
@@ -184,7 +189,7 @@ function RoutedBody(props: RoutedBodyProps) {
             <UnconfiguredProfile surface={props.surface} />
           ) : (
             <div className='border-t border-border/60 px-6 py-6 text-xs text-muted-foreground'>
-              No targets on this lane yet. Add one to give this scenario a preference order.
+              {t('routing.chain.emptyLane')}
             </div>
           )
         ) : (
@@ -201,10 +206,13 @@ function RoutedBody(props: RoutedBodyProps) {
   )
 }
 
-const subtitleFor = (surface: InboundSurfaceWire): string =>
-  surface.routingMode === 'routed' ? 'Per inbound surface · scenario · lane' : `${surface.path} · passthrough`
+const subtitleFor = (surface: InboundSurfaceWire, t: TFunction): string =>
+  surface.routingMode === 'routed'
+    ? t('routing.chain.subtitleRouted')
+    : t('routing.chain.subtitlePassthrough', { path: surface.path })
 
 export function RoutingChain() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { surfaces, loading, error, setMode, setProfile: setSurfaceProfile } = useSurfaces()
   const profiles = useProfiles()
@@ -231,12 +239,12 @@ export function RoutingChain() {
     setSaving(true)
     save()
       .then((outcome) => {
-        notify(outcome.success ? 'Preference chain saved' : 'Could not save the preference chain', outcome.success)
+        notify(outcome.success ? t('routing.chain.saved') : t('routing.chain.saveFailed'), outcome.success)
         for (const warning of outcome.warnings) toast.warning(warning)
       })
       .catch(fail)
       .finally(() => setSaving(false))
-  }, [save, notify, fail])
+  }, [save, notify, fail, t])
 
   // The mode, the profile and the reset apply on click — there is no
   // Save for them, in the design or here, because each is a single
@@ -248,40 +256,50 @@ export function RoutingChain() {
     (mode: RoutingMode) => {
       if (surface === undefined) return
       setMode(surface.id, mode)
-        .then(() => notify(`${surface.path} is now ${mode}. Applies to the next request.`, true))
+        .then(() =>
+          notify(
+            t('routing.chain.modeChanged', {
+              path: surface.path,
+              mode: t(mode === 'routed' ? 'routing.common.modeRouted' : 'routing.common.modePassthrough')
+            }),
+            true
+          )
+        )
         .catch(fail)
     },
-    [surface, setMode, notify, fail]
+    [surface, setMode, notify, fail, t]
   )
 
   const onProfile = useCallback(
     (key: string) => {
       if (surface === undefined) return
       setSurfaceProfile(surface.id, surface.routingMode, key)
-        .then(() => notify(`${surface.path} now routes through the ${key} profile.`, true))
+        .then(() => notify(t('routing.chain.profileChanged', { path: surface.path, profile: key }), true))
         .catch(fail)
     },
-    [surface, setSurfaceProfile, notify, fail]
+    [surface, setSurfaceProfile, notify, fail, t]
   )
 
   return (
     <Screen
-      title='Routing'
-      subtitle={surface === undefined ? undefined : subtitleFor(surface)}
+      title={t('routing.chain.title')}
+      subtitle={surface === undefined ? undefined : subtitleFor(surface, t)}
       actions={
         <>
           <RButton variant='outline' icon='ri-node-tree' onClick={() => navigate('/routing/map')}>
-            Live map
+            {t('routing.chain.liveMap')}
           </RButton>
           <RButton variant='ghost' icon='ri-play-line' onClick={() => navigate('/routing/rules')}>
-            Simulate
+            {t('routing.common.simulate')}
           </RButton>
         </>
       }
     >
       {error === null ? null : <div className='px-6 py-6 text-xs text-destructive'>{error}</div>}
       {surface === undefined ? (
-        <div className='px-6 py-6 text-xs text-muted-foreground'>{loading ? 'Loading…' : 'No inbound surfaces.'}</div>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>
+          {loading ? t('common.loading') : t('routing.chain.noSurfaces')}
+        </div>
       ) : (
         <>
           <SurfaceTabs surfaces={surfaces} active={surface.id} onSelect={selectSurface} />

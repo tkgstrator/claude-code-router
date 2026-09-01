@@ -6,57 +6,55 @@
 
 <hr>
 
-> A powerful proxy that routes Claude Code requests to any LLM provider — without changing your Claude Code setup.
+> A routing gateway for LLM traffic: it accepts four wire formats on the front door and dispatches each request to whichever vendor you configured — without changing your client's setup.
 
 ## ✨ Features
 
-- **Task-based routing** — assign different models to six built-in scenarios: `default`, `background`, `think` (Plan Mode), `longContext`, `webSearch`, and `image`.
-- **Quota-aware fallbacks** — per-scenario ordered fallback chains with proactive fail-over when a subscription provider crosses its weekly drain target. Effort and model-tier signals bias light traffic to Sonnet and heavy traffic to Opus.
-- **Personas** — append a named system prompt to every user-facing request without touching Claude Code. Manage a library on the Personas page; pick the active one on the Router page.
+- **Four inbound surfaces** — Anthropic Messages (`/v1/messages`), OpenAI Chat Completions, OpenAI Responses, and Gemini `generateContent`. Everything a surface needs is one descriptor, so all four get the same auth, error envelopes, streaming and request history.
+- **Task-based routing** — assign different models to five built-in scenarios: `default`, `think` (Plan Mode), `longContext`, `webSearch`, and `image`. Each scenario has two independent lanes, `agent` and `subagent`.
+- **Predicated routing rules** — per-scenario ordered rule stacks; the first rule whose predicate matches supplies the target and its own fallback chain.
+- **Fallback chains with account rotation** — every slot takes an ordered `provider,model` fallback list. A 429 rotates to a peer subscription account first, then walks the chain.
+- **Personas** — append a named system prompt to every `/v1/messages` request without touching Claude Code. Manage the library under Settings → Personas; pick the active one on the Routing page.
 - **Multi-provider support** — connect API-key providers (Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, …) or subscription-based providers (Claude Code OAuth, OpenAI Codex).
 - **Subscription monitoring** — track rate-limit windows and compare actual API spend against subscription cost.
 - **Usage & cost dashboard** — per-provider and per-model cost breakdown with daily cost charts.
 - **Request history** — browse past sessions with per-request stats and archived conversation transcripts.
+- **Issued access tokens** — individually revocable, attributable per request, and scopeable to one surface and one routing profile.
 - **Web management UI** — full browser-based configuration; no manual JSON editing required.
-- **Transformer pipeline** — built-in transformers adapt Anthropic-format requests to each provider's API.
-- **Custom JavaScript router** — implement any routing logic beyond the six built-in scenarios.
-- **Subagent model pinning** — direct individual subagents to a specific provider and model using an inline prompt tag.
+- **Transformer pipeline** — the chain is derived from the provider's API style and auth mode, so what the UI shows is what runs.
 - **Status line** — real-time Rialto status display integrated into Claude Code's status bar.
 - **Docker-first deployment** — single `docker compose up -d` with PostgreSQL and Redis included.
 
 ## 🖥️ Web UI
 
-![Models page](docs/images/screenshot-models.webp)
+The web UI (served on port **3456** by default) gives you full control over every aspect of the gateway. It is organised as five screens:
 
-The web UI (served on port **3456** by default) gives you full control over every aspect of the router:
+| Screen | Route | Purpose |
+|--------|-------|---------|
+| **Overview** | `/overview` | Traffic, spend, and subscription-window health at a glance |
+| **Routing** | `/routing` | The live chain per scenario and lane. Sub-tabs: **Map** (`/routing/map`) and **Rules** (`/routing/rules`) |
+| **Providers** | `/providers` | Add, edit, or remove API-key and subscription providers; per-provider models, pricing, context windows, connectivity tests, and the read-only derived request shape |
+| **Activity** | `/activity` | Sessions, per-request logs (`/activity/requests`), and server logs (`/activity/logs`) |
+| **Settings** | `/settings` | Server, **Access** (issue `/v1/*` tokens), Logging, Personas, Status line, Presets, Advanced |
 
-| Page | Purpose |
-|------|---------|
-| **Models** | View enabled models, pricing, context window, and test connectivity |
-| **Providers** | Add, edit, or remove API-key and subscription providers |
-| **Router** | Assign models to each routing scenario; pick the active persona |
-| **Personas** | Manage a library of named system prompts; create, edit, or delete personas |
-| **Subscriptions** | Monitor rate-limit windows and subscription cost vs. API spend |
-| **Usage** | API cost breakdown by provider and model with time-series charts |
-| **Sessions** | Browse past sessions; drill into per-request logs and the archived conversation |
-| **Settings** | Configure host, port, proxy, logging, status line, and API key |
+First run lands on `/setup`.
 
-![Providers page](docs/images/screenshot-providers.webp)
-
-![Router page](docs/images/screenshot-router.webp)
-
-![Usage page](docs/images/screenshot-usage.webp)
+> Screenshots are being re-captured for the current interface; the ones under `docs/images/` show the retired pre-Rialto UI and have been removed from this page rather than left in place as a wrong picture of the product.
 
 ## 🚀 Quick Start with Docker (Recommended)
 
 Install [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/), then:
 
-**Step 1 — Create a working directory and a minimal config file:**
+**Step 1 — Create a working directory:**
 
 ```shell
 mkdir -p ~/rialto ~/.rialto
 cd ~/rialto
+```
 
+A config file is created for you on first boot. You only need to write one yourself if you want a break-glass admin key:
+
+```shell
 cat > ~/.rialto/config.json << 'EOF'
 {
   "APIKEY": "your-secret-key"
@@ -64,9 +62,9 @@ cat > ~/.rialto/config.json << 'EOF'
 EOF
 ```
 
-> The `APIKEY` guards the web UI (`/api/*`). If you omit it, one is generated on first boot and printed to the server console.
+> **`APIKEY` is optional and no longer generated for you.** A browser on the machine Rialto runs on is exempt from the admin gate, and remote admin access is meant to go through Cloudflare Access. Set `APIKEY` deliberately when you want a recovery path that survives an Access outage — it guards `/api/*` only.
 >
-> **It does not authenticate `/v1/*`.** Clients call the proxy with an *access token* you issue under **Settings → Access** — individually revocable, attributable per request, and scopeable to one endpoint and routing profile. An install with no tokens issued cannot proxy.
+> **It never authenticates `/v1/*`.** Clients call the proxy with an *access token* you issue under **Settings → Access** — individually revocable, attributable per request, and scopeable to one surface and routing profile. An install with no tokens issued cannot proxy.
 
 **Step 2 — Download `compose.yaml`:**
 
@@ -90,9 +88,9 @@ EOF
 docker compose up -d
 ```
 
-The server starts at `http://127.0.0.1:3456`. Open that URL in a browser, sign in with your `APIKEY`, and use the **Providers** and **Routing** pages to finish configuration. Then issue an access token under **Settings → Access** — that is what your clients authenticate with.
+The server starts at `http://127.0.0.1:3456`. Open that URL in a browser and use the **Providers** and **Routing** pages to finish configuration. Then issue an access token under **Settings → Access** — that is what your clients authenticate with.
 
-**Step 5 — Point Claude Code at the router:**
+**Step 5 — Point Claude Code at the gateway:**
 
 ```shell
 ANTHROPIC_BASE_URL=http://127.0.0.1:3456 ANTHROPIC_AUTH_TOKEN=rialto_your-access-token claude
@@ -105,17 +103,23 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 export ANTHROPIC_AUTH_TOKEN=rialto_your-access-token
 ```
 
+**Step 6 — Turn routing on for the surface you use:**
+
+Every surface ships in `passthrough` mode, where the caller's own `body.model` is used verbatim. Switch `/v1/messages` (or whichever surface you point at) to `routed` on the **Routing** page once you have something to route to. See [Inbound surfaces](#-inbound-surfaces) below.
+
 **View logs:**
 
 ```shell
 docker compose logs -f
 ```
 
-**Apply config changes:**
+**Restart after editing `config.json` by hand:**
 
 ```shell
 docker compose restart
 ```
+
+Envelope values changed through the UI take effect immediately — they are mirrored onto the process environment as part of the save. There is no `rialto` CLI.
 
 ## 🔌 Connecting Providers
 
@@ -131,60 +135,104 @@ Rialto can route through subscription-based providers without a per-call API key
 
 **Codex (OpenAI)** — Browser-based login is not currently supported. Authentication is handled via credential file upload only.
 
-![Subscriptions page](docs/images/screenshot-subscriptions.webp)
-
 > **Terms of service notice:** Using a Claude Code subscription to serve requests from applications other than Claude Code may violate [Anthropic's usage policies](https://www.anthropic.com/legal/aup). Use this feature at your own discretion and risk.
+
+## 🚪 Inbound surfaces
+
+Rialto is not only a Claude Code proxy. Four wire formats are accepted on the front door, and each one is described by a single descriptor in `src/llms/inbound/surfaces.ts`:
+
+| Surface | Path | Typical client | Credential | Error envelope |
+|---|---|---|---|---|
+| `anthropic-messages` | `POST /v1/messages` | Claude Code | `x-api-key` or `Authorization: Bearer` | `{type:'error', error:{type,message}}` |
+| `openai-chat` | `POST /v1/chat/completions` | OpenAI SDK, Cline, OpenWebUI | `Authorization: Bearer` | `{error:{message,type,code,param}}` |
+| `openai-responses` | `POST /v1/responses` | Codex CLI | `Authorization: Bearer` | `{error:{message,type,code,param}}` |
+| `gemini-generate` | `POST /v1beta/models/<model>:<action>` | Gemini CLI | `x-goog-api-key` or `?key=` | `{error:{code,message,status}}` |
+
+`GET /v1/models` is a catalog read rather than a completion surface, so it is not one of the four — but its callers are OpenAI SDKs, so it answers in their credential convention and error envelope.
+
+Whichever surface a request arrives on, the credential must be an **issued access token**. The envelope `APIKEY` is accepted on `/api/*` only.
+
+### Routing mode
+
+Each surface has one stored mode:
+
+| Mode | Behaviour |
+|---|---|
+| `passthrough` | The caller picked the model. Scenario classification, rules, the preference chain and failover are all skipped. |
+| `routed` | The full selector runs: scenario classification → rules → preference chain → failover. |
+
+**Every surface starts in `passthrough`.** Routing an unconfigured install does nothing useful — with no chain and no rules the selector falls straight through to the caller's own model — so routing is something you switch on, per surface, once there is something to route to. Each surface can also be pinned to its own routing profile, which is how you fix, say, a CI client's surface on a cost-first chain.
 
 ## ⚙️ Configuration
 
 ### Disk envelope (`~/.rialto/config.json`)
 
-Boot-time scalars and disk-resident objects live here. Environment-variable interpolation (`$VAR` / `${VAR}`) and JSON5 comments are supported. The last three backups are kept automatically.
+Boot-time scalars and disk-resident objects live here. Environment-variable interpolation (`$VAR` / `${VAR}`) and JSON5 comments are supported. The last three backups are kept automatically. Unknown keys are preserved, not dropped.
 
 | Key | Description |
 |-----|-------------|
-| `APIKEY` | Admin secret for `/api/*`. Sent as `x-api-key` or `Authorization: Bearer`. Not accepted on `/v1/*` |
-| `HOST` | Listen address. Defaults to `127.0.0.1`; set to `0.0.0.0` when behind a reverse proxy (requires `APIKEY`) |
+| `APIKEY` | Optional break-glass secret for `/api/*`. Sent as `x-api-key` or `Authorization: Bearer`. Never accepted on `/v1/*`. Not generated for you |
+| `HOST` | Listen address (default: `127.0.0.1`) |
+| `PORT` | Listen port (default: `3456`) |
 | `ACCESS_TEAM_DOMAIN` | Cloudflare Access team domain. With `ACCESS_AUD`, verifies the Access assertion on `/api/*` |
 | `ACCESS_AUD` | Access application AUD tag. Both must be set — one alone enables nothing |
-| `PORT` | Listen port (default: `3456`) |
 | `LOG` | `true` to enable log files |
 | `LOG_LEVEL` | `fatal` / `error` / `warn` / `info` / `debug` / `trace` |
 | `PROXY_URL` | HTTP proxy for upstream API requests |
-| `API_TIMEOUT_MS` | Upstream API call timeout in ms (default: `600000`) |
+| `API_TIMEOUT_MS` | Upstream API call timeout in ms. Also clamped into Bun's 1–255 s per-request idle timeout |
 | `CLAUDE_PATH` | Path to the `claude` executable |
 | `NON_INTERACTIVE_MODE` | Set `true` for Docker / CI environments to prevent stdin hangs |
-| `CUSTOM_ROUTER_PATH` | Absolute path to a custom JavaScript router module |
-| `CROSS_PROVIDER_FALLBACK` | `true` to auto-append same-`Model.name` peer entries on other OpenAI-family providers (`openai_chat` / `openai_responses`) after every failover chain entry. Peer entries also bypass the same-`auth_mode` gate, so a subscription primary (codex) can fall over to an api_key peer (openai) without a hand-written chain. Off by default. See "Cross-provider peer fallback" below. |
+| `CAPTURE_REQUESTS` | Record a `RequestLog` row per request (default `true`) |
+| `CAPTURE_MESSAGES` | Archive conversation transcripts (default `true`) |
+| `REDACT_TOOL_ARGUMENTS` | Strip tool-call arguments from the archive (default `false` — turning it on loses information that cannot be recovered later) |
+| `ROUTER_MODE` | `scenario` (default) / `preference` / `quota-aware` — which selector routes `/v1` traffic |
+| `ROUTER_SHADOW` | `off` (default) / `preference` / `quota-aware` — run a second selector in parallel and log its would-be decision without affecting routing |
+| `ROUTER_ROLLOUT_PCT` | Percentage of sessions the non-`scenario` mode applies to (default `100`, session-hash bucketed) |
+| `ROUTING_SCHEDULER_INTERVAL_MS` | Scheduler tick, 60 000–3 600 000 (default `300000`) |
+| `CROSS_PROVIDER_FALLBACK` | `true` to auto-append same-`Model.name` peer entries on other OpenAI-family providers. Off by default. See "Cross-provider peer fallback" below |
+| `CUSTOM_ROUTER_PATH` | Not declared by `ConfigEnvelopeSchema` — it survives on disk through the schema's `.catchall` and round-trips through the Settings form, but **nothing reads it at request time**. See "Custom JavaScript router" below |
+| `Personas` | The persona library (array) |
+| `ActivePersona` | Disk-side backing store for the active persona's id; surfaced on the wire as `Router.persona` |
+| `StatusLine` | Status-line configuration object |
+| `LiveRoutingName` | Display name for the live routing configuration |
 
 ### Providers, Models, and Router (database)
 
-After the first boot, providers, models, and router slots are managed in PostgreSQL via the web UI or configuration API — not in `config.json`. On first boot, any `Providers` / `Router` keys found in `config.json` are migrated to the database automatically (one-shot, idempotent).
+Providers, models, and router slots live in PostgreSQL and are managed through the web UI or `POST /api/config`. The `Providers` and `Router` keys **inside** `config.json` are a one-way mirror written back from the database after each save — editing them by hand has no effect and is overwritten on the next write.
 
 ### Routing scenarios
 
-Configure which model to use for each scenario on the **Router** page:
+Configure which model to use for each scenario on the **Routing** page:
 
 | Scenario | When it is used |
 |----------|----------------|
 | `default` | All requests not matched by another scenario |
-| `background` | Lightweight background tasks |
-| `think` | Reasoning-intensive tasks (Plan Mode) |
-| `longContext` | Requests above the context threshold (default 60 000 tokens) |
-| `webSearch` | Web search tasks (the model must support search natively) |
-| `image` | Image-related tasks (uses Rialto's built-in image agent) |
+| `think` | The request opts into extended thinking (`thinking.type` is `enabled` or `adaptive`; an explicit `disabled` does *not* count) |
+| `longContext` | Token count over the threshold, or a heavy effort/tier signal |
+| `webSearch` | The request carries a `web_search*` tool |
+| `image` | Image-related tasks |
+
+There is **no `background` scenario.** It was folded into a predicated rule on `default` by the `20260728_router_rules_drop_background` migration, so the old "route haiku traffic somewhere cheap" behaviour is now an editable rule on the Rules page instead of a fixed slot.
+
+Each scenario has two lanes — `agent` for ordinary traffic and `subagent` for requests carrying a subagent tag — and each lane has its own primary, fallbacks, and rule stack.
+
+**The `longContext` threshold is not a fixed number.** A configured `Router.longContextThreshold` wins outright. With no configured value it is 70 % of the default agent primary's declared context window, leaving headroom for the reply. If neither resolves, it falls back to 128 000 tokens.
 
 ### Effort, tier, and fallbacks
 
 Beyond the scenario triggers above, the router grades each request and walks an ordered fallback list:
 
-- **Grading signals** — `output_config.effort` (low/medium → `default`, high/xhigh/max → `longContext`) and the requested model tier from `body.model` (opus → heavy, sonnet/haiku → light). Tier is read only when effort is absent so older Claude Code traffic still grades correctly; an explicit low/medium effort suppresses the tier fallback so callers can downgrade an opus default.
-- **Per-scenario fallback chains** — every slot accepts an ordered list of `provider,model` fallbacks; the router walks `[primary, ...fallbacks]` and picks the first candidate that has weekly-window headroom and a context window large enough for the request.
-- **Weekly drain guard** — subscription providers are skipped when their *weekly* usage is over its linear drain target (`seven_day_opus` or overall `seven_day` for claude, `secondary` for codex). The 5h / codex-primary windows are *soft* and may burst without triggering fail-over. `Router.weeklyDrainMarginPct` (0..100, default 0) lets traffic run that many points hot before the guard trips — useful when you'd rather burst the weekly window than fail over.
+- **Grading signals** — `output_config.effort` (`high`/`xhigh`/`max` → heavy → `longContext`; `low`/`medium` → explicitly light) and the requested model tier from `body.model` (opus → heavy). Tier is read only when effort is absent so older Claude Code traffic still grades correctly; an explicit low/medium effort suppresses the tier escalation so callers can downgrade an opus request.
+- **Rule stack first** — the scenario's rules are walked before its catch-all primary. A matched rule supplies the target *and* its own cascade (rule target → scenario primary → scenario fallbacks). A rule that matches with no target is a legitimate "do not reroute these" block.
+- **Per-scenario fallback chains** — the router walks `[primary, ...fallbacks]` and picks the first candidate that is not marked exhausted and whose declared `contextWindow` can hold the request.
 - **Capability gate** — fail-over never lands on a model whose declared `contextWindow` cannot hold the request. Models with no declared window are allowed (unknown = allow, conservative default).
-- **Multi-account balancing** — when more than one SubAccount on the same Claude provider is enabled, the session router picks the one with the most weekly headroom (furthest behind its linear drain target) and sticks subsequent requests in the session to that account.
+- **Account rotation on 429** — for a subscription provider, a 429 marks that sub-account exhausted (until the real `resetAt`, or five minutes if the upstream did not say) and retries the same chain entry on a peer account, up to ten rotations. Only when no peer is left does the whole provider get marked and the walker move to the next chain entry.
+- **`auth_mode` gate** — a chain never mixes auth modes. If the primary is a subscription provider, api_key fallbacks are dropped, and vice versa. Same-provider fallbacks are dropped too: 5 h and weekly quotas are per account and shared across that account's models, so hopping to another model on the same provider changes nothing.
+- **Multi-account balancing** — with several enabled SubAccounts on the same provider, the session router drops accounts whose recorded hard-limit windows are already at 100 %, reuses the sticky session→account mapping when it still points at a survivor, and otherwise picks the account with the highest `remaining % ÷ time until reset` — the one most at risk of leaving quota unspent.
 
-Decisions are logged structurally: the winning hop carries `{ from, to, scenario, marginPct, tokenCount, trace }`, and a dead-chain warning fires when every candidate is rejected so the operator can see what was tried and why (`rate-limited` / `capability` / `malformed` / `kept`).
+Decisions are logged structurally: a proactive drop logs `{ from, to, scenario, tokenCount, trace }`, and a dead-chain warning fires when every candidate is rejected so you can see what was tried and why. Each `trace` entry carries one of `kept` / `exhausted` / `capability` / `malformed`.
+
+> **There is no weekly drain guard.** Earlier builds pre-empted a subscription provider once its weekly window crossed a linear drain target, tuned by a `Router.weeklyDrainMarginPct` knob. Both are gone. Subscription providers now run to their upstream limit and are rotated reactively on the 429 that actually happens, which is the signal that is never wrong.
 
 ### Cross-provider peer fallback
 
@@ -205,113 +253,63 @@ A *persona* is a named system-prompt fragment appended to every user-facing requ
 - **Library** — `Personas` is a top-level array on the disk envelope. Each entry has a stable uuid `id`, a free-form `name` (display label, need not be unique), and the `prompt` text. New installs ship with a small starter library; existing installs keep what they have on disk.
 - **Active selection** — exactly one persona is active per Router. The active persona's uuid id rides on `Router.persona` (round-tripped through the disk-only `ActivePersona` envelope key). `null` / absent / empty string means "no persona". Per-project and per-session router-override files also accept `Router.persona`.
 - **Injection** — when the router resolves a scenario, the active persona's `prompt` is appended to the LAST system block carrying `cache_control` (falling back to the last string text block). This keeps the persona *inside* the cached prefix, so it consumes no extra cache breakpoint and stays byte-stable across requests (preserving Anthropic's prompt cache). String and undefined `system` values are concatenated; multi-block array systems are mutated in place.
-- **Scenario exclusion** — the `background` scenario is excluded: it runs lightweight internal tasks (e.g. title generation) where a persona voice would corrupt the output. Every other scenario (default / think / longContext / webSearch / image) inherits the active persona.
-- **Subagent interaction** — persona injection runs *after* `<RIALTO-SUBAGENT-MODEL>` tag handling, so a subagent's per-call system content composes with — rather than clobbers — the persona.
+- **Surface restriction** — persona injection runs on **`/v1/messages` only**. The OpenAI-compat and Gemini surfaces reject an enriched `system` field outright (Codex answers `Unsupported parameter: system`), so the enrichment is skipped there rather than breaking the request. Every scenario on `/v1/messages` inherits the active persona — there is no per-scenario exclusion.
+- **Subagent interaction** — persona injection runs *after* subagent-tag handling, so a subagent's per-call system content composes with — rather than clobbers — the persona.
 
-Manage the library on the **Personas** page (`/personas`); switch the active persona on the **Router** page. Setting it to "no persona" is the no-op default.
+Manage the library under **Settings → Personas** (`/settings/personas`); switch the active persona on the **Routing** page. Setting it to "no persona" is the no-op default.
 
 For authoring high-fidelity personas (structural patterns, anti-pattern cataloguing, thought-process control for `think` requests), see [docs/guides/persona-authoring.md](docs/guides/persona-authoring.md).
 
 ### Transformers
 
-Transformers adapt Anthropic-format requests to each provider's wire format.
+Transformers adapt requests to each provider's wire format. Six ship with Rialto and the set is fixed at build time — there is no plugin loader.
 
-**Built-in transformers:**
+| Transformer | Bound to | Job |
+|-------------|----------|-----|
+| `anthropic` | `/v1/messages` | Native Anthropic wire format |
+| `openai` | `/v1/chat/completions` | OpenAI Chat Completions |
+| `openai-responses` | `/v1/responses` | OpenAI Responses API — Codex-family models |
+| `gemini` | `/v1beta/models/:modelAndAction` | Google Gemini |
+| `claude-code-oauth` | subscription auth | Injects the Claude Code OAuth bearer, with auto-refresh |
+| `codex-oauth` | subscription auth | Injects the ChatGPT / Codex OAuth bearer |
 
-| Transformer | Description |
-|-------------|-------------|
-| `Anthropic` | Pass-through for native Anthropic endpoints |
-| `claude-code-credentials` | Use local Claude Code OAuth token (`~/.claude/.credentials.json`) with auto-refresh |
-| `openai-responses` | OpenAI Responses API (`/v1/responses`) — for Codex models |
-| `OpenAI` | Standard OpenAI Chat Completions API |
-| `deepseek` | DeepSeek API |
-| `gemini` | Google Gemini API |
-| `openrouter` | OpenRouter API (supports `provider` routing parameter) |
-| `groq` | Groq API |
-| `maxtoken` | Override `max_tokens` (accepts `{ "max_tokens": N }` option) |
-| `tooluse` | Optimize tool-call handling via `tool_choice` |
-| `reasoning` | Handle `reasoning_content` field |
-| `sampling` | Handle sampling fields (`temperature`, `top_p`, `top_k`, `repetition_penalty`) |
-| `enhancetool` | Add error-tolerance to tool-call parameters (disables streaming tool calls) |
-| `cleancache` | Strip `cache_control` from requests |
-| `vertex-gemini` | Gemini via Vertex AI authentication |
-| `gemini-cli` *(experimental)* | Gemini via Gemini CLI (unofficial) |
-| `qwen-cli` *(experimental)* | qwen3-coder-plus via Qwen CLI (unofficial) |
-| `rovo-cli` *(experimental)* | GPT-5 via Atlassian Rovo Dev CLI (unofficial) |
+**The chain is derived, not configured.** Every transformer above is either endpoint-bound or auth-bound, so there is no choice left to make: Rialto reads the chain off the provider's API style and auth mode.
 
-**Transformer configuration examples:**
+| API style | api_key | subscription |
+|---|---|---|
+| `anthropic` | *(no conversion step needed)* | `claude-code-oauth` |
+| `openai_chat` | `openai` | *not supported* |
+| `openai_responses` | `openai-responses` | `openai-responses` → `codex-oauth` |
+| `gemini` | `gemini` | *not supported* |
 
-```json
-{
-  "name": "openrouter",
-  "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
-  "api_key": "$OPENROUTER_API_KEY",
-  "models": ["google/gemini-2.5-pro", "anthropic/claude-sonnet-4"],
-  "transformer": { "use": ["openrouter"] }
-}
-```
+An Anthropic provider needs no conversion step because the request is already in that wire format. An unsupported pair means the provider is not registered at all, rather than being called without a credential.
 
-Model-specific transformer:
+A model whose own API style disagrees with its provider's — a Codex-family model hosted on the regular OpenAI provider — gets that conversion step appended for its own requests only.
 
-```json
-{
-  "name": "deepseek",
-  "api_base_url": "https://api.deepseek.com/chat/completions",
-  "api_key": "$DEEPSEEK_API_KEY",
-  "models": ["deepseek-chat", "deepseek-reasoner"],
-  "transformer": {
-    "use": ["deepseek"],
-    "deepseek-chat": { "use": ["tooluse"] }
-  }
-}
-```
-
-Transformer with options:
-
-```json
-{
-  "transformer": {
-    "use": [["maxtoken", { "max_tokens": 65536 }], "enhancetool"]
-  }
-}
-```
+`provider.transformer.use` is no longer read: a `use` block left over in an older config is dropped on load. The Providers page shows the derived chain read-only under **Request shape**, which is the first thing worth checking when a request misbehaves.
 
 ### Custom JavaScript router
 
-For routing logic beyond the six built-in scenarios, set `CUSTOM_ROUTER_PATH` in the disk envelope:
+> **Not wired up.** `CUSTOM_ROUTER_PATH` survives in the config envelope and the Settings form and round-trips correctly, but **nothing loads or calls the module at request time**. `custom-router.example.js` in the repository root documents the intended contract — an `async` function returning `"provider,model"` or `null` — and is kept for when the hook is reinstated. Treat the setting as unimplemented, not as a feature.
 
-```json
-{
-  "CUSTOM_ROUTER_PATH": "/home/user/.rialto/custom-router.js"
-}
-```
-
-The module must export an `async` function that returns `"provider,model"` or `null` (fall through to default routing):
-
-```javascript
-module.exports = async function router(req, config) {
-  const userMessage = req.body.messages.find(m => m.role === 'user')?.content;
-  if (userMessage?.includes('explain this code')) {
-    return 'openrouter,anthropic/claude-3.5-sonnet';
-  }
-  return null;
-};
-```
-
-See `custom-router.example.js` in the repository root for a full example.
+For routing logic beyond the built-in scenarios today, use the **Rules** page (`/routing/rules`). A rule's predicate can combine requested model tier, an exact-match model glob, thinking on/off, a token-count range, a tool-type glob, and the effort level — which covers most of what a code hook was reached for, without one.
 
 ### Subagent routing
 
-Pin a specific model for a subagent by prefixing its prompt with:
+A subagent tag in the prompt routes that subagent onto the scenario's **`subagent` lane**:
 
 ```
-<RIALTO-SUBAGENT-MODEL>provider,model</RIALTO-SUBAGENT-MODEL>
+<RIALTO-SUBAGENT-MODEL>subagent</RIALTO-SUBAGENT-MODEL>
 Please help me analyze this code...
 ```
 
-## 🔀 OpenAI-compat API surface
+**Only the tag's presence matters — its contents are ignored.** The tag selects the lane; the model comes from that lane's configuration on the **Routing** page. This is deliberate: it makes subagent routing editable in one place instead of scattered across every subagent's prompt file. The tag is stripped before the request goes upstream, so the marker never reaches the vendor.
 
-Rialto is not just a Claude Code proxy — it also exposes an **OpenAI-compatible API** so any OpenAI SDK caller (Codex CLI, Cline, OpenWebUI, `openai` for Python / JS, `curl`) can consume your **subscription quota** (Claude Max, ChatGPT Plus/Pro) as if it were a plain OpenAI endpoint. The caller sees a normal OpenAI request/response; behind Rialto the request is routed to your OAuth-authenticated Claude / Codex account, so cost stays inside your monthly subscription instead of hitting metered API billing.
+`<CCR-SUBAGENT-MODEL>` is the pre-rename spelling and is still accepted, because it lives in prompts people have already written. A tag whose body still names an old `provider,model` pair keeps working; the pair is simply not read.
+
+## 🔀 OpenAI-compatible and Gemini-compatible API surfaces
+
+Any OpenAI SDK caller (Codex CLI, Cline, OpenWebUI, `openai` for Python / JS, `curl`) — and any Gemini SDK caller — can consume your **subscription quota** (Claude Max, ChatGPT Plus/Pro) as if it were a plain vendor endpoint. The caller sees a normal request/response; behind Rialto the request goes to your OAuth-authenticated account, so cost stays inside your monthly subscription instead of hitting metered API billing.
 
 ### Endpoints (OpenAI wire shape)
 
@@ -321,7 +319,7 @@ Rialto is not just a Claude Code proxy — it also exposes an **OpenAI-compatibl
 | `POST` | `/v1/chat/completions`   | Standard Chat Completions — stream + non-stream. Body's `model` field takes the `provider,model` id from `/v1/models`. |
 | `POST` | `/v1/responses`          | OpenAI Responses API — stream + non-stream. Same model addressing as above. |
 
-Auth on these three paths is **`Authorization: Bearer <access token>` only** (the `x-api-key` header — an Anthropic convention — is rejected here, and 401 bodies follow OpenAI's `{error:{message,type,code}}` shape). The Anthropic-style `/v1/messages` endpoint used by Claude Code keeps its existing dual-mode auth (`x-api-key` + `Bearer`).
+Auth on these three paths is **`Authorization: Bearer <issued access token>` only** — `x-api-key` is an Anthropic convention and is rejected here, and 401 bodies follow OpenAI's `{error:{message,type,code}}` shape. The Anthropic surface (`/v1/messages`) additionally reads `x-api-key`, but the value must still be an issued access token.
 
 ### Example — OpenAI Python SDK against your Codex subscription
 
@@ -330,7 +328,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:3456/v1",
-    api_key="<your Rialto APIKEY>",
+    api_key="rialto_your-access-token",   # Settings → Access. NOT the APIKEY.
 )
 
 # 1. Discover routable models
@@ -355,7 +353,7 @@ import OpenAI from 'openai'
 
 const client = new OpenAI({
   baseURL: 'http://localhost:3456/v1',
-  apiKey: process.env.RIALTO_APIKEY,
+  apiKey: process.env.RIALTO_ACCESS_TOKEN, // Settings → Access
 })
 
 const stream = await client.chat.completions.create({
@@ -366,12 +364,24 @@ const stream = await client.chat.completions.create({
 for await (const chunk of stream) process.stdout.write(chunk.choices[0]?.delta?.content ?? '')
 ```
 
-Any client that supports overriding `base_url` / `baseURL` works the same way. Router / failover / persona / subagent-tag features apply to these inbound paths too, so a call to `codex,gpt-5.6-luna` still walks the configured fallback chain when the primary is rate-limited.
+Any client that supports overriding `base_url` / `baseURL` works the same way.
+
+**What applies on these surfaces.** Failover, account rotation, and the `provider,model` addressing always apply. Scenario routing and rules apply only once you switch the surface from `passthrough` to `routed`. Persona injection does **not** apply — it is `/v1/messages` only (see Personas above).
 
 ## 📊 Logging
 
 - **Server-level logs** (pino): `~/.rialto/logs/rialto-*.log` — HTTP requests, API calls, server events. Level controlled by `LOG_LEVEL`.
 - **Application-level logs**: `~/.rialto/rialto.log` — routing decisions and business-logic events.
+
+Both are readable from **Activity → Logs** in the UI.
+
+## 🌐 Public deployment
+
+Exposing Rialto through a tunnel needs `/api/*` and `/v1/*` treated differently — the first behind Cloudflare Access, the second bypassed at the edge and guarded by issued tokens alone. The full setup, and the failure modes that make CLI clients hang on a login page, are in [docs/guides/public-deployment.md](docs/guides/public-deployment.md).
+
+## ⬆️ Upgrading from the pre-rename build
+
+Home directory, environment variables, database names, Docker image and thinking-signature prefixes all changed with the rename to Rialto. See [docs/guides/migration-v3.md](docs/guides/migration-v3.md).
 
 ## 🛠️ Development
 
@@ -381,7 +391,7 @@ Any client that supports overriding `base_url` / `baseURL` works the same way. R
 - PostgreSQL
 - Redis
 
-The devcontainer (`.devcontainer/compose.yaml`) provides `postgres` and `redis` automatically.
+The devcontainer (`.devcontainer/compose.yaml`) provides `postgres` and `redis` automatically, and provisions the separate `rialto_test` database on a fresh volume.
 
 ### Setup
 
@@ -392,38 +402,53 @@ bun install
 ```shell
 # .env
 DATABASE_URL=postgres://postgres:password@postgres:5432/rialto
+TEST_DATABASE_URL=postgres://postgres:password@postgres:5432/rialto_test
 REDIS_URL=redis://redis:6379
 ```
 
 ```shell
 bun run db:migrate
-bun run dev         # Vite dev server on port 16175
+bun run dev         # Vite on port 16175: the SPA plus, via @hono/vite-dev-server,
+                    # the Hono app for /api/*, /v1/*, /health and /callback
 ```
 
 ### Build
 
 ```shell
-bun run build       # Vite production build (SPA into dist/)
+bun run build       # Vite production build (single-file output into dist/)
 ```
 
 ### Test
 
 ```shell
-bun run test              # Unit and DB tests
-bun run test:providers    # Provider integration tests
+bun test                  # FULL suite
+bun run test              # only __tests__/lib __tests__/db __tests__/preset
+bun run test:providers    # provider contract tests (fixture replay)
+```
+
+`bun test` and `bun run test` are **not** the same command. CI runs three gates: Build, Type Check, Test.
+
+### Checks
+
+```shell
+bunx tsc --noEmit
+bunx biome check --write .
+bunx knip                 # dead-code inventory
 ```
 
 ### Database tooling
 
 | Script | Purpose |
 |--------|---------|
-| `bun run db:generate` | Regenerate Prisma client |
+| `bun run db:generate` | Regenerate the Prisma client (also runs as `postinstall`) |
 | `bun run db:migrate` | Create and apply a migration (development) |
 | `bun run db:migrate:deploy` | Apply existing migrations (production / CI) |
+| `bun run db:migrate:test` | Apply migrations to the separate `rialto_test` database |
 | `bun run db:reset` | Drop and recreate the schema (destructive) |
+| `bun run db:seed` | Idempotent seed — router slots and the preference profile |
 | `bun run db:studio` | Open Prisma Studio |
 
-Always go through Prisma migrations — never edit DDL directly.
+Always go through Prisma migrations — never edit DDL directly. **After any migration, run `db:migrate:test` as well**, or CI will fail against the test database.
 
 ### Price scraping
 
@@ -433,6 +458,7 @@ Always go through Prisma migrations — never edit DDL directly.
 | `bun run scrape:anthropic-prices` | Scrape Anthropic model pricing |
 | `bun run scrape:google-prices` | Scrape Google / Gemini pricing |
 | `bun run scrape:prices` | Scrape all of the above |
+| `bun run seed:prices-db` | Load the scraped prices into the database |
 
 ### Release
 
@@ -440,6 +466,13 @@ Always go through Prisma migrations — never edit DDL directly.
 |--------|---------|
 | `bun run release` | Build and publish the Docker image |
 | `bun run release:docker` | Publish Docker image only |
+
+### Architecture documentation
+
+- [`docs/architecture/inbound-surfaces.md`](docs/architecture/inbound-surfaces.md) — the surface registry and what derives from it
+- [`docs/architecture/pipeline-overview.md`](docs/architecture/pipeline-overview.md) — boot → request → upstream → response, end to end
+- [`docs/architecture/request-flow.md`](docs/architecture/request-flow.md) — routing decisions and 429 rotation, in detail
+- [`docs/architecture/testing-map.md`](docs/architecture/testing-map.md) — where the tests are and what they cover
 
 ## License
 

@@ -7,6 +7,7 @@
  * the api_key one has a model list long enough to need filtering.
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { AccountsPanel } from './AccountsPanel'
 import { CredentialsPanel } from './CredentialsPanel'
@@ -22,10 +23,16 @@ import type { CatalogEntry, Provider, SubscriptionWire, TransformerWire } from '
  */
 type ShowMode = 'priced' | 'enabled' | 'all'
 
-const SHOW_LABEL: Record<ShowMode, string> = {
-  priced: 'Enabled + priced',
-  enabled: 'Enabled only',
-  all: 'All models'
+const SHOW_LABEL_KEYS: Record<ShowMode, string> = {
+  priced: 'providers.models.showPriced',
+  enabled: 'providers.models.showEnabled',
+  all: 'providers.models.showAll'
+}
+
+const STATE_LABEL_KEYS: Record<'live' | 'invalid' | 'unknown', string> = {
+  live: 'providers.rail.stateLive',
+  invalid: 'providers.rail.stateInvalid',
+  unknown: 'providers.rail.stateUnknown'
 }
 
 const NEXT_SHOW: Record<ShowMode, ShowMode> = { priced: 'enabled', enabled: 'all', all: 'priced' }
@@ -56,6 +63,7 @@ function DetailHeader({
   onSync: () => void
   onRemove: () => void
 }) {
+  const { t } = useTranslation()
   const subscription = provider.auth_mode === 'subscription'
   const stateTone = state === 'live' ? 'ok' : state === 'invalid' ? 'bad' : 'mute'
   return (
@@ -63,21 +71,25 @@ function DetailHeader({
       <div>
         <div className='flex items-center gap-2'>
           <h2 className='text-sm font-semibold'>{label}</h2>
-          {subscription ? <Pill tone='info'>subscription</Pill> : <Pill tone='mute'>api key</Pill>}
-          <Pill tone={stateTone}>{state}</Pill>
+          {subscription ? (
+            <Pill tone='info'>{t('providers.connect.pillSubscription')}</Pill>
+          ) : (
+            <Pill tone='mute'>{t('providers.connect.pillApiKey')}</Pill>
+          )}
+          <Pill tone={stateTone}>{t(STATE_LABEL_KEYS[state])}</Pill>
         </div>
         <p className='mt-0.5 font-mono text-[11px] text-muted-foreground'>{provider.api_base_url}</p>
       </div>
       <div className='ml-auto flex gap-2'>
         <RButton variant='outline' icon='ri-pulse-line' onClick={onTestAll} disabled={busy}>
-          Test all
+          {t('providers.detail.testAll')}
         </RButton>
         <RButton variant='ghost' icon='ri-refresh-line' onClick={onSync} disabled={busy}>
-          Sync models
+          {t('providers.detail.syncModels')}
         </RButton>
         {subscription ? null : (
           <RButton variant='ghost' icon='ri-delete-bin-line' onClick={onRemove} disabled={busy}>
-            Remove
+            {t('common.remove')}
           </RButton>
         )}
       </div>
@@ -86,6 +98,7 @@ function DetailHeader({
 }
 
 function FilterBox({ value, onChange, wide }: { value: string; onChange: (v: string) => void; wide: boolean }) {
+  const { t } = useTranslation()
   return (
     <div
       className={`flex h-7 items-center gap-2 rounded-md border border-border px-2.5 text-xs text-muted-foreground ${wide ? 'w-44' : ''}`}
@@ -94,7 +107,7 @@ function FilterBox({ value, onChange, wide }: { value: string; onChange: (v: str
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={wide ? 'Filter models' : 'Filter'}
+        placeholder={t(wide ? 'providers.models.filterModels' : 'providers.models.filter')}
         className='min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground'
       />
     </div>
@@ -110,6 +123,7 @@ function ModelsSection({
   rows: ModelRow[]
   onToggle: (model: string, next: boolean) => void
 }) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [show, setShow] = useState<ShowMode>('priced')
   const [limit, setLimit] = useState(PAGE)
@@ -125,9 +139,14 @@ function ModelsSection({
   return (
     <>
       <div className='flex items-center gap-3 px-6 pt-5 pb-3'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Models</h3>
+        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('providers.models.title')}
+        </h3>
         <span className='text-[11px] text-muted-foreground'>
-          {enabledCountOf(provider)} of {listedModelsOf(provider).length} enabled
+          {t('providers.models.enabledCount', {
+            enabled: enabledCountOf(provider),
+            total: listedModelsOf(provider).length
+          })}
         </span>
         <div className='ml-auto flex items-center gap-2'>
           {isApiKey ? (
@@ -136,7 +155,7 @@ function ModelsSection({
               onClick={() => setShow(NEXT_SHOW[show])}
               className='inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-muted/60'
             >
-              <span className='text-muted-foreground'>Show</span> {SHOW_LABEL[show]}
+              <span className='text-muted-foreground'>{t('providers.models.show')}</span> {t(SHOW_LABEL_KEYS[show])}
               <i className='ri-arrow-down-s-line text-sm text-muted-foreground' />
             </button>
           ) : null}
@@ -151,7 +170,7 @@ function ModelsSection({
             onClick={() => setLimit(limit + PAGE)}
             className='w-full rounded-md border border-dashed border-border py-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50'
           >
-            Show {hidden} more models
+            {t('providers.models.showMore', { n: hidden })}
           </button>
         </div>
       ) : null}

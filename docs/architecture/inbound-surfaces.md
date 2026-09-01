@@ -20,10 +20,10 @@ Rialto は「複数のワイヤ形式を受け、複数のベンダへ振り分�
 
 | 散っていた場所 | 何を知っていたか | 移管先フィールド |
 |---|---|---|
-| `api/v1/error-shape.ts` の `errorShapeForPath` | エラー封筒の形 | `errorShape` |
-| `api/v1/route.ts` の `pickSseAggregator` | 非ストリーム集約の関数（transformer名で分岐） | `aggregateSse` |
-| `index.ts` の `openaiBearerAuth` パス列挙 | 認証ヘッダの種類 | `auth` |
-| `api/v1/invocation.ts` の `inboundTypeFromPath` | 永続化するワイヤ種別 | `inboundType` |
+| `src/api/v1/error-shape.ts` の `errorShapeForPath` | エラー封筒の形 | `errorShape` |
+| `src/api/v1/route.ts` の `pickSseAggregator` | 非ストリーム集約の関数（transformer名で分岐） | `aggregateSse` |
+| `src/index.ts` の `openaiBearerAuth` パス列挙 | 認証ヘッダの種類 | `auth` |
+| `src/api/v1/invocation.ts` の `inboundTypeFromPath` | 永続化するワイヤ種別 | `inboundType` |
 
 面を1つ足すたびに4箇所を直す必要があり、どれか1つを忘れても**静かに壊れる**（たとえばエラーだけ
 別形式で返る）。記述子に寄せることで、忘れようがなくなる。
@@ -54,16 +54,23 @@ Hono はマッチする middleware を**すべて**走らせるので、OpenAI �
 
 ## 4つの面
 
-| id | path | 想定クライアント | inboundType | 既定 routingMode |
-|---|---|---|---|---|
-| `anthropic-messages` | `/v1/messages` | Claude Code | `anthropic` | `routed` |
-| `openai-chat` | `/v1/chat/completions` | OpenAI SDK | `openai` | `passthrough` |
-| `openai-responses` | `/v1/responses` | Codex CLI | `openai` | `passthrough` |
-| `gemini-generate` | `/v1beta/models/*` | Gemini CLI | `gemini` | `passthrough` |
+| id | path | endpoint | 想定クライアント | inboundType | auth | errorShape |
+|---|---|---|---|---|---|---|
+| `anthropic-messages` | `/v1/messages` | `/v1/messages` | Claude Code | `anthropic` | `x-api-key` | `anthropic` |
+| `openai-chat` | `/v1/chat/completions` | `/v1/chat/completions` | OpenAI SDK | `openai` | `bearer` | `openai` |
+| `openai-responses` | `/v1/responses` | `/v1/responses` | Codex CLI | `openai` | `bearer` | `openai` |
+| `gemini-generate` | `/v1beta/models/*` | `/v1beta/models/:modelAndAction` | Gemini CLI | `gemini` | `google` | `google` |
 
-`GET /v1/models` はカタログ読み出しであって完了リクエストの面ではないので、レジストリには**入れない**。
-ただし呼び手が OpenAI SDK なのでエラー封筒だけは openai 形式を返す（`error-shape.ts` の
-`EXTRA_OPENAI_PATHS`）。
+`path` は `surfaceForPath` がマッチさせる表示用パターン、`endpoint` は Hono のマウント先であり
+同時に所有 transformer が宣言する `endPoint` キー。`/v1` の3面では両者は同一で、gemini だけ
+食い違う（モデル名が入るパスセグメントを glob では名指しできないため）。
+
+`GET /v1/models` はカタログ読み出しであって完了リクエストの面ではないので、`INBOUND_SURFACES`
+には**入れない**。ただし呼び手が OpenAI SDK である以上その認証規約とエラー封筒には従う必要が
+あり、それだけを理由に同じファイルの **`CATALOG_PATHS`** に1行だけ置いてある
+（`{ path, auth, errorShape }` の3フィールド。`errorShapeForPath` と `inboundProxyAuth` の
+どちらも、面レジストリで外したあとにこちらを引く）。`EXTRA_OPENAI_PATHS` という配列は
+`error-shape.ts` にはもう無い。
 
 `gemini-generate` は Phase 3 で接続済み。`POST /v1beta/models/:modelAndAction` が実際に
 マウントされ、認証・エラー封筒・SSE集約・`RequestLog` 記録まで通る。
@@ -104,9 +111,30 @@ if (!(await isRoutedPath(req.inboundPath))) { ... }
 「`/v1/messages` 専用の設定画面」になっていた。これが **「UI上の機能が全部messagesだけの設定に
 なっている」の正体**である。
 
-**出荷時の既定値は旧挙動と完全に一致する**（messages=routed、他=passthrough）。
-`InboundSurfaceConfig` に行が無い面は記述子の `defaultRoutingMode` を使うので、
-誰かが変えるまで挙動は1バイトも変わらない。
+### 記述子に `defaultRoutingMode` は無い
+
+面ごとの既定値は**廃止した**。旧実装は messages=routed / 他=passthrough を記述子に持っていたが、
+それはハードコードされた bypass を場所を変えて再現しただけで、何も表現していなかった。さらに
+UI 側に「見た目が同じ2つの値のうちどちらが出荷時のものか」を説明させる負債を生んでいた
+（旧 `overridden` フラグの存在理由がそれ）。
+
+いまは全面が `InboundSurfaceConfig` に**明示的な保存済みモードを1つ**持つ。起動時の
+`ensureInboundSurfaces()` が、行の無い面に単一の
+
+```ts
+export const INITIAL_ROUTING_MODE: RoutingMode = 'passthrough'
+```
+
+を入れる（既存行は触らない。冪等）。読み取り側（`listSurfaces`）も、まだ行が無い面には同じ
+seed 値を返すので、「面ごとの既定値」を発明する必要がどこにも無い。
+
+**passthrough が seed なのは、未設定のインストールでルーティングを走らせても何も起きないから。**
+選好チェーンもルールも無い状態では、セレクタは呼び出し側の model に素通りする。ルーティングは
+振り先が揃ってから面ごとに有効化するものである。
+
+つまり **新規インストールは `/v1/messages` すらルーティングしない**。旧ビルドからの移行では
+Routing 画面で明示的に `routed` へ切り替える必要がある — ここは旧挙動を踏襲していない、
+意図的な非互換点である。
 
 ## profileKey — 面ごとの選好チェーン
 
@@ -193,7 +221,7 @@ DBマイグレーションは不要（`InboundSurfaceConfig` は行が無けれ�
 | Settings — Advanced | `/settings/advanced` | 4.23% / 4.36% |
 | First run | `/setup` | 2.85% / 3.01% |
 | System states | `/access-denied` ほか | 3.22% / 9.53% |
-| Session detail | 未登録 | セッション実データが無く撮影できない |
+| Session detail | `/activity/sessions/:sessionId` | セッション実データが無く撮影できない（ルート自体は登録済み） |
 
 差分の大半は**モックのダミー値と実データの差**である（このインストールには provider が3件、モックのフィクスチャには7件、など）。
 

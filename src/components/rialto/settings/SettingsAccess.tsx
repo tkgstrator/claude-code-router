@@ -21,6 +21,7 @@
  * missing pill.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { AccessConfigSection } from '@/components/rialto/settings/access/AccessConfigSection'
@@ -46,30 +47,35 @@ const ZERO_TRUST_URL = 'https://one.dash.cloudflare.com/'
 const VIA = {
   cloudflare_access: {
     icon: 'ri-shield-check-line text-sm text-emerald-600 dark:text-emerald-400',
-    fallbackLabel: 'verified identity',
-    pill: <Pill tone='ok'>verified</Pill>
+    fallbackKey: 'settings.access.viaVerifiedIdentity',
+    pillTone: 'ok',
+    pillKey: 'settings.access.pillVerified'
   },
   local: {
     icon: 'ri-computer-line text-sm text-muted-foreground',
-    fallbackLabel: 'this machine',
-    pill: <Pill tone='mute'>no credential needed</Pill>
+    fallbackKey: 'settings.access.viaThisMachine',
+    pillTone: 'mute',
+    pillKey: 'settings.access.pillNoCredential'
   },
   token: {
     icon: 'ri-key-2-line text-sm text-muted-foreground',
-    fallbackLabel: 'bootstrap token',
-    pill: <Pill tone='mute'>no Access identity</Pill>
+    fallbackKey: 'settings.access.viaBootstrapToken',
+    pillTone: 'mute',
+    pillKey: 'settings.access.pillNoIdentity'
   }
 } as const
 
 function SignedInAs({ identity }: { identity: IdentityResponse | null }) {
-  if (identity === null) return <span className='text-[11px] text-muted-foreground'>Checking…</span>
+  const { t } = useTranslation()
+  if (identity === null)
+    return <span className='text-[11px] text-muted-foreground'>{t('settings.access.checking')}</span>
 
   const via = VIA[identity.mode]
   return (
     <div className='flex items-center gap-2'>
       <i className={via.icon} />
-      <span className='font-mono text-xs'>{identity.email === null ? via.fallbackLabel : identity.email}</span>
-      {via.pill}
+      <span className='font-mono text-xs'>{identity.email === null ? t(via.fallbackKey) : identity.email}</span>
+      <Pill tone={via.pillTone}>{t(via.pillKey)}</Pill>
     </div>
   )
 }
@@ -89,9 +95,10 @@ function ExposureNotice({ identity }: { identity: IdentityResponse }) {
       <div className='flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-2 text-[11px] leading-relaxed'>
         <i className='ri-alert-line shrink-0 text-sm text-amber-600 dark:text-amber-400' />
         <span>
-          <span className='font-medium'>Cloudflare Access is not configured</span> — the bootstrap token alone gates{' '}
-          <span className='font-mono'>/api/*</span>, so anyone holding it has full administrative control. Fill in the
-          team domain and AUD below to put an identity check in front of it.
+          <Trans
+            i18nKey='settings.access.exposureNotice'
+            components={{ strong: <span className='font-medium' />, mono: <span className='font-mono' /> }}
+          />
         </span>
       </div>
     </div>
@@ -99,30 +106,28 @@ function ExposureNotice({ identity }: { identity: IdentityResponse }) {
 }
 
 function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
+  const { t } = useTranslation()
   const [revealed, setRevealed] = useState(false)
   const present = apiKey.length > 0
 
   const copy = () => {
     navigator.clipboard
       .writeText(apiKey)
-      .then(() => toast.success('Bootstrap token copied.'))
-      .catch(() => toast.error('Clipboard write was refused by the browser.'))
+      .then(() => toast.success(t('settings.access.tokenCopied')))
+      .catch(() => toast.error(t('settings.access.clipboardRefused')))
   }
 
   return (
     <>
       <SectionHead
-        title='Bootstrap token'
-        lead={<Pill tone='mute'>envelope</Pill>}
-        meta='break-glass admin credential'
+        title={t('settings.access.bootstrapTitle')}
+        lead={<Pill tone='mute'>{t('settings.access.envelope')}</Pill>}
+        meta={t('settings.access.bootstrapMeta')}
       />
-      <SettingsField
-        label='APIKEY'
-        hint='Stored in the on-disk envelope and mirrored onto process.env. Accepted on /api/* only — the recovery path when Access or the database is down. The proxy refuses it.'
-      >
+      <SettingsField label={t('settings.access.apikey')} hint={t('settings.access.apikeyHint')}>
         <div className='flex items-center gap-2'>
           <div className='flex h-8 max-w-md flex-1 items-center overflow-hidden rounded-md border border-border px-3 font-mono text-xs'>
-            {!present ? 'not set' : revealed ? apiKey : SECRET_MASK}
+            {!present ? t('providers.credentials.notSet') : revealed ? apiKey : SECRET_MASK}
           </div>
           <RButton
             variant='ghost'
@@ -130,10 +135,10 @@ function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
             onClick={() => setRevealed(!revealed)}
             disabled={!present}
           >
-            {revealed ? 'Hide' : 'Reveal'}
+            {revealed ? t('providers.credentials.hide') : t('providers.credentials.reveal')}
           </RButton>
           <RButton variant='ghost' icon='ri-file-copy-line' onClick={copy} disabled={!present}>
-            Copy
+            {t('common.copy')}
           </RButton>
         </div>
       </SettingsField>
@@ -142,17 +147,22 @@ function BootstrapTokenSection({ apiKey }: { apiKey: string }) {
 }
 
 function PolicyCoverage() {
+  const { t } = useTranslation()
   return (
-    <SettingsField label='Policy coverage' hint='Which Access apps sit on this hostname.'>
+    <SettingsField label={t('settings.access.policyCoverage')} hint={t('settings.access.policyCoverageHint')}>
       <div className='space-y-2'>
         <div className='rounded-md border border-dashed border-border px-3 py-1.5 text-[11px] text-muted-foreground'>
           <i className='ri-tools-line mr-1 align-[-1px]' />
-          Listing the Access apps needs a Cloudflare API token and a Zero Trust proxy — check them in the dashboard.
+          {t('settings.access.policyListingUnavailable')}
         </div>
         <p className='text-[11px] leading-relaxed text-muted-foreground'>
-          <span className='font-mono'>/v1</span> must be a <span className='font-medium text-foreground'>Bypass</span>{' '}
-          policy. Claude Code, Codex and Gemini CLI cannot complete an interactive Access login, so putting Access in
-          front of that path locks every client out — the access tokens below are its gate instead.
+          <Trans
+            i18nKey='settings.access.bypassNote'
+            components={{
+              mono: <span className='font-mono' />,
+              strong: <span className='font-medium text-foreground' />
+            }}
+          />
         </p>
       </div>
     </SettingsField>
@@ -160,6 +170,7 @@ function PolicyCoverage() {
 }
 
 export function SettingsAccess() {
+  const { t } = useTranslation()
   const [identity, setIdentity] = useState<IdentityResponse | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [surfaces, setSurfaces] = useState<InboundSurfaceWire[]>([])
@@ -184,15 +195,15 @@ export function SettingsAccess() {
         setSaved(next)
         setDraft(next)
       })
-      .catch((e: Error) => toast.error(`Could not read the config envelope: ${e.message}`))
-  }, [])
+      .catch((e: Error) => toast.error(t('settings.access.envelopeReadFailed', { message: e.message })))
+  }, [t])
 
   const loadIdentity = useCallback(() => {
     api
       .getIdentity()
       .then(setIdentity)
-      .catch((e: Error) => toast.error(`Could not read the caller identity: ${e.message}`))
-  }, [])
+      .catch((e: Error) => toast.error(t('settings.access.identityReadFailed', { message: e.message })))
+  }, [t])
 
   useEffect(() => {
     loadIdentity()
@@ -221,7 +232,7 @@ export function SettingsAccess() {
         setCheck(res)
         setCheckedFor(normalized)
       })
-      .catch((e: Error) => toast.error(`Check failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.access.checkFailed', { message: e.message })))
       .finally(() => setChecking(false))
   }
 
@@ -237,15 +248,11 @@ export function SettingsAccess() {
         ACCESS_AUD: normalized.aud
       })
       .then(() => {
-        toast.success(
-          normalized.teamDomain.length === 0
-            ? 'Access turned off. /api/* now accepts the bootstrap token only.'
-            : 'Access settings saved. They apply to the next request — reload to confirm you are still let in.'
-        )
+        toast.success(t(normalized.teamDomain.length === 0 ? 'settings.access.savedOff' : 'settings.access.savedOn'))
         loadConfig()
         loadIdentity()
       })
-      .catch((e: Error) => toast.error(`Save failed: ${e.message}`))
+      .catch((e: Error) => toast.error(t('settings.common.saveFailed', { message: e.message })))
       .finally(() => setSaving(false))
   }
 
@@ -256,21 +263,25 @@ export function SettingsAccess() {
   }
 
   const configured = identity?.accessConfigured === true
-  const subtitle = configured
-    ? 'Cloudflare Access on /api · scoped tokens on /v1'
-    : 'Bootstrap token only on /api · scoped tokens on /v1'
+  const subtitle = t(configured ? 'settings.access.subtitleConfigured' : 'settings.access.subtitleUnconfigured')
 
   return (
     <SettingsLayout
       active='access'
-      title='Access'
+      title={t('settings.rail.access')}
       subtitle={subtitle}
-      headerBadge={configured ? <Pill tone='ok'>Cloudflare Access</Pill> : <Pill tone='bad'>No Access in front</Pill>}
+      headerBadge={
+        configured ? (
+          <Pill tone='ok'>{t('settings.access.badgeConfigured')}</Pill>
+        ) : (
+          <Pill tone='bad'>{t('settings.access.badgeUnconfigured')}</Pill>
+        )
+      }
       headerNote={window.location.hostname}
       actions={
         <>
           <RButton variant='ghost' onClick={discard} disabled={!dirty}>
-            Discard
+            {t('common.discard')}
           </RButton>
           <RButton
             variant='primary'
@@ -279,7 +290,7 @@ export function SettingsAccess() {
             disabled={!dirty || saving || !gate.allowed}
             title={gate.allowed ? undefined : gate.reason}
           >
-            Save
+            {t('common.save')}
           </RButton>
         </>
       }
@@ -289,13 +300,13 @@ export function SettingsAccess() {
           icon='ri-external-link-line'
           onClick={() => window.open(ZERO_TRUST_URL, '_blank', 'noopener,noreferrer')}
         >
-          Open Zero Trust
+          {t('settings.access.openZeroTrust')}
         </RButton>
       }
     >
       {identity === null ? null : <ExposureNotice identity={identity} />}
 
-      <SettingsField label='Signed in as' hint='The caller Rialto verified for this request.'>
+      <SettingsField label={t('settings.access.signedInAs')} hint={t('settings.access.signedInAsHint')}>
         <SignedInAs identity={identity} />
       </SettingsField>
 

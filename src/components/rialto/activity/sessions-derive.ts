@@ -18,7 +18,8 @@ export type RangeId = '24h' | '7d' | '30d' | 'all'
 
 export interface RangeSpec {
   id: RangeId
-  label: string
+  /** Translation key for the range label; the screen resolves it. */
+  labelKey: string
   /** For /api/request-logs/sessions, which counts back in hours. 0 = no limit. */
   hours: number
   /** For /api/usage/cost, which counts back in days. 0 = no limit. */
@@ -26,10 +27,10 @@ export interface RangeSpec {
 }
 
 export const RANGES: readonly RangeSpec[] = [
-  { id: '24h', label: 'Last 24 hours', hours: 24, days: 1 },
-  { id: '7d', label: 'Last 7 days', hours: 168, days: 7 },
-  { id: '30d', label: 'Last 30 days', hours: 720, days: 30 },
-  { id: 'all', label: 'All time', hours: 0, days: 0 }
+  { id: '24h', labelKey: 'activity.sessions.range24h', hours: 24, days: 1 },
+  { id: '7d', labelKey: 'activity.sessions.range7d', hours: 168, days: 7 },
+  { id: '30d', labelKey: 'activity.sessions.range30d', hours: 720, days: 30 },
+  { id: 'all', labelKey: 'activity.sessions.rangeAll', hours: 0, days: 0 }
 ]
 
 export const rangeSpec = (id: RangeId): RangeSpec => {
@@ -82,8 +83,8 @@ export function applyFilters(
   })
 }
 
-export function options(values: string[]): FilterOption<string>[] {
-  return [{ id: ALL, label: 'All' }, ...[...new Set(values)].sort().map((v) => ({ id: v, label: v }))]
+export function options(values: string[], allLabel: string): FilterOption<string>[] {
+  return [{ id: ALL, label: allLabel }, ...[...new Set(values)].sort().map((v) => ({ id: v, label: v }))]
 }
 
 export function parseSessionId(data: string): string | null {

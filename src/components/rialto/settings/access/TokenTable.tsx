@@ -9,16 +9,17 @@
  * already revoked — by which point it changes nothing about access and
  * only trades away the audit trail.
  */
+import { Trans, useTranslation } from 'react-i18next'
 import { Pill, SurfacePill } from '@/components/rialto/primitives'
 import { WarnNotice } from '@/components/rialto/settings/notice'
 import type { InboundSurfaceWire } from '@/lib/api'
 import { fmtAgo, fmtCount } from '@/lib/rialto/format'
 import { type AccessTokenWire, sortTokens, type TokenState, tokenState } from '@/lib/rialto/settings/access-tokens'
 
-const STATE_PILL: Record<TokenState, { tone: 'ok' | 'warn' | 'bad'; label: string }> = {
-  active: { tone: 'ok', label: 'active' },
-  expired: { tone: 'warn', label: 'expired' },
-  revoked: { tone: 'bad', label: 'revoked' }
+const STATE_PILL: Record<TokenState, { tone: 'ok' | 'warn' | 'bad'; labelKey: string }> = {
+  active: { tone: 'ok', labelKey: 'settings.access.tokenActive' },
+  expired: { tone: 'warn', labelKey: 'settings.access.tokenExpired' },
+  revoked: { tone: 'bad', labelKey: 'settings.access.tokenRevoked' }
 }
 
 function TokenRow({
@@ -38,19 +39,20 @@ function TokenRow({
   onDelete: () => void
   busy: boolean
 }) {
+  const { t } = useTranslation()
   const dead = state !== 'active'
   return (
     <tr className={`border-t border-border/60 transition-colors hover:bg-muted/50 ${dead ? 'opacity-60' : ''}`}>
       <td className='py-2.5 pl-6 pr-3'>
         <div className='flex items-center gap-2'>
           <span className='text-xs font-medium'>{token.name}</span>
-          {dead ? <Pill tone={STATE_PILL[state].tone}>{STATE_PILL[state].label}</Pill> : null}
+          {dead ? <Pill tone={STATE_PILL[state].tone}>{t(STATE_PILL[state].labelKey)}</Pill> : null}
         </div>
         <div className='font-mono text-[11px] text-muted-foreground'>{token.prefix}</div>
       </td>
       <td className='px-3'>
         {surfacePath === undefined ? (
-          <span className='text-[11px] text-muted-foreground/50'>all</span>
+          <span className='text-[11px] text-muted-foreground/50'>{t('settings.access.scopeAll')}</span>
         ) : (
           <SurfacePill path={surfacePath} />
         )}
@@ -60,10 +62,12 @@ function TokenRow({
       </td>
       <td className='px-3 text-right font-mono text-xs tabular-nums'>{fmtCount(token.requestCount)}</td>
       <td className='px-3 text-right text-[11px] text-muted-foreground'>
-        {token.lastUsedAt === null ? 'never' : `${fmtAgo(token.lastUsedAt, now)} ago`}
+        {token.lastUsedAt === null
+          ? t('settings.access.never')
+          : t('settings.access.lastUsedAgo', { ago: fmtAgo(token.lastUsedAt, now) })}
       </td>
       <td className='px-3 text-right text-[11px] text-muted-foreground'>
-        {token.expiresAt === null ? 'never' : token.expiresAt.slice(0, 10)}
+        {token.expiresAt === null ? t('settings.access.never') : token.expiresAt.slice(0, 10)}
       </td>
       <td className='py-2.5 pl-3 pr-6 text-right'>
         {state === 'revoked' ? (
@@ -73,7 +77,7 @@ function TokenRow({
             disabled={busy}
             className='text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50'
           >
-            Delete
+            {t('settings.access.delete')}
           </button>
         ) : (
           <button
@@ -82,7 +86,7 @@ function TokenRow({
             disabled={busy}
             className='text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50'
           >
-            Revoke
+            {t('settings.access.revoke')}
           </button>
         )}
       </td>
@@ -105,16 +109,15 @@ export function TokenTable({
   onRevoke: (token: AccessTokenWire) => void
   onDelete: (token: AccessTokenWire) => void
 }) {
+  const { t } = useTranslation()
   if (tokens.length === 0) {
     // Not a neutral empty list: with no token issued the proxy accepts
     // nothing, so this is the difference between a working gateway and
     // a dead one and has to read that way.
     return (
       <div className='px-6 pb-6'>
-        <WarnNotice title='No tokens issued — the proxy is closed' tag='no clients'>
-          <span className='font-mono'>/v1/*</span> accepts issued access tokens and nothing else; the bootstrap token is
-          refused there. Until you issue one, no client can route a request — Claude Code, Codex and the OpenAI SDK will
-          all get a 401. That is the intended default: closed until you decide who may call.
+        <WarnNotice title={t('settings.access.noTokensTitle')} tag={t('settings.access.noTokensTag')}>
+          <Trans i18nKey='settings.access.noTokensBody' components={{ mono: <span className='font-mono' /> }} />
         </WarnNotice>
       </div>
     )
@@ -132,12 +135,12 @@ export function TokenTable({
       </colgroup>
       <thead>
         <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>Token</th>
-          <th className='px-3 text-left font-medium'>Endpoint</th>
-          <th className='px-3 text-left font-medium'>Profile</th>
-          <th className='px-3 text-right font-medium'>Requests</th>
-          <th className='px-3 text-right font-medium'>Last used</th>
-          <th className='px-3 text-right font-medium'>Expires</th>
+          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('settings.access.colToken')}</th>
+          <th className='px-3 text-left font-medium'>{t('settings.access.colEndpoint')}</th>
+          <th className='px-3 text-left font-medium'>{t('settings.access.colProfile')}</th>
+          <th className='px-3 text-right font-medium'>{t('settings.access.colRequests')}</th>
+          <th className='px-3 text-right font-medium'>{t('settings.access.colLastUsed')}</th>
+          <th className='px-3 text-right font-medium'>{t('settings.access.colExpires')}</th>
           <th className='pb-2 pl-3 pr-6' />
         </tr>
       </thead>

@@ -6,6 +6,7 @@
  * three legs are independently null — a vendor that publishes no cached
  * price still publishes the other two.
  */
+import { useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
 import { fmtCost } from '@/lib/sessions/format'
 import { cn } from '@/lib/utils'
@@ -45,18 +46,19 @@ const NUM_CELL = 'px-2 text-right font-mono text-xs tabular-nums'
 const HEAD_CELL = 'px-2 text-right font-medium'
 
 function Head({ withOverride }: { withOverride: boolean }) {
+  const { t } = useTranslation()
   return (
     <thead>
       <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-        <th className='pb-2 pl-6 pr-2 text-left font-medium'>Model</th>
-        <th className='px-2 text-left font-medium'>Tier</th>
-        <th className={HEAD_CELL}>Context</th>
-        <th className={HEAD_CELL}>In /1M</th>
-        <th className={HEAD_CELL}>Cached</th>
-        <th className={HEAD_CELL}>Out /1M</th>
-        {withOverride ? <th className='px-2 text-left font-medium'>Override</th> : null}
-        <th className='px-2 text-center font-medium'>Test</th>
-        <th className='pb-2 pl-2 pr-6 text-right font-medium'>On</th>
+        <th className='pb-2 pl-6 pr-2 text-left font-medium'>{t('providers.models.colModel')}</th>
+        <th className='px-2 text-left font-medium'>{t('providers.models.colTier')}</th>
+        <th className={HEAD_CELL}>{t('providers.models.colContext')}</th>
+        <th className={HEAD_CELL}>{t('providers.models.colIn')}</th>
+        <th className={HEAD_CELL}>{t('providers.models.colCached')}</th>
+        <th className={HEAD_CELL}>{t('providers.models.colOut')}</th>
+        {withOverride ? <th className='px-2 text-left font-medium'>{t('providers.models.colOverride')}</th> : null}
+        <th className='px-2 text-center font-medium'>{t('providers.models.colTest')}</th>
+        <th className='pb-2 pl-2 pr-6 text-right font-medium'>{t('providers.models.colOn')}</th>
       </tr>
     </thead>
   )
@@ -71,6 +73,7 @@ function Row({
   withOverride: boolean
   onToggle: (model: string, next: boolean) => void
 }) {
+  const { t } = useTranslation()
   // Subscription models carry no per-token price, so their money columns
   // read as absent rather than as a number worth comparing.
   const priceTone = withOverride ? '' : 'text-muted-foreground'
@@ -81,7 +84,7 @@ function Row({
       <td className='py-2.5 pl-6 pr-2'>
         <div className='flex items-center gap-2'>
           <span className='font-mono text-xs'>{row.name}</span>
-          {row.legacy ? <Pill tone='mute'>legacy</Pill> : null}
+          {row.legacy ? <Pill tone='mute'>{t('providers.models.legacy')}</Pill> : null}
         </div>
       </td>
       <td className='px-2'>{row.tier === null ? null : <Pill tone='mute'>{row.tier}</Pill>}</td>
@@ -98,7 +101,11 @@ function Row({
         <TestIcon status={row.test} />
       </td>
       <td className='py-2.5 pl-2 pr-6 text-right'>
-        <Toggle on={row.enabled} label={row.name} onClick={() => onToggle(row.name, !row.enabled)} />
+        <Toggle
+          on={row.enabled}
+          label={t('providers.models.toggleModel', { model: row.name })}
+          onClick={() => onToggle(row.name, !row.enabled)}
+        />
       </td>
     </tr>
   )
@@ -113,8 +120,9 @@ export function ModelsTable({
   withOverride: boolean
   onToggle: (model: string, next: boolean) => void
 }) {
+  const { t } = useTranslation()
   if (rows.length === 0) {
-    return <div className='px-6 pb-6 text-xs text-muted-foreground'>No models on this provider yet.</div>
+    return <div className='px-6 pb-6 text-xs text-muted-foreground'>{t('providers.models.empty')}</div>
   }
   return (
     <table className='w-full table-fixed'>

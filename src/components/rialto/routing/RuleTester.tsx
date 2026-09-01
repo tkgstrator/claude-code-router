@@ -12,6 +12,7 @@
  * what this panel shows is what the router does.
  */
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -37,17 +38,18 @@ const parse = (text: string): { ok: true; body: Record<string, unknown> } | { ok
  * and those are different problems: one is a request that never carried
  * the signal, the other is a rule looking for a different value.
  */
-const ABSENT_COPY: Record<ConditionField, string> = {
-  requestedTier: 'no tier could be derived from the model',
-  requestedModel: 'no model on the request',
-  thinking: 'no thinking field on the request',
-  minTokens: 'no token count',
-  maxTokens: 'no token count',
-  hasTool: 'no tools on the request',
-  effort: 'no effort on the request'
+const ABSENT_KEYS: Record<ConditionField, string> = {
+  requestedTier: 'routing.rules.tester.absentRequestedTier',
+  requestedModel: 'routing.rules.tester.absentRequestedModel',
+  thinking: 'routing.rules.tester.absentThinking',
+  minTokens: 'routing.rules.tester.absentTokens',
+  maxTokens: 'routing.rules.tester.absentTokens',
+  hasTool: 'routing.rules.tester.absentHasTool',
+  effort: 'routing.rules.tester.absentEffort'
 }
 
 function ConditionRow({ condition }: { condition: RuleCondition }) {
+  const { t } = useTranslation()
   return (
     <div className='flex items-baseline gap-2 py-0.5 text-[11px]'>
       <i
@@ -59,10 +61,10 @@ function ConditionRow({ condition }: { condition: RuleCondition }) {
       <span className='w-28 shrink-0 truncate font-mono text-muted-foreground'>{condition.field}</span>
       <span className='min-w-0 truncate font-mono'>{condition.expected}</span>
       {condition.actual === null ? (
-        <span className='ml-auto shrink-0 text-right text-muted-foreground'>{ABSENT_COPY[condition.field]}</span>
+        <span className='ml-auto shrink-0 text-right text-muted-foreground'>{t(ABSENT_KEYS[condition.field])}</span>
       ) : (
         <span className='ml-auto shrink-0 truncate text-right font-mono text-muted-foreground'>
-          got {condition.actual}
+          {t('routing.rules.tester.got', { actual: condition.actual })}
         </span>
       )}
     </div>
@@ -74,6 +76,7 @@ function ConditionRow({ condition }: { condition: RuleCondition }) {
  * it — that single field is almost always the answer the operator came for.
  */
 function RuleTrace({ verdict, first }: { verdict: RuleVerdict; first: boolean }) {
+  const { t } = useTranslation()
   const failed = verdict.conditions.filter((c) => !c.matched)
   const only = failed.length === 1 ? failed[0].field : null
   return (
@@ -86,18 +89,24 @@ function RuleTrace({ verdict, first }: { verdict: RuleVerdict; first: boolean })
     >
       <div className='flex items-center gap-2 text-[11px]'>
         <span className='font-mono tabular-nums text-muted-foreground'>{verdict.index + 1}</span>
-        <span className='truncate'>{verdict.name === null ? `Rule ${verdict.index + 1}` : verdict.name}</span>
+        <span className='truncate'>
+          {verdict.name === null ? t('routing.rules.ruleN', { n: verdict.index + 1 }) : verdict.name}
+        </span>
         <span
           className={cn(
             'ml-auto shrink-0',
             verdict.matched ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
           )}
         >
-          {verdict.matched ? 'match' : only === null ? 'no match' : `no match · ${only}`}
+          {verdict.matched
+            ? t('routing.rules.tester.match')
+            : only === null
+              ? t('routing.rules.tester.noMatch')
+              : t('routing.rules.tester.noMatchField', { field: only })}
         </span>
       </div>
       {verdict.conditions.length === 0 ? (
-        <div className='mt-1 text-[11px] text-muted-foreground'>no conditions — matches every request</div>
+        <div className='mt-1 text-[11px] text-muted-foreground'>{t('routing.rules.tester.noConditions')}</div>
       ) : (
         <div className='mt-1'>
           {verdict.conditions.map((condition) => (
@@ -110,6 +119,7 @@ function RuleTrace({ verdict, first }: { verdict: RuleVerdict; first: boolean })
 }
 
 function Trace({ result }: { result: RuleTestResult }) {
+  const { t } = useTranslation()
   if (result.evaluated.length === 0) return null
   return (
     <div className='mt-3 overflow-hidden rounded-md border border-border'>
@@ -118,7 +128,7 @@ function Trace({ result }: { result: RuleTestResult }) {
       ))}
       {result.notEvaluated === 0 ? null : (
         <div className='border-t border-border/60 px-3 py-2 text-[11px] text-muted-foreground'>
-          evaluation stopped here
+          {t('routing.rules.tester.evaluationStopped')}
         </div>
       )}
     </div>
@@ -126,9 +136,10 @@ function Trace({ result }: { result: RuleTestResult }) {
 }
 
 function TokenLine({ count }: { count: number }) {
+  const { t } = useTranslation()
   return (
     <div className='mt-2 text-[11px] text-muted-foreground'>
-      {`${count.toLocaleString()} tokens — the count size predicates were measured against`}
+      {t('routing.rules.tester.tokenLine', { count: count.toLocaleString() })}
     </div>
   )
 }
@@ -138,12 +149,12 @@ function TokenLine({ count }: { count: number }) {
  * the rule stack had no opinion at all and the scenario catch-all decides.
  */
 function NoMatch({ result }: { result: RuleTestResult }) {
+  const { t } = useTranslation()
   return (
     <div className='mt-3 rounded-md border border-border px-4 py-3'>
-      <Pill tone='mute'>no rule matched</Pill>
+      <Pill tone='mute'>{t('routing.rules.tester.noRuleMatched')}</Pill>
       <div className='mt-2 text-[11px] text-muted-foreground'>
-        All {result.evaluated.length} rules were evaluated and none applied. The lane&rsquo;s catch-all decides this
-        request.
+        {t('routing.rules.tester.noneApplied', { n: result.evaluated.length })}
       </div>
       <TokenLine count={result.tokenCount} />
     </div>
@@ -151,28 +162,29 @@ function NoMatch({ result }: { result: RuleTestResult }) {
 }
 
 function Matched({ result }: { result: RuleTestResult }) {
+  const { t } = useTranslation()
   const position = (result.matchedIndex === null ? 0 : result.matchedIndex) + 1
   const last = position + result.notEvaluated
   return (
     <div className='mt-3 rounded-md border border-border px-4 py-3'>
       <div className='flex items-center gap-2'>
-        <Pill tone='ok'>{`rule ${position} matched`}</Pill>
+        <Pill tone='ok'>{t('routing.rules.tester.rulePositionMatched', { n: position })}</Pill>
         <span className='text-[11px] text-muted-foreground'>
-          {result.matchedName === null ? `Rule ${position}` : result.matchedName}
+          {result.matchedName === null ? t('routing.rules.ruleN', { n: position }) : result.matchedName}
         </span>
       </div>
       <div className='mt-2 flex items-center gap-1.5 font-mono text-[11px]'>
-        <span className='text-muted-foreground'>requested</span>
+        <span className='text-muted-foreground'>{t('routing.rules.tester.requested')}</span>
         <i className='ri-arrow-right-line text-xs text-muted-foreground/50' />
         {/* A null target on a MATCHED rule is a deliberate "leave this
             traffic alone", not an unfinished rule. */}
-        <span>{result.target === null ? 'no rewrite — caller model goes upstream' : result.target}</span>
+        <span>{result.target === null ? t('routing.rules.tester.noRewriteUpstream') : result.target}</span>
       </div>
       {result.notEvaluated === 0 ? null : (
         <div className='mt-1 text-[11px] text-muted-foreground'>
           {result.notEvaluated === 1
-            ? `rule ${last} not evaluated (first match wins)`
-            : `rules ${position + 1}–${last} not evaluated (first match wins)`}
+            ? t('routing.rules.tester.oneNotEvaluated', { n: last })
+            : t('routing.rules.tester.rangeNotEvaluated', { from: position + 1, to: last })}
         </div>
       )}
       <TokenLine count={result.tokenCount} />
@@ -181,6 +193,7 @@ function Matched({ result }: { result: RuleTestResult }) {
 }
 
 export function RuleTester({ rules }: { rules: readonly RouteRule[] }) {
+  const { t } = useTranslation()
   const [text, setText] = useState(SAMPLE)
   const [result, setResult] = useState<RuleTestResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -189,7 +202,7 @@ export function RuleTester({ rules }: { rules: readonly RouteRule[] }) {
   const run = useCallback(() => {
     const parsed = parse(text)
     if (!parsed.ok) {
-      setError('That is not a valid JSON object.')
+      setError(t('routing.rules.tester.invalidJson'))
       setResult(null)
       return
     }
@@ -203,25 +216,25 @@ export function RuleTester({ rules }: { rules: readonly RouteRule[] }) {
         setResult(null)
       })
       .finally(() => setRunning(false))
-  }, [text, rules])
+  }, [text, rules, t])
 
   return (
     <div className='mt-6 border-t border-border px-6 py-5'>
       <div className='flex items-baseline gap-3'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Test</h3>
-        <span className='text-[11px] text-muted-foreground'>
-          the router&rsquo;s own predicate code, over the real token count
-        </span>
+        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('routing.rules.tester.title')}
+        </h3>
+        <span className='text-[11px] text-muted-foreground'>{t('routing.rules.tester.subtitle')}</span>
       </div>
       <div className='mt-3 flex items-center gap-2'>
         <input
           className='flex h-8 flex-1 items-center rounded-md border border-border bg-transparent px-3 font-mono text-xs text-muted-foreground outline-none'
           value={text}
           onChange={(event) => setText(event.target.value)}
-          aria-label='Request body'
+          aria-label={t('routing.rules.tester.requestBody')}
         />
         <RButton variant='primary' icon='ri-play-line' onClick={run} disabled={running}>
-          Run
+          {t('routing.rules.tester.run')}
         </RButton>
       </div>
       {error === null ? null : <div className='mt-3 text-[11px] text-destructive'>{error}</div>}

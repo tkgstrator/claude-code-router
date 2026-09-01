@@ -7,6 +7,7 @@
  * builder that would have to be validated back down to it.
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { EFFORT_LEVELS, REQUESTED_MODEL_TIERS, type RouteRule } from '@/schemas/domain/router'
@@ -198,6 +199,7 @@ function FieldPicker({
 }
 
 function AddCondition({ available, onAdd }: { available: readonly Field[]; onAdd: (field: Field) => void }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   if (available.length === 0) return null
   return (
@@ -207,7 +209,8 @@ function AddCondition({ available, onAdd }: { available: readonly Field[]; onAdd
           type='button'
           className='flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50'
         >
-          <i className='ri-add-line' /> Add condition <span className='opacity-60'>(all must match)</span>
+          <i className='ri-add-line' /> {t('routing.rules.predicate.addCondition')}{' '}
+          <span className='opacity-60'>{t('routing.rules.predicate.allMustMatch')}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent align='start' className='w-52 p-1'>
@@ -230,15 +233,14 @@ function AddCondition({ available, onAdd }: { available: readonly Field[]; onAdd
 }
 
 export function PredicateEditor({ when, onChange }: { when: Predicate; onChange: (next: Predicate) => void }) {
+  const { t } = useTranslation()
   const active = FIELDS.filter((field) => isSet(when, field))
   const available = FIELDS.filter((field) => !isSet(when, field))
 
   return (
     <div className='space-y-2 px-6'>
       {active.length === 0 ? (
-        <p className='text-[11px] text-muted-foreground'>
-          No conditions — this rule matches every request on its lane.
-        </p>
+        <p className='text-[11px] text-muted-foreground'>{t('routing.rules.predicate.noConditions')}</p>
       ) : null}
       {active.map((field) => (
         <div key={field} className='flex items-center gap-2'>
@@ -253,7 +255,7 @@ export function PredicateEditor({ when, onChange }: { when: Predicate; onChange:
           <ValueEditor field={field} when={when} onChange={onChange} />
           <button
             type='button'
-            aria-label={`Remove ${field}`}
+            aria-label={t('routing.rules.predicate.removeField', { field })}
             className='text-muted-foreground/60 hover:text-destructive'
             onClick={() => onChange(clear(when, field))}
           >

@@ -12,9 +12,9 @@ authoring の方法論は `docs/guides/persona-authoring.md` を参照。
 ## 使い方
 
 1. ファイルの**本文をそのまま**コピーする。
-2. Rialto の Web UI で `/personas/new` を開く。
+2. Rialto の Web UI で **Settings → Personas** (`/settings/personas`) を開き、新規ペルソナを追加する。
 3. `Name` に任意の表示名 (例: `月見ヤチヨ`) を入れ、`Prompt` 欄に貼り付けて保存。
-4. `Router` ページでこのペルソナをアクティブに切り替えれば、`background` 以外の全シナリオで自動的に挿入される。
+4. **Routing** ページでこのペルソナをアクティブに切り替えれば、`/v1/messages` の**全シナリオ**で自動的に挿入される。OpenAI 互換面と Gemini 面には挿入されない (理由は authoring guide の「挿入される範囲」を参照)。
 
 Rialto は persona を `cache_control` を持つ system ブロックの**内側**に append するため、
 400 行クラスの長文プロンプトでも prompt cache が効く限り 2 回目以降の runtime コストはほぼゼロ。

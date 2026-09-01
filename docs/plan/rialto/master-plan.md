@@ -358,31 +358,110 @@ interface InboundSurface {
 既存 DB 行を移行する必要はない。テストは `__tests__/shared/transformer-chain.test.ts`（写像）と
 `__tests__/llms/provider-registry-chain.test.ts`（解決と skip）。
 
+ドキュメント側も1件直した。README（3言語）の「Built-in transformers」表は **19個**を列挙し
+`transformer.use` の設定例まで載せていたが、これは吸収元 `@musistudio/llms` のカタログで、
+このリポジトリに実在するのは6個だけだった（`openrouter` / `maxtoken` / `tooluse` /
+`vertex-gemini` 等は登録されていない）。実在する6個と導出表に差し替えた。ほかに
+`src/shared/preset/schema/post-process.ts`（ファイル全体が孤立、import 元ゼロ）と、
+参照コードの無い locale キー `nav.transformers` / `providers.transformers` を削除。
+
 **持ち越し**: 「`Provider.transformer` JSONB を Phase 4 で正式カラムへ昇格させて畳む」は
 **未着手**。Phase 4（Zodスキーマ層分け）は別の作業として閉じており、この昇格は Prisma
-マイグレーション（`Provider.enabled` カラム追加 + `Model.enabled` への一本化 + JSONB 削除）を
-伴う。2-4 の範囲外なのでここでは触っていない。現状 JSONB に残っているのは
-`_disabledModels`（`Model.enabled` の派生ビュー）、`providerEnabled`、そして実行時にだけ
-載る subscription credential の3つで、`use` はもう入らない。
+マイグレーションを伴うため 2-4 の範囲外とした。
+
+##### 昇格の設計 (2026-09-01 棚卸し)
+
+JSONB が運んでいる3つは**性質が違い、行き先も違う**。ひとまとめに「カラムへ昇格」と書くと
+間違える。
+
+| キー | 実体 | 行き先 |
+|---|---|---|
+| `_disabledModels` | `Model.enabled` の**派生ビュー**（wire 形。反転している点に注意） | **列は既にある。** `Model.enabled` が権威だとスキーマコメントが明記済み。読み手を全部そちらへ向け替えて、このキーを消すだけ |
+| `providerEnabled` | provider 単位の有効/無効 | **新規カラム `Provider.enabled Boolean @default(true)`。** `providerEnabled === false` のときだけ false を backfill（`!== false` が現行の判定なので、キー無し = 有効） |
+| `subscriptionAuth` | OAuth 資格情報 | **カラムにしない。** `subscription-overlay.ts` が実行時に載せるだけで**DBには一度も書かれない**。列にすると平文の資格情報が永続化される。パイプライン側の provider 型に残す実行時フィールドであって、ドメイン型のフィールドではない |
+
+したがって作業は「JSONB を列にする」ではなく、**永続化される2つを列へ移し、3つ目を
+ドメイン型から実行時型へ切り離す**こと。切り離しが済めば `Provider.transformer` 列は落とせる。
+
+読み替えが要る箇所（実測）— `_disabledModels`: `components/rialto/providers/{derive,actions,connect-actions}.ts`、
+`components/rialto/routing/derive.ts`、`lib/providers/provider-edits.ts`、`lib/models/build-rows.ts`。
+`providerEnabled`: `services/{subscription-info-service,provider-test-service}.ts`。
+実行時オーバーレイ側: `services/subscription-overlay.ts`、`llms/transformers/oauth-base.ts`、
+`llms/registry/provider.ts`、`llms/pipeline/{request-chain,response-chain}.ts`。
+
+マイグレーション後は `bun run db:migrate:test` も必ず流す（`rialto_test` は別DB）。
 
 #### 2-5. パリティ・マトリクス
 
 面 × 機能で表を定義し、各セルにテストを割り当てる。
 
+**空白セルの洗い出しがこのフェーズの実質的な成果物**。埋められないセルは「未対応」として明示的にドキュメント化する（黙って落とさない）。
+
+##### 実施結果 (2026-09-01) — **Done**
+
+埋めた表と各セルの根拠は `docs/architecture/inbound-parity.md`。テストは
+`__tests__/parity/**`（13ファイル / 103テスト）で、全セルに担保が付いた。
+
 | | messages | chat/completions | responses | gemini |
 |---|---|---|---|---|
-| ストリーミング (SSE) | | | | |
-| 非ストリーム集約 | | | | |
-| tool use | | | | |
-| system プロンプト | | | | |
-| 画像入力 | | | | |
-| thinking / reasoning | | | | |
-| usage 記録 (RequestLog) | | | | |
-| エラー形式 | | | | |
-| cacheトークン計上 | | | | |
-| failover / 429 | | | | |
+| ストリーミング (SSE) | 対応 | 対応 | 部分 | 対応 |
+| 非ストリーム集約 | 対応 | 対応 | 対応 | 対応 |
+| tool use | 対応 | 対応 | 対応 | 部分 |
+| system プロンプト | 対応 | 対応 | 対応 | 未対応 |
+| 画像入力 | 対応 | 対応 | 対応 | 未対応 |
+| thinking / reasoning | 対応 | 部分 | 部分 | 部分 |
+| usage 記録 (RequestLog) | 対応 | 対応 | 対応 | 未対応 |
+| エラー形式 | 対応 | 対応 | 対応 | 対応 |
+| cacheトークン計上 | 対応 | 対応※ | 部分※ | 未対応 |
+| failover / 429 | 対応 | 対応 | 対応 | 対応 |
 
-**空白セルの洗い出しがこのフェーズの実質的な成果物**。埋められないセルは「未対応」として明示的にドキュメント化する（黙って落とさない）。
+**この表の主目的は達成された** — 空白が埋まり、gemini 列が横並びで欠けていることが見えた。
+そしてそれは機能ごとの取りこぼしではなく、**単一のバグに帰着した**。
+
+`GeminiInboundContentObjectSchema` が `text: z.string().default('')` を宣言しているため、
+パース後は `content.text` が**常に string** になる。`inboundContentToMessage`
+（`src/llms/utils/gemini-request.ts:91`）の `if (typeof content.text === 'string')` が必ず成立し、
+その下の `role === 'user'` / `role === 'model'` の `parts` 分岐が**到達不能**になっていた。
+結果、Gemini の正規ワイヤ形式 `{ contents: [{ role: 'user', parts: [{ text }] }] }` が
+`[{ role: 'user', content: null }]` に潰れる — **本文が消え、`model` ロールが `user` に潰れる**。
+（この因果は親側でスキーマと実装の両方を読んで独立に確認した。）
+
+到達条件が重要で、**バイパス経路はこの変換を通らない**。既定の `passthrough` では踏まないが、
+**Routing 画面で gemini 面を `routed` にした瞬間に無言で壊れる**。「4面すべてでルーティング設定が
+効く」という Phase 2 の完了条件に直接抵触するので、修復を別作業として起票した。
+
+**もう一つ、完了条件に直接刺さる発見があった** — シナリオ分類そのものが Anthropic 語彙に
+依存している。`longContext`（サイズ判定）は messages / chat のみ、`webSearch` / `think` /
+effort ベースの `longContext` は **messages のみ**効く。つまり他3面を `routed` にしても、
+実質 `default` レーンにしか落ちない。「面ごとに routed を選べる」ところまでは 2-3 で
+できているが、**「4面すべてでルーティング設定が効く」はまだ満たしていない**。
+`routingMode` の多面化（2-3）とシナリオ分類の多面化は別の作業だった、というのが結論。
+
+その他、面をまたいで見つかった歪み:
+
+- **gemini の usage が RequestLog に1行も残っていなかった（修正済み・2026-09-01）** —
+  `UsageBlockSchema` が Gemini の `usageMetadata` を宣言しておらず、`extractUsage` が null を
+  返して `captureUsage` が即 return していた。`captureUsage` は**変換前の生上流応答**を読むので、
+  これは変換経路だけでなく **バイパス経路＝通常運用でも起きていた**。Activity にもコスト集計にも
+  Gemini のトラフィックが一切出ていなかったことになる。マイグレーションは不要で、`RequestLog` の
+  列はもともと揃っており埋める値が来ていなかっただけ
+- **`src/llms/pipeline/message-capture.ts`（チャットビュー用 Message 表）が Anthropic 形状専用** —
+  マトリクス外だが同種の欠落
+
+- ※ **cache トークンの計上を修正した（2026-09-01）。** 表面的にはフィールド名の欠落
+  （Chat は `prompt_tokens_details.cached_tokens`、Responses は `input_tokens_details.cached_tokens`
+  なのに後者しか宣言していなかった）だが、**足すだけでは別のバグが入る**。Anthropic の
+  `input_tokens` は非キャッシュ分だけでキャッシュ分は隣に並ぶのに対し、OpenAI の
+  `cached_tokens` は SDK 型定義が "Cached tokens present in the prompt" と明記するとおり
+  `prompt_tokens` の**内訳で既に含まれている**。`computeTokenStats` は Anthropic 式に
+  無条件加算していたので、**Responses 経路では以前から input が命中分だけ水増しされていた**。
+  慣習を判別して合算前に差し引く形に直した。パリティ側のフィクスチャが
+  `input_tokens: 20` にキャッシュ 80 という OpenAI からは来ない値で、偶然辻褄が
+  合っていたのがこの誤りを隠していた
+- **thinking のブロック順が面ごとに割れている** — messages は annotation → text → tool_use → thinking の順に積むが、Anthropic 本家と gemini 側実装はどちらも思考を先頭に置く
+- **responses のストリーミングが逐次性を失う**
+- **OpenAI の `cache_write_tokens` を読んでいない** — 両面の SDK 型に存在するが未宣言。
+  `prompt_tokens` の内訳に含まれるかを確認してからでないと (10) と同じ二重計上を招くので保留
 
 完了条件:
 - 面を1つ足す作業が「記述子を1つ足す」だけで済む
@@ -410,11 +489,45 @@ Claude Code / Codex と**同じ形**に載せる（`OauthBase` → `SubAccount` 
 - **ApiStyle**: enum に `gemini_code_assist` を追加（マイグレーション）
 - **SUBSCRIPTION_PRESETS** に `gemini-cli` を追加
 
-**未確定リスク（正直に）**: Code Assist API は非公開APIで、Claude / Codex のようなクォータ取得エンドポイントが公開されているか未検証。取得できない場合は:
-- `SubAccountQuota` は書かれず、`routing-scheduler` の collector は当該アカウントで no-op
-- 429反応型のfailoverのみで運用（proactiveな回避は不可）
+##### スパイク結果 (2026-09-01) — **前提が崩れている。要 descope 判断**
 
-この分岐は Phase 3 の**最初のスパイクで判定**し、結果を本ドキュメントに追記する。ToS 上の扱いもあわせて確認する。
+全文は `docs/plan/rialto/gemini-code-assist-spike.md`（一次ソース付き）。要点は2つで、
+**判定した未確定リスクは解消し、代わりに想定していなかったほうが壊れた**。
+
+1. **クォータ取得は可能だった。** `POST cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota`
+   が実在し、gemini-cli 本体が使っている。per-model の bucket 配列で `remainingFraction`（0..1）を
+   返すので、`SubAccountQuota` の pct 規約（`used = utilization`, `limit = 100`）にそのまま乗る。
+   **「429反応型のみに落ちる」という劣化分岐は不要。**
+2. **しかし対象ティアが消滅している。** 2026-06-18 をもって Gemini CLI / Code Assist IDE 拡張は
+   **individuals（無料）/ Google AI Pro / Google AI Ultra へのリクエスト提供を停止**した
+   （公式アナウンス + Google Cloud のクォータ表から当該ティアが消えていることで確認）。
+   上の「plan は `free` / `ai-pro` / `ai-ultra`」は**もう存在しない対象を指している**。
+
+残る経路は3つで、実質1つしかない。
+
+| 経路 | 技術 | ToS | 評価 |
+|---|---|---|---|
+| Code Assist **Standard / Enterprise**（GCPシート） | 稼働中 | 要確認 | 実装可能。ただし個人サブスク枠ではなく B2B シート課金で、`monthlyPriceUsd` の意味が Claude Max と揃わない |
+| **Antigravity** の OAuth 流用 | 可能 | **明示的に禁止** | 採用不可 |
+| `google` api_key | 可能 | 可 | **Phase 3-1 で実装済み**。無リスク |
+
+2. の主張は **descope 判断の土台になるので独立に裏を取った**（一次ソース2件を直接確認）:
+Google Developers Blog の停止アナウンスは逐語一致（"On June 18, 2026, Gemini CLI and Gemini
+Code Assist IDE extensions will stop serving requests for Google AI Pro and Ultra, as well as
+those using it free of charge using Gemini Code Assist for individuals."）、
+`docs.cloud.google.com/gemini/docs/quotas` のクォータ表も **Standard 1,500 req/day と
+Enterprise 2,000 req/day のみ**を掲載し、individuals / AI Pro / AI Ultra は不在だった。
+
+**未検証で残っている最大の点**: `retrieveUserQuota` が Standard / Enterprise ティアでも
+bucket を返すか（個人ティア専用機能だった可能性を排除できていない）。返らなければ 1. の結論は
+覆る。検証には実ライセンスが要る。
+
+**副次的に見つかった要修正点**: `SetupScreen.tsx` の `CONNECT_OPTIONS` が初回セットアップ画面で
+「Gemini CLI / AI Pro・Ultra」を接続候補として**実際に描画している**。存在しないティアを
+新規ユーザーに案内している状態なので、descope の可否と無関係に直す必要がある。
+`vendor-labels.ts` の `gemini-cli` エントリ4件は `catalog-service.ts` がカタログを
+`SUBSCRIPTION_PRESETS` から生成する都合で到達不能（knip はマップのキーを検出しないので
+デッドコードとしても報告されない）。
 
 #### 3-3. 周辺の組み込み
 
@@ -615,6 +728,49 @@ Routing画面には **Phase 2 で入る「面セレクタ」** が乗る。こ�
 - マイグレーションガイド（旧HOME_DIRからの移行 / 旧Dockerイメージからの移行 / `<CCR-SUBAGENT-MODEL>` タグの新名）
 - `v3.0.0` リリース
 
+#### 6-1. デッドコード掃除の実施結果 (2026-09-01)
+
+未使用ファイル 5 → 3、未使用エクスポート 70 → 58。削除したもの:
+
+| 対象 | 行数 | なぜ死んでいたか |
+|---|---:|---|
+| `src/shared/preset/**`（9ファイル） | 461 | §Presets が「inert」と書いていたもの。本番からの import はゼロで、`__tests__/preset/schema.test.ts` 1本だけが生かしていた |
+| `src/components/ErrorPage.tsx` | 131 | `routes.tsx` の `errorElement` が `RouteError` に置き換わった際に取り残された |
+| `src/components/ui-ext/input.tsx`（ディレクトリごと） | 26 | 参照ゼロ。`ui-ext` は他に何も無かった |
+
+`src/shared/preset/schema/conditions.ts` は **`src/lib/presets/form-logic.ts` の死んだ双子**だった。
+生きている側は `RequiredInputs.tsx` が `shouldShowField` / `getOptions` として実際に描画に使っている。
+テストが双子の**死んでいるほう**に向いていたので、カバレッジを生きているほうへ移設した
+（`__tests__/lib/preset-form-logic.test.ts`）。`__tests__/preset/schema.test.ts` は、
+`schemas/api/config.ts` と `schemas/domain/config.ts` が実際に読む `JsonValueSchema` /
+`JsonObjectSchema` だけを検証する内容に縮小した。パスは変えていないので
+`bun run test` のスクリプトはそのままで正しい。
+
+削除にあたって `src/shared/index.ts` の `export * from './preset/*'` 2行も落とした。
+この barrel の利用者が必要としているのは `./data` と `./db/types` だけで、
+`export *` が消えたコードを引きずっていた — §3.3-3 で `@/schemas` について指摘したのと同じ形の問題が
+`@/shared` にも小さく残っていたことになる。
+
+**判断を保留したもの**（削除ではなく設計判断が要る）:
+
+- `src/schemas/forms/**`（`index.ts` + `settings.ts`、35行）— `SettingsFormSchema` に読み手が無い。
+  `react-hook-form` は **shadcn が vendor した `ui/form.tsx` 以外どこからも import されていない**ので、
+  この層は「あるべき統合」を先取りしただけで、実装が伴っていない。Phase 4 が宣言した5層のうち
+  `forms/` を畳むかどうかは層構成の変更なので、掃除として黙って消さない
+- `src/schemas/primitives/index.ts` — 層 barrel。`common.ts` / `env.ts` / `record.ts` は直接 import
+  されており、barrel だけに利用者が無い。「barrel は層単位」という Phase 4 の規約からすると
+  **knip 側の設定で扱うのが筋**で、規約に反して削除するのは筋が悪い
+- `src/schemas/domain/preset.ts` — 生きているのは `JsonValueSchema` / `JsonPrimitiveSchema` /
+  `JsonObjectSchema` だけ。`PresetFileSchema` / `PresetMetadataSchema` / `ConditionSchema` /
+  `RequiredInputSchema` / `ManifestFileSchema` / `InputType` / `MergeStrategy` には読み手が無い。
+  なお `src/api/routing-rules/test/route.ts` の `ConditionSchema` は**同名のローカル定義**であって
+  これではない。JSON スカラだけを `primitives/` へ移してこのファイルを畳むのが素直だが、
+  マニフェスト形式を将来の外部契約として残すかの判断が先
+- `src/lib/presets/form-logic.ts` の `validateField` — 必須チェックは
+  `src/lib/rialto/settings-content/presets.ts` の `missingInputIds` に移設済み（テストあり）なので
+  死んでいる。ただし `validateField` にあった **min / max / 正規表現の検証は移設先に無い**。
+  単純に消すと、その検証が「元から無かった」ことになる。欠落として扱うか仕様として畳むかは別途
+
 ---
 
 ## 6. リスクと緩和
@@ -664,8 +820,8 @@ Prismaマイグレーション後は `bun run db:migrate:test`（`rialto_test`�
 | `ui-mock-diff` スキル | **Done** | `bun run mocks:{css,shoot,diff}` |
 | 0 土台整備 | **Done** | envelope.test.ts のフルスイート限定フレークは解消。原因は import順ではなく `readConfigFile` が `process.env` を上書き合成すること — テスト間で漏れた `API_TIMEOUT_MS` が結果を変えていた。各テストで `ENVELOPE_ENV_KEYS` を消して修正。フルスイート 1121 pass / 0 fail |
 | 1 Rialtoリネーム | **Done** | HOME_DIR移行（コピー→検証→旧削除）、旧環境変数の受理を全廃、DB名 `rialto` / `rialto_test`、`ccr_` thinking signature の受理を廃止。既存volumeは `bun run scripts/rename-dev-database.ts`。唯一残した後方互換は `<CCR-SUBAGENT-MODEL>` タグ（外部契約で、外すと**無言で**main-agent chainに落ちるため） |
-| 2 Inbound集約+多面ルーティング | **In Progress** | 2-1 完了（散っていた4箇所すべて記述子へ移管。ルート/認証/アクセスログのマウントもレジストリ由来）、2-2 完了、2-3 完了、2-4 完了（chain は `src/shared/transformer-chain.ts` が apiStyle+authMode から導出。UI と同じ関数。deepseek / minimax が chain 無しで走っていたバグが直った）。残: 2-5 パリティ・マトリクス。`docs/architecture/inbound-surfaces.md` |
-| 3 Gemini | **In Progress** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。残: 3-2 サブスク枠（`gemini-cli` / Code Assist）。クォータ取得の可否は未検証 |
+| 2 Inbound集約+多面ルーティング | **In Progress** | 2-1〜2-4 完了（記述子への集約、chain は `src/shared/transformer-chain.ts` が apiStyle+authMode から導出）。**2-5 完了** — 全40セルにラベルとテストが付いた（`docs/architecture/inbound-parity.md`、`__tests__/parity/**`）。表が暴いた欠落のうち **gemini の usage 記録**と **cache トークンの二重計上**は修正済み。残2件: (a) gemini 面の `contents[]` 変換バグ（`inboundContentToMessage` の `parts` 分岐が到達不能で、`routed` にすると本文が消える）、(b) **シナリオ分類が Anthropic 語彙依存**で、他3面は `routed` にしても `default` レーンにしか落ちない。この2つが残る限り「4面すべてでルーティング設定が効く」は満たせない |
+| 3 Gemini | **Blocked（判断待ち）** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。3-2 は**スパイク完了**（`gemini-code-assist-spike.md`）: クォータ取得は**可能**（`retrieveUserQuota` 実在）だが、対象ティア（free / ai-pro / ai-ultra）が **2026-06-18 に提供停止**され前提が失効。Antigravity 経路は ToS で明示禁止。descope するか Standard / Enterprise へ読み替えるかの**判断待ち** |
 | 3.5 認証 | **In Progress** | 管理UIは Cloudflare Access JWT + ローカル免除、`/v1/*` は発行済みアクセストークンのみ。`AccessToken` テーブルと `src/services/access-token-service.ts` は稼働。bootstrap token は廃止済み。残: `/login` の削除 |
 | 4 Zodスキーマ | **Done** | primitives / wire / domain / api / forms の5層に分割し、グローバルbarrelを削除。着手前の計測で、計画が前提にしていた重複は存在しないことが判明（§Phase 4 に記録） |
 | 5 UI刷新 | **In Progress** | 21ビュー中20をルーティング済み。モック差分の中央値 3.55%（40ペア中28が5%未満）。旧コンポーネント98ファイル削除済み。残: activity-session（セッション実データ待ち）、i18n再編、`/login` 削除（Phase 3.5 待ち） |

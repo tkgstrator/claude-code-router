@@ -2,6 +2,7 @@
  * Vendor picker for the add-provider flow — step 1, kept visible through
  * the whole flow so switching vendor is one click rather than a restart.
  */
+import { useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
 import { cn } from '@/lib/utils'
 import type { CatalogEntry } from './types'
@@ -25,6 +26,8 @@ const iconFor = (entry: CatalogEntry): string => {
 }
 
 function VendorCard({ entry, selected, onSelect }: { entry: CatalogEntry; selected: boolean; onSelect: () => void }) {
+  const { t } = useTranslation()
+  const hint = vendorHint(entry)
   return (
     <button
       type='button'
@@ -38,10 +41,16 @@ function VendorCard({ entry, selected, onSelect }: { entry: CatalogEntry; select
       <div className='min-w-0 flex-1'>
         <div className='flex items-center gap-2'>
           <span className='text-xs font-medium'>{vendorLabel(entry.name, entry.displayName)}</span>
-          {entry.authMode === 'subscription' ? <Pill tone='info'>OAuth</Pill> : <Pill tone='mute'>API key</Pill>}
-          {entry.enabled ? <span className='ml-auto text-[11px] text-muted-foreground'>added</span> : null}
+          {entry.authMode === 'subscription' ? (
+            <Pill tone='info'>{t('providers.rail.oauth')}</Pill>
+          ) : (
+            <Pill tone='mute'>{t('providers.rail.apiKey')}</Pill>
+          )}
+          {entry.enabled ? (
+            <span className='ml-auto text-[11px] text-muted-foreground'>{t('providers.connect.added')}</span>
+          ) : null}
         </div>
-        <div className='mt-0.5 text-[11px] text-muted-foreground'>{vendorHint(entry)}</div>
+        <div className='mt-0.5 text-[11px] text-muted-foreground'>{t(hint.key, hint.values)}</div>
       </div>
     </button>
   )
@@ -56,10 +65,13 @@ export function ConnectVendorRail({
   selectedName: string | null
   onSelect: (entry: CatalogEntry) => void
 }) {
+  const { t } = useTranslation()
   return (
     <aside className='min-w-0 overflow-y-auto border-r border-border'>
       <div className='px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Vendor</h2>
+        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('providers.connect.vendor')}
+        </h2>
       </div>
       {sortVendors(entries).map((entry) => (
         <VendorCard

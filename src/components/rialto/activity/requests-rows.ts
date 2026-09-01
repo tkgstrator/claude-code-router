@@ -13,34 +13,47 @@ import type { FilterOption } from '@/components/rialto/activity/shared'
 
 export type RangeId = '1h' | '24h' | '7d' | 'all'
 
-export const RANGES: readonly { id: RangeId; label: string; hours: number }[] = [
-  { id: '1h', label: 'Last hour', hours: 1 },
-  { id: '24h', label: 'Last 24h', hours: 24 },
-  { id: '7d', label: 'Last 7 days', hours: 168 },
-  { id: 'all', label: 'All loaded', hours: 0 }
+export const RANGES: readonly { id: RangeId; labelKey: string; hours: number }[] = [
+  { id: '1h', labelKey: 'activity.requests.range1h', hours: 1 },
+  { id: '24h', labelKey: 'activity.requests.range24h', hours: 24 },
+  { id: '7d', labelKey: 'activity.requests.range7d', hours: 168 },
+  { id: 'all', labelKey: 'activity.requests.rangeAll', hours: 0 }
 ]
 
 export type StatusId = 'all' | 'ok' | 'rate-limited' | 'failed'
 
-export const STATUSES: readonly FilterOption<StatusId>[] = [
-  { id: 'all', label: 'All' },
+/**
+ * The status filter. Only the "all" entry is prose; the other three are
+ * HTTP status classes, which read the same in every language.
+ */
+export const statusOptions = (allLabel: string): FilterOption<StatusId>[] => [
+  { id: 'all', label: allLabel },
   { id: 'ok', label: '2xx' },
   { id: 'rate-limited', label: '429' },
   { id: 'failed', label: '4xx / 5xx' }
 ]
+
+/** Routing lane, as an id: the label for it is looked up on render. */
+export type LaneId = 'untracked' | 'subagent' | 'agent'
 
 export interface Row {
   log: ActivityRequestLog
   surfacePath: string | null
   /** Nearest thing the data has to a caller identity — see the report. */
   client: string | null
-  lane: string
+  lane: LaneId
   rule: string | null
 }
 
-export const lane = (isSubagent: boolean | null): string => {
+export const lane = (isSubagent: boolean | null): LaneId => {
   if (isSubagent === null) return 'untracked'
   return isSubagent ? 'subagent' : 'agent'
+}
+
+export const LANE_KEYS: Record<LaneId, string> = {
+  untracked: 'activity.requests.laneUntracked',
+  subagent: 'activity.requests.laneSubagent',
+  agent: 'activity.requests.laneAgent'
 }
 
 const statusMatches = (status: number, filter: StatusId): boolean => {
@@ -70,7 +83,7 @@ export function applyFilters(rows: Row[], filters: Filters, now: number): Row[] 
   })
 }
 
-export const options = (values: (string | null)[]): FilterOption<string>[] => [
-  { id: 'all', label: 'All' },
+export const options = (values: (string | null)[], allLabel: string): FilterOption<string>[] => [
+  { id: 'all', label: allLabel },
   ...[...new Set(values.filter((v): v is string => v !== null))].sort().map((v) => ({ id: v, label: v }))
 ]

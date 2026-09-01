@@ -10,6 +10,7 @@
  * stored value renders empty with a "stored" note rather than replaying
  * the value into the DOM.
  */
+import { useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
 import { getOptions, shouldShowField } from '@/lib/presets/form-logic'
 import type { PresetConfigSection, RequiredInput } from '@/lib/presets/types'
@@ -36,6 +37,7 @@ function FieldControl({
   values: Record<string, unknown>
   onChange: (value: unknown) => void
 }) {
+  const { t } = useTranslation()
   const id = `preset-field-${field.id}`
   if (field.type === 'confirm') {
     return (
@@ -51,7 +53,7 @@ function FieldControl({
   if (field.type === 'select') {
     return (
       <select id={id} value={asText(value)} onChange={(e) => onChange(e.target.value)} className={FIELD_CLASS}>
-        <option value=''>{field.placeholder === undefined ? 'required' : field.placeholder}</option>
+        <option value=''>{field.placeholder === undefined ? t('settings.presets.required') : field.placeholder}</option>
         {getOptions(field, presetConfig, values).map((option) => (
           <option key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
             {option.label}
@@ -66,7 +68,7 @@ function FieldControl({
       id={id}
       type={inputType}
       value={asText(value)}
-      placeholder={field.placeholder === undefined ? 'required' : field.placeholder}
+      placeholder={field.placeholder === undefined ? t('settings.presets.required') : field.placeholder}
       onChange={(e) => onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)}
       className={FIELD_CLASS}
     />
@@ -86,6 +88,7 @@ function FieldRow({
   stored: boolean
   onChange: (value: unknown) => void
 }) {
+  const { t } = useTranslation()
   const secret = field.type === 'password'
   const hint = field.prompt === undefined ? '' : field.prompt
   return (
@@ -96,7 +99,7 @@ function FieldRow({
           {field.required === false ? null : <span className='text-destructive'>*</span>}
         </label>
         <div className='mt-0.5 text-[11px] leading-snug text-muted-foreground'>
-          {secret && hint === '' ? 'Stored on this machine only. Never written into the preset.' : hint}
+          {secret && hint === '' ? t('settings.presets.secretHint') : hint}
         </div>
       </div>
       <div className='flex items-center gap-2'>
@@ -108,7 +111,7 @@ function FieldRow({
           onChange={onChange}
         />
         {secret ? <i className='ri-lock-line text-sm text-muted-foreground' /> : null}
-        {stored ? <span className='text-[11px] text-muted-foreground'>stored</span> : null}
+        {stored ? <span className='text-[11px] text-muted-foreground'>{t('settings.presets.stored')}</span> : null}
       </div>
     </div>
   )
@@ -129,12 +132,19 @@ export function RequiredInputs({
   missingCount: number
   onChange: (id: string, value: unknown) => void
 }) {
+  const { t } = useTranslation()
   if (schema.length === 0) return null
   return (
     <>
       <div className='flex items-center gap-2 border-t border-border px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Required inputs</h3>
-        {missingCount === 0 ? <Pill tone='ok'>complete</Pill> : <Pill tone='warn'>{missingCount} missing</Pill>}
+        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('settings.presets.requiredInputs')}
+        </h3>
+        {missingCount === 0 ? (
+          <Pill tone='ok'>{t('settings.presets.complete')}</Pill>
+        ) : (
+          <Pill tone='warn'>{t('settings.presets.missingCount', { n: missingCount })}</Pill>
+        )}
       </div>
       {schema
         .filter((field) => shouldShowField(field, values))

@@ -206,7 +206,8 @@ think シナリオで使われる前提のキャラに限定するのが現実�
 ### キャッシュとの相性
 
 Rialto は persona を `cache_control` を持つ system ブロックの**内側**に append する
-(詳細は `src/llms/scenario-router.ts` の `applyGlobalSystemPrompt`)。
+(実装は `src/llms/scenario-router/persona.ts` の `applyGlobalSystemPrompt`。
+呼び出しは `src/llms/scenario-router.ts` の `routeScenario` 末尾)。
 このため:
 
 - **長さの runtime コストは prompt cache でほぼ吸収される**
@@ -216,12 +217,22 @@ Rialto は persona を `cache_control` を持つ system ブロックの**内側*
 - **persona の差し替えはキャッシュミスを伴う**
   (頻繁なペルソナ切替が想定されるユーザー向けには「短いペルソナを複数」より「長いペルソナを 1 つ」が有利)
 
-### 除外されるシナリオ
+### 挿入される範囲
 
-`background` シナリオは persona 挿入対象外。タイトル生成等の軽量内部タスクで動くため、
-ペルソナの語り口が出力を汚染するのを避けている。
-**つまり persona は `background` 以外の全シナリオで挿入される**:
-default / think / longContext / webSearch / image。
+**シナリオによる除外は無い。** `/v1/messages` 上では default / think / longContext / webSearch /
+image の**全シナリオ**が persona を継承する。かつて存在した `background` の除外は、
+`background` シナリオそのものが `20260728_router_rules_drop_background` で
+`default` 上の述語ルールに畳み込まれた時点で消えている。
+
+代わりに**受け口による制限**がある。persona 挿入が走るのは **`/v1/messages` だけ**である
+(`scenario-router.ts` の `req.inboundPath` 判定、テストは
+`__tests__/llms/persona-inbound-gate.test.ts`)。OpenAI 互換面 (`/v1/chat/completions` /
+`/v1/responses`) と Gemini 面では走らない — OpenAI 形のボディにトップレベル `system` を
+足すと codex が `Unsupported parameter: system` で 400 を返し、寛容な upstream でも
+ワイヤ形式がモデル化していないフィールドを見ることになるため。
+
+軽量な内部タスク（タイトル生成など）にキャラ性を出したくない場合は、Rules 画面で
+「そのリクエストは振り替えない」ルールを書くか、persona 側に抑制指示を入れる。
 
 ### `<RIALTO-SUBAGENT-MODEL>` との合成
 

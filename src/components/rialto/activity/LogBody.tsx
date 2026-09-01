@@ -7,6 +7,7 @@
  * toggle has to filter both branches identically.
  */
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { type LogGroup, type LogLine, lineDetail, shortReqId } from '@/components/rialto/activity/log-lines'
 import { chipFor, GUTTER, LEVEL_TEXT, LEVEL_TONE } from '@/components/rialto/activity/log-view'
 import { NoteBox } from '@/components/rialto/activity/shared'
@@ -49,6 +50,7 @@ export function LogBody({
   raw: boolean
   onToggleRaw: () => void
 }) {
+  const { t } = useTranslation()
   const lines = group === null ? [] : group.lines
   const shown = query === '' ? lines : lines.filter((l) => l.raw.toLowerCase().includes(query.toLowerCase()))
   const copy = () => {
@@ -67,15 +69,15 @@ export function LogBody({
             <input
               value={query}
               onChange={(e) => onQuery(e.target.value)}
-              placeholder='Search in group'
+              placeholder={t('activity.logs.searchInGroup')}
               className='min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground'
             />
           </div>
           <RButton variant='ghost' icon='ri-file-copy-line' onClick={copy} disabled={lines.length === 0}>
-            Copy
+            {t('activity.logs.copy')}
           </RButton>
           <RButton variant='ghost' icon='ri-code-line' aria-pressed={raw} onClick={onToggleRaw}>
-            Raw
+            {t('activity.logs.raw')}
           </RButton>
         </div>
       </div>
@@ -91,10 +93,7 @@ export function LogBody({
         </div>
       )}
       <div className='px-4 py-4'>
-        <NoteBox>
-          Grouped by request id, so a failover reads as one story instead of two interleaved ones. The 429 and the retry
-          that succeeded are the same group.
-        </NoteBox>
+        <NoteBox>{t('activity.logs.note')}</NoteBox>
       </div>
       <div className='h-6' />
     </div>

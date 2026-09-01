@@ -6,63 +6,61 @@
  * that "API key" means an inbound gate on two of these and an outbound
  * secret on the third, and nothing else on the screen says so.
  */
+import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 interface Guard {
-  title: string
+  id: string
+  titleKey: string
   accent: string
+  /** Arrow diagrams, identical in every language — kept out of the bundle. */
   flow: string
   body: React.ReactNode
 }
 
 const GUARDS: Guard[] = [
   {
-    title: 'Cloudflare Access',
+    id: 'cloudflareAccess',
+    titleKey: 'settings.access.guardAccessTitle',
     accent: 'border-l-emerald-500/60',
     flow: 'you → Access → Rialto',
-    body: (
-      <>
-        Guards this UI and <span className='font-mono'>/api/*</span>. The browser logs in at the edge and Rialto
-        verifies the signed assertion against your team's JWKS before the request reaches a handler.
-      </>
-    )
+    body: <Trans i18nKey='settings.access.guardAccessBody' components={{ mono: <span className='font-mono' /> }} />
   },
   {
-    title: 'Access token',
+    id: 'accessToken',
+    titleKey: 'settings.access.guardTokenTitle',
     accent: 'border-l-foreground/40',
     flow: 'Claude Code → Rialto',
-    body: (
-      <>
-        Guards <span className='font-mono'>/v1/*</span>. CLI clients cannot complete an interactive Access login, so
-        that path is a Bypass app and these per-client tokens are its gate.
-      </>
-    )
+    body: <Trans i18nKey='settings.access.guardTokenBody' components={{ mono: <span className='font-mono' /> }} />
   },
   {
-    title: 'Provider API key',
+    id: 'providerApiKey',
+    titleKey: 'settings.access.guardProviderTitle',
     accent: 'border-l-border',
     flow: 'Rialto → OpenAI',
     body: (
-      <>
-        <span className='font-medium text-foreground'>Outbound.</span> Rialto presents it to a vendor. Lives on the
-        provider in{' '}
-        <Link to='/providers' className='underline underline-offset-2'>
-          Providers
-        </Link>
-        .
-      </>
+      <Trans
+        i18nKey='settings.access.guardProviderBody'
+        components={{
+          strong: <span className='font-medium text-foreground' />,
+          providers: <Link to='/providers' className='underline underline-offset-2' />
+        }}
+      />
     )
   }
 ]
 
 export function GuardsCard() {
+  const { t } = useTranslation()
   return (
     <div className='rounded-md border border-border px-4 py-3'>
-      <div className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>Who guards what</div>
+      <div className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+        {t('settings.access.whoGuardsWhat')}
+      </div>
       <div className='mt-2 grid grid-cols-3 gap-4'>
         {GUARDS.map((g) => (
-          <div key={g.title} className={`border-l-2 ${g.accent} pl-3`}>
-            <div className='text-xs font-medium'>{g.title}</div>
+          <div key={g.id} className={`border-l-2 ${g.accent} pl-3`}>
+            <div className='text-xs font-medium'>{t(g.titleKey)}</div>
             <div className='mt-1 text-[11px] leading-relaxed text-muted-foreground'>{g.body}</div>
             <div className='mt-1.5 font-mono text-[10px] text-muted-foreground'>{g.flow}</div>
           </div>

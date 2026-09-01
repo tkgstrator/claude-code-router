@@ -8,6 +8,7 @@
  * belong to one.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { downloadText } from '@/components/rialto/activity/data'
 import { LogBody } from '@/components/rialto/activity/LogBody'
 import { FileRail, GroupRail } from '@/components/rialto/activity/LogRails'
@@ -120,6 +121,7 @@ function LogPanes({
 }
 
 export function ActivityLogs() {
+  const { t } = useTranslation()
   const { files, file, setFile, rawLines, error, loadLines } = useLogFiles()
   const [follow, setFollow] = useState(false)
   const counts = useActivityCounts()
@@ -139,8 +141,10 @@ export function ActivityLogs() {
 
   return (
     <Screen
-      title='Logs'
-      subtitle={file === null ? undefined : `${file.name} · ${formatFileSize(file.size)} · grouped by request`}
+      title={t('activity.logs.title')}
+      subtitle={
+        file === null ? undefined : t('activity.logs.subtitle', { file: file.name, size: formatFileSize(file.size) })
+      }
       actions={
         <>
           <RButton
@@ -150,10 +154,10 @@ export function ActivityLogs() {
             onClick={() => setFollow((v) => !v)}
             className={follow ? 'bg-muted/60' : ''}
           >
-            Follow
+            {t('activity.logs.follow')}
           </RButton>
           <RButton variant='ghost' icon='ri-download-line' onClick={download} disabled={rawLines.length === 0}>
-            Download
+            {t('activity.logs.download')}
           </RButton>
         </>
       }
@@ -162,7 +166,7 @@ export function ActivityLogs() {
       {error !== null ? (
         <ScreenMessage tone='bad'>{error}</ScreenMessage>
       ) : file === null ? (
-        <ScreenMessage>No log files yet. File logging is off unless LOG is enabled.</ScreenMessage>
+        <ScreenMessage>{t('activity.logs.noFiles')}</ScreenMessage>
       ) : (
         // Remount per file so the selected request and search box reset with it.
         <LogPanes key={file.path} files={files} file={file} onSelectFile={setFile} lines={lines} />

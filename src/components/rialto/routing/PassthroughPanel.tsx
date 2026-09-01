@@ -7,9 +7,10 @@
  * the screen shows.
  */
 import { useCallback, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Pill, RButton } from '@/components/rialto/primitives'
 import type { InboundSurfaceWire, RoutingSchedulerWeightEntry } from '@/lib/api'
-import { STATE_TONE, targetState } from './derive'
+import { STATE_LABEL_KEYS, STATE_TONE, targetState } from './derive'
 import type { EnabledTarget } from './types'
 
 const copy = (text: string): void => {
@@ -20,18 +21,19 @@ const copy = (text: string): void => {
 }
 
 function ReachableRow({ entry, live }: { entry: EnabledTarget; live: RoutingSchedulerWeightEntry | undefined }) {
+  const { t } = useTranslation()
   const state = targetState(live)
   return (
     <tr className='border-t border-border/60 transition-colors hover:bg-muted/50'>
       <td className='py-2.5 pl-6 pr-2 font-mono text-xs'>{entry.target}</td>
       <td className='px-2'>{entry.tier === null ? null : <Pill tone='mute'>{entry.tier}</Pill>}</td>
       <td className='px-2'>
-        <Pill tone={STATE_TONE[state]}>{state}</Pill>
+        <Pill tone={STATE_TONE[state]}>{t(STATE_LABEL_KEYS[state])}</Pill>
       </td>
       <td className='py-2.5 pl-2 pr-6 text-right'>
         <button
           type='button'
-          aria-label={`Copy ${entry.target}`}
+          aria-label={t('routing.chain.copyTarget', { target: entry.target })}
           onClick={() => copy(entry.target)}
           className='text-muted-foreground/60 hover:text-foreground'
         >
@@ -51,6 +53,7 @@ export function PassthroughPanel({
   targets: readonly EnabledTarget[]
   weights: Map<string, RoutingSchedulerWeightEntry>
 }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const copyAll = useCallback(() => {
     copy(targets.map((t) => t.target).join('\n'))
@@ -62,13 +65,15 @@ export function PassthroughPanel({
       {/* Own the gap: this heading is the first thing under the mode bar,
           so it cannot lean on a preceding block for spacing. */}
       <div className='flex items-center gap-3 px-6 pt-6 pb-3'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Reachable targets</h2>
+        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('routing.chain.reachableTargets')}
+        </h2>
         <span className='text-[11px] text-muted-foreground'>
-          what a caller may put in <span className='font-mono'>body.model</span>
+          <Trans i18nKey='routing.chain.reachableHint' components={{ mono: <span className='font-mono' /> }} />
         </span>
         <div className='ml-auto'>
           <RButton variant='outline' icon='ri-file-copy-line' onClick={copyAll}>
-            {copied ? 'Copied' : 'Copy as list'}
+            {copied ? t('routing.chain.copied') : t('routing.chain.copyAsList')}
           </RButton>
         </div>
       </div>
@@ -82,9 +87,9 @@ export function PassthroughPanel({
         </colgroup>
         <thead>
           <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-            <th className='pb-2 pl-6 pr-2 text-left font-medium'>Target</th>
-            <th className='px-2 text-left font-medium'>Tier</th>
-            <th className='px-2 text-left font-medium'>State</th>
+            <th className='pb-2 pl-6 pr-2 text-left font-medium'>{t('routing.common.colTarget')}</th>
+            <th className='px-2 text-left font-medium'>{t('routing.common.colTier')}</th>
+            <th className='px-2 text-left font-medium'>{t('routing.common.colState')}</th>
             <th className='pb-2 pl-2 pr-6' />
           </tr>
         </thead>
@@ -98,9 +103,11 @@ export function PassthroughPanel({
       <div className='px-6 py-5'>
         <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
           <i className='ri-lightbulb-line mr-1 align-[-1px]' />
-          Switch this surface to <span className='font-mono'>Routed</span> to run {surface.client}&rsquo;s requests
-          through scenarios, rules and quota-aware failover. Callers keep sending their own model string — it becomes
-          the <span className='font-mono'>requestedModel</span> that rules match on, rather than the final target.
+          <Trans
+            i18nKey='routing.chain.passthroughNote'
+            values={{ client: surface.client }}
+            components={{ mono: <span className='font-mono' /> }}
+          />
         </div>
       </div>
       <div className='h-8' />

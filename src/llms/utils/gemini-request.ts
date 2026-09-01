@@ -6,19 +6,27 @@
  * reverse for inbound Gemini-shaped requests (used when the Gemini
  * transformer is acting as the endpoint). The outbound builders
  * themselves live in `./gemini/request-content.ts` (contents[]) and
- * `./gemini/request-config.ts` (generationConfig / toolConfig / tools[]).
+ * `./gemini/request-config.ts` (generationConfig / toolConfig / tools[]);
+ * the inbound half lives in `./gemini/inbound-request.ts`.
  */
 
 import { HTTPException } from 'hono/http-exception'
-import type { UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '@/schemas/domain/unified'
+import type { UnifiedChatRequest, UnifiedTool } from '@/schemas/domain/unified'
 import {
   type GeminiContent,
   type GeminiGenerationConfig,
-  type GeminiInboundContent,
   GeminiInboundRequestSchema,
   type GeminiInboundTool,
   type GeminiToolConfig
 } from '@/schemas/wire/gemini/content'
+import {
+  createToolCallLedger,
+  firstPresent,
+  inboundContentToMessages,
+  inboundReasoning,
+  inboundSystemMessage,
+  inboundToolChoice
+} from './gemini/inbound-request'
 import { buildGenerationConfig, buildToolConfig, buildTools, isToolChoiceFunctionObject } from './gemini/request-config'
 import { buildContents } from './gemini/request-content'
 import type { GeminiTool } from './gemini-schema'
@@ -80,32 +88,6 @@ export function buildRequestBody(request: UnifiedChatRequest): GeminiRequestBody
 
 // ─── Inbound (Gemini-shaped → unified) ─────────────────────────────────
 
-/**
- * Convert one inbound Gemini `contents[]` entry into a unified message,
- * or return `null` if the entry shape is unsupported.
- */
-function inboundContentToMessage(content: GeminiInboundContent): UnifiedMessage | null {
-  if (typeof content === 'string') {
-    return { role: 'user', content }
-  }
-  if (typeof content.text === 'string') {
-    return { role: 'user', content: content.text.length > 0 ? content.text : null }
-  }
-  if (content.role === 'user') {
-    return {
-      role: 'user',
-      content: content.parts.map((part) => ({ type: 'text', text: part.text }))
-    }
-  }
-  if (content.role === 'model') {
-    return {
-      role: 'assistant',
-      content: content.parts.map((part) => ({ type: 'text', text: part.text }))
-    }
-  }
-  return null
-}
-
 /** Default JSON Schema body for a Gemini tool whose parameters are omitted. */
 const EMPTY_PARAMETERS: UnifiedTool['function']['parameters'] = {
   type: 'object',
@@ -160,24 +142,35 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
       message: `Invalid inbound Gemini request: ${JSON.stringify(parsed.error.issues)}`
     })
   }
-  const { contents, tools, model, max_tokens, temperature, stream, tool_choice } = parsed.data
+  const { contents, tools, model, stream, tool_choice } = parsed.data
+  const generationConfig = firstPresent(parsed.data.generationConfig, parsed.data.generation_config)
 
   const unifiedChatRequest: UnifiedChatRequest = {
     messages: [],
     model,
-    max_tokens,
-    temperature,
+    // `generationConfig` is the vocabulary a real Gemini client sends;
+    // the top-level OpenAI names only ever appear on hand-built bodies.
+    max_tokens: firstPresent(generationConfig?.maxOutputTokens, parsed.data.max_tokens),
+    temperature: firstPresent(generationConfig?.temperature, parsed.data.temperature),
     stream,
-    tool_choice: normalizeToolChoice(tool_choice)
+    tool_choice: firstPresent(normalizeToolChoice(tool_choice), inboundToolChoice(parsed.data.toolConfig))
   }
 
-  if (Array.isArray(contents)) {
-    for (const content of contents) {
-      const message = inboundContentToMessage(content)
-      if (message) {
-        unifiedChatRequest.messages.push(message)
-      }
-    }
+  const systemMessage = inboundSystemMessage(
+    firstPresent(parsed.data.systemInstruction, parsed.data.system_instruction)
+  )
+  if (systemMessage) {
+    unifiedChatRequest.messages.push(systemMessage)
+  }
+
+  const ledger = createToolCallLedger()
+  for (const content of contents) {
+    unifiedChatRequest.messages.push(...inboundContentToMessages(content, ledger))
+  }
+
+  const reasoning = inboundReasoning(generationConfig)
+  if (reasoning) {
+    unifiedChatRequest.reasoning = reasoning
   }
 
   if (Array.isArray(tools)) {

@@ -1,8 +1,5 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
-import { ErrorPage } from '@/components/ErrorPage'
-import { Login } from '@/components/Login'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import PublicRoute from '@/components/PublicRoute'
 import { ActivityLogs } from '@/components/rialto/activity/ActivityLogs'
 import { ActivityRequests } from '@/components/rialto/activity/ActivityRequests'
 import { ActivitySessionDetail } from '@/components/rialto/activity/ActivitySessionDetail'
@@ -44,18 +41,10 @@ export const router = createBrowserRouter([
         element: <Navigate to='/overview' replace />
       },
       {
-        path: '/login',
-        element: (
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        )
-      },
-      {
-        // Rialto shell (Phase 5). New screens land here one at a time;
-        // the legacy AppShell below keeps serving every route that has
-        // not been rebuilt yet, so the app is usable throughout the
-        // migration rather than only at the end of it.
+        // Rialto shell (Phase 5). Every screen inside the five-item
+        // information architecture hangs off here. ProtectedRoute no
+        // longer guards a credential — Cloudflare Access does that at
+        // the edge — it routes the two states the operator can act on.
         element: (
           <ProtectedRoute>
             <RialtoShell />

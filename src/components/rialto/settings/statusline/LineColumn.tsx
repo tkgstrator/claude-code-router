@@ -5,6 +5,7 @@
  * The row is a `div`, not a `button`: it carries its own remove control,
  * and a button inside a button is markup the browser hoists apart.
  */
+import { Trans, useTranslation } from 'react-i18next'
 import { colorHex, moduleMeta } from '@/lib/rialto/settings-content/statusline'
 import { cn } from '@/lib/utils'
 import type { StatusLineModuleConfig } from '@/types'
@@ -24,6 +25,7 @@ function ModuleRow({
   onRemove: () => void
   onReorder: (from: number, to: number) => void
 }) {
+  const { t } = useTranslation()
   const meta = moduleMeta(module.type)
   const hex = colorHex(module.color)
   return (
@@ -55,7 +57,7 @@ function ModuleRow({
       </button>
       <button
         type='button'
-        aria-label={`Remove ${meta.label}`}
+        aria-label={t('settings.statusline.removeModule', { module: meta.label })}
         onClick={onRemove}
         className='text-muted-foreground/50 hover:text-destructive'
       >
@@ -78,10 +80,13 @@ export function LineColumn({
   onRemove: (index: number) => void
   onReorder: (from: number, to: number) => void
 }) {
+  const { t } = useTranslation()
   return (
     <aside className='min-w-0 overflow-y-auto border-r border-border'>
       <div className='flex items-center gap-2 px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Line</h2>
+        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('settings.statusline.line')}
+        </h2>
         <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{modules.length}</span>
       </div>
       {modules.map((module, index) => (
@@ -100,8 +105,7 @@ export function LineColumn({
       ))}
       <div className='border-t border-border px-4 py-4'>
         <p className='text-[11px] leading-relaxed text-muted-foreground'>
-          Order is left to right. Claude Code pipes session JSON to <span className='font-mono'>rialto statusline</span>{' '}
-          on every turn.
+          <Trans i18nKey='settings.statusline.lineNote' components={{ mono: <span className='font-mono' /> }} />
         </p>
       </div>
     </aside>

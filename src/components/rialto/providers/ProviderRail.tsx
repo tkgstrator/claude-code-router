@@ -7,6 +7,7 @@
  * the quota meter. The mock defines this row shape for exactly that
  * reason.
  */
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Meter, Pill, RButton } from '@/components/rialto/primitives'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,12 @@ import { enabledCountOf, listedModelsOf, type ProviderState, planOf, providerQuo
 import type { Provider, SubscriptionWire } from './types'
 
 const STATE_TONE = { live: 'ok', invalid: 'bad', unknown: 'mute' } as const
+
+const STATE_LABEL_KEYS: Record<ProviderState, string> = {
+  live: 'providers.rail.stateLive',
+  invalid: 'providers.rail.stateInvalid',
+  unknown: 'providers.rail.stateUnknown'
+}
 
 export interface RailProvider {
   provider: Provider
@@ -26,6 +33,7 @@ export interface RailProvider {
 }
 
 function ProviderRow({ entry, active, quota }: { entry: RailProvider; active: boolean; quota: QuotaIndex }) {
+  const { t } = useTranslation()
   const { provider, subscription } = entry
   const plan = planOf(subscription)
   const accountIds = subscription === undefined ? [] : subscription.accounts.map((a) => a.id)
@@ -46,11 +54,11 @@ function ProviderRow({ entry, active, quota }: { entry: RailProvider; active: bo
         </span>
       </div>
       <div className='mt-1 flex items-center gap-2 text-[11px] text-muted-foreground'>
-        <span>{provider.auth_mode === 'subscription' ? 'OAuth' : 'API key'}</span>
+        <span>{provider.auth_mode === 'subscription' ? t('providers.rail.oauth') : t('providers.rail.apiKey')}</span>
         <span className='opacity-40'>·</span>
         <span>{entry.vendor}</span>
         <span className='ml-auto'>
-          <Pill tone={STATE_TONE[entry.state]}>{entry.state}</Pill>
+          <Pill tone={STATE_TONE[entry.state]}>{t(STATE_LABEL_KEYS[entry.state])}</Pill>
         </span>
       </div>
       {pct === null ? null : (
@@ -104,19 +112,20 @@ export function ProviderRail({
   quota: QuotaIndex
   onAdd: () => void
 }) {
+  const { t } = useTranslation()
   const subscriptions = entries.filter((e) => e.provider.auth_mode === 'subscription')
   const apiKeys = entries.filter((e) => e.provider.auth_mode !== 'subscription')
   return (
     <aside className='min-w-0 overflow-y-auto border-r border-border'>
       <RailGroup
-        title='Subscriptions'
+        title={t('providers.rail.subscriptions')}
         entries={subscriptions}
         activeName={activeName}
         quota={quota}
         className='flex items-center gap-2 px-4 pt-5 pb-2'
       />
       <RailGroup
-        title='API keys'
+        title={t('providers.rail.apiKeys')}
         entries={apiKeys}
         activeName={activeName}
         quota={quota}
@@ -124,7 +133,7 @@ export function ProviderRail({
       />
       <div className='p-4'>
         <RButton variant='outline' icon='ri-add-line' onClick={onAdd}>
-          Add provider
+          {t('providers.screen.addProvider')}
         </RButton>
       </div>
     </aside>

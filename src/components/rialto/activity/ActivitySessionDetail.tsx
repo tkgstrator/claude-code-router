@@ -6,8 +6,10 @@
  * grepping. Requested → sent, per call, next to the turn it served.
  */
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { type ActivityRequestLog, downloadText, fetchSessionRequestLogs } from '@/components/rialto/activity/data'
+import { LANE_KEYS, lane as laneOf } from '@/components/rialto/activity/requests-rows'
 import { DASH, ScreenMessage, StatusPill } from '@/components/rialto/activity/shared'
 import { useSurfaces } from '@/components/rialto/activity/use-surfaces'
 import { Meter, Pill, RButton } from '@/components/rialto/primitives'
@@ -102,8 +104,8 @@ function Kv({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function CallRow({ call }: { call: ActivityRequestLog }) {
-  const lane = call.isSubagent === null ? 'untracked' : call.isSubagent ? 'subagent' : 'agent'
-  const requested = call.requestedModel === null ? 'untracked' : call.requestedModel
+  const { t } = useTranslation()
+  const requested = call.requestedModel === null ? t('activity.common.untracked') : call.requestedModel
   return (
     <div className='border-t border-border/60 px-4 py-2.5 transition-colors hover:bg-muted/50'>
       <div className='flex items-baseline gap-2'>
@@ -121,8 +123,8 @@ function CallRow({ call }: { call: ActivityRequestLog }) {
         <span>{`${call.provider},${call.model}`}</span>
       </div>
       <div className='mt-1 flex gap-1.5'>
-        <Pill tone='mute'>{call.scenario === null ? 'untracked' : call.scenario}</Pill>
-        <Pill tone='mute'>{lane}</Pill>
+        <Pill tone='mute'>{call.scenario === null ? t('activity.common.untracked') : call.scenario}</Pill>
+        <Pill tone='mute'>{t(LANE_KEYS[laneOf(call.isSubagent)])}</Pill>
       </div>
     </div>
   )
@@ -137,27 +139,33 @@ function SummaryPane({
   turns: number
   inboundPath: string | null
 }) {
+  const { t } = useTranslation()
   const totalInput = summary.totalInputTokens
   const cacheRate = totalInput === 0 ? null : summary.totalCacheReadTokens / totalInput
   const cachePct = cacheRate === null ? 0 : Math.round(cacheRate * 100)
   return (
     <>
       <div className='px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Summary</h2>
+        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('activity.session.summary')}
+        </h2>
       </div>
-      <Kv label='Inbound' value={inboundPath === null ? 'untracked' : inboundPath} />
-      <Kv label='Turns' value={turns} />
-      <Kv label='Upstream calls' value={summary.requestCount} />
-      <Kv label='Input tokens' value={summary.totalInputTokens.toLocaleString()} />
-      <Kv label='Output tokens' value={summary.totalOutputTokens.toLocaleString()} />
-      <Kv label='Cache read' value={summary.totalCacheReadTokens.toLocaleString()} />
-      <Kv label='Cache hit' value={fmtRate(cacheRate)} />
-      <Kv label='Cost' value={fmtCost(summary.totalCostUsd)} />
-      <Kv label='Duration' value={fmtAgo(summary.firstAt, Date.parse(summary.lastAt))} />
+      <Kv
+        label={t('activity.session.inbound')}
+        value={inboundPath === null ? t('activity.common.untracked') : inboundPath}
+      />
+      <Kv label={t('activity.session.turns')} value={turns} />
+      <Kv label={t('activity.session.upstreamCalls')} value={summary.requestCount} />
+      <Kv label={t('activity.session.inputTokens')} value={summary.totalInputTokens.toLocaleString()} />
+      <Kv label={t('activity.session.outputTokens')} value={summary.totalOutputTokens.toLocaleString()} />
+      <Kv label={t('activity.session.cacheRead')} value={summary.totalCacheReadTokens.toLocaleString()} />
+      <Kv label={t('activity.session.cacheHit')} value={fmtRate(cacheRate)} />
+      <Kv label={t('activity.session.cost')} value={fmtCost(summary.totalCostUsd)} />
+      <Kv label={t('activity.session.duration')} value={fmtAgo(summary.firstAt, Date.parse(summary.lastAt))} />
 
       <div className='px-4 pb-3 pt-3'>
         <div className='mb-1.5 flex items-baseline'>
-          <span className='text-[11px] text-muted-foreground'>Cache efficiency</span>
+          <span className='text-[11px] text-muted-foreground'>{t('activity.session.cacheEfficiency')}</span>
           <span className='ml-auto font-mono text-[11px] tabular-nums'>{cachePct}%</span>
         </div>
         {/* Explicit `ok`: a high cache hit is the good end of the scale, the
@@ -169,12 +177,15 @@ function SummaryPane({
 }
 
 function TracePane({ calls }: { calls: ActivityRequestLog[] }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const shown = expanded ? calls : calls.slice(-TRACE_PREVIEW)
   return (
     <>
       <div className='border-t border-border px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Routing trace</h2>
+        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+          {t('activity.session.routingTrace')}
+        </h2>
       </div>
       {shown.map((call) => (
         <CallRow key={call.id} call={call} />
@@ -186,7 +197,7 @@ function TracePane({ calls }: { calls: ActivityRequestLog[] }) {
             onClick={() => setExpanded((v) => !v)}
             className='w-full rounded-md border border-dashed border-border py-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50'
           >
-            {expanded ? 'Show fewer' : `Show all ${calls.length} calls`}
+            {expanded ? t('activity.session.showFewer') : t('activity.session.showAllCalls', { calls: calls.length })}
           </button>
         </div>
       )}
@@ -202,6 +213,7 @@ interface Loaded {
 }
 
 export function ActivitySessionDetail() {
+  const { t } = useTranslation()
   const { sessionId = '' } = useParams()
   const navigate = useNavigate()
   const [data, setData] = useState<Loaded | null>(null)
@@ -270,11 +282,15 @@ export function ActivitySessionDetail() {
   const subtitle =
     data === null
       ? undefined
-      : `${sessionId} · ${inboundPath === null ? 'untracked' : inboundPath} · ${turns.length} turns`
+      : t('activity.session.subtitle', {
+          sessionId,
+          inbound: inboundPath === null ? t('activity.common.untracked') : inboundPath,
+          turns: turns.length
+        })
 
   return (
     <Screen
-      title='Session'
+      title={t('activity.session.title')}
       subtitle={subtitle}
       actions={
         <>
@@ -284,7 +300,7 @@ export function ActivitySessionDetail() {
             disabled={prev === null}
             onClick={() => prev !== null && navigate(`/activity/sessions/${encodeURIComponent(prev)}`)}
           >
-            Previous
+            {t('activity.session.previous')}
           </RButton>
           <RButton
             variant='ghost'
@@ -292,7 +308,7 @@ export function ActivitySessionDetail() {
             disabled={next === null}
             onClick={() => next !== null && navigate(`/activity/sessions/${encodeURIComponent(next)}`)}
           >
-            Next
+            {t('common.next')}
           </RButton>
         </>
       }
@@ -300,7 +316,7 @@ export function ActivitySessionDetail() {
       {error !== null ? (
         <ScreenMessage tone='bad'>{error}</ScreenMessage>
       ) : data === null ? (
-        <ScreenMessage>Loading…</ScreenMessage>
+        <ScreenMessage>{t('common.loading')}</ScreenMessage>
       ) : (
         <div className='grid h-full grid-cols-[1fr_22rem]'>
           <div className='min-w-0 overflow-y-auto border-r border-border'>
@@ -308,7 +324,7 @@ export function ActivitySessionDetail() {
               <Link
                 to='/activity'
                 className='text-muted-foreground hover:text-foreground'
-                aria-label='Back to Activity'
+                aria-label={t('activity.session.backToActivity')}
               >
                 <i className='ri-arrow-left-line text-base' />
               </Link>
@@ -318,15 +334,10 @@ export function ActivitySessionDetail() {
               </div>
               <div className='ml-auto flex gap-2'>
                 <RButton variant='ghost' icon='ri-code-line' onClick={downloadRaw}>
-                  Raw JSON
+                  {t('activity.session.rawJson')}
                 </RButton>
-                <RButton
-                  variant='ghost'
-                  icon='ri-archive-line'
-                  disabled
-                  title='Archiving one session has no endpoint yet — Activity archives all active sessions.'
-                >
-                  Archive
+                <RButton variant='ghost' icon='ri-archive-line' disabled title={t('activity.session.archiveDisabled')}>
+                  {t('activity.session.archive')}
                 </RButton>
               </div>
             </div>
@@ -337,7 +348,7 @@ export function ActivitySessionDetail() {
                   onClick={loadOlder}
                   className='w-full rounded-md border border-dashed border-border py-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50'
                 >
-                  Load older turns
+                  {t('activity.session.loadOlder')}
                 </button>
               </div>
             )}

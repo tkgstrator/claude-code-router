@@ -7,6 +7,7 @@
  * a lie about what the runtime does.
  */
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
 import { Pill, RButton } from '@/components/rialto/primitives'
@@ -22,6 +23,7 @@ import { RuleDetail } from './RuleDetail'
 import { allRules, type RuleScope, ruleLabel, type ScopedRule, sameScope, summarizePredicate } from './rules'
 
 function RuleRow({ scoped, active, onSelect }: { scoped: ScopedRule; active: boolean; onSelect: () => void }) {
+  const { t } = useTranslation()
   const target = scoped.rule.target
   return (
     <button
@@ -34,12 +36,14 @@ function RuleRow({ scoped, active, onSelect }: { scoped: ScopedRule; active: boo
     >
       <div className='flex items-center gap-2'>
         <span className='font-mono text-[11px] tabular-nums text-muted-foreground'>{scoped.index + 1}</span>
-        <span className='truncate text-xs font-medium'>{ruleLabel(scoped.rule, scoped.index)}</span>
+        <span className='truncate text-xs font-medium'>{ruleLabel(scoped.rule, scoped.index, t)}</span>
         <span className='ml-auto shrink-0 font-mono text-[11px] text-muted-foreground'>
-          {target === null || target === '' ? 'no rewrite' : splitTarget(target).model}
+          {target === null || target === '' ? t('routing.rules.noRewrite') : splitTarget(target).model}
         </span>
       </div>
-      <div className='mt-1 truncate font-mono text-[11px] text-muted-foreground'>{summarizePredicate(scoped.rule)}</div>
+      <div className='mt-1 truncate font-mono text-[11px] text-muted-foreground'>
+        {summarizePredicate(scoped.rule, t)}
+      </div>
     </button>
   )
 }
@@ -104,6 +108,7 @@ function RuleList({
 }
 
 export function RoutingRules() {
+  const { t } = useTranslation()
   const { config, setConfig } = useConfig()
   const { surfaces } = useSurfaces()
   const targets = useEnabledTargets()
@@ -149,23 +154,23 @@ export function RoutingRules() {
       .then(() => {
         setConfig(next)
         setDraft(null)
-        toast.success('Rules saved')
+        toast.success(t('routing.rules.saved'))
       })
       .catch((err: unknown) => toast.error(err instanceof Error ? err.message : String(err)))
       .finally(() => setSaving(false))
-  }, [config, draft, setConfig])
+  }, [config, draft, setConfig, t])
 
   return (
     <Screen
-      title='Routing rules'
-      subtitle={`${rules.length} rules · evaluated before the chain`}
+      title={t('routing.rules.title')}
+      subtitle={t('routing.rules.subtitle', { n: rules.length })}
       actions={
         <>
           <RButton variant='ghost' onClick={() => setDraft(null)} disabled={draft === null}>
-            Discard
+            {t('routing.rules.discard')}
           </RButton>
           <RButton variant='primary' icon='ri-check-line' onClick={save} disabled={draft === null || saving}>
-            Save
+            {t('common.save')}
           </RButton>
         </>
       }
@@ -175,34 +180,31 @@ export function RoutingRules() {
       <div className='grid h-full grid-cols-[20rem_1fr]'>
         <aside className='min-w-0 overflow-y-auto border-r border-border'>
           <div className='flex items-center gap-2 px-4 pt-5 pb-2'>
-            <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Rules</h2>
-            <span className='text-[11px] text-muted-foreground'>first match wins</span>
+            <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+              {t('routing.common.rules')}
+            </h2>
+            <span className='text-[11px] text-muted-foreground'>{t('routing.rules.firstMatchWins')}</span>
             {draft === null ? null : (
               <Pill tone='warn' className='ml-auto'>
-                unsaved
+                {t('routing.rules.unsaved')}
               </Pill>
             )}
           </div>
           <RuleList rules={rules} selected={selected} onSelect={setSelected} />
           <div className='p-4'>
             <RButton variant='outline' icon='ri-add-line' onClick={add}>
-              Add rule
+              {t('routing.rules.addRule')}
             </RButton>
           </div>
 
           <div className='border-t border-border px-4 py-4'>
-            <p className='text-[11px] leading-relaxed text-muted-foreground'>
-              Evaluated top to bottom against the request, before the preference chain. A rule that matches replaces the
-              target outright; the chain still supplies failover.
-            </p>
+            <p className='text-[11px] leading-relaxed text-muted-foreground'>{t('routing.rules.explainer')}</p>
           </div>
         </aside>
 
         {current === undefined ? (
           <div className='px-6 py-6 text-xs text-muted-foreground'>
-            {rules.length === 0
-              ? 'No rules yet. Add one to override the chain for a class of request.'
-              : 'Select a rule.'}
+            {rules.length === 0 ? t('routing.rules.empty') : t('routing.rules.selectOne')}
           </div>
         ) : (
           <RuleDetail

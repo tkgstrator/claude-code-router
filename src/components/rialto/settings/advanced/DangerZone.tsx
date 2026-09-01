@@ -8,6 +8,7 @@
  * buttons that would fail on click.
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { SectionHead } from '@/components/rialto/settings/fields'
 import { NotYetAvailable } from '@/components/rialto/settings/notice'
@@ -45,35 +46,33 @@ function DangerRow({
 }
 
 export function DangerZone() {
+  const { t } = useTranslation()
   const [archiving, setArchiving] = useState(false)
 
   const archive = () => {
-    if (!window.confirm('Archive every active session? They drop out of Activity; usage and cost totals are kept.')) {
+    if (!window.confirm(t('settings.advanced.archiveConfirm'))) {
       return
     }
     setArchiving(true)
     api
       .archiveAllSessions()
-      .then((res) => toast.success(`${res.archived} sessions archived.`))
-      .catch((e: Error) => toast.error(`Archive failed: ${e.message}`))
+      .then((res) => toast.success(t('settings.advanced.archived', { n: res.archived })))
+      .catch((e: Error) => toast.error(t('settings.advanced.archiveFailed', { message: e.message })))
       .finally(() => setArchiving(false))
   }
 
   return (
     <>
-      <SectionHead title='Danger zone' />
+      <SectionHead title={t('settings.advanced.dangerZone')} />
       <DangerRow
-        label='Archive all sessions'
-        hint='Clears the Activity session list. RequestLog rows stay, so usage history and cost totals are preserved, and a session reappears the moment it sees new traffic.'
-        verb='Archive'
+        label={t('settings.advanced.archiveAll')}
+        hint={t('settings.advanced.archiveAllHint')}
+        verb={t('settings.advanced.archiveVerb')}
         onClick={archive}
         disabled={archiving}
       />
       <div className='px-6 py-4'>
-        <NotYetAvailable
-          what='Reset routing · re-seed catalog · purge captured data'
-          needs='All three are destructive operations with no route behind them. They need server-side handlers that can do the work inside one transaction; a client-side loop over the existing per-row endpoints would leave a half-reset install behind on any failure.'
-        />
+        <NotYetAvailable what={t('settings.advanced.resetWhat')} needs={t('settings.advanced.resetNeeds')} />
       </div>
     </>
   )

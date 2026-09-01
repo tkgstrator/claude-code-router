@@ -11,6 +11,7 @@
  * shared `Tabs` primitive can stay a plain list of links. The pane opens
  * straight into the strip — hence `showHeading={false}`.
  */
+import { Trans, useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { Tabs } from '@/components/rialto/primitives'
 import { ConfigDocument } from '@/components/rialto/settings/advanced/ConfigDocument'
@@ -20,25 +21,22 @@ import { SectionHead } from '@/components/rialto/settings/fields'
 import { NotYetAvailable } from '@/components/rialto/settings/notice'
 import { SettingsLayout } from '@/components/rialto/settings/SettingsLayout'
 
-const TABS = [
-  { id: 'config', label: 'Config document', href: '?tab=config' },
-  { id: 'scratch', label: 'Request scratchpad', href: '?tab=scratch' },
-  { id: 'health', label: 'Health', href: '?tab=health' }
+const TAB_KEYS = [
+  { id: 'config', labelKey: 'settings.advanced.tabConfig', href: '?tab=config' },
+  { id: 'scratch', labelKey: 'settings.advanced.tabScratch', href: '?tab=scratch' },
+  { id: 'health', labelKey: 'settings.advanced.tabHealth', href: '?tab=health' }
 ]
 
 function ScratchpadPanel() {
+  const { t } = useTranslation()
   return (
     <>
-      <SectionHead title='Request scratchpad' meta='not rebuilt yet' />
+      <SectionHead title={t('settings.advanced.scratchTitle')} meta={t('settings.advanced.notRebuilt')} />
       <div className='px-6 py-4'>
         <NotYetAvailable
-          what='Scratchpad in this shell'
+          what={t('settings.advanced.scratchWhat')}
           needs={
-            <>
-              The HTTP scratchpad still runs on its own route at <span className='font-mono'>/debug</span> — a working
-              screen, but one the Rialto mocks never designed, so it has not been folded in here. Rebuilding it inside
-              this tab needs a design pass before an implementation pass.
-            </>
+            <Trans i18nKey='settings.advanced.scratchNeeds' components={{ mono: <span className='font-mono' /> }} />
           }
         />
       </div>
@@ -47,6 +45,7 @@ function ScratchpadPanel() {
 }
 
 export function SettingsAdvanced() {
+  const { t } = useTranslation()
   const [params] = useSearchParams()
   const requested = params.get('tab')
   const tab = requested === 'scratch' || requested === 'health' ? requested : 'config'
@@ -54,12 +53,15 @@ export function SettingsAdvanced() {
   return (
     <SettingsLayout
       active='advanced'
-      title='Advanced'
-      subtitle='config document · scratchpad · health'
+      title={t('settings.rail.advanced')}
+      subtitle={t('settings.advanced.subtitle')}
       showHeading={false}
     >
       <div className='flex items-center gap-1 border-b border-border px-6'>
-        <Tabs items={TABS} active={tab} />
+        <Tabs
+          items={TAB_KEYS.map((item) => ({ id: item.id, label: t(item.labelKey), href: item.href }))}
+          active={tab}
+        />
       </div>
 
       {tab === 'config' ? <ConfigDocument /> : tab === 'health' ? <HealthPanel /> : <ScratchpadPanel />}

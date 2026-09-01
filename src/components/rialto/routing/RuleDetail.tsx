@@ -6,6 +6,7 @@
  * reasoning about.
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pill, RButton, SurfaceChip } from '@/components/rialto/primitives'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { InboundSurfaceWire } from '@/lib/api'
@@ -20,6 +21,7 @@ const PICKER =
   'inline-flex h-8 items-center gap-2 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60'
 
 function ActionPicker({ routes, onChange }: { routes: boolean; onChange: (routes: boolean) => void }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const choose = (next: boolean) => () => {
     onChange(next)
@@ -29,7 +31,7 @@ function ActionPicker({ routes, onChange }: { routes: boolean; onChange: (routes
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button type='button' className={`${PICKER} min-w-44`}>
-          <span>{routes ? 'Route to model' : 'Leave caller model'}</span>
+          <span>{t(routes ? 'routing.rules.detail.routeToModel' : 'routing.rules.detail.leaveCallerModel')}</span>
           <i className='ri-arrow-down-s-line ml-auto text-sm text-muted-foreground' />
         </button>
       </PopoverTrigger>
@@ -39,14 +41,14 @@ function ActionPicker({ routes, onChange }: { routes: boolean; onChange: (routes
           className='block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted/60'
           onClick={choose(true)}
         >
-          Route to model
+          {t('routing.rules.detail.routeToModel')}
         </button>
         <button
           type='button'
           className='block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted/60'
           onClick={choose(false)}
         >
-          Leave caller model
+          {t('routing.rules.detail.leaveCallerModel')}
         </button>
       </PopoverContent>
     </Popover>
@@ -62,12 +64,13 @@ function TargetPicker({
   targets: readonly EnabledTarget[]
   onChange: (next: string) => void
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button type='button' className={`${PICKER} flex-1`}>
-          <span className='truncate font-mono'>{target === '' ? 'pick a model' : target}</span>
+          <span className='truncate font-mono'>{target === '' ? t('routing.rules.detail.pickModel') : target}</span>
           <i className='ri-arrow-down-s-line ml-auto text-sm text-muted-foreground' />
         </button>
       </PopoverTrigger>
@@ -107,6 +110,7 @@ export function RuleDetail({
   onDuplicate: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation()
   const rule = scoped.rule
   const routes = rule.target !== null && rule.target.length > 0
 
@@ -116,28 +120,28 @@ export function RuleDetail({
         <input
           className='flex h-8 max-w-xs flex-1 items-center rounded-md border border-border bg-transparent px-3 text-xs font-medium outline-none'
           value={rule.name === undefined ? '' : rule.name}
-          placeholder={`Rule ${scoped.index + 1}`}
-          aria-label='Rule name'
+          placeholder={t('routing.rules.ruleN', { n: scoped.index + 1 })}
+          aria-label={t('routing.rules.detail.ruleName')}
           onChange={(event) => onChange({ ...rule, name: event.target.value === '' ? undefined : event.target.value })}
         />
         <Pill tone='info'>{`${scoped.scenario} · ${scoped.lane}`}</Pill>
         <div className='ml-auto flex items-center gap-2'>
           <RButton variant='ghost' icon='ri-file-copy-line' onClick={onDuplicate}>
-            Duplicate
+            {t('routing.rules.detail.duplicate')}
           </RButton>
           <RButton variant='ghost' icon='ri-delete-bin-line' onClick={onDelete}>
-            Delete
+            {t('routing.rules.detail.delete')}
           </RButton>
         </div>
       </div>
 
       <div className='px-6 pt-5 pb-2'>
-        <h3 className={HEADING}>When</h3>
+        <h3 className={HEADING}>{t('routing.rules.detail.when')}</h3>
       </div>
       <PredicateEditor when={rule.when} onChange={(when) => onChange({ ...rule, when })} />
 
       <div className='px-6 pt-6 pb-2'>
-        <h3 className={HEADING}>Then</h3>
+        <h3 className={HEADING}>{t('routing.rules.detail.then')}</h3>
       </div>
       <div className='space-y-2 px-6'>
         <div className='flex items-center gap-2'>
@@ -150,14 +154,14 @@ export function RuleDetail({
             />
           ) : (
             <div className='flex h-8 flex-1 items-center rounded-md border border-dashed border-border px-3 text-[11px] text-muted-foreground'>
-              matched requests go out with the model the caller sent
+              {t('routing.rules.detail.noRewriteHint')}
             </div>
           )}
         </div>
       </div>
 
       <div className='px-6 pt-6 pb-2'>
-        <h3 className={HEADING}>Applies to</h3>
+        <h3 className={HEADING}>{t('routing.rules.detail.appliesTo')}</h3>
       </div>
       <div className='flex flex-wrap gap-2 px-6'>
         {surfaces.map((surface) => (
@@ -167,12 +171,14 @@ export function RuleDetail({
             on={surface.routingMode === 'routed'}
             readOnlyHint={
               surface.routingMode === 'routed'
-                ? `${surface.path} runs the rule stack. Change its mode under Routing → Chain.`
-                : `${surface.path} is in passthrough, so no rule is evaluated for it. Change its mode under Routing → Chain.`
+                ? t('routing.rules.detail.surfaceRoutedHint', { path: surface.path })
+                : t('routing.rules.detail.surfacePassthroughHint', { path: surface.path })
             }
           />
         ))}
-        <span className='self-center text-[11px] text-muted-foreground'>only endpoints in routed mode can match</span>
+        <span className='self-center text-[11px] text-muted-foreground'>
+          {t('routing.rules.detail.onlyRoutedMatch')}
+        </span>
       </div>
 
       <RuleTester rules={laneRules} />

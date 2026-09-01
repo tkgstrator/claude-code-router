@@ -7,6 +7,7 @@
  * that fails often enough to need its failure on screen.
  */
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
@@ -24,9 +25,10 @@ const NEXT_STEP: Record<ConnectStep, ConnectStep> = { 1: 2, 2: 3, 3: 3 }
 const PREV_STEP: Record<ConnectStep, ConnectStep> = { 1: 1, 2: 1, 3: 2 }
 
 function ConnectPane({ flow, now, reload }: { flow: ConnectFlow; now: number; reload: () => Promise<void> }) {
+  const { t } = useTranslation()
   const { entry, provider } = flow
   if (entry === undefined) {
-    return <div className='min-w-0 px-6 py-6 text-xs text-muted-foreground'>Pick a vendor on the left to start.</div>
+    return <div className='min-w-0 px-6 py-6 text-xs text-muted-foreground'>{t('providers.connect.pickVendor')}</div>
   }
   if (flow.step === 3) {
     return (
@@ -68,6 +70,7 @@ const canAdvance = (flow: ConnectFlow): boolean => {
 }
 
 export function AddProviderScreen() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { data, error, reload } = useProvidersData()
   const flow = useConnectFlow(data, reload)
@@ -95,17 +98,20 @@ export function AddProviderScreen() {
 
   const subtitle =
     flow.entry === undefined
-      ? `Step ${step} of 3`
-      : `Step ${step} of 3 · ${vendorLabel(flow.entry.name, flow.entry.displayName)}`
+      ? t('providers.connect.stepOf', { step })
+      : t('providers.connect.stepOfVendor', {
+          step,
+          vendor: vendorLabel(flow.entry.name, flow.entry.displayName)
+        })
 
   return (
     <Screen
-      title='Add provider'
+      title={t('providers.screen.addProvider')}
       subtitle={subtitle}
       actions={
         <>
           <RButton variant='ghost' icon='ri-arrow-left-line' onClick={back}>
-            Back
+            {t('common.back')}
           </RButton>
           <RButton
             variant='primary'
@@ -113,7 +119,7 @@ export function AddProviderScreen() {
             onClick={advance}
             disabled={!canAdvance(flow) || flow.busy}
           >
-            {step === 3 ? 'Finish' : 'Continue'}
+            {t(step === 3 ? 'providers.connect.finish' : 'common.continue')}
           </RButton>
         </>
       }
@@ -122,7 +128,7 @@ export function AddProviderScreen() {
       {error !== null ? (
         <div className='px-6 py-6 text-xs text-destructive'>{error}</div>
       ) : data === null ? (
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       ) : (
         <div className='grid h-full grid-cols-[22rem_1fr]'>
           <ConnectVendorRail

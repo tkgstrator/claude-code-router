@@ -8,6 +8,7 @@
  * actually routed.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Meter, Mono, Pill, RButton, Section, SurfacePill } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
 import { api, type OverviewResponse, type OverviewSpendRow } from '@/lib/api'
@@ -24,14 +25,15 @@ const deltaTone = (ratio: number): 'warn' | 'ok' | 'mute' => {
 
 const fmtDelta = (ratio: number): string => `${ratio > 0 ? '+' : ''}${Math.round(ratio * 100)}%`
 
-const SPEND_LABELS: Record<OverviewSpendRow['label'], string> = {
-  today: 'Today',
-  week: 'This week',
-  month: 'This month',
-  savedBySubscription: 'Saved by subscription'
+const SPEND_LABEL_KEYS: Record<OverviewSpendRow['label'], string> = {
+  today: 'overview.spendToday',
+  week: 'overview.spendWeek',
+  month: 'overview.spendMonth',
+  savedBySubscription: 'overview.spendSaved'
 }
 
 function SurfaceTable({ data }: { data: OverviewResponse }) {
+  const { t } = useTranslation()
   return (
     <table className='w-full table-fixed'>
       <colgroup>
@@ -43,11 +45,11 @@ function SurfaceTable({ data }: { data: OverviewResponse }) {
       </colgroup>
       <thead>
         <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>Surface</th>
-          <th className='px-3 text-left font-medium'>Routing</th>
-          <th className='px-3 text-right font-medium'>Requests</th>
+          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('overview.colSurface')}</th>
+          <th className='px-3 text-left font-medium'>{t('overview.colRouting')}</th>
+          <th className='px-3 text-right font-medium'>{t('overview.colRequests')}</th>
           <th className='px-3 text-right font-medium'>p50</th>
-          <th className='pb-2 pl-3 pr-6 text-right font-medium'>Errors</th>
+          <th className='pb-2 pl-3 pr-6 text-right font-medium'>{t('overview.colErrors')}</th>
         </tr>
       </thead>
       <tbody>
@@ -58,7 +60,11 @@ function SurfaceTable({ data }: { data: OverviewResponse }) {
               <div className='text-[11px] text-muted-foreground'>{s.client}</div>
             </td>
             <td className='px-3'>
-              {s.routingMode === 'routed' ? <Pill tone='ok'>routed</Pill> : <Pill tone='mute'>passthrough</Pill>}
+              {s.routingMode === 'routed' ? (
+                <Pill tone='ok'>{t('routing.common.modeRouted')}</Pill>
+              ) : (
+                <Pill tone='mute'>{t('routing.common.modePassthrough')}</Pill>
+              )}
             </td>
             <td className='px-3 text-right font-mono text-xs tabular-nums'>{fmtCount(s.requests)}</td>
             <td className='px-3 text-right font-mono text-xs tabular-nums text-muted-foreground'>
@@ -75,8 +81,9 @@ function SurfaceTable({ data }: { data: OverviewResponse }) {
 }
 
 function SessionTable({ data, now }: { data: OverviewResponse; now: number }) {
+  const { t } = useTranslation()
   if (data.recentSessions.length === 0) {
-    return <div className='px-6 pb-6 text-xs text-muted-foreground'>No sessions in this window.</div>
+    return <div className='px-6 pb-6 text-xs text-muted-foreground'>{t('overview.noSessions')}</div>
   }
   return (
     <table className='w-full table-fixed'>
@@ -91,13 +98,13 @@ function SessionTable({ data, now }: { data: OverviewResponse; now: number }) {
       </colgroup>
       <thead>
         <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>Session</th>
-          <th className='px-3 text-left font-medium'>Endpoint</th>
-          <th className='px-3 text-left font-medium'>Model</th>
-          <th className='px-3 text-right font-medium'>Turns</th>
-          <th className='px-3 text-right font-medium'>Tokens</th>
-          <th className='px-3 text-right font-medium'>Cost</th>
-          <th className='pb-2 pl-3 pr-6 text-right font-medium'>Last</th>
+          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('activity.sessions.colSession')}</th>
+          <th className='px-3 text-left font-medium'>{t('activity.sessions.colEndpoint')}</th>
+          <th className='px-3 text-left font-medium'>{t('activity.sessions.colModel')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.colTurns')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.statTokens')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.colCost')}</th>
+          <th className='pb-2 pl-3 pr-6 text-right font-medium'>{t('activity.sessions.colLast')}</th>
         </tr>
       </thead>
       <tbody>
@@ -106,7 +113,9 @@ function SessionTable({ data, now }: { data: OverviewResponse; now: number }) {
           return (
             <tr key={s.sessionId} className='border-t border-border/60 transition-colors hover:bg-muted/50'>
               <td className='py-2.5 pl-6 pr-3 font-mono text-xs'>{shortId(s.sessionId)}</td>
-              <td className='px-3'>{path === undefined ? <Mono>untracked</Mono> : <SurfacePill path={path} />}</td>
+              <td className='px-3'>
+                {path === undefined ? <Mono>{t('activity.requests.laneUntracked')}</Mono> : <SurfacePill path={path} />}
+              </td>
               <td className='px-3 font-mono text-xs text-muted-foreground'>{s.model}</td>
               <td className='px-3 text-right font-mono text-xs tabular-nums'>{s.turns}</td>
               <td className='px-3 text-right font-mono text-xs tabular-nums'>{fmtTokens(s.tokens)}</td>
@@ -121,6 +130,7 @@ function SessionTable({ data, now }: { data: OverviewResponse; now: number }) {
 }
 
 export function Overview() {
+  const { t } = useTranslation()
   const [data, setData] = useState<OverviewResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -146,19 +156,23 @@ export function Overview() {
   const subtitle =
     data === null
       ? undefined
-      : `${data.surfaces.length} inbound surfaces · ${data.providerCount} providers · ${data.enabledModelCount} models enabled`
+      : t('overview.subtitle', {
+          surfaces: data.surfaces.length,
+          providers: data.providerCount,
+          models: data.enabledModelCount
+        })
 
   return (
     <Screen
-      title='Overview'
+      title={t('shell.navOverview')}
       subtitle={subtitle}
       actions={
         <>
           <RButton variant='outline' icon='ri-time-line'>
-            Last 24h
+            {t('activity.requests.range24h')}
           </RButton>
           <RButton variant='ghost' icon='ri-refresh-line' onClick={load} disabled={loading}>
-            Refresh
+            {t('settings.advanced.refresh')}
           </RButton>
         </>
       }
@@ -166,14 +180,14 @@ export function Overview() {
       {error !== null ? (
         <div className='px-6 py-6 text-xs text-destructive'>{error}</div>
       ) : data === null ? (
-        <div className='px-6 py-6 text-xs text-muted-foreground'>Loading…</div>
+        <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       ) : (
         <>
-          <Section title='Inbound surfaces' meta={`last ${data.windowHours}h`}>
+          <Section title={t('overview.inboundSurfaces')} meta={t('overview.lastHours', { hours: data.windowHours })}>
             <SurfaceTable data={data} />
           </Section>
 
-          <Section title='Spend'>
+          <Section title={t('overview.spend')}>
             <div className='grid grid-cols-4 gap-px px-6 pb-6'>
               {data.spend.map((s) => (
                 <div
@@ -181,7 +195,7 @@ export function Overview() {
                   className='border-l-2 border-l-border px-4 py-3 transition-colors hover:bg-muted/50 hover:border-l-foreground/30'
                 >
                   <div className='text-[11px] uppercase tracking-wider text-muted-foreground'>
-                    {SPEND_LABELS[s.label]}
+                    {t(SPEND_LABEL_KEYS[s.label])}
                   </div>
                   <div className='mt-1 flex items-baseline gap-2'>
                     <span className='font-mono text-xl tabular-nums'>{fmtCost(s.usd)}</span>
@@ -196,9 +210,9 @@ export function Overview() {
 
           <div className='grid grid-cols-2 border-t border-border'>
             <div className='border-r border-border'>
-              <Section title='Subscription quota'>
+              <Section title={t('overview.subscriptionQuota')}>
                 {data.quota.length === 0 ? (
-                  <div className='px-6 pb-6 text-xs text-muted-foreground'>No subscription quota collected yet.</div>
+                  <div className='px-6 pb-6 text-xs text-muted-foreground'>{t('overview.noQuota')}</div>
                 ) : (
                   data.quota.map((q) => (
                     <div
@@ -214,7 +228,7 @@ export function Overview() {
                         <Meter pct={q.pct} />
                       </div>
                       <div className='mt-1.5 text-[11px] text-muted-foreground'>
-                        resets in {fmtUntil(q.resetAt, now)}
+                        {t('overview.resetsIn', { until: fmtUntil(q.resetAt, now) })}
                       </div>
                     </div>
                   ))
@@ -222,9 +236,9 @@ export function Overview() {
               </Section>
             </div>
             <div>
-              <Section title='Failover activity'>
+              <Section title={t('overview.failoverActivity')}>
                 {data.failover.length === 0 ? (
-                  <div className='px-6 pb-6 text-xs text-muted-foreground'>No failover events in this window.</div>
+                  <div className='px-6 pb-6 text-xs text-muted-foreground'>{t('overview.noFailover')}</div>
                 ) : (
                   <div className='space-y-0'>
                     {data.failover.map((f) => (
@@ -236,7 +250,7 @@ export function Overview() {
                           <Pill tone={f.tone}>{f.label}</Pill>
                           <span className='text-xs'>{f.headline}</span>
                           <span className='ml-auto text-[11px] text-muted-foreground'>
-                            {f.at === '' ? '' : `${fmtAgo(f.at, now)} ago`}
+                            {f.at === '' ? '' : t('settings.access.lastUsedAgo', { ago: fmtAgo(f.at, now) })}
                           </span>
                         </div>
                         <div className='mt-1 text-[11px] text-muted-foreground'>{f.detail}</div>
@@ -248,7 +262,7 @@ export function Overview() {
             </div>
           </div>
 
-          <Section title='Recent sessions'>
+          <Section title={t('overview.recentSessions')}>
             <SessionTable data={data} now={now} />
           </Section>
           <div className='h-10' />

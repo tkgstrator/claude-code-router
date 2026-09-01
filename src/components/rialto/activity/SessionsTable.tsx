@@ -6,6 +6,7 @@
  * coupling is the reason the two components sit in one file and the
  * screen sees neither.
  */
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import type { Enriched } from '@/components/rialto/activity/sessions-derive'
 import { Sparkline, SurfaceCell } from '@/components/rialto/activity/shared'
@@ -13,6 +14,7 @@ import { fmtAgo } from '@/lib/rialto/format'
 import { fmtCost, fmtTokens } from '@/lib/sessions/format'
 
 function SessionRow({ row, now }: { row: Enriched; now: number }) {
+  const { t } = useTranslation()
   const { session } = row
   const title = session.preview === null || session.preview === '' ? session.sessionId : session.preview
   return (
@@ -35,7 +37,9 @@ function SessionRow({ row, now }: { row: Enriched; now: number }) {
       </td>
       <td className='px-3 text-right font-mono text-xs tabular-nums'>{fmtCost(session.totalCostUsd)}</td>
       <td className='px-3'>
-        {row.trend === null ? null : <Sparkline points={row.trend} label={`${session.requestCount} calls`} />}
+        {row.trend === null ? null : (
+          <Sparkline points={row.trend} label={t('activity.sessions.trendLabel', { calls: session.requestCount })} />
+        )}
       </td>
       <td className='py-3 pl-3 pr-6 text-right text-[11px] text-muted-foreground'>{fmtAgo(session.lastAt, now)}</td>
     </tr>
@@ -43,6 +47,7 @@ function SessionRow({ row, now }: { row: Enriched; now: number }) {
 }
 
 export function SessionsTable({ rows, now }: { rows: Enriched[]; now: number }) {
+  const { t } = useTranslation()
   return (
     <table className='w-full table-fixed'>
       <colgroup>
@@ -59,16 +64,16 @@ export function SessionsTable({ rows, now }: { rows: Enriched[]; now: number }) 
       </colgroup>
       <thead>
         <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>Session</th>
-          <th className='px-3 text-left font-medium'>Endpoint</th>
-          <th className='px-3 text-left font-medium'>Model</th>
-          <th className='px-3 text-right font-medium'>Turns</th>
-          <th className='px-3 text-right font-medium'>Input</th>
-          <th className='px-3 text-right font-medium'>Output</th>
-          <th className='px-3 text-right font-medium'>Cache</th>
-          <th className='px-3 text-right font-medium'>Cost</th>
-          <th className='px-3 text-left font-medium'>Trend</th>
-          <th className='pb-2 pl-3 pr-6 text-right font-medium'>Last</th>
+          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('activity.sessions.colSession')}</th>
+          <th className='px-3 text-left font-medium'>{t('activity.sessions.colEndpoint')}</th>
+          <th className='px-3 text-left font-medium'>{t('activity.sessions.colModel')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.colTurns')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.colInput')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.colOutput')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.colCache')}</th>
+          <th className='px-3 text-right font-medium'>{t('activity.sessions.colCost')}</th>
+          <th className='px-3 text-left font-medium'>{t('activity.sessions.colTrend')}</th>
+          <th className='pb-2 pl-3 pr-6 text-right font-medium'>{t('activity.sessions.colLast')}</th>
         </tr>
       </thead>
       <tbody>
