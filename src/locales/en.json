@@ -427,7 +427,6 @@
     "vendorHint": {
       "claudeCode": "Pro / Max via Claude CLI OAuth",
       "codex": "ChatGPT plan via Codex CLI OAuth",
-      "geminiCli": "Code Assist Standard / Enterprise via Gemini CLI OAuth",
       "payAsYouGo": "Pay-as-you-go API key",
       "aiStudio": "AI Studio API key",
       "openaiCompatible": "OpenAI-compatible",

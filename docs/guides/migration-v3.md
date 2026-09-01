@@ -298,6 +298,37 @@ Routing 画面で `/v1/messages` を `routed` に切り替えること。詳細�
 その判断ロジックを Rules 画面の述語（モデルティア / モデル名 glob / thinking / トークン数の
 範囲 / ツール型 glob / effort）へ移すこと。
 
+### 8-7. Gemini の API キーに期限がある（Rialto 由来ではない）
+
+**これは Rialto の変更ではなく Google 側の期限だが、放置すると Gemini が丸ごと止まるので
+移行のタイミングで一緒に確認しておくこと。**
+
+Gemini API はキーの種別を移行中で、公式ドキュメントが次の期限を示している。
+
+| 時期 | 内容 |
+|---|---|
+| すでに | AI Studio で**新規に作るキーは自動的に auth key** になる |
+| すでに | **unrestricted な standard key** からのリクエストは拒否される |
+| **2026年9月** | **standard key** からのリクエストが拒否される |
+
+- **standard key** — プロジェクトに課金を紐づけるだけで呼び出し元を識別しない従来のキー
+- **auth key** — サービスアカウントに直接紐づき、粒度の細かいアクセス制御と漏洩時の即時失効が効く
+
+対処は AI Studio でキーを発行し直すだけでよい（新規キーは自動的に auth key になる）。
+発行後、Providers → `google` の API キーを差し替える。長く使っていないキーは
+AI Studio 上で `Blocked` タグが付いているので、そこでも判別できる。
+
+**Gemini のサブスク枠（Code Assist）は Rialto では対応していない。** Rialto から Gemini を
+使う経路は `google` プロバイダの api_key だけである。理由は
+`docs/plan/rialto/gemini-code-assist-spike.md` §0 にまとめてある（対象ティアが 2026-06-18 に
+提供停止され、残る Code Assist Standard / Enterprise は月額シート課金で、api_key 経路に対する
+利点が無いため）。
+
+なお **無料枠と従量課金では入力データの扱いが違う**。公式の文言で、無料枠は
+"Content used to improve our products"、従量課金は "Content **not** used to improve our
+products" である。Rialto はゲートウェイなので**通るのは自分のコードとプロンプトそのもの**に
+なる。業務コードを流すなら従量課金にしておくこと。
+
 ---
 
 ## 9. チェックリスト
@@ -311,6 +342,7 @@ Routing 画面で `/v1/messages` を `routed` に切り替えること。詳細�
 - [ ] Routing 画面で、使っている受け口を `routed` に切り替えた
 - [ ] 旧 `background` スロットに設定していた振り先を、Rules 画面のルールとして再現した
 - [ ] `ccr restart` などを叩くスクリプトを `docker compose restart` に置き換えた
+- [ ] Gemini を使っているなら、AI Studio の API キーが auth key であることを確認した（standard key は 2026年9月に拒否される — §8-7）
 
 ## 関連
 

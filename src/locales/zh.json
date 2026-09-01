@@ -427,7 +427,6 @@
     "vendorHint": {
       "claudeCode": "通过 Claude CLI OAuth 使用 Pro / Max",
       "codex": "通过 Codex CLI OAuth 使用 ChatGPT 套餐",
-      "geminiCli": "通过 Gemini CLI OAuth 使用 Code Assist Standard / Enterprise",
       "payAsYouGo": "按量付费的 API key",
       "aiStudio": "AI Studio 的 API key",
       "openaiCompatible": "OpenAI 兼容",

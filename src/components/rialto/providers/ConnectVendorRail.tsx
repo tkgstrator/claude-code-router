@@ -13,7 +13,6 @@ import { sortVendors, vendorHint, vendorLabel } from './vendor-labels'
 const VENDOR_ICON: Record<string, string> = {
   'claude-code': 'ri-sparkling-line',
   codex: 'ri-terminal-line',
-  'gemini-cli': 'ri-gemini-line',
   groq: 'ri-flashlight-line',
   openrouter: 'ri-shuffle-line',
   custom: 'ri-add-box-line'

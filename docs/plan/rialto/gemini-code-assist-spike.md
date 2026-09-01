@@ -7,6 +7,45 @@
 
 ---
 
+## 0. 追記 (2026-09-01) — **Phase 3-2 は descope で決着**
+
+本スパイクの後、実アカウントで検証まで進めた結果、**Phase 3-2 は実施しないことに決まった**。
+以下は §1 以降の調査結果を否定するものではなく、その上に載る実測と判断である。
+
+**実測でわかったこと**（このリポジトリのオーナーの環境）:
+
+| 確かめたこと | 結果 |
+|---|---|
+| 個人枠（free / ai-pro / ai-ultra）で OAuth できるか | **不可**。公式 CLI が `Your current account is not eligible for Gemini Code Assist for individuals, the free version` を返す。2026-06-18 の提供停止が実機で確認された |
+| Code Assist の契約があるか | **無かった**。Cloud Console が「サブスクリプションを作成するには請求先アカウントが必要」と案内する状態だった |
+| `Gemini Cloud Assist` が無料で使えるのでは | **別製品**。GCP コンソール向けのアシスタントで、`cloudcode-pa` の権限は付いてこない。名前が1文字違いで、Google 自身のエラー文でも両者が混ざっている |
+| 契約後に使えるか | サブスクは作れたが **ライセンス数 0**。1枚割り当てた時点で **$22.80/月・シート**が発生し、翌月1日に自動更新される |
+
+**判断の理由**:
+
+1. **接続先が存在しなかった。** 実装しても繋ぐ相手が無く、動作確認すらできない状態だった
+2. **経済的に逆ざや。** Rialto から Gemini を叩くだけなら AI Studio の api_key（Phase 3-1 実装済み）で足りる。月額シートを払って得られるのは 1,500 req/日と、プロジェクト + API 有効化 + IAM + ライセンス割り当てというセットアップである
+3. **体験が別物。** Claude Code / Codex の「OAuth でログインするだけ」に対し、Code Assist は組織アカウント前提で `GOOGLE_CLOUD_PROJECT` が必須（公式ドキュメントに明記）。同じ「サブスク枠」の枠組みに収まらない
+
+**実装で残した状態**: `gemini-cli` の到達不能な UI 残骸（`vendor-labels.ts` の
+`VENDOR_ORDER` / `VENDOR_LABEL` / `VENDOR_HINT_KEY` 各1件、`ConnectVendorRail.tsx` の
+`VENDOR_ICON` 1件、locale 3言語の `providers.vendorHint.geminiCli`）は**削除した**。
+残すと「対応予定」という誤ったシグナルになるため。`SetupScreen.tsx` の接続候補も
+`Gemini CLI / AI Pro・Ultra` から `Google AI / AI Studio API key` に直してある。
+
+`__tests__/shared/transformer-chain.test.ts` と `__tests__/llms/provider-registry-chain.test.ts` が
+「auth transformer を持たない subscription ベンダは `null` を返して未登録にする」という不変条件を
+`gemini-cli` を題材に検証しているが、descope したので**題材はそのままでよい**。
+
+**将来 Google が方針を戻した場合**、§1 以降の調査（`retrieveUserQuota` の実在、OAuth 設計、
+`SubAccountQuota` への写像、触るファイル一覧）はそのまま使える。破棄せずに残す理由がそれである。
+
+**未検証のまま残った点**: `retrieveUserQuota` が Standard / Enterprise ティアで bucket を
+返すかは**最後まで確認できなかった**（ライセンスを割り当てなかったため）。再開するならここが
+最初の関門である。
+
+---
+
 ## 1. 結論
 
 ### 1-1. クォータ取得は **可能**（master-plan の未確定リスクは解消）

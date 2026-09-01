@@ -427,7 +427,6 @@
     "vendorHint": {
       "claudeCode": "Claude CLI の OAuth 経由で Pro / Max",
       "codex": "Codex CLI の OAuth 経由で ChatGPT プラン",
-      "geminiCli": "Gemini CLI の OAuth 経由で Code Assist Standard / Enterprise",
       "payAsYouGo": "従量課金の API キー",
       "aiStudio": "AI Studio の API キー",
       "openaiCompatible": "OpenAI 互換",

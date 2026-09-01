@@ -517,7 +517,7 @@ Claude Code / Codex と**同じ形**に載せる（`OauthBase` → `SubAccount` 
 - **ApiStyle**: enum に `gemini_code_assist` を追加（マイグレーション）
 - **SUBSCRIPTION_PRESETS** に `gemini-cli` を追加
 
-##### スパイク結果 (2026-09-01) — **前提が崩れている。要 descope 判断**
+##### スパイク結果 (2026-09-01) — **descope 決定**
 
 全文は `docs/plan/rialto/gemini-code-assist-spike.md`（一次ソース付き）。要点は2つで、
 **判定した未確定リスクは解消し、代わりに想定していなかったほうが壊れた**。
@@ -549,6 +549,19 @@ Enterprise 2,000 req/day のみ**を掲載し、individuals / AI Pro / AI Ultra 
 **未検証で残っている最大の点**: `retrieveUserQuota` が Standard / Enterprise ティアでも
 bucket を返すか（個人ティア専用機能だった可能性を排除できていない）。返らなければ 1. の結論は
 覆る。検証には実ライセンスが要る。
+
+**判断: 実施しない（descope）。** スパイク後に実アカウントで検証まで進め、次を確認した。
+公式 CLI が個人枠で `not eligible for Gemini Code Assist for individuals` を返すこと
+（提供停止が実機で再現した）、Code Assist は未契約だったこと、そして契約しても
+ライセンス1枚で **$22.80/月・シート**が発生すること。Rialto から Gemini を叩くだけなら
+**AI Studio の api_key（3-1 で実装済み）で足りる**ので、月額シートを買う理由がない。
+また Code Assist は組織アカウント前提で `GOOGLE_CLOUD_PROJECT` が必須（公式ドキュメント明記）で、
+Claude Code / Codex の「OAuth でログインするだけ」とは体験が別物になる。詳細と、将来
+再開する場合に使える調査結果は `gemini-code-assist-spike.md` §0。
+
+なお **`Gemini Cloud Assist` と `Gemini Code Assist` は別製品**である。前者は GCP コンソール向けの
+アシスタントで無料枠があるが、`cloudcode-pa` の権限は付かない。Google 自身のエラー文でも
+両者が混ざっており、調査中に一度これで誤誘導された。
 
 **副次的に見つかった要修正点**: `SetupScreen.tsx` の `CONNECT_OPTIONS` が初回セットアップ画面で
 「Gemini CLI / AI Pro・Ultra」を接続候補として**実際に描画している**。存在しないティアを
@@ -858,7 +871,7 @@ Prismaマイグレーション後は `bun run db:migrate:test`（`rialto_test`�
 | 0 土台整備 | **Done** | envelope.test.ts のフルスイート限定フレークは解消。原因は import順ではなく `readConfigFile` が `process.env` を上書き合成すること — テスト間で漏れた `API_TIMEOUT_MS` が結果を変えていた。各テストで `ENVELOPE_ENV_KEYS` を消して修正。フルスイート 1121 pass / 0 fail |
 | 1 Rialtoリネーム | **Done** | HOME_DIR移行（コピー→検証→旧削除）、旧環境変数の受理を全廃、DB名 `rialto` / `rialto_test`、`ccr_` thinking signature の受理を廃止。既存volumeは `bun run scripts/rename-dev-database.ts`。唯一残した後方互換は `<CCR-SUBAGENT-MODEL>` タグ（外部契約で、外すと**無言で**main-agent chainに落ちるため） |
 | 2 Inbound集約+多面ルーティング | **In Progress** | 2-1〜2-4 完了（記述子への集約、chain は `src/shared/transformer-chain.ts` が apiStyle+authMode から導出）。**2-5 完了** — 全40セルにラベルとテストが付いた（`docs/architecture/inbound-parity.md`、`__tests__/parity/**`）。表が暴いた欠落のうち **gemini の usage 記録**と **cache トークンの二重計上**は修正済み。gemini 面の `contents[]` 変換バグ（`parts` 分岐が到達不能で本文が消える）も修正済み — あわせて `systemInstruction` / 画像 / functionCall / `generationConfig` / `toolConfig` に対応し、gemini 列は10行中8行が「対応」になった。**残1件: シナリオ分類が Anthropic 語彙依存**。`webSearch` / `think` / effort ベースの `longContext` は `/v1/messages` でしか効かず、他3面は `routed` にしても `default` レーンにしか落ちない（gemini はさらに `contents` を数えないので `longContext` が常に0トークン）。これが残る限り「4面すべてでルーティング設定が効く」は満たせない |
-| 3 Gemini | **Blocked（判断待ち）** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。3-2 は**スパイク完了**（`gemini-code-assist-spike.md`）: クォータ取得は**可能**（`retrieveUserQuota` 実在）だが、対象ティア（free / ai-pro / ai-ultra）が **2026-06-18 に提供停止**され前提が失効。Antigravity 経路は ToS で明示禁止。descope するか Standard / Enterprise へ読み替えるかの**判断待ち** |
+| 3 Gemini | **Done** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。加えて `contents[]` 変換の破綻を修正し、`systemInstruction` / 画像 / functionCall / `generationConfig` / `toolConfig` に対応。**3-2 は descope** — 対象ティアが 2026-06-18 に提供停止され、実機でも `not eligible for ... for individuals` を確認。Code Assist は未契約で、契約しても $22.80/月・シート。api_key 経路で足りるため実施しない（`gemini-code-assist-spike.md` §0）。到達不能な `gemini-cli` の UI 残骸は削除済み |
 | 3.5 認証 | **Done** | 管理UIは Cloudflare Access JWT + ローカル免除、`/v1/*` は発行済みアクセストークンのみ。`AccessToken` テーブルと `src/services/access-token-service.ts` は稼働。bootstrap token は廃止済み。`/login`・`Login.tsx`・`PublicRoute.tsx` は削除済み（`ProtectedRoute` は資格情報ではなく状態を振り分ける役になった） |
 | 4 Zodスキーマ | **Done** | primitives / wire / domain / api / forms の5層に分割し、グローバルbarrelを削除。着手前の計測で、計画が前提にしていた重複は存在しないことが判明（§Phase 4 に記録） |
 | 5 UI刷新 | **In Progress** | 21ビュー中20をルーティング済み。モック差分の中央値 3.55%（40ペア中28が5%未満）。旧コンポーネント98ファイル削除済み。**i18n 再編完了** — en/ja/zh 各805キー完全一致、死にキー0、`__tests__/lib/locale-parity.test.ts` がキー集合・補間変数・`<Trans>` タグ・en コピペの4観点を検査。`/login` 削除も完了。**残1件: activity-session** — 実装とルート登録は済んでいるが、モック差分の撮影がセッション実データ待ち（`bun run db:seed:demo` で作れる可能性がある） |

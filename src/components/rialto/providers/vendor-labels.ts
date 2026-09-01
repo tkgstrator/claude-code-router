@@ -15,11 +15,17 @@ import type { CatalogEntry } from './types'
  * Rail order. Subscription seats lead: they are the differentiated thing
  * Rialto offers, and an operator adding one should not have to scroll past
  * seven pay-as-you-go vendors to find it.
+ *
+ * There is no `gemini-cli` row. It was wired up ahead of Phase 3-2 and was
+ * never reachable — `catalog-service` builds subscription entries from
+ * `SUBSCRIPTION_PRESETS`, which has no such preset. Phase 3-2 was then
+ * descoped (see docs/plan/rialto/gemini-code-assist-spike.md), so the
+ * entries were removed rather than left implying support that is not
+ * coming. Gemini reaches Rialto through the `google` api_key row.
  */
 const VENDOR_ORDER = [
   'claude-code',
   'codex',
-  'gemini-cli',
   'anthropic',
   'openai',
   'google',
@@ -32,7 +38,6 @@ const VENDOR_ORDER = [
 const VENDOR_LABEL: Record<string, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
-  'gemini-cli': 'Gemini CLI',
   anthropic: 'Anthropic',
   openai: 'OpenAI',
   google: 'Google AI',
@@ -69,7 +74,6 @@ const VENDOR_BRAND: Record<string, string> = {
 const VENDOR_HINT_KEY: Record<string, string> = {
   'claude-code': 'providers.vendorHint.claudeCode',
   codex: 'providers.vendorHint.codex',
-  'gemini-cli': 'providers.vendorHint.geminiCli',
   anthropic: 'providers.vendorHint.payAsYouGo',
   openai: 'providers.vendorHint.payAsYouGo',
   google: 'providers.vendorHint.aiStudio',
