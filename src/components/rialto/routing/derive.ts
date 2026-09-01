@@ -96,6 +96,24 @@ export function schedulerRuns(mode: string | undefined, shadow: string | undefin
 }
 
 /**
+ * The scheduler ran and had nothing to score.
+ *
+ * Turning the mode on is only half of what a live state needs: the tick
+ * builds its weights entirely from `RouterPreferenceEntry` rows, so on
+ * an install with no chain configured it publishes an empty snapshot and
+ * every target still reads `unknown`. Saying "set ROUTER_MODE to
+ * quota-aware to see live states" and leaving it there sends an operator
+ * to flip a switch that changes nothing on their screen.
+ *
+ * Gated on having ticked at least once. A cold boot in quota-aware mode
+ * also has no weights yet, and that one resolves on its own.
+ */
+export function schedulerScoredNothing(state: RoutingSchedulerStateResponse | null): boolean {
+  if (state === null) return false
+  return state.tickAt !== null && state.weights.length === 0
+}
+
+/**
  * Consumed share of the binding quota window. The scheduler publishes what
  * is LEFT; the meter reads as "how full is this account", so it is
  * inverted here once instead of at every call site.
