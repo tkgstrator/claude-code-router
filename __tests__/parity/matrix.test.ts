@@ -14,9 +14,9 @@
  *   - unsupported and partial cells point at a note that exists
  *   - each row names a test file that exists
  *
- * The Japanese string literals below are matched against that document
- * and are data, not prose: they must stay in step with the file's own
- * headings and labels.
+ * The string literals below are matched against that document and are
+ * data, not prose: they must stay in step with the file's own headings
+ * and labels.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -29,19 +29,19 @@ const REPO_ROOT = new URL('../../', import.meta.url).pathname
 // The feature axis master-plan §2-5 defines. This fails if the table
 // drops one of these ten rows or grows an eleventh.
 const FEATURES: readonly string[] = [
-  'ストリーミング (SSE)',
-  '非ストリーム集約',
+  'streaming (SSE)',
+  'non-streaming aggregation',
   'tool use',
-  'system プロンプト',
-  '画像入力',
+  'system prompt',
+  'image input',
   'thinking / reasoning',
-  'usage 記録 (RequestLog)',
-  'エラー形式',
-  'cacheトークン計上',
+  'usage record (RequestLog)',
+  'error shape',
+  'cache token accounting',
   'failover / 429'
 ]
 
-const LABELS: readonly string[] = ['対応', '部分', '未対応']
+const LABELS: readonly string[] = ['Supported', 'Partial', 'Unsupported']
 
 const doc = await Bun.file(DOC_PATH).text()
 
@@ -69,7 +69,7 @@ const tableRows = (section: string): string[][] =>
     )
     .filter((cells) => !cells.every((cell) => /^-+$/.test(cell)))
 
-const matrix = tableRows(sectionOf('マトリクス'))
+const matrix = tableRows(sectionOf('Matrix'))
 const header = matrix[0]
 const body = matrix.slice(1)
 
@@ -111,7 +111,7 @@ describe('the notes', () => {
     for (const row of body) {
       for (const cell of row.slice(1)) {
         const label = cell.replace(/\s*\(\d+\)\s*$/, '')
-        if (label === '対応') continue
+        if (label === 'Supported') continue
         expect(cell).toMatch(/\(\d+\)$/)
       }
     }
@@ -126,7 +126,7 @@ describe('the notes', () => {
 })
 
 describe('the backing tests exist', () => {
-  const rows = tableRows(sectionOf('セル別の担保テスト')).slice(1)
+  const rows = tableRows(sectionOf('Backing tests per row')).slice(1)
 
   test('the backing-test table lists all ten features', () => {
     expect(rows.map((row) => row[0])).toEqual(FEATURES)
