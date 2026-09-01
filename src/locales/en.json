@@ -309,15 +309,7 @@
     "apply": "Apply",
     "hex_input_help": "Enter hex color value (e.g.: #FF0000)"
   },
-  "presets": {
-    "form": {
-      "field_required": "{{field}} is required",
-      "must_be_number": "{{field}} must be a number",
-      "must_be_at_least": "{{field}} must be at least {{min}}",
-      "must_be_at_most": "{{field}} must be at most {{max}}",
-      "format_invalid": "{{field}} format is invalid"
-    }
-  },
+  "presets": {},
   "providers": {
     "screen": {
       "title": "Providers",

@@ -309,15 +309,7 @@
     "apply": "应用",
     "hex_input_help": "输入十六进制颜色值 (例如: #FF0000)"
   },
-  "presets": {
-    "form": {
-      "field_required": "{{field}} 为必填项",
-      "must_be_number": "{{field}} 必须是数字",
-      "must_be_at_least": "{{field}} 至少为 {{min}}",
-      "must_be_at_most": "{{field}} 最多为 {{max}}",
-      "format_invalid": "{{field}} 格式无效"
-    }
-  },
+  "presets": {},
   "providers": {
     "screen": {
       "title": "provider",

@@ -309,15 +309,7 @@
     "apply": "適用",
     "hex_input_help": "16 進数のカラー値を入力 (例: #FF0000)"
   },
-  "presets": {
-    "form": {
-      "field_required": "{{field}} は必須です",
-      "must_be_number": "{{field}} は数値で入力してください",
-      "must_be_at_least": "{{field}} は {{min}} 以上にしてください",
-      "must_be_at_most": "{{field}} は {{max}} 以下にしてください",
-      "format_invalid": "{{field}} の形式が不正です"
-    }
-  },
+  "presets": {},
   "providers": {
     "screen": {
       "title": "プロバイダー",

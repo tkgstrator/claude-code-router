@@ -4,9 +4,6 @@
 
 import type { Condition, InputOption, PresetConfigSection, RequiredInput } from './types'
 
-// react-i18next's t(), trimmed to the shape validateField actually calls.
-type Translate = (key: string, options?: Record<string, unknown>) => string
-
 // biome-ignore lint/suspicious/noExplicitAny: form values are keyed by schema field id and hold arbitrary JSON
 type FormValues = Record<string, any>
 
@@ -102,45 +99,14 @@ export function getOptions(field: RequiredInput, presetConfig: PresetConfigSecti
   return []
 }
 
-export function validateField(field: RequiredInput, values: FormValues, t: Translate): string | null {
-  const value = values[field.id]
-  const fieldName = field.label || field.id
-
-  // Check required (for confirm type, false is a valid value)
-  const isEmpty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)
-
-  if (field.required !== false && isEmpty) {
-    return t('presets.form.field_required', { field: fieldName })
-  }
-
-  // Type check
-  if (field.type === 'number' && value !== '' && isNaN(Number(value))) {
-    return t('presets.form.must_be_number', { field: fieldName })
-  }
-
-  if (field.type === 'number') {
-    const numValue = Number(value)
-    if (field.min !== undefined && numValue < field.min) {
-      return t('presets.form.must_be_at_least', { field: fieldName, min: field.min })
-    }
-    if (field.max !== undefined && numValue > field.max) {
-      return t('presets.form.must_be_at_most', { field: fieldName, max: field.max })
-    }
-  }
-
-  // Custom validator
-  if (field.validator && value !== '') {
-    if (field.validator instanceof RegExp) {
-      if (!field.validator.test(String(value))) {
-        return t('presets.form.format_invalid', { field: fieldName })
-      }
-    } else if (typeof field.validator === 'string') {
-      const regex = new RegExp(field.validator)
-      if (!regex.test(String(value))) {
-        return t('presets.form.format_invalid', { field: fieldName })
-      }
-    }
-  }
-
-  return null
-}
+// `validateField` lived here and was the only reader of the five
+// `presets.form.*` locale keys. Nothing called it: the required-input
+// check moved to `missingInputIds` (src/lib/rialto/settings-content/presets.ts),
+// which `SettingsPresets` and `PresetPane` actually use. Keeping a dead
+// function alive kept five keys alive with it, and a key-parity check
+// cannot tell that apart from a real reference.
+//
+// Note what did NOT move with it: `missingInputIds` only tests for
+// emptiness, so a preset manifest's `min` / `max` / `validator` on a
+// required input is accepted and ignored. That gap predates this
+// deletion — the code implementing it had already stopped running.

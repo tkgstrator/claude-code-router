@@ -794,10 +794,19 @@ Routing画面には **Phase 2 で入る「面セレクタ」** が乗る。こ�
   なお `src/api/routing-rules/test/route.ts` の `ConditionSchema` は**同名のローカル定義**であって
   これではない。JSON スカラだけを `primitives/` へ移してこのファイルを畳むのが素直だが、
   マニフェスト形式を将来の外部契約として残すかの判断が先
-- `src/lib/presets/form-logic.ts` の `validateField` — 必須チェックは
-  `src/lib/rialto/settings-content/presets.ts` の `missingInputIds` に移設済み（テストあり）なので
-  死んでいる。ただし `validateField` にあった **min / max / 正規表現の検証は移設先に無い**。
-  単純に消すと、その検証が「元から無かった」ことになる。欠落として扱うか仕様として畳むかは別途
+- `src/lib/presets/form-logic.ts` の `validateField` — **削除済み**（2026-09-01）。必須チェックは
+  `src/lib/rialto/settings-content/presets.ts` の `missingInputIds` に移設済み（テストあり）で、
+  `validateField` には呼び出し元が無かった。放置できなかったのは、**この死んだ関数が
+  `presets.form.*` 5キーの唯一の参照元**だったため — キー・パリティ検査は間接参照と
+  死んだ参照を区別できないので、関数を残したままキーだけ消すと検査が落ち、両方残すと
+  死にキーが永久に居座る。関数とキーを同時に落とすのが唯一の整合する直し方だった
+  （`src/utils/statusline.ts` の `formatValidationError` と
+  `statusline.validation.unknown_error` がまったく同じ形で、同日に同じ処理をしている）。
+
+  **移設先に無い検証を明示的に記録しておく**: `missingInputIds` は空かどうかしか見ないので、
+  preset マニフェストの必須入力に書かれた `min` / `max` / `validator` は**受理されて無視される**。
+  これは削除で生じた欠落ではなく、実装がすでに走っていなかったものを可視化しただけである。
+  塞ぐならフォーム側にエラー表示を足す作業になり、掃除ではなく機能追加
 
 ---
 
