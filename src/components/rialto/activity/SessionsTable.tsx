@@ -6,17 +6,49 @@
  * coupling is the reason the two components sit in one file and the
  * screen sees neither.
  */
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import type { Enriched } from '@/components/rialto/activity/sessions-derive'
 import { Sparkline, SurfaceCell } from '@/components/rialto/activity/shared'
+import { SortTh, type SortValue, useTableSort } from '@/components/rialto/table-sort'
+import type { SessionSummary } from '@/lib/api'
 import { fmtAgo } from '@/lib/rialto/format'
 import { fmtCost, fmtTokens } from '@/lib/sessions/format'
+
+// What the first cell prints as its heading line. Shared with the sort so
+// the column cannot order by the preview while the row shows the id.
+const titleOf = (session: SessionSummary): string =>
+  session.preview === null || session.preview === '' ? session.sessionId : session.preview
+
+// The trend column is deliberately absent: a sparkline is a shape, and
+// ordering it would mean inventing a scalar (slope? peak?) that no cell
+// on the screen shows.
+type SessionSortKey = 'session' | 'endpoint' | 'model' | 'turns' | 'input' | 'output' | 'cache' | 'cost' | 'last'
+
+/**
+ * `now` is the same instant the rows render against, because the last-seen
+ * cell shows an age rather than a timestamp. Sorting on `lastAt` itself
+ * would run the visible numbers backwards under an ascending caret.
+ */
+const sessionSortValue = (row: Enriched, key: SessionSortKey, now: number): SortValue => {
+  const { session } = row
+  if (key === 'session') return titleOf(session)
+  if (key === 'endpoint') return row.surfacePath
+  if (key === 'model') return row.model
+  if (key === 'turns') return session.requestCount
+  if (key === 'input') return session.totalInputTokens
+  if (key === 'output') return session.totalOutputTokens
+  if (key === 'cache') return session.avgCacheHitPct
+  if (key === 'cost') return session.totalCostUsd
+  const then = Date.parse(session.lastAt)
+  return Number.isNaN(then) ? null : now - then
+}
 
 function SessionRow({ row, now }: { row: Enriched; now: number }) {
   const { t } = useTranslation()
   const { session } = row
-  const title = session.preview === null || session.preview === '' ? session.sessionId : session.preview
+  const title = titleOf(session)
   return (
     <tr className='border-t border-border/60 transition-colors hover:bg-muted/50'>
       <td className='py-3 pl-6 pr-3'>
@@ -48,6 +80,11 @@ function SessionRow({ row, now }: { row: Enriched; now: number }) {
 
 export function SessionsTable({ rows, now }: { rows: Enriched[]; now: number }) {
   const { t } = useTranslation()
+  const sortValue = useCallback(
+    (row: Enriched, key: SessionSortKey): SortValue => sessionSortValue(row, key, now),
+    [now]
+  )
+  const sort = useTableSort<Enriched, SessionSortKey>(rows, sortValue)
   return (
     <table className='w-full table-fixed'>
       <colgroup>
@@ -63,21 +100,39 @@ export function SessionsTable({ rows, now }: { rows: Enriched[]; now: number }) 
         <col className='w-16' />
       </colgroup>
       <thead>
-        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('activity.sessions.colSession')}</th>
-          <th className='px-3 text-left font-medium'>{t('activity.sessions.colEndpoint')}</th>
-          <th className='px-3 text-left font-medium'>{t('activity.sessions.colModel')}</th>
-          <th className='px-3 text-right font-medium'>{t('activity.sessions.colTurns')}</th>
-          <th className='px-3 text-right font-medium'>{t('activity.sessions.colInput')}</th>
-          <th className='px-3 text-right font-medium'>{t('activity.sessions.colOutput')}</th>
-          <th className='px-3 text-right font-medium'>{t('activity.sessions.colCache')}</th>
-          <th className='px-3 text-right font-medium'>{t('activity.sessions.colCost')}</th>
+        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
+          <SortTh sortKey='session' sort={sort} className='pl-6 pr-3 text-left font-medium'>
+            {t('activity.sessions.colSession')}
+          </SortTh>
+          <SortTh sortKey='endpoint' sort={sort} className='px-3 text-left font-medium'>
+            {t('activity.sessions.colEndpoint')}
+          </SortTh>
+          <SortTh sortKey='model' sort={sort} className='px-3 text-left font-medium'>
+            {t('activity.sessions.colModel')}
+          </SortTh>
+          <SortTh sortKey='turns' sort={sort} className='px-3 text-right font-medium' align='right'>
+            {t('activity.sessions.colTurns')}
+          </SortTh>
+          <SortTh sortKey='input' sort={sort} className='px-3 text-right font-medium' align='right'>
+            {t('activity.sessions.colInput')}
+          </SortTh>
+          <SortTh sortKey='output' sort={sort} className='px-3 text-right font-medium' align='right'>
+            {t('activity.sessions.colOutput')}
+          </SortTh>
+          <SortTh sortKey='cache' sort={sort} className='px-3 text-right font-medium' align='right'>
+            {t('activity.sessions.colCache')}
+          </SortTh>
+          <SortTh sortKey='cost' sort={sort} className='px-3 text-right font-medium' align='right'>
+            {t('activity.sessions.colCost')}
+          </SortTh>
           <th className='px-3 text-left font-medium'>{t('activity.sessions.colTrend')}</th>
-          <th className='pb-2 pl-3 pr-6 text-right font-medium'>{t('activity.sessions.colLast')}</th>
+          <SortTh sortKey='last' sort={sort} className='pl-3 pr-6 text-right font-medium' align='right'>
+            {t('activity.sessions.colLast')}
+          </SortTh>
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
+        {sort.sorted.map((row) => (
           <SessionRow key={row.session.sessionId} row={row} now={now} />
         ))}
       </tbody>

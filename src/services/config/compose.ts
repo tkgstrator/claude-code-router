@@ -210,7 +210,17 @@ export async function composeUiConfig(): Promise<AppConfig> {
   const prisma = getPrismaClient()
   const [providers, slots] = await Promise.all([
     prisma.provider.findMany({
-      include: { models: true, subscriptionAccounts: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        // Ordered for the same reason subscriptionAccounts is: a relation
+        // with no orderBy comes back in whatever order Postgres feels like,
+        // and an UPDATE moves the row. Toggling a model on the Providers
+        // screen therefore reshuffled the table under the operator's
+        // cursor. createdAt is the seed/insert order the UI was built
+        // around; name breaks the ties, because a createMany batch stamps
+        // every row with the same instant.
+        models: { orderBy: [{ createdAt: 'asc' }, { name: 'asc' }] },
+        subscriptionAccounts: { orderBy: { createdAt: 'asc' } }
+      },
       orderBy: { createdAt: 'asc' }
     }),
     prisma.routerSlot.findMany({
