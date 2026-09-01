@@ -16,6 +16,18 @@ export async function toggleModel(provider: Provider, model: string, next: boole
   await api.post('/providers', setModelDisabled(provider, model, !next))
 }
 
+/**
+ * Flip the provider itself on or off.
+ *
+ * This is the flag `enabledTargets` and `getEnabledModels` filter on, so
+ * off means Routing stops offering every model underneath it. Until this
+ * existed the only writer was the add-provider wizard's last Continue,
+ * which left a provider signed in but unroutable with no way back.
+ */
+export async function toggleProvider(provider: Provider, next: boolean): Promise<void> {
+  await api.post('/providers', { ...provider, enabled: next })
+}
+
 export async function saveApiKey(provider: Provider, apiKey: string): Promise<void> {
   const trimmed = apiKey.trim()
   await api.post('/providers', { ...provider, api_key: trimmed === '' ? null : trimmed })

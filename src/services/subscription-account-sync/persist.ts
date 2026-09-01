@@ -106,6 +106,25 @@ export const providersForKind = async (
   })
 }
 
+/**
+ * Switch a subscription provider on when it gains its first account.
+ *
+ * `Provider.enabled` is what `enabledTargets` and `getEnabledModels`
+ * filter on, and the only writer used to be the add-provider wizard's
+ * final Continue. Since OAuth opens in a second tab, an operator who
+ * came back to the Providers screen, saw the account go live and never
+ * returned to that last step was left with a signed-in provider that
+ * Routing silently refused to offer.
+ *
+ * Gated on "had no account before" rather than run unconditionally: once
+ * the provider has been set up, its switch belongs to the operator, and
+ * re-authenticating an expired token must not undo a deliberate off.
+ */
+const enableOnFirstAccount = async (prisma: PrismaClient, providerId: string, name: string): Promise<void> => {
+  await prisma.provider.update({ where: { id: providerId }, data: { enabled: true } })
+  logger.info({ provider: name }, '[subaccount] enabled provider on its first connected account')
+}
+
 const recordOAuthAccount = async (
   kind: 'claude' | 'codex',
   account: DiscoveredAccount,
@@ -118,8 +137,12 @@ const recordOAuthAccount = async (
     return
   }
   for (const p of providers) {
+    // Counted before the upsert, which is about to create the row that
+    // would make this look like a provider that was already set up.
+    const hadAccounts = (await prisma.subAccount.count({ where: { providerId: p.id } })) > 0
     const row = await upsertAccount(prisma, p.id, p.name, account, key)
     await ensureActiveAccount(prisma, p.id, row.id)
+    if (!hadAccounts) await enableOnFirstAccount(prisma, p.id, p.name)
   }
 }
 

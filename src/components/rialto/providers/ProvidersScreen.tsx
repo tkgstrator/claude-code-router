@@ -13,7 +13,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
-import { refreshPrices, removeProvider, saveApiKey, syncModels, testModels, toggleModel } from './actions'
+import {
+  refreshPrices,
+  removeProvider,
+  saveApiKey,
+  syncModels,
+  testModels,
+  toggleModel,
+  toggleProvider
+} from './actions'
 import { disabledModelsOf, enabledCountOf, listedModelsOf, providerState } from './derive'
 import { ProviderDetail } from './ProviderDetail'
 import { ProviderRail, type RailProvider } from './ProviderRail'
@@ -147,6 +155,7 @@ export function ProvidersScreen() {
               now={data.now}
               busy={busy}
               onToggleModel={(model, next) => run(() => toggleModel(selected.provider, model, next))}
+              onToggleProvider={(next) => run(() => toggleProvider(selected.provider, next))}
               onSaveKey={(key) => run(() => saveApiKey(selected.provider, key))}
               onTestAll={() => {
                 const off = new Set(disabledModelsOf(selected.provider))

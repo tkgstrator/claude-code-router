@@ -82,6 +82,20 @@ export function targetState(entry: RoutingSchedulerWeightEntry | undefined): Tar
 }
 
 /**
+ * Whether the routing scheduler will ever publish a weight in this mode.
+ *
+ * Mirrors `shouldRunTick` in `services/routing-scheduler/index.ts`: the
+ * tick only feeds quota-aware selection, so under `scenario` the
+ * scheduler arms itself and then never runs. Every target's state is
+ * `unknown` in that mode — not as a transient, but permanently — and a
+ * State column that can only ever say one thing needs to say why, or it
+ * reads as a fleet of broken targets.
+ */
+export function schedulerRuns(mode: string | undefined, shadow: string | undefined): boolean {
+  return mode === 'quota-aware' || shadow === 'quota-aware'
+}
+
+/**
  * Consumed share of the binding quota window. The scheduler publishes what
  * is LEFT; the meter reads as "how full is this account", so it is
  * inverted here once instead of at every call site.

@@ -8,10 +8,18 @@
  */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pill, RButton } from '@/components/rialto/primitives'
+import { Pill, RButton, Toggle } from '@/components/rialto/primitives'
 import { AccountsPanel } from './AccountsPanel'
 import { CredentialsPanel } from './CredentialsPanel'
-import { buildModelRows, enabledCountOf, listedModelsOf, type ModelRow, type QuotaIndex } from './derive'
+import {
+  buildModelRows,
+  enabledCountOf,
+  hasCredential,
+  listedModelsOf,
+  type ModelRow,
+  type ProviderState,
+  type QuotaIndex
+} from './derive'
 import { ModelsTable } from './ModelsTable'
 import { ApiKeyRequestShape, SubscriptionRequestShape } from './RequestShape'
 import type { CatalogEntry, Provider, SubscriptionWire, TransformerWire } from './types'
@@ -29,7 +37,8 @@ const SHOW_LABEL_KEYS: Record<ShowMode, string> = {
   all: 'providers.models.showAll'
 }
 
-const STATE_LABEL_KEYS: Record<'live' | 'invalid' | 'unknown', string> = {
+const STATE_LABEL_KEYS: Record<ProviderState, string> = {
+  off: 'providers.rail.stateOff',
   live: 'providers.rail.stateLive',
   invalid: 'providers.rail.stateInvalid',
   unknown: 'providers.rail.stateUnknown'
@@ -50,22 +59,27 @@ function DetailHeader({
   provider,
   label,
   state,
+  credentialed,
   busy,
   onTestAll,
   onSync,
-  onRemove
+  onRemove,
+  onToggleProvider
 }: {
   provider: Provider
   label: string
-  state: 'live' | 'invalid' | 'unknown'
+  state: ProviderState
+  credentialed: boolean
   busy: boolean
   onTestAll: () => void
   onSync: () => void
   onRemove: () => void
+  onToggleProvider: (next: boolean) => void
 }) {
   const { t } = useTranslation()
   const subscription = provider.auth_mode === 'subscription'
   const stateTone = state === 'live' ? 'ok' : state === 'invalid' ? 'bad' : 'mute'
+  const enabled = provider.enabled !== false
   return (
     <div className='flex items-center gap-3 border-b border-border px-6 py-4'>
       <div>
@@ -80,7 +94,25 @@ function DetailHeader({
         </div>
         <p className='mt-0.5 font-mono text-[11px] text-muted-foreground'>{provider.api_base_url}</p>
       </div>
-      <div className='ml-auto flex gap-2'>
+      <div className='ml-auto flex items-center gap-2'>
+        {/* The switch that Routing actually reads. It sits with the
+            actions rather than in the model table, because it gates the
+            whole provider: off, every model below it is unroutable no
+            matter what its own row says.
+
+            Locked with no credential, because `getEnabledModels` drops
+            such a provider regardless of the flag — an operator turning
+            it on there would be setting something nothing reads. */}
+        <span className='flex items-center gap-1.5 pr-1 text-[11px] text-muted-foreground'>
+          {t('providers.detail.routable')}
+          <Toggle
+            on={enabled}
+            disabled={!credentialed}
+            title={credentialed ? undefined : t('providers.detail.routableNeedsCredential')}
+            label={t('providers.detail.toggleProvider', { provider: label })}
+            onClick={() => onToggleProvider(!enabled)}
+          />
+        </span>
         <RButton variant='outline' icon='ri-pulse-line' onClick={onTestAll} disabled={busy}>
           {t('providers.detail.testAll')}
         </RButton>
@@ -183,7 +215,7 @@ export interface ProviderDetailProps {
   provider: Provider
   /** Catalog display name when the vendor is known, else the config slug. */
   label: string
-  state: 'live' | 'invalid' | 'unknown'
+  state: ProviderState
   subscription: SubscriptionWire | undefined
   catalogEntry: CatalogEntry | undefined
   transformers: TransformerWire[]
@@ -195,6 +227,7 @@ export interface ProviderDetailProps {
   onTestAll: () => void
   onSync: () => void
   onRemove: () => void
+  onToggleProvider: (next: boolean) => void
 }
 
 export function ProviderDetail(props: ProviderDetailProps) {
@@ -207,10 +240,12 @@ export function ProviderDetail(props: ProviderDetailProps) {
         provider={provider}
         label={props.label}
         state={props.state}
+        credentialed={hasCredential(provider, subscription)}
         busy={props.busy}
         onTestAll={props.onTestAll}
         onSync={props.onSync}
         onRemove={props.onRemove}
+        onToggleProvider={props.onToggleProvider}
       />
       <div className='grid grid-cols-2 border-b border-border'>
         {subscriptionMode ? (
