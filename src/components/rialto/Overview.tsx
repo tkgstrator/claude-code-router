@@ -44,12 +44,12 @@ function SurfaceTable({ data }: { data: OverviewResponse }) {
         <col className='w-24' />
       </colgroup>
       <thead>
-        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('overview.colSurface')}</th>
+        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
+          <th className='pl-6 pr-3 text-left font-medium'>{t('overview.colSurface')}</th>
           <th className='px-3 text-left font-medium'>{t('overview.colRouting')}</th>
           <th className='px-3 text-right font-medium'>{t('overview.colRequests')}</th>
           <th className='px-3 text-right font-medium'>p50</th>
-          <th className='pb-2 pl-3 pr-6 text-right font-medium'>{t('overview.colErrors')}</th>
+          <th className='pl-3 pr-6 text-right font-medium'>{t('overview.colErrors')}</th>
         </tr>
       </thead>
       <tbody>
@@ -80,6 +80,14 @@ function SurfaceTable({ data }: { data: OverviewResponse }) {
   )
 }
 
+/**
+ * The eight most recent sessions — deliberately not sortable. The server
+ * already truncated to the newest eight, so a "most expensive" header
+ * here would rank that slice while reading as an answer about every
+ * session. That question belongs to Activity → Sessions, which holds the
+ * whole list. The surface table above is likewise fixed: one row per
+ * registered inbound surface, in registry order.
+ */
 function SessionTable({ data, now }: { data: OverviewResponse; now: number }) {
   const { t } = useTranslation()
   if (data.recentSessions.length === 0) {
@@ -97,14 +105,14 @@ function SessionTable({ data, now }: { data: OverviewResponse; now: number }) {
         <col className='w-16' />
       </colgroup>
       <thead>
-        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('activity.sessions.colSession')}</th>
+        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
+          <th className='pl-6 pr-3 text-left font-medium'>{t('activity.sessions.colSession')}</th>
           <th className='px-3 text-left font-medium'>{t('activity.sessions.colEndpoint')}</th>
           <th className='px-3 text-left font-medium'>{t('activity.sessions.colModel')}</th>
           <th className='px-3 text-right font-medium'>{t('activity.sessions.colTurns')}</th>
           <th className='px-3 text-right font-medium'>{t('activity.sessions.statTokens')}</th>
           <th className='px-3 text-right font-medium'>{t('activity.sessions.colCost')}</th>
-          <th className='pb-2 pl-3 pr-6 text-right font-medium'>{t('activity.sessions.colLast')}</th>
+          <th className='pl-3 pr-6 text-right font-medium'>{t('activity.sessions.colLast')}</th>
         </tr>
       </thead>
       <tbody>

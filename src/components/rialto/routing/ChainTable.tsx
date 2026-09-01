@@ -185,15 +185,15 @@ export function ChainTable({
         <col className='w-24' />
       </colgroup>
       <thead>
-        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-2 text-left font-medium'>#</th>
+        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
+          <th className='pl-6 pr-2 text-left font-medium'>#</th>
           <th className='px-2 text-left font-medium'>{t('routing.common.colTarget')}</th>
           <th className='px-2 text-left font-medium'>{t('routing.common.colTier')}</th>
           <th className='px-2 text-left font-medium'>{t('routing.common.colState')}</th>
           <th className='px-2 text-right font-medium'>{t('routing.chain.colWeight')}</th>
           <th className='px-2 text-left font-medium'>{t('routing.chain.colQuota')}</th>
           <th className='px-2 text-right font-medium'>{t('routing.chain.colHealth')}</th>
-          <th className='pb-2 pl-2 pr-6 text-right font-medium'>{t('routing.chain.colOn')}</th>
+          <th className='pl-2 pr-6 text-right font-medium'>{t('routing.chain.colOn')}</th>
         </tr>
       </thead>
       <tbody>

@@ -57,15 +57,15 @@ const tokens = `
   <table class="w-full table-fixed">
     <colgroup><col><col class="w-20"><col class="w-40"><col class="w-24"><col class="w-20"><col class="w-20"><col class="w-24"><col class="w-12"></colgroup>
     <thead>
-      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70">
-        <th class="pb-2 pl-6 pr-3 text-left font-medium">Token</th>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
+        <th class="pl-6 pr-3 text-left font-medium">Token</th>
         <th class="px-3 text-left font-medium">Scope</th>
         <th class="px-3 text-left font-medium">Endpoint</th>
         <th class="px-3 text-left font-medium">Profile</th>
         <th class="px-3 text-right font-medium">Requests</th>
         <th class="px-3 text-right font-medium">Last used</th>
         <th class="px-3 text-right font-medium">Created</th>
-        <th class="pb-2 pl-3 pr-6"></th>
+        <th class="pl-3 pr-6"></th>
       </tr>
     </thead>
     <tbody>${TOKENS.map(tokenRow).join('')}</tbody>
