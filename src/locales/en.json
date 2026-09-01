@@ -214,7 +214,8 @@
       "noSurfaces": "No inbound surfaces are configured.",
       "liveMap": "Live map",
       "passthroughNote": "Switch this surface to <mono>Routed</mono> to give {{client}} the same quota-aware failover Claude Code gets. Callers keep sending their own model string — it becomes the <mono>requestedModel</mono> that rules match on, rather than the final target.",
-      "schedulerIdle": "The routing scheduler only runs in quota-aware mode, so every target below reads <mono>unknown</mono>. Set <mono>ROUTER_MODE</mono> to <mono>quota-aware</mono> in Settings to see live states."
+      "schedulerIdle": "The routing scheduler only runs in quota-aware mode, so every target below reads <mono>unknown</mono>. Live states need both <mono>ROUTER_MODE</mono> set to <mono>quota-aware</mono> in Settings and a preference chain for the scheduler to score.",
+      "schedulerNoChain": "The routing scheduler is running but has no preference chain to score, so every target below reads <mono>unknown</mono>. Add entries to this surface’s routing profile to see live states."
     },
     "map": {
       "title": "Routing map",
