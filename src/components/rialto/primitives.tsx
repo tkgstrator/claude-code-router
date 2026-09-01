@@ -259,3 +259,48 @@ export function SurfaceChip({
     </button>
   )
 }
+
+/**
+ * The 16×28 switch. A real button rather than the mock's static span, so
+ * whatever it controls is operable from the keyboard without a second
+ * affordance.
+ *
+ * `disabled` is for a switch whose answer is not the operator's to give —
+ * it renders off, because a control that cannot be moved must not show a
+ * position the system will not honour.
+ */
+export function Toggle({
+  on,
+  label,
+  onClick,
+  disabled = false,
+  title
+}: {
+  on: boolean
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  title?: string
+}) {
+  const shown = on && !disabled
+  return (
+    <button
+      type='button'
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-pressed={shown}
+      aria-label={label}
+      className={cn('align-middle', disabled ? 'cursor-not-allowed opacity-50' : '')}
+    >
+      <span
+        className={cn(
+          'inline-flex h-4 w-7 items-center rounded-full px-0.5 align-middle',
+          shown ? 'bg-foreground' : 'bg-muted-foreground/30'
+        )}
+      >
+        <span className={cn('size-3 rounded-full bg-background', shown ? 'translate-x-3' : '')} />
+      </span>
+    </button>
+  )
+}

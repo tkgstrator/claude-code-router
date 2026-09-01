@@ -213,7 +213,8 @@
       "copyTarget": "复制 {{target}}",
       "noSurfaces": "尚未配置任何入口。",
       "liveMap": "实时路由图",
-      "passthroughNote": "把该入口切换为 <mono>Routed</mono>，即可让 {{client}} 获得与 Claude Code 相同的配额感知故障转移。调用方仍然照常发送自己的模型名，只是它会作为规则匹配用的 <mono>requestedModel</mono>，而不再直接当作最终 target。"
+      "passthroughNote": "把该入口切换为 <mono>Routed</mono>，即可让 {{client}} 获得与 Claude Code 相同的配额感知故障转移。调用方仍然照常发送自己的模型名，只是它会作为规则匹配用的 <mono>requestedModel</mono>，而不再直接当作最终 target。",
+      "schedulerIdle": "路由调度器仅在 quota-aware 模式下运行，因此下方每个目标的状态都显示为 <mono>unknown</mono>。若要查看实时状态，请在 Settings 中将 <mono>ROUTER_MODE</mono> 设为 <mono>quota-aware</mono>。"
     },
     "map": {
       "title": "路由图",
@@ -325,13 +326,17 @@
       "apiKeys": "API key",
       "oauth": "OAuth",
       "apiKey": "API key",
+      "stateOff": "已关闭",
       "stateLive": "正常",
       "stateInvalid": "无效",
       "stateUnknown": "未知"
     },
     "detail": {
       "testAll": "全部测试",
-      "syncModels": "同步模型"
+      "syncModels": "同步模型",
+      "routable": "可路由",
+      "toggleProvider": "切换 {{provider}}",
+      "routableNeedsCredential": "需要可用的凭据才能接收流量"
     },
     "credentials": {
       "title": "凭据",

@@ -31,7 +31,7 @@ const compare = (a: SortValue, b: SortValue): number => {
   return String(a).localeCompare(String(b))
 }
 
-const sortBy = <T,>(rows: T[], valueFor: (r: T) => SortValue, dir: 'asc' | 'desc'): T[] => {
+const sortBy = <T>(rows: T[], valueFor: (r: T) => SortValue, dir: 'asc' | 'desc'): T[] => {
   const sign = dir === 'asc' ? 1 : -1
   return [...rows].sort((a, b) => {
     const av = valueFor(a)
