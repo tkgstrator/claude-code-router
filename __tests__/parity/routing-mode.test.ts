@@ -1,20 +1,23 @@
 /**
- * パリティ・マトリクス — ルーティングそのものの面パリティ。
+ * Parity matrix — surface parity for routing itself.
  *
- * マトリクスの 10 行はどれも「面が機能を表現できるか」を見るが、
- * その手前に「そもそも面ごとにルーティングを効かせられるか」がある
- * （master-plan §2-5 の完了条件その2）。以前はこれが
- * `scenario-router.ts` に直書きされていて、/v1/messages 以外は無条件に
- * 素通しだった——つまりルーティング画面はすべて /v1/messages 専用画面
- * だった。今はモードが面ごとの設定値なので、4 面が対称に振る舞う。
+ * Every one of the matrix's ten rows asks whether a surface can express a
+ * feature. Before any of them comes a prior question: can routing be
+ * turned on per surface at all (master-plan §2-5's second completion
+ * condition). This used to be hard-coded in `scenario-router.ts`, where
+ * anything but /v1/messages passed through unconditionally — which made
+ * the entire Routing screen a /v1/messages-only screen. The mode is now a
+ * per-surface setting, so all four behave symmetrically.
  *
- * 対称でない点が 1 つ残っていて、これは意図的:
- *   - persona 注入は /v1/messages 限定（他面ではトップレベル `system` が
- *     未知フィールドとして 400 になる上流がある）
+ * One asymmetry remains, and it is deliberate:
+ *   - persona injection is /v1/messages only, because on the other
+ *     surfaces a top-level `system` is an unknown field that some
+ *     upstreams answer with 400
  *
- * longContext のトークン計数はかつて `body.messages` 直読みだったため
- * Responses / Gemini の語彙では常に 0 だったが、面ごとの正規化シグナル
- * （`scenario-router/surface-signals.ts`）経由になり 4 面とも数えられる。
+ * longContext token counting used to read `body.messages` directly and so
+ * always saw 0 in the Responses and Gemini vocabularies. It now goes
+ * through the per-surface normalised signals
+ * (`scenario-router/surface-signals.ts`) and counts on all four.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
@@ -64,9 +67,9 @@ const SURFACES: ReadonlyArray<[SurfaceId, string]> = [
   ['gemini-generate', '/v1beta/models/gemini-3-pro:generateContent']
 ]
 
-// モードはモジュールスコープのキャッシュに載るので、前後どちらでも
-// 戻しておく。他のテストファイルと同じプロセスで走る以上、後始末を
-// 怠ると「なぜかルーティングが効いている」隣のテストを作ってしまう。
+// The mode lands in a module-scope cache, so restore it on both sides.
+// These share a process with the other test files, and skipping the
+// cleanup leaves a neighbour where routing is mysteriously on.
 beforeEach(() => {
   __setSurfacesForTests({})
 })
@@ -75,16 +78,16 @@ afterEach(() => {
   __setSurfacesForTests({})
 })
 
-describe('モードが 4 面すべてで効く', () => {
+describe('the mode takes effect on all four surfaces', () => {
   for (const [id, path] of SURFACES) {
-    test(`${id} — routed にするとルータの primary に書き換わる`, async () => {
+    test(`${id} — routed rewrites the model to the router's primary`, async () => {
       __setSurfacesForTests({ [id]: 'routed' })
       const req = await run(path, { messages: [{ role: 'user', content: 'hi' }] })
       expect(req.body.model).toBe('anthropic,claude-sonnet-5')
       expect(req.resolvedFallbacks).toEqual(['anthropic,claude-sonnet-5'])
     })
 
-    test(`${id} — passthrough にすると呼び出し側のモデルが残り、チェーンも空`, async () => {
+    test(`${id} — passthrough keeps the caller's model and leaves the chain empty`, async () => {
       __setSurfacesForTests({ [id]: 'passthrough' })
       const req = await run(path, { messages: [{ role: 'user', content: 'hi' }] })
       expect(req.body.model).toBe('caller,own-model')
@@ -92,7 +95,7 @@ describe('モードが 4 面すべてで効く', () => {
     })
   }
 
-  test('モードは面ごとに独立している（1 面を routed にしても他面は素通し）', async () => {
+  test('the modes are independent: routing one surface leaves the others passing through', async () => {
     __setSurfacesForTests({ 'anthropic-messages': 'routed' })
     const routed = await run('/v1/messages', { messages: [{ role: 'user', content: 'hi' }] })
     const untouched = await run('/v1/chat/completions', { messages: [{ role: 'user', content: 'hi' }] })
@@ -101,25 +104,27 @@ describe('モードが 4 面すべてで効く', () => {
   })
 })
 
-describe('意図的な非対称', () => {
-  test('persona 注入は /v1/messages 限定', async () => {
-    // OpenAI 互換の面にトップレベル `system` を足すと、上流（codex が
-    // 代表例）が未知パラメータとして 400 を返す。だから注入しない。
+describe('the deliberate asymmetry', () => {
+  test('persona injection is limited to /v1/messages', async () => {
+    // Adding a top-level `system` on an OpenAI-compatible surface makes
+    // the upstream — codex being the standing example — answer 400 for an
+    // unknown parameter. So it is not injected.
     __setSurfacesForTests({ 'anthropic-messages': 'routed', 'openai-chat': 'routed' })
     const anthropic = await run('/v1/messages', { messages: [{ role: 'user', content: 'hi' }] })
     const openai = await run('/v1/chat/completions', { messages: [{ role: 'user', content: 'hi' }] })
-    // persona 未設定でもフィールドの有無に差が出る: /v1/messages だけ
-    // applyGlobalSystemPrompt を通る。
+    // Even with no persona configured the field's presence differs:
+    // only /v1/messages goes through applyGlobalSystemPrompt.
     expect('system' in anthropic.body).toBe(true)
     expect('system' in openai.body).toBe(false)
   })
 
-  test('longContext のトークン計数が 4 面すべての語彙を読める', async () => {
-    // かつて `countRequestTokens` は body.messages / body.system /
-    // body.tools を直読みしていた。Responses は `input` / `instructions`、
-    // Gemini は `contents` に本文を置くので、どれだけ長い会話でも 0 と
-    // 数えられ、longContext レーンへ入る道がなかった。計数が
-    // signalsOf() 経由になり、面ごとの語彙で数えられる。
+  test('longContext token counting reads all four vocabularies', async () => {
+    // `countRequestTokens` used to read body.messages, body.system and
+    // body.tools directly. Responses puts the body under `input` /
+    // `instructions` and Gemini under `contents`, so however long the
+    // conversation it counted 0 and there was no road into the
+    // longContext lane. Counting now goes through signalsOf() and reads
+    // each surface's own vocabulary.
     __setSurfacesForTests({
       'anthropic-messages': 'routed',
       'openai-chat': 'routed',

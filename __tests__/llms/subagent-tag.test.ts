@@ -13,7 +13,10 @@ import { stripSubagentTag } from '../../src/llms/scenario-router/request-signals
 
 // The tag is only recognised in the SECOND system block, which is where
 // Claude Code puts it; a system array is [preamble, subagent marker].
-const systemWith = (text: string) => [{ type: 'text', text: 'preamble' }, { type: 'text', text }]
+const systemWith = (text: string) => [
+  { type: 'text', text: 'preamble' },
+  { type: 'text', text }
+]
 
 describe('stripSubagentTag', () => {
   for (const tag of ['CCR-SUBAGENT-MODEL', 'RIALTO-SUBAGENT-MODEL']) {

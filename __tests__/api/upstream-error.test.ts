@@ -11,14 +11,20 @@
 
 import { describe, expect, test } from 'bun:test'
 import { HTTPException } from 'hono/http-exception'
-import { UPSTREAM_URL_SYMBOL, stripUrlSecrets } from '../../src/llms/pipeline/provider-send'
 import { forwardUpstreamError, isInsufficientQuota, isRateLimited } from '../../src/api/v1/upstream-error'
+import { stripUrlSecrets, UPSTREAM_URL_SYMBOL } from '../../src/llms/pipeline/provider-send'
 
 // Reproduce the exception shape sendToProvider throws on upstream error:
 // the `Error from provider(...)` message wrap plus the symbol-keyed
 // URL. Local helper because the real send path pulls in the whole
 // pipeline; the exception's contract is what forwardUpstreamError reads.
-function makeUpstreamException(status: number, providerName: string, model: string, body: string, url?: string): HTTPException {
+function makeUpstreamException(
+  status: number,
+  providerName: string,
+  model: string,
+  body: string,
+  url?: string
+): HTTPException {
   const message = `Error from provider(${providerName},${model}: ${status}): ${body}`
   // biome-ignore plugin: HTTPException's status param is typed as a closed union of supported codes.
   const exc = new HTTPException(status as never, { message })
@@ -30,9 +36,11 @@ function makeUpstreamException(status: number, providerName: string, model: stri
 
 describe('stripUrlSecrets', () => {
   test('drops query params (Gemini ?key=<apiKey> leak)', () => {
-    expect(stripUrlSecrets('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=abc123')).toBe(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent'
-    )
+    expect(
+      stripUrlSecrets(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=abc123'
+      )
+    ).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent')
   })
 
   test('leaves host + path untouched when there is no query', () => {

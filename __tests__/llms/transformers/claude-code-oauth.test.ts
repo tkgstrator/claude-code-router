@@ -20,7 +20,7 @@ const IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
 const billingBlock = {
   type: 'text',
-  text: 'x-anthropic-billing-header: cc_version=2.1.146.793; cc_entrypoint=cli; cch=50a72;',
+  text: 'x-anthropic-billing-header: cc_version=2.1.146.793; cc_entrypoint=cli; cch=50a72;'
 }
 
 const identityBlock = { type: 'text', text: IDENTITY }
@@ -28,13 +28,13 @@ const identityBlock = { type: 'text', text: IDENTITY }
 const mainBlock = {
   type: 'text',
   text: 'You are an interactive agent…',
-  cache_control: { type: 'ephemeral', ttl: '1h', scope: 'global' },
+  cache_control: { type: 'ephemeral', ttl: '1h', scope: 'global' }
 }
 
 const additionalBlock = {
   type: 'text',
   text: '# Text output…',
-  cache_control: { type: 'ephemeral', ttl: '1h' },
+  cache_control: { type: 'ephemeral', ttl: '1h' }
 }
 
 // ─── Claude Code ≥2.1.146 format (billing at [0], identity at [1]) ─────────
@@ -148,7 +148,7 @@ function oldWithClaudeCodeIdentity(system: unknown): Array<{ type?: string; text
     return {
       type: typeof Reflect.get(value, 'type') === 'string' ? (Reflect.get(value, 'type') as string) : undefined,
       text: typeof Reflect.get(value, 'text') === 'string' ? (Reflect.get(value, 'text') as string) : undefined,
-      cache_control: Reflect.get(value, 'cache_control'),
+      cache_control: Reflect.get(value, 'cache_control')
     }
   }
   let blocks: Block[]
@@ -203,4 +203,3 @@ describe('system passed as a plain string equal to the identity', () => {
     expect(identityBlocks).toHaveLength(1)
   })
 })
-

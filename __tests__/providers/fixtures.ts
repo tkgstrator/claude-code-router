@@ -19,20 +19,19 @@
  * to refresh them after a transformer change.
  */
 
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { createHash } from 'node:crypto'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 
-const FIXTURES_DIR = join(import.meta.dir, "__fixtures__");
+const FIXTURES_DIR = join(import.meta.dir, '__fixtures__')
 
-export type FixtureMode = "replay" | "live";
-export const FIXTURE_MODE: FixtureMode =
-  (process.env.RIALTO_FIXTURE_MODE as FixtureMode) ?? "replay";
+export type FixtureMode = 'replay' | 'live'
+export const FIXTURE_MODE: FixtureMode = (process.env.RIALTO_FIXTURE_MODE as FixtureMode) ?? 'replay'
 
 interface ResponseMeta {
-  status: number;
-  statusText?: string;
-  headers: Record<string, string>;
+  status: number
+  statusText?: string
+  headers: Record<string, string>
 }
 
 // Headers that would lie if we forwarded them on a replayed body:
@@ -40,67 +39,70 @@ interface ResponseMeta {
 //   - content-length: Response recomputes; original byte count is wrong
 //   - transfer-encoding / connection / keep-alive: hop-by-hop noise
 const STRIP_HEADERS = new Set([
-  "connection",
-  "keep-alive",
-  "transfer-encoding",
-  "content-encoding",
-  "content-length",
-  "te",
-  "trailer",
-  "upgrade",
-  "proxy-authenticate",
-  "proxy-authorization",
-]);
+  'connection',
+  'keep-alive',
+  'transfer-encoding',
+  'content-encoding',
+  'content-length',
+  'te',
+  'trailer',
+  'upgrade',
+  'proxy-authenticate',
+  'proxy-authorization'
+])
 
 export function hashRequest(method: string, url: string, body: unknown): string {
-  const canon = JSON.stringify({ method, url, body: body ?? null });
-  return createHash("sha256").update(canon).digest("hex").slice(0, 16);
+  const canon = JSON.stringify({ method, url, body: body ?? null })
+  return createHash('sha256').update(canon).digest('hex').slice(0, 16)
 }
 
-let cachedDirs: string[] | null = null;
+let cachedDirs: string[] | null = null
 function listFixtureDirs(): string[] {
-  if (cachedDirs) return cachedDirs;
-  if (!existsSync(FIXTURES_DIR)) return (cachedDirs = []);
+  if (cachedDirs) return cachedDirs
+  if (!existsSync(FIXTURES_DIR)) {
+    cachedDirs = []
+    return cachedDirs
+  }
   cachedDirs = readdirSync(FIXTURES_DIR).filter((name) => {
     try {
-      return statSync(join(FIXTURES_DIR, name)).isDirectory();
+      return statSync(join(FIXTURES_DIR, name)).isDirectory()
     } catch {
-      return false;
+      return false
     }
-  });
-  return cachedDirs;
+  })
+  return cachedDirs
 }
 
 function findFixtureDir(hash: string): string | null {
-  const suffix = `.${hash}`;
+  const suffix = `.${hash}`
   for (const name of listFixtureDirs()) {
-    if (name.endsWith(suffix)) return join(FIXTURES_DIR, name);
+    if (name.endsWith(suffix)) return join(FIXTURES_DIR, name)
   }
-  return null;
+  return null
 }
 
 function loadFixture(hash: string): { meta: ResponseMeta; body: string } | null {
-  const dir = findFixtureDir(hash);
-  if (!dir) return null;
-  const metaPath = join(dir, "response.json");
-  const bodyPath = join(dir, "response.body");
-  if (!existsSync(metaPath) || !existsSync(bodyPath)) return null;
-  const meta = JSON.parse(readFileSync(metaPath, "utf8")) as ResponseMeta;
-  const body = readFileSync(bodyPath, "utf8");
-  return { meta, body };
+  const dir = findFixtureDir(hash)
+  if (!dir) return null
+  const metaPath = join(dir, 'response.json')
+  const bodyPath = join(dir, 'response.body')
+  if (!existsSync(metaPath) || !existsSync(bodyPath)) return null
+  const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as ResponseMeta
+  const body = readFileSync(bodyPath, 'utf8')
+  return { meta, body }
 }
 
 function buildResponse(meta: ResponseMeta, body: string): Response {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {}
   for (const [k, v] of Object.entries(meta.headers)) {
-    if (STRIP_HEADERS.has(k.toLowerCase())) continue;
-    headers[k] = v;
+    if (STRIP_HEADERS.has(k.toLowerCase())) continue
+    headers[k] = v
   }
   return new Response(body, {
     status: meta.status,
-    statusText: meta.statusText ?? "",
-    headers,
-  });
+    statusText: meta.statusText ?? '',
+    headers
+  })
 }
 
 /**
@@ -113,25 +115,25 @@ function buildResponse(meta: ResponseMeta, body: string): Response {
  * raw string.
  */
 export async function cachedFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  if (FIXTURE_MODE === "live") return fetch(url, init);
+  if (FIXTURE_MODE === 'live') return fetch(url, init)
 
-  const method = (init.method ?? "GET").toUpperCase();
-  let body: unknown = null;
-  if (typeof init.body === "string" && init.body.length > 0) {
+  const method = (init.method ?? 'GET').toUpperCase()
+  let body: unknown = null
+  if (typeof init.body === 'string' && init.body.length > 0) {
     try {
-      body = JSON.parse(init.body);
+      body = JSON.parse(init.body)
     } catch {
-      body = init.body;
+      body = init.body
     }
   }
 
-  const hash = hashRequest(method, url, body);
-  const cached = loadFixture(hash);
-  if (cached) return buildResponse(cached.meta, cached.body);
+  const hash = hashRequest(method, url, body)
+  const cached = loadFixture(hash)
+  if (cached) return buildResponse(cached.meta, cached.body)
 
   throw new Error(
     `No fixture for ${method} ${url} (hash=${hash}). ` +
       `Run with RIALTO_FIXTURE_MODE=live to bypass, or refresh fixtures via ` +
       `\`bun run scripts/capture-fixtures.ts\`.`
-  );
+  )
 }

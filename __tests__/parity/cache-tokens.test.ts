@@ -1,28 +1,31 @@
 /**
- * パリティ・マトリクス — 行「cache トークン計上」。
+ * Parity matrix — the "cache token accounting" row.
  *
- * 二方向ある。どちらが欠けても症状が違う:
+ * There are two directions, and losing either has its own symptom:
  *
- *   (A) **計上**   — RequestLog の cacheReadTokens / cacheWriteTokens /
- *       cacheHitPct。欠けると Activity の課金がキャッシュ分だけ過大に出る。
- *   (B) **返却**   — クライアントに返す usage 封筒。欠けてもコストは
- *       正しいが、クライアント側の可視化が黙って 0 になる。
+ *   (A) **Recording** — RequestLog's cacheReadTokens / cacheWriteTokens /
+ *       cacheHitPct. Missing, Activity overstates the bill by the cached
+ *       portion.
+ *   (B) **Returning** — the usage envelope handed to the client. Missing,
+ *       the cost is still right but the client's own display silently
+ *       reads zero.
  *
- * (A) は `UsageBlockSchema`（src/schemas/domain/usage-record.ts）が
- * 宣言したフィールドしか読まない。Anthropic の `cache_read_input_tokens` /
- * `cache_creation_input_tokens`、OpenAI Responses の
- * `input_tokens_details.cached_tokens`、OpenAI Chat Completions の
- * `prompt_tokens_details.cached_tokens` の3系統。
+ * (A) reads only the fields `UsageBlockSchema`
+ * (src/schemas/domain/usage-record.ts) declares: Anthropic's
+ * `cache_read_input_tokens` / `cache_creation_input_tokens`, OpenAI
+ * Responses' `input_tokens_details.cached_tokens`, and OpenAI Chat
+ * Completions' `prompt_tokens_details.cached_tokens`.
  *
- * 二つのベンダは**逆の慣習**で数える。Anthropic の `input_tokens` は
- * 非キャッシュ分だけで、キャッシュ分は隣に並ぶ。OpenAI の `cached_tokens`
- * は SDK の型定義が "Cached tokens present in the prompt" と書くとおり
- * `prompt_tokens` / `input_tokens` の**内訳**で、既に含まれている。
- * 行は Anthropic の慣習（`inputTokens` = 非キャッシュ分、
- * `totalInputTokens` = 全部）で書かれるので、OpenAI 側は合算する前に
- * キャッシュ分を差し引く。ここのフィクスチャは**その慣習どおりの
- * 現実的な値**にしてあること —— `input_tokens` がキャッシュ分より
- * 小さい払い出しは OpenAI からは来ない。
+ * The two vendors count by **opposite conventions**. Anthropic's
+ * `input_tokens` is the uncached portion only, with the cached counts
+ * beside it. OpenAI's `cached_tokens` is a **breakdown of**
+ * `prompt_tokens` / `input_tokens` and is already included — as its SDK
+ * types put it, "Cached tokens present in the prompt". The row is written
+ * in Anthropic's convention (`inputTokens` = uncached, `totalInputTokens`
+ * = everything), so the OpenAI side subtracts the cached portion before
+ * summing. The fixtures here must hold **realistic values for that
+ * convention**: OpenAI never issues a payload whose `input_tokens` is
+ * smaller than its cached count.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -54,7 +57,8 @@ const rowFor = async (upstream: Response): Promise<UsageRecord | null> => {
   return captured.value
 }
 
-// キャッシュ命中つきの chat.completion。返却方向の 4 面はこれを起点にする。
+// A chat.completion with a cache hit. All four surfaces of the return
+// direction start from this.
 const CACHED_COMPLETION = {
   id: 'chatcmpl-cache',
   object: 'chat.completion',
@@ -64,8 +68,8 @@ const CACHED_COMPLETION = {
   usage: { prompt_tokens: 100, completion_tokens: 5, total_tokens: 105, prompt_tokens_details: { cached_tokens: 80 } }
 }
 
-describe('(A) 計上 — RequestLog', () => {
-  test('anthropic — 対応済み: read と write の両方が載り、命中率が出る', async () => {
+describe('(A) recording — RequestLog', () => {
+  test('anthropic — supported: both read and write are recorded, and a hit rate falls out', async () => {
     const row = await rowFor(
       json({
         usage: {
@@ -80,16 +84,17 @@ describe('(A) 計上 — RequestLog', () => {
       inputTokens: 10,
       cacheReadTokens: 80,
       cacheWriteTokens: 10,
-      // 非キャッシュ分 + write + read。Anthropic の input_tokens は
-      // 非キャッシュ分だけなので、合算しないと請求額と合わない。
+      // Uncached + write + read. Anthropic's input_tokens covers only
+      // the uncached portion, so without summing this will not match the
+      // bill.
       totalInputTokens: 100,
       cacheHitPct: 80
     })
   })
 
-  test('openai-responses — 対応済み（read のみ）: input_tokens_details.cached_tokens', async () => {
-    // input_tokens は総量で、cached_tokens はその内訳。100 のうち 80 が
-    // 命中なら非キャッシュ分は 20 になる。
+  test('openai-responses — supported for reads: input_tokens_details.cached_tokens', async () => {
+    // input_tokens is the total and cached_tokens a part of it: 80 hits
+    // out of 100 leaves 20 uncached.
     const row = await rowFor(
       json({ usage: { input_tokens: 100, output_tokens: 5, input_tokens_details: { cached_tokens: 80 } } })
     )
@@ -102,11 +107,11 @@ describe('(A) 計上 — RequestLog', () => {
     })
   })
 
-  test('openai-chat — 対応済み: prompt_tokens_details.cached_tokens', async () => {
-    // Chat Completions は `prompt_tokens_details.cached_tokens`、Responses は
-    // `input_tokens_details.cached_tokens` と綴りが違うだけの同じ数。片方しか
-    // 宣言しないと Chat 経路の命中が 0 で記録され、実際には安くなっている
-    // 課金が Activity では満額で出ていた。
+  test('openai-chat — supported: prompt_tokens_details.cached_tokens', async () => {
+    // The same number spelled two ways: `prompt_tokens_details` on Chat
+    // Completions, `input_tokens_details` on Responses. Declaring only
+    // one recorded zero hits on the Chat path, so Activity showed the
+    // full price for traffic that was in fact discounted.
     const row = await rowFor(json({ usage: CACHED_COMPLETION.usage }))
     expect(row).toMatchObject({
       inputTokens: 20,
@@ -117,17 +122,18 @@ describe('(A) 計上 — RequestLog', () => {
     })
   })
 
-  test('OpenAI の内訳は二重計上されない —— 差し引いてから足し直す', async () => {
-    // 命中ゼロなら prompt_tokens がそのまま非キャッシュ分になる、という
-    // 退化ケース。ここが崩れると全リクエストの input がずれる。
+  test('the OpenAI breakdown is not double counted — subtract, then add back', async () => {
+    // The degenerate case: with no hits, prompt_tokens is the uncached
+    // portion. Break this and the input on every request is wrong.
     const row = await rowFor(json({ usage: { prompt_tokens: 100, completion_tokens: 5 } }))
     expect(row).toMatchObject({ inputTokens: 100, cacheReadTokens: 0, totalInputTokens: 100, cacheHitPct: 0 })
   })
 
-  test('gemini — 対応済み: cachedContentTokenCount も内訳として扱う', async () => {
-    // SDK が "When `cached_content` is set, this also includes the number
-    // of tokens in the cached content" と書くとおり、promptTokenCount は
-    // キャッシュ分を含む総量。OpenAI と同じ慣習なので差し引いて足し直す。
+  test('gemini — supported: cachedContentTokenCount is a breakdown too', async () => {
+    // As the SDK puts it, "When `cached_content` is set, this also
+    // includes the number of tokens in the cached content" —
+    // promptTokenCount is the total including the cached portion. Same
+    // convention as OpenAI, so subtract and add back.
     const row = await rowFor(json({ usageMetadata: { promptTokenCount: 100, cachedContentTokenCount: 80 } }))
     expect(row).toMatchObject({
       inputTokens: 20,
@@ -139,21 +145,22 @@ describe('(A) 計上 — RequestLog', () => {
   })
 })
 
-describe('(B) 返却 — クライアントが見る usage 封筒', () => {
+describe('(B) returning — the usage envelope the client sees', () => {
   const chatCtx = { req: { id: 'parity' } } as unknown as TransformerContext
 
-  test('anthropic — 対応済み: cache_read_input_tokens に畳み直される', async () => {
+  test('anthropic — supported: folded back into cache_read_input_tokens', async () => {
     const converted = await new AnthropicTransformer().transformResponseIn(json(CACHED_COMPLETION), chatCtx)
     const body: unknown = await converted.json()
     expect(Reflect.get(Object(body), 'usage')).toEqual({
-      // Anthropic の慣習に合わせ、input_tokens は非キャッシュ分のみ。
+      // Following Anthropic's convention, input_tokens is the uncached
+      // portion only.
       input_tokens: 20,
       output_tokens: 5,
       cache_read_input_tokens: 80
     })
   })
 
-  test('openai-chat — 対応済み（素通し）: 上流の details がそのまま届く', async () => {
+  test('openai-chat — supported by passing through: the upstream details arrive intact', async () => {
     const upstream = json(CACHED_COMPLETION)
     const relayed = await new OpenAITransformer().transformResponseIn(upstream, chatCtx)
     const body: unknown = await relayed.json()
@@ -161,7 +168,7 @@ describe('(B) 返却 — クライアントが見る usage 封筒', () => {
     expect(Reflect.get(Object(usage), 'prompt_tokens_details')).toEqual({ cached_tokens: 80 })
   })
 
-  test('gemini — 対応済み: cachedContentTokenCount として戻る', async () => {
+  test('gemini — supported: comes back as cachedContentTokenCount', async () => {
     const converted = await new GeminiTransformer().transformResponseIn(json(CACHED_COMPLETION), chatCtx)
     const body: unknown = await converted.json()
     expect(Reflect.get(Object(body), 'usageMetadata')).toMatchObject({
@@ -170,10 +177,11 @@ describe('(B) 返却 — クライアントが見る usage 封筒', () => {
     })
   })
 
-  test('未対応: openai-responses の封筒はキャッシュ内訳を落とす', async () => {
-    // `convertChatCompletionToResponses` が組むのは input/output/total の
-    // 三つだけ。Responses API 本家は `input_tokens_details.cached_tokens` を
-    // 返すので、Codex CLI 側のキャッシュ表示は常に 0 になる。
+  test('unsupported: the openai-responses envelope drops the cache breakdown', async () => {
+    // `convertChatCompletionToResponses` builds only input, output and
+    // total. The real Responses API returns
+    // `input_tokens_details.cached_tokens`, so the Codex CLI's cache
+    // display always reads zero.
     const converted = await new OpenAIResponsesTransformer().transformResponseIn(json(CACHED_COMPLETION), chatCtx)
     const body: unknown = await converted.json()
     const usage = Reflect.get(Object(body), 'usage')

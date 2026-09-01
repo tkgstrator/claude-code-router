@@ -22,9 +22,9 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import { inboundProxyAuth } from '../../src/api/api-key-auth'
+import { getPrismaClient } from '../../src/db/client'
 import { INBOUND_MOUNT_PREFIXES } from '../../src/llms/inbound/surfaces'
 import { invalidateTokenCache, issueAccessToken } from '../../src/services/access-token-service'
-import { getPrismaClient } from '../../src/db/client'
 import { HAS_DB, teardownPrisma } from '../db/helpers'
 
 const BOOTSTRAP = 'bootstrap-key-12345'

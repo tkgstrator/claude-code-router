@@ -8,8 +8,8 @@
  */
 
 import { expect, test } from 'bun:test'
-import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry } from '../../../src/schemas/domain'
 import { selectByPreference } from '../../../src/llms/quota-router/selection'
+import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry } from '../../../src/schemas/domain'
 
 const STRICT: PreferenceConstraints = {
   allowEscalation: false,
@@ -42,10 +42,7 @@ test('skips candidates whose contextWindow is smaller than the request tokens', 
     ['claude-code,claude-fable-5', 1_000_000]
   ])
   const result = selectByPreference({
-    entries: [
-      entry(1, 'claude-code,claude-sonnet-5', 'sonnet'),
-      entry(2, 'claude-code,claude-fable-5', 'fable')
-    ],
+    entries: [entry(1, 'claude-code,claude-sonnet-5', 'sonnet'), entry(2, 'claude-code,claude-fable-5', 'fable')],
     constraints: STRICT,
     requestedTier: undefined,
     isSubagent: false,

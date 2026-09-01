@@ -9,6 +9,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { ConfigEnvelopeSchema } from '../../src/schemas/domain/config'
+
 const BASE = { APIKEY: 'test-key' } as const
 
 describe('ConfigEnvelopeSchema — API_TIMEOUT_MS', () => {

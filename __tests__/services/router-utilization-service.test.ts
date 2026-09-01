@@ -39,9 +39,7 @@ test('detectSuggestions returns nothing when there is no traffic yet', () => {
 
 test('detectSuggestions ignores disabled entries when scanning primary', () => {
   const out = detectSuggestions({
-    perTarget: [
-      { requestedModel: null, sentTo: 'claude-code,claude-opus-5', count: 500 }
-    ],
+    perTarget: [{ requestedModel: null, sentTo: 'claude-code,claude-opus-5', count: 500 }],
     preferences: [
       { target: 'claude-code,claude-fable-5', enabled: false },
       { target: 'claude-code,claude-opus-5', enabled: true }

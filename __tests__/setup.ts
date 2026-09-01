@@ -35,9 +35,7 @@ const testUrl = process.env.TEST_DATABASE_URL
 
 if (testUrl && testUrl.length > 0) {
   if (testUrl === devUrl) {
-    throw new Error(
-      'TEST_DATABASE_URL must differ from DATABASE_URL — refusing to run tests against the dev DB.'
-    )
+    throw new Error('TEST_DATABASE_URL must differ from DATABASE_URL — refusing to run tests against the dev DB.')
   }
   // Defensive: require the database name to contain "test" so a typo
   // in TEST_DATABASE_URL can't silently nuke a real DB.

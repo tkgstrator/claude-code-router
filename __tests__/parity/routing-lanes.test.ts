@@ -1,20 +1,22 @@
 /**
- * パリティ・マトリクス — シナリオ**レーン**の面パリティ。
+ * Parity matrix — surface parity for the scenario **lanes**.
  *
- * `routing-mode.test.ts` は「面ごとに routed / passthrough を選べるか」と
- * 「トークンが面の語彙で数えられるか」を見る。ここはその次の問い、
- * master-plan §Phase 2 の完了条件そのものを見る:
- * **routed にしたとき、その面は default 以外のレーンへ実際に落ちるのか。**
+ * `routing-mode.test.ts` asks whether each surface can be set to routed
+ * or passthrough, and whether tokens are counted in the surface's own
+ * vocabulary. This asks the next question, which is master-plan §Phase 2's
+ * completion condition itself: **once routed, does the surface actually
+ * reach a lane other than default?**
  *
- * これが以前は成り立っていなかった。モードは面ごとの設定値になったのに、
- * 分類器とルール述語は `body.thinking` / `body.output_config.effort` /
- * `tools[].type` という **Anthropic 語彙を直読み**していたので、他 3 面は
- * routed にしても永久に `default` へ落ちた。設定画面は嘘をついていない
- * が、その裏のレーンには道が無い、という状態だった。
+ * It did not. The mode became a per-surface setting, but the classifier
+ * and the rule predicates read **Anthropic's vocabulary directly** —
+ * `body.thinking`, `body.output_config.effort`, `tools[].type` — so the
+ * other three fell to `default` forever even when routed. The settings
+ * screen was not lying; there was simply no road to the lane behind it.
  *
- * 各面のリクエストは**その面のクライアントが実際に送る綴り**で書く。
- * 正規化は `scenario-router/surface-signals.ts` の仕事であって、
- * テストが Anthropic 形に寄せてしまうと何も検証しないことになる。
+ * Each surface's request is written **in the spelling that surface's
+ * clients actually send**. Normalisation is the job of
+ * `scenario-router/surface-signals.ts`, and a test that pre-converts to
+ * the Anthropic shape verifies nothing.
  */
 
 import { beforeEach, describe, expect, test } from 'bun:test'
@@ -78,8 +80,9 @@ beforeEach(() => {
   })
 })
 
-describe('think レーンに 4 面すべてから到達できる', () => {
-  // 同じ意図（拡張思考を要求する）を、面ごとの綴りで書く。
+describe('the think lane is reachable from all four surfaces', () => {
+  // The same intent — asking for extended thinking — in each surface's
+  // own spelling.
   const THINKING: Record<keyof typeof PATHS, Record<string, unknown>> = {
     'anthropic-messages': { thinking: { type: 'enabled', budget_tokens: 4096 } },
     'openai-chat': { reasoning_effort: 'high' },
@@ -96,9 +99,10 @@ describe('think レーンに 4 面すべてから到達できる', () => {
   }
 })
 
-describe('webSearch レーンに 4 面すべてから到達できる', () => {
-  // web 検索ツールの綴りはベンダごとに違う。glob ではなく意味で判定して
-  // いることを、実際の綴りで確かめる。
+describe('the webSearch lane is reachable from all four surfaces', () => {
+  // Every vendor spells its web-search tool differently. These use the
+  // real spellings to confirm the decision is made on meaning rather
+  // than on a glob.
   const WEB_SEARCH: Record<keyof typeof PATHS, Record<string, unknown>> = {
     'anthropic-messages': { tools: [{ type: 'web_search_20250305', name: 'web_search' }] },
     'openai-chat': { tools: [{ type: 'web_search_preview' }] },
@@ -115,9 +119,9 @@ describe('webSearch レーンに 4 面すべてから到達できる', () => {
   }
 })
 
-describe('シグナルが無ければ 4 面とも default に落ちる', () => {
-  // 逆方向の担保。上の 2 つが「何を送っても think になる」で通って
-  // しまわないことを見る。
+describe('with no signal, all four fall to default', () => {
+  // The other direction: this stops the two suites above from passing
+  // because everything classifies as think.
   const PLAIN: Record<keyof typeof PATHS, Record<string, unknown>> = {
     'anthropic-messages': { messages: [{ role: 'user', content: 'hi' }] },
     'openai-chat': { messages: [{ role: 'user', content: 'hi' }] },
@@ -134,9 +138,9 @@ describe('シグナルが無ければ 4 面とも default に落ちる', () => {
   }
 })
 
-describe('webSearch は think より優先される（面をまたいで順序が同じ）', () => {
-  // 分類器の分岐順は 4 面で共有されている。面ごとに順序が割れていないこと
-  // を、両方のシグナルを同時に立てて確かめる。
+describe('webSearch wins over think, in the same order on every surface', () => {
+  // The classifier's branch order is shared by all four. Raising both
+  // signals at once confirms the order has not forked per surface.
   const BOTH: Record<keyof typeof PATHS, Record<string, unknown>> = {
     'anthropic-messages': {
       thinking: { type: 'enabled', budget_tokens: 4096 },

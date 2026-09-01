@@ -1,16 +1,17 @@
 /**
- * パリティ・マトリクス — 行「ストリーミング (SSE)」。
+ * Parity matrix — the "streaming (SSE)" row.
  *
- * 各面が「自分の語彙の SSE」をクライアントに返せるかを見る。判定対象は
- * **変換経路**（面の wire format ≠ プロバイダの wire format）で、これは
- * 面の endpoint transformer の `transformResponseIn` が担当する。同一
- * wire format のプロバイダに当たる経路はパイプラインがバイパスに落ちて
- * 変換自体が走らないため、ここでは評価しない（docs/architecture/
- * inbound-parity.md の「判定基準」を参照）。
+ * Whether each surface can return SSE in its own vocabulary. What is
+ * judged is the **conversion path** (the surface's wire format differs
+ * from the provider's), which the surface's endpoint transformer handles
+ * in `transformResponseIn`. A request bound for a provider that speaks
+ * the same wire format takes the pipeline's bypass and runs no conversion
+ * at all, so it is out of scope here — see "judging criteria" in
+ * docs/architecture/inbound-parity.md.
  *
- * 内部表現は OpenAI chat.completion なので、4面すべてで入力は
- * chat.completion.chunk の SSE になる。違うのは出力の語彙と、
- * **刻み方**（逐次かバッファリングか）だけ。
+ * The internal representation is OpenAI chat.completion, so the input on
+ * all four is chat.completion.chunk SSE. What differs is the output
+ * vocabulary and **the granularity** — incremental or buffered.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -56,8 +57,8 @@ const dataPayloads = (raw: string): Record<string, unknown>[] => {
   return out
 }
 
-describe('anthropic-messages — 対応済み（逐次）', () => {
-  test('chat.completion.chunk の SSE が Anthropic のイベント語彙になる', async () => {
+describe('anthropic-messages — supported, incrementally', () => {
+  test("chat.completion.chunk SSE becomes Anthropic's event vocabulary", async () => {
     const converted = await new AnthropicTransformer().transformResponseIn(chatStream(TWO_DELTA_STREAM), ctx)
     expect(converted.headers.get('Content-Type')).toBe('text/event-stream')
     const raw = await converted.text()
@@ -67,7 +68,7 @@ describe('anthropic-messages — 対応済み（逐次）', () => {
     expect(names).toContain('message_stop')
   })
 
-  test('上流の刻みがそのまま伝わる（2 つの delta が 2 つのイベントになる）', async () => {
+  test('the upstream granularity carries through: two deltas become two events', async () => {
     const converted = await new AnthropicTransformer().transformResponseIn(chatStream(TWO_DELTA_STREAM), ctx)
     const texts = dataPayloads(await converted.text())
       .filter((e) => e.type === 'content_block_delta')
@@ -79,11 +80,12 @@ describe('anthropic-messages — 対応済み（逐次）', () => {
   })
 })
 
-describe('openai-chat — 対応済み（素通し）', () => {
-  // 内部表現が chat.completion そのものなので、この面には変換が要らない。
-  // base の恒等 `transformResponseIn` を継承しているのが「対応済み」の
-  // 実体であり、上流のバイト列がそのままクライアントに届く。
-  test('endpoint transformer は応答に触らない', async () => {
+describe('openai-chat — supported by passing through', () => {
+  // The internal representation is chat.completion itself, so this
+  // surface needs no conversion. Inheriting the base's identity
+  // `transformResponseIn` is what "supported" means here: the upstream
+  // bytes reach the client unchanged.
+  test('the endpoint transformer does not touch the response', async () => {
     const upstream = chatStream(TWO_DELTA_STREAM)
     const relayed = await new OpenAITransformer().transformResponseIn(upstream, ctx)
     expect(relayed).toBe(upstream)
@@ -91,8 +93,8 @@ describe('openai-chat — 対応済み（素通し）', () => {
   })
 })
 
-describe('openai-responses — 部分対応（契約は満たすが逐次性を失う）', () => {
-  test('Responses のイベント語彙に変換される', async () => {
+describe('openai-responses — partial: the contract holds but the incrementality is lost', () => {
+  test('converted into the Responses event vocabulary', async () => {
     const converted = await new OpenAIResponsesTransformer().transformResponseIn(chatStream(TWO_DELTA_STREAM), ctx)
     expect(converted.headers.get('content-type')).toBe('text/event-stream')
     const names = eventNames(await converted.text())
@@ -101,11 +103,12 @@ describe('openai-responses — 部分対応（契約は満たすが逐次性を�
     expect(names[names.length - 1]).toBe('response.completed')
   })
 
-  test('未対応: 上流の刻みは失われ、全文が 1 つの delta にまとまる', async () => {
-    // `transformResponseIn` は上流 SSE を一度 `aggregateOpenAiChatSseToJson`
-    // で JSON に畳んでから Responses SSE を composeし直す。よって TTFT は
-    // 上流の完了時刻まで遅れる。実装側を逐次化したらこの期待値を反転させ、
-    // inbound-parity.md の該当セルも同時に更新すること。
+  test('unsupported: the upstream granularity is lost and the whole text arrives as one delta', async () => {
+    // `transformResponseIn` folds the upstream SSE into JSON with
+    // `aggregateOpenAiChatSseToJson` and then composes fresh Responses
+    // SSE, so TTFT slips to the upstream's completion time. If the
+    // implementation is ever made incremental, invert this expectation
+    // and update the matching cell in inbound-parity.md with it.
     const converted = await new OpenAIResponsesTransformer().transformResponseIn(chatStream(TWO_DELTA_STREAM), ctx)
     const deltas = dataPayloads(await converted.text())
       .filter((e) => e.type === 'response.output_text.delta')
@@ -114,8 +117,8 @@ describe('openai-responses — 部分対応（契約は満たすが逐次性を�
   })
 })
 
-describe('gemini-generate — 対応済み（逐次）', () => {
-  test('chat.completion.chunk の SSE が candidates[] の語彙になる', async () => {
+describe('gemini-generate — supported, incrementally', () => {
+  test('chat.completion.chunk SSE becomes the candidates[] vocabulary', async () => {
     const converted = await new GeminiTransformer().transformResponseIn(chatStream(TWO_DELTA_STREAM), ctx)
     expect(converted.headers.get('Content-Type')).toBe('text/event-stream')
     const events = dataPayloads(await converted.text())
@@ -123,7 +126,7 @@ describe('gemini-generate — 対応済み（逐次）', () => {
     expect(events[0].candidates).toBeDefined()
   })
 
-  test('上流の刻みがそのまま伝わる（2 つの delta が 2 つのチャンクになる）', async () => {
+  test('the upstream granularity carries through: two deltas become two chunks', async () => {
     const converted = await new GeminiTransformer().transformResponseIn(chatStream(TWO_DELTA_STREAM), ctx)
     const texts = dataPayloads(await converted.text()).flatMap((e) => {
       const candidates = Array.isArray(e.candidates) ? e.candidates : []

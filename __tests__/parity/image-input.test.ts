@@ -1,10 +1,11 @@
 /**
- * パリティ・マトリクス — 行「画像入力」。
+ * Parity matrix — the "image input" row.
  *
- * 内部表現は OpenAI の `{ type: 'image_url', image_url: { url } }`。
- * 各面はここへ寄せる責任がある:
+ * The internal representation is OpenAI's
+ * `{ type: 'image_url', image_url: { url } }`, and each surface is
+ * responsible for converging on it:
  *   - anthropic-messages : `{ type: 'image', source: { type:'base64'|'url', ... } }`
- *   - openai-chat        : すでに同形（素通し）
+ *   - openai-chat        : already this shape, passed through
  *   - openai-responses   : `{ type: 'input_image', image_url }`
  *   - gemini-generate    : `{ inlineData: { mime_type, data } }` / `{ file_data: ... }`
  */
@@ -30,8 +31,8 @@ const urlsIn = (content: unknown): unknown[] =>
         .map((b) => Reflect.get(Object(Reflect.get(Object(b), 'image_url')), 'url'))
     : []
 
-describe('anthropic-messages — 対応済み', () => {
-  test('base64 の image ブロックが data: URL になる', async () => {
+describe('anthropic-messages — supported', () => {
+  test('a base64 image block becomes a data: URL', async () => {
     const unified = await new AnthropicTransformer().transformRequestOut(
       {
         model: 'm',
@@ -51,7 +52,7 @@ describe('anthropic-messages — 対応済み', () => {
     expect(urlsIn(userContent(unified.messages))).toEqual(['data:image/png;base64,AAAB'])
   })
 
-  test('url の image ブロックは URL のまま渡る', async () => {
+  test('a url image block passes through as the URL', async () => {
     const unified = await new AnthropicTransformer().transformRequestOut(
       {
         model: 'm',
@@ -71,8 +72,8 @@ describe('anthropic-messages — 対応済み', () => {
   })
 })
 
-describe('openai-chat — 対応済み（素通し）', () => {
-  test('image_url ブロックは内部表現と同形なので触られない', async () => {
+describe('openai-chat — supported by passing through', () => {
+  test('an image_url block is already the internal shape and is left alone', async () => {
     const unified = await new OpenAITransformer().transformRequestOut(
       {
         model: 'm',
@@ -92,8 +93,8 @@ describe('openai-chat — 対応済み（素通し）', () => {
   })
 })
 
-describe('openai-responses — 対応済み', () => {
-  test('input_image が image_url ブロックになる', async () => {
+describe('openai-responses — supported', () => {
+  test('input_image becomes an image_url block', async () => {
     const unified = await new OpenAIResponsesTransformer().transformRequestOut(
       {
         model: 'm',
@@ -114,11 +115,11 @@ describe('openai-responses — 対応済み', () => {
   })
 })
 
-describe('gemini-generate — 対応済み', () => {
-  test('inlineData / file_data パートが image_url ブロックになる', async () => {
-    // inlineData は data: URL に組み直す。`request-content.ts` の
-    // `buildImagePart` がカンマで割って base64 に戻すので、
-    // gemini → gemini の往復で元の形に返る。
+describe('gemini-generate — supported', () => {
+  test('inlineData and file_data parts become image_url blocks', async () => {
+    // inlineData is rebuilt as a data: URL. `buildImagePart` in
+    // `request-content.ts` splits on the comma to recover the base64, so
+    // a gemini → gemini round trip returns the original shape.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -135,15 +136,12 @@ describe('gemini-generate — 対応済み', () => {
       },
       ctx
     )
-    expect(urlsIn(userContent(unified.messages))).toEqual([
-      'data:image/png;base64,AAAB',
-      'https://example.test/a.png'
-    ])
+    expect(urlsIn(userContent(unified.messages))).toEqual(['data:image/png;base64,AAAB', 'https://example.test/a.png'])
   })
 
-  test('camelCase の綴り（inlineData.mimeType / fileData.fileUri）も読む', async () => {
-    // Gemini の SDK が実際に送るのはこちら。片方しか読まないと、
-    // クライアントの実装によって画像が消えたり消えなかったりする。
+  test('reads the camelCase spellings too (inlineData.mimeType / fileData.fileUri)', async () => {
+    // This is what the Gemini SDK actually sends. Reading only one
+    // spelling makes images survive or vanish depending on the client.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -159,15 +157,12 @@ describe('gemini-generate — 対応済み', () => {
       },
       ctx
     )
-    expect(urlsIn(userContent(unified.messages))).toEqual([
-      'data:image/jpeg;base64,BBBC',
-      'https://example.test/b.png'
-    ])
+    expect(urlsIn(userContent(unified.messages))).toEqual(['data:image/jpeg;base64,BBBC', 'https://example.test/b.png'])
   })
 
-  test('media_type が内部表現に残る', async () => {
-    // Anthropic outbound は media_type から source.media_type を組む。
-    // URL だけ拾って捨てると、画像が届いても型が分からず 400 になる。
+  test('media_type survives into the internal representation', async () => {
+    // The Anthropic outbound builds source.media_type from it. Keeping
+    // only the URL means the image arrives with no type and 400s.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',

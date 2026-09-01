@@ -95,9 +95,7 @@ describe('convertResponsesRequestToUnified', () => {
   test('function_call_output serialises non-string output', () => {
     const unified = convertResponsesRequestToUnified({
       model: 'gpt-5-mini',
-      input: [
-        { type: 'function_call_output', call_id: 'call_xyz', output: { ok: true, count: 3 } }
-      ]
+      input: [{ type: 'function_call_output', call_id: 'call_xyz', output: { ok: true, count: 3 } }]
     })
     expect(unified.messages[0]).toEqual({
       role: 'tool',

@@ -1,15 +1,16 @@
 /**
- * パリティ・マトリクス — 行「system プロンプト」。
+ * Parity matrix — the "system prompt" row.
  *
- * 面ごとに system プロンプトの置き場所が違う:
- *   - anthropic-messages : トップレベル `system`（文字列 or ブロック配列）
+ * Each surface puts the system prompt somewhere different:
+ *   - anthropic-messages : top-level `system`, a string or a block array
  *   - openai-chat        : `messages[0].role === 'system'`
- *   - openai-responses   : トップレベル `instructions`
- *   - gemini-generate    : トップレベル `systemInstruction`
+ *   - openai-responses   : top-level `instructions`
+ *   - gemini-generate    : top-level `systemInstruction`
  *
- * 変換経路では、これが unified の `role: 'system'` メッセージに落ちて
- * 初めて下流のプロバイダに届く。落ちなければ system は**黙って消える**
- * ——エラーにならないぶん質が悪い。
+ * On the conversion path it only reaches the downstream provider once it
+ * has been folded into a unified `role: 'system'` message. Without that
+ * the system prompt **disappears silently** — worse than an error,
+ * because nothing complains.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -26,8 +27,8 @@ const systemContentOf = (messages: unknown): unknown => {
   return first === undefined ? undefined : Reflect.get(Object(first), 'content')
 }
 
-describe('anthropic-messages — 対応済み', () => {
-  test('文字列 system が先頭の system メッセージになる', async () => {
+describe('anthropic-messages — supported', () => {
+  test('a string system becomes the leading system message', async () => {
     const unified = await new AnthropicTransformer().transformRequestOut(
       { model: 'm', max_tokens: 16, system: 'You are terse.', messages: [{ role: 'user', content: 'hi' }] },
       ctx
@@ -35,10 +36,10 @@ describe('anthropic-messages — 対応済み', () => {
     expect(systemContentOf(unified.messages)).toBe('You are terse.')
   })
 
-  test('ブロック配列 system は cache_control ごと保持される', async () => {
-    // cache_control を落とすと、Claude Code が prefix キャッシュのために
-    // 付けているマーカーが消えて課金が跳ねる。ここは text だけ拾えば済む
-    // 話ではない。
+  test('a block-array system is kept together with its cache_control', async () => {
+    // Dropping cache_control loses the marker Claude Code attaches for
+    // prefix caching, and the bill jumps. Picking out just the text is
+    // not enough here.
     const unified = await new AnthropicTransformer().transformRequestOut(
       {
         model: 'm',
@@ -58,8 +59,8 @@ describe('anthropic-messages — 対応済み', () => {
   })
 })
 
-describe('openai-chat — 対応済み', () => {
-  test('ネイティブの system メッセージはそのまま通る', async () => {
+describe('openai-chat — supported', () => {
+  test('a native system message passes straight through', async () => {
     const unified = await new OpenAITransformer().transformRequestOut(
       {
         model: 'm',
@@ -73,25 +74,25 @@ describe('openai-chat — 対応済み', () => {
     expect(systemContentOf(unified.messages)).toBe('You are terse.')
   })
 
-  // Anthropic 由来のトップレベル `system` の吸収（persona 注入が漏れた
-  // ときの防御）は __tests__/llms/openai-transformer-request-out.test.ts
-  // 「system absorption」が担保している。
+  // Absorbing an Anthropic-style top-level `system` — the guard for a
+  // persona injection that leaked through — is covered by "system
+  // absorption" in __tests__/llms/openai-transformer-request-out.test.ts.
 })
 
-describe('openai-responses — 対応済み', () => {
-  test('instructions が先頭の system メッセージになる', async () => {
+describe('openai-responses — supported', () => {
+  test('instructions becomes the leading system message', async () => {
     const unified = await new OpenAIResponsesTransformer().transformRequestOut(
       { model: 'm', instructions: 'You are terse.', input: 'hi' },
       ctx
     )
     expect(systemContentOf(unified.messages)).toBe('You are terse.')
-    // Responses 固有のキーは下流に漏らさない。
+    // The Responses-specific key must not leak downstream.
     expect(Reflect.get(unified, 'instructions')).toBeUndefined()
   })
 })
 
-describe('gemini-generate — 対応済み', () => {
-  test('systemInstruction が先頭の system メッセージになる', async () => {
+describe('gemini-generate — supported', () => {
+  test('systemInstruction becomes the leading system message', async () => {
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -101,16 +102,18 @@ describe('gemini-generate — 対応済み', () => {
       ctx
     )
     expect(systemContentOf(unified.messages)).toBe('You are terse.')
-    // Gemini 固有のキーは下流に漏らさない（他の面と同じ約束）。
+    // The Gemini-specific key must not leak downstream — the same
+    // promise the other surfaces make.
     expect(Reflect.get(unified, 'systemInstruction')).toBeUndefined()
-    // system は contents[] より前に積む。ここが逆だと、system を
-    // 先頭でしか受けないプロバイダで無視される。
+    // The system message goes ahead of contents[]. Reversed, a provider
+    // that only honours a leading system would ignore it.
     expect(Reflect.get(Object(unified.messages[0]), 'role')).toBe('system')
   })
 
-  test('複数パートの systemInstruction は改行で連結される', async () => {
-    // 他の 3 面の system は素の文字列。ブロック配列のまま渡すと面ごとに
-    // 形が割れるので、gemini だけ配列にはしない。
+  test('a multi-part systemInstruction is joined with newlines', async () => {
+    // The other three surfaces carry a plain string. Passing the array
+    // through would fork the shape per surface, so gemini alone does not
+    // stay an array.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -122,7 +125,7 @@ describe('gemini-generate — 対応済み', () => {
     expect(systemContentOf(unified.messages)).toBe('You are terse.\nAnswer in English.')
   })
 
-  test('snake_case の system_instruction / 素の文字列も読む', async () => {
+  test('reads snake_case system_instruction and a bare string too', async () => {
     const unified = await new GeminiTransformer().transformRequestOut(
       { model: 'gemini-3-pro', system_instruction: 'You are terse.', contents: [] },
       ctx

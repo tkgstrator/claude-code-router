@@ -8,18 +8,18 @@
  * "provider,model" routing in the body still applies in either mode.
  */
 
-import { FIXTURE_MODE, cachedFetch } from "./fixtures";
+import { cachedFetch, FIXTURE_MODE } from './fixtures'
 
-const RIALTO_BASE = process.env.RIALTO_TEST_URL ?? "http://127.0.0.1:16173";
-const RIALTO_APIKEY = process.env.RIALTO_TEST_APIKEY ?? "test";
-export const RIALTO_URL = `${RIALTO_BASE}/v1/messages`;
-export const RIALTO_CONFIG_URL = `${RIALTO_BASE}/api/config`;
-export const TEST_TIMEOUT = 60_000;
-export const IS_REPLAY = FIXTURE_MODE === "replay";
+const RIALTO_BASE = process.env.RIALTO_TEST_URL ?? 'http://127.0.0.1:16173'
+const RIALTO_APIKEY = process.env.RIALTO_TEST_APIKEY ?? 'test'
+export const RIALTO_URL = `${RIALTO_BASE}/v1/messages`
+export const RIALTO_CONFIG_URL = `${RIALTO_BASE}/api/config`
+export const TEST_TIMEOUT = 60_000
+export const IS_REPLAY = FIXTURE_MODE === 'replay'
 
 export interface SubscriptionModel {
-  provider: string;
-  model: string;
+  provider: string
+  model: string
 }
 
 /**
@@ -30,32 +30,30 @@ export interface SubscriptionModel {
  * and not in its transformer._disabledModels. `nameMatch` narrows to a
  * specific subscription provider (e.g. /claude/ or /codex/).
  */
-export async function fetchSubscriptionModels(
-  nameMatch: RegExp
-): Promise<SubscriptionModel[]> {
-  const res = await cachedFetch(RIALTO_CONFIG_URL, { headers: { "x-api-key": RIALTO_APIKEY } });
-  if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`);
+export async function fetchSubscriptionModels(nameMatch: RegExp): Promise<SubscriptionModel[]> {
+  const res = await cachedFetch(RIALTO_CONFIG_URL, { headers: { 'x-api-key': RIALTO_APIKEY } })
+  if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`)
   const cfg = (await res.json()) as {
     Providers?: {
-      name: string;
-      auth_mode?: string;
-      models?: string[];
-      transformer?: { _disabledModels?: string[] };
-    }[];
-  };
-  const out: SubscriptionModel[] = [];
+      name: string
+      auth_mode?: string
+      models?: string[]
+      transformer?: { _disabledModels?: string[] }
+    }[]
+  }
+  const out: SubscriptionModel[] = []
   for (const p of cfg.Providers ?? []) {
-    if (p.auth_mode !== "subscription") continue;
-    if (!nameMatch.test(p.name)) continue;
-    const disabled = new Set(p.transformer?._disabledModels ?? []);
+    if (p.auth_mode !== 'subscription') continue
+    if (!nameMatch.test(p.name)) continue
+    const disabled = new Set(p.transformer?._disabledModels ?? [])
     for (const m of p.models ?? []) {
-      if (!disabled.has(m)) out.push({ provider: p.name, model: m });
+      if (!disabled.has(m)) out.push({ provider: p.name, model: m })
     }
   }
-  return out;
+  return out
 }
 
-const LONG_CONTEXT_GATE = /extra usage is required for long context|long context request/i;
+const LONG_CONTEXT_GATE = /extra usage is required for long context|long context request/i
 
 /**
  * Smoke one subscription model end-to-end and return the streamed
@@ -74,143 +72,143 @@ export async function smokeSubscriptionModel(model: string): Promise<string> {
   const res = await sendMessage({
     model,
     max_tokens: 64,
-    messages: [{ role: "user", content: "Reply with the word 'pong' only." }],
-    stream: true,
-  });
+    messages: [{ role: 'user', content: "Reply with the word 'pong' only." }],
+    stream: true
+  })
   if (res.status !== 200) {
-    const body = await res.text();
+    const body = await res.text()
     if (LONG_CONTEXT_GATE.test(body)) {
       throw new Error(
         `${model}: long-context gate reached the client — the reactive context-1m retry did not fire. HTTP ${res.status}: ${body}`
-      );
+      )
     }
-    throw new Error(`${model}: HTTP ${res.status}: ${body}`);
+    throw new Error(`${model}: HTTP ${res.status}: ${body}`)
   }
-  const events = await parseSSEStream(res);
-  assertAnthropicSSEShape(events);
-  return extractTextFromEvents(events);
+  const events = await parseSSEStream(res)
+  assertAnthropicSSEShape(events)
+  return extractTextFromEvents(events)
 }
 
 export interface AnthropicMessage {
-  role: "user" | "assistant";
+  role: 'user' | 'assistant'
   // Anthropic accepts a plain string or a structured content-block array
   // (text + tool_use + tool_result …). Tests use the string form; the
   // wider type is here so the helpers don't reject richer shapes that
   // future scenarios might need.
-  content: string | unknown[];
+  content: string | unknown[]
 }
 
 export interface AnthropicRequest {
-  model: string;
-  max_tokens: number;
-  messages: AnthropicMessage[];
-  stream?: boolean;
+  model: string
+  max_tokens: number
+  messages: AnthropicMessage[]
+  stream?: boolean
   // string or structured block array (e.g. with cache_control)
-  system?: string | unknown[];
+  system?: string | unknown[]
   // Optional Anthropic features used by the scenario tests. Typed as
   // unknown here so the test surface doesn't have to mirror every
   // upstream schema — Rialto forwards these to the upstream provider.
-  tools?: unknown[];
-  thinking?: { type: "enabled"; budget_tokens: number };
+  tools?: unknown[]
+  thinking?: { type: 'enabled'; budget_tokens: number }
 }
 
 export interface SSEEvent {
-  event: string;
-  data: unknown;
+  event: string
+  data: unknown
 }
 
 /** Send a request to Rialto and return the raw Response. */
 export async function sendMessage(body: AnthropicRequest): Promise<Response> {
   const res = await cachedFetch(RIALTO_URL, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "x-api-key": RIALTO_APIKEY,
-      "anthropic-version": "2023-06-01",
+      'Content-Type': 'application/json',
+      'x-api-key': RIALTO_APIKEY,
+      'anthropic-version': '2023-06-01'
     },
-    body: JSON.stringify(body),
-  });
-  return res;
+    body: JSON.stringify(body)
+  })
+  return res
 }
 
 /** Parse a complete Anthropic SSE stream into an array of events. */
 export async function parseSSEStream(res: Response): Promise<SSEEvent[]> {
-  if (!res.body) throw new Error("Response has no body");
+  if (!res.body) throw new Error('Response has no body')
 
-  const events: SSEEvent[] = [];
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let currentEvent = "";
+  const events: SSEEvent[] = []
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let currentEvent = ''
 
   function processLines(chunk: string) {
-    buffer += chunk;
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+    buffer += chunk
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
     for (const line of lines) {
-      if (line.startsWith("event:")) {
-        currentEvent = line.slice(6).trim();
-      } else if (line.startsWith("data:")) {
-        const rawData = line.slice(5).trim();
+      if (line.startsWith('event:')) {
+        currentEvent = line.slice(6).trim()
+      } else if (line.startsWith('data:')) {
+        const rawData = line.slice(5).trim()
         try {
-          const data = rawData === "[DONE]" ? rawData : JSON.parse(rawData);
-          events.push({ event: currentEvent, data });
+          const data = rawData === '[DONE]' ? rawData : JSON.parse(rawData)
+          events.push({ event: currentEvent, data })
         } catch {
-          events.push({ event: currentEvent, data: rawData });
+          events.push({ event: currentEvent, data: rawData })
         }
-        currentEvent = "";
+        currentEvent = ''
       }
     }
   }
 
   while (true) {
-    const { done, value } = await reader.read();
+    const { done, value } = await reader.read()
     if (done) {
       // Flush decoder and process any remaining buffered content
-      processLines(decoder.decode());
-      if (buffer.trim()) processLines("\n");
-      break;
+      processLines(decoder.decode())
+      if (buffer.trim()) processLines('\n')
+      break
     }
-    processLines(decoder.decode(value, { stream: true }));
+    processLines(decoder.decode(value, { stream: true }))
   }
 
-  return events;
+  return events
 }
 
 /** Extract the concatenated text content from an Anthropic SSE stream. */
 export function extractTextFromEvents(events: SSEEvent[]): string {
   return events
-    .filter((e) => e.event === "content_block_delta")
+    .filter((e) => e.event === 'content_block_delta')
     .map((e) => {
-      const d = e.data as any;
-      return d?.delta?.text ?? d?.delta?.partial_json ?? "";
+      const d = e.data as any
+      return d?.delta?.text ?? d?.delta?.partial_json ?? ''
     })
-    .join("");
+    .join('')
 }
 
 export interface AnthropicUsage {
-  input_tokens: number;
-  output_tokens: number;
-  cache_creation_input_tokens: number;
-  cache_read_input_tokens: number;
+  input_tokens: number
+  output_tokens: number
+  cache_creation_input_tokens: number
+  cache_read_input_tokens: number
 }
 
 /** Pull usage totals from the message_start event of an SSE stream. */
 export function extractUsageFromEvents(events: SSEEvent[]): AnthropicUsage | null {
-  const start = events.find((e) => e.event === "message_start");
-  if (!start) return null;
-  const usage = (start.data as { message?: { usage?: AnthropicUsage } }).message?.usage;
-  return usage ?? null;
+  const start = events.find((e) => e.event === 'message_start')
+  if (!start) return null
+  const usage = (start.data as { message?: { usage?: AnthropicUsage } }).message?.usage
+  return usage ?? null
 }
 
 /** Send a streaming request and return all SSE events. */
-export async function streamMessage(body: Omit<AnthropicRequest, "stream">): Promise<SSEEvent[]> {
-  const res = await sendMessage({ ...body, stream: true });
+export async function streamMessage(body: Omit<AnthropicRequest, 'stream'>): Promise<SSEEvent[]> {
+  const res = await sendMessage({ ...body, stream: true })
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`HTTP ${res.status}: ${text}`);
+    const text = await res.text()
+    throw new Error(`HTTP ${res.status}: ${text}`)
   }
-  return parseSSEStream(res);
+  return parseSSEStream(res)
 }
 
 /**
@@ -224,12 +222,8 @@ export async function streamMessage(body: Omit<AnthropicRequest, "stream">): Pro
  * Accepts an Error.message OR an HTTP response body.
  */
 export function isUnavailableModelSignal(text: string | undefined): boolean {
-  if (!text) return false;
-  return (
-    text.includes("404") ||
-    text.includes("model_not_found") ||
-    text.includes("unsupported_parameter")
-  );
+  if (!text) return false
+  return text.includes('404') || text.includes('model_not_found') || text.includes('unsupported_parameter')
 }
 
 /**
@@ -237,11 +231,11 @@ export function isUnavailableModelSignal(text: string | undefined): boolean {
  * Note: message_stop is omitted — Rialto's OpenAI/Gemini transformers may not emit it reliably.
  */
 export function assertAnthropicSSEShape(events: SSEEvent[]): void {
-  const eventTypes = events.map((e) => e.event);
-  const required = ["message_start", "content_block_start", "content_block_delta", "message_delta"];
+  const eventTypes = events.map((e) => e.event)
+  const required = ['message_start', 'content_block_start', 'content_block_delta', 'message_delta']
   for (const type of required) {
     if (!eventTypes.includes(type)) {
-      throw new Error(`Missing expected event type: ${type}. Got: ${[...new Set(eventTypes)].join(", ")}`);
+      throw new Error(`Missing expected event type: ${type}. Got: ${[...new Set(eventTypes)].join(', ')}`)
     }
   }
 }

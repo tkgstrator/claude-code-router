@@ -8,16 +8,15 @@
  * drift apart about whether a rule fires.
  */
 import { describe, expect, test } from 'bun:test'
-import type { RouteRule } from '../../src/schemas/domain/router'
 import { explainRule, matchesRule } from '../../src/llms/scenario-router/model-selection'
+import type { RouteRule } from '../../src/schemas/domain/router'
 
 // explainRule reads only body and tokenCount; the logger on RouterRequest
 // is never touched on this path.
 const ctxFor = (model: string, tokenCount = 100, extra: Record<string, unknown> = {}) =>
   ({ req: { body: { model, ...extra } }, tokenCount }) as unknown as Parameters<typeof explainRule>[1]
 
-const rule = (when: Record<string, unknown>): RouteRule =>
-  ({ name: 'r', when, target: 'p,m' }) as unknown as RouteRule
+const rule = (when: Record<string, unknown>): RouteRule => ({ name: 'r', when, target: 'p,m' }) as unknown as RouteRule
 
 const byField = (conditions: ReturnType<typeof explainRule>['conditions'], field: string) =>
   conditions.find((c) => c.field === field)
@@ -35,10 +34,7 @@ describe('explainRule', () => {
   })
 
   test('names which single condition failed when the others passed', () => {
-    const out = explainRule(
-      rule({ requestedTier: ['haiku'], minTokens: 50_000 }),
-      ctxFor('claude-haiku-4-5', 100)
-    )
+    const out = explainRule(rule({ requestedTier: ['haiku'], minTokens: 50_000 }), ctxFor('claude-haiku-4-5', 100))
     expect(out.matched).toBe(false)
     expect(byField(out.conditions, 'requestedTier')?.matched).toBe(true)
     expect(byField(out.conditions, 'minTokens')?.matched).toBe(false)

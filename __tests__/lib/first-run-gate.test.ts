@@ -1,15 +1,17 @@
 /**
- * 初回起動ゲートの契約。
+ * The first-run gate's contract.
  *
- * `ProtectedRoute` は「providers が 0 件」かつ「まだ提示していない」とき
- * `/setup` へ飛ばす。この2つ目の条件が実際に false へ倒れないと、
- * `/setup` の "Skip setup" が `/overview` へ遷移した直後にゲートが
- * 再評価して引き戻し、**押しても何も起きない**画面になる。
- * 実際 `markSetupOffered()` はどこからも呼ばれておらず、その状態で
- * 出荷されていた（`SetupScreen` のマウント時に呼ぶよう修正済み）。
+ * `ProtectedRoute` sends the user to `/setup` when there are no providers
+ * AND setup has not been offered yet. Unless that second condition really
+ * flips to false, `/setup`'s "Skip setup" navigates to `/overview`, the
+ * gate re-evaluates and pulls the user straight back — a screen where
+ * **pressing the button does nothing**. That is what shipped:
+ * `markSetupOffered()` was called from nowhere (now called when
+ * `SetupScreen` mounts).
  *
- * ストレージが使えないときに **`true`（提示済み）へ倒す**のも契約の一部。
- * 逆に倒すと、記憶できないブラウザではゲートが永久に閉じる。
+ * Failing **towards `true` (already offered)** when storage is unusable
+ * is part of the contract too. The other way round, a browser that cannot
+ * remember would be locked behind the gate forever.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
@@ -21,7 +23,8 @@ import {
 } from '../../src/components/rialto/system/first-run'
 import type { Config, Provider } from '../../src/types'
 
-// bun test にブラウザ環境は無いので、必要な2メソッドだけの最小実装を置く。
+// bun test has no browser environment, so this is the smallest stub
+// carrying the two methods that are actually used.
 type StorageStub = { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void }
 
 const installStorage = (stub: StorageStub): void => {
@@ -52,20 +55,21 @@ const original = Reflect.get(globalThis, 'sessionStorage')
 beforeEach(() => installStorage(workingStorage()))
 afterEach(() => Reflect.set(globalThis, 'sessionStorage', original))
 
-describe('setup の一度きりの提示', () => {
-  test('最初は未提示', () => {
+describe('offering setup exactly once', () => {
+  test('starts un-offered', () => {
     expect(setupAlreadyOffered()).toBe(false)
   })
 
-  test('mark すると提示済みになる —— これが無いと Skip setup が空振りする', () => {
+  test('marking makes it offered — without this Skip setup does nothing', () => {
     markSetupOffered()
     expect(setupAlreadyOffered()).toBe(true)
   })
 
-  test('ストレージが使えないときは「提示済み」に倒す（ゲートを閉じ込めない）', () => {
+  test('falls back to "already offered" when storage is unusable, so the gate cannot trap anyone', () => {
     installStorage(throwingStorage())
     expect(setupAlreadyOffered()).toBe(true)
-    // 書けなくても throw しない。失うのは nudge だけで、無害な向き。
+    // A failed write must not throw. All that is lost is the nudge,
+    // which is the harmless direction to fail in.
     expect(() => markSetupOffered()).not.toThrow()
   })
 })
@@ -73,31 +77,32 @@ describe('setup の一度きりの提示', () => {
 describe('isFreshInstall', () => {
   const withProviders = (providers: Provider[]): Config => ({ Providers: providers }) as Config
 
-  test('provider が1件も無いときだけ true', () => {
+  test('true only when no provider is configured', () => {
     expect(isFreshInstall(withProviders([]))).toBe(true)
     expect(isFreshInstall(withProviders([{ name: 'openai' }] as Provider[]))).toBe(false)
   })
 
-  test('config 未取得（null）では判定しない', () => {
-    // 読み込み中に /setup へ飛ばすと、実際には設定済みのインストールが
-    // 一瞬だけ初回起動に見える。
+  test('does not decide while the config is still null', () => {
+    // Redirecting to /setup mid-load would make an install that is in
+    // fact configured look, for a moment, like a fresh one.
     expect(isFreshInstall(null)).toBe(false)
   })
 })
 
 describe('isProviderConnected', () => {
-  test('api_key: 空でないキーがあれば接続済み', () => {
+  test('api_key: connected once there is a non-empty key', () => {
     expect(isProviderConnected({ auth_mode: 'api_key', api_key: 'sk-x' } as Provider)).toBe(true)
     expect(isProviderConnected({ auth_mode: 'api_key', api_key: '' } as Provider)).toBe(false)
     expect(isProviderConnected({ auth_mode: 'api_key', api_key: null } as Provider)).toBe(false)
   })
 
-  test('subscription: 有効なアカウントが1つでもあれば接続済み', () => {
+  test('subscription: connected once one account is enabled', () => {
     const sub = (accounts: Array<{ enabled: boolean }> | undefined): Provider =>
       ({ auth_mode: 'subscription', api_key: null, subscription_accounts: accounts }) as Provider
     expect(isProviderConnected(sub([{ enabled: true }]))).toBe(true)
     expect(isProviderConnected(sub([{ enabled: false }]))).toBe(false)
-    // シードされただけの行。カタログに載っていても使えない。
+    // A row that was only seeded. Being in the catalog does not make it
+    // usable.
     expect(isProviderConnected(sub([]))).toBe(false)
     expect(isProviderConnected(sub(undefined))).toBe(false)
   })

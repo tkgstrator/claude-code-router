@@ -1,14 +1,16 @@
 /**
- * POST /v1/messages/count_tokens — Anthropic の事前サイズ見積り。
+ * POST /v1/messages/count_tokens — Anthropic's up-front size estimate.
  *
- * Claude Code はこれで会話の圧縮タイミングを決める。実装が無いあいだは
- * `/v1/*` の fail-closed レーンが 404 を返しており、コンテキスト管理が
- * 黙って劣化していた（クライアントは上流が拒否するまで送り続ける）。
+ * Claude Code uses it to decide when to compact a conversation. While it
+ * was unimplemented the fail-closed `/v1/*` lane answered 404, and
+ * context management degraded silently: the client keeps sending until
+ * the upstream refuses.
  *
- * ここで押さえているのは主に2点。**ルータと同じ数を返すこと**と、
- * **Rialto がモデル化していないツール形で 400 にしないこと**である。
- * 後者は実際に踏む: Claude Code のサーバーツール（`web_search_*`）は
- * `input_schema` を持たないので、素直に検証すると弾いてしまう。
+ * Two things are pinned here above all. **It must return the same number
+ * the router does**, and **it must not 400 on a tool shape Rialto does
+ * not model**. The second is hit in practice: Claude Code's server tools
+ * (`web_search_*`) carry no `input_schema`, so validating naively rejects
+ * them.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -32,7 +34,7 @@ const countOf = async (body: unknown): Promise<number> => {
 }
 
 describe('POST /v1/messages/count_tokens', () => {
-  test('メッセージ本文を数える', async () => {
+  test('counts the message body', async () => {
     const n = await countOf({
       model: 'claude-sonnet-5',
       messages: [{ role: 'user', content: 'hello world' }]
@@ -40,7 +42,7 @@ describe('POST /v1/messages/count_tokens', () => {
     expect(n).toBeGreaterThan(0)
   })
 
-  test('本文が増えれば数も増える', async () => {
+  test('more text means a larger count', async () => {
     const short = await countOf({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })
     const long = await countOf({
       model: 'm',
@@ -49,7 +51,7 @@ describe('POST /v1/messages/count_tokens', () => {
     expect(long).toBeGreaterThan(short * 10)
   })
 
-  test('system プロンプトも数に入る', async () => {
+  test('the system prompt counts too', async () => {
     const withoutSystem = await countOf({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })
     const withSystem = await countOf({
       model: 'm',
@@ -59,9 +61,9 @@ describe('POST /v1/messages/count_tokens', () => {
     expect(withSystem).toBeGreaterThan(withoutSystem)
   })
 
-  test('input_schema を持たないサーバーツールでも 400 にしない', async () => {
-    // Claude Code が実際に送る形。ここで弾くと、上流なら通ったはずの
-    // リクエストをプロキシが壊すことになる。
+  test('does not 400 on a server tool with no input_schema', async () => {
+    // The shape Claude Code actually sends. Rejecting it here would mean
+    // the proxy breaking a request the upstream would have accepted.
     const res = await call({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
@@ -70,13 +72,14 @@ describe('POST /v1/messages/count_tokens', () => {
     expect(res.status).toBe(200)
   })
 
-  test('messages が無くても答える', async () => {
-    // Anthropic 本家は 400 を返すが、ここで 500 になるほうが悪い。
+  test('answers even with no messages', async () => {
+    // Anthropic itself returns 400 here, but a 500 from us would be
+    // worse.
     const res = await call({ model: 'm' })
     expect(res.status).toBe(200)
   })
 
-  test('JSON オブジェクトでない body は Anthropic の封筒で 400', async () => {
+  test('a body that is not a JSON object gets 400 in the Anthropic envelope', async () => {
     for (const body of ['[]', 'null', '"nope"', 'not json at all']) {
       const res = await call(body)
       expect(res.status).toBe(400)
@@ -87,22 +90,23 @@ describe('POST /v1/messages/count_tokens', () => {
   })
 })
 
-describe('面レジストリへの登録', () => {
-  test('CATALOG_PATHS に x-api-key + anthropic 封筒で載っている', async () => {
-    // 完了系ではないので InboundSurface ではないが、認証ゲートと
-    // エラー封筒はここから導出される。落とすと 401 が OpenAI 形で
-    // 返り、Anthropic SDK が読めない本文になる。
+describe('registration in the surface registry', () => {
+  test('listed in CATALOG_PATHS with x-api-key and the anthropic envelope', async () => {
+    // Not an InboundSurface, since it completes nothing — but the auth
+    // gate and the error envelope are derived from this entry. Drop it
+    // and a 401 comes back in OpenAI shape, which the Anthropic SDK
+    // cannot read.
     const entry = CATALOG_PATHS.find((p) => p.path === '/v1/messages/count_tokens')
     expect(entry).toBeDefined()
     expect(entry?.auth).toBe('x-api-key')
     expect(entry?.errorShape).toBe('anthropic')
   })
 
-  test('ルータと同じ数を返す —— 数え方が2つに割れない', async () => {
-    // このエンドポイントの存在理由の半分。longContext レーンは同じ
-    // リクエストを同じレジストリで数えて振り分けるので、ここが違う数を
-    // 返すと「まだ余裕がある」と信じた呼び出し側が、実際には長文レーンへ
-    // 送られている、という食い違いが起きる。
+  test('returns the same number the router does, so counting cannot fork', async () => {
+    // Half the reason this endpoint exists. The longContext lane counts
+    // the same request through the same registry to route it, so a
+    // different number here means a caller who believes it has headroom
+    // is in fact being sent down the long-context lane.
     const { readSignals } = await import('../../src/llms/scenario-router/surface-signals')
     const { TokenizerRegistry } = await import('../../src/llms/registry/tokenizer')
     const pino = (await import('pino')).default
@@ -114,7 +118,7 @@ describe('面レジストリへの登録', () => {
     }
     const tokenizers = new TokenizerRegistry(pino({ level: 'silent' }))
     await tokenizers.initialize()
-    // scenario-router.ts の countRequestTokens と同じ経路。
+    // The same path `countRequestTokens` takes in scenario-router.ts.
     const viaRouter = await tokenizers.countTokens(readSignals(body, '/v1/messages').tokenize)
 
     expect(await countOf(body)).toBe(viaRouter.tokenCount)

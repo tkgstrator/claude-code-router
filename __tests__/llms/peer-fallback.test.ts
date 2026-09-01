@@ -167,13 +167,7 @@ test('expandChainWithPeers: per-model apiStyle override wins over provider defau
     api_style: 'openai_responses',
     models: ['gpt-5.3-codex']
   }
-  const out = expandChainWithPeers(
-    'codex,gpt-5.3-codex',
-    [],
-    [openaiMixed, codexSubscription],
-    neutralLookup,
-    true
-  )
+  const out = expandChainWithPeers('codex,gpt-5.3-codex', [], [openaiMixed, codexSubscription], neutralLookup, true)
   expect(out.chain).toEqual(['codex,gpt-5.3-codex', 'openai,gpt-5.3-codex'])
   expect(out.peerTargets.has('openai,gpt-5.3-codex')).toBe(true)
 })
@@ -221,10 +215,5 @@ test('expandChainWithPeers: expands peers for EACH chain entry, not just the pri
   )
   // codex primary → openai,gpt-5.6-luna peer; openai,gpt-5.5 fallback →
   // groq,gpt-5.5 peer (both OpenAI-family, same model name).
-  expect(out.chain).toEqual([
-    'codex,gpt-5.6-luna',
-    'openai,gpt-5.6-luna',
-    'openai,gpt-5.5',
-    'groq,gpt-5.5'
-  ])
+  expect(out.chain).toEqual(['codex,gpt-5.6-luna', 'openai,gpt-5.6-luna', 'openai,gpt-5.5', 'groq,gpt-5.5'])
 })

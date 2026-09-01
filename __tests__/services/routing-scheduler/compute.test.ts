@@ -26,10 +26,7 @@ const account = (
   refreshedAt: overrides.refreshedAt ?? NOW
 })
 
-const candidate = (
-  target: string,
-  overrides: Partial<ModelCandidateState> = {}
-): ModelCandidateState => ({
+const candidate = (target: string, overrides: Partial<ModelCandidateState> = {}): ModelCandidateState => ({
   target,
   providerName: overrides.providerName ?? target.split(',')[0],
   modelName: overrides.modelName ?? target.split(',')[1],
@@ -61,10 +58,14 @@ test('healthy accounts yield preference-weighted distribution', () => {
       [{ target: 'claude-code,fable-5' }, { target: 'claude-code,opus-5' }],
       [
         candidate('claude-code,fable-5', {
-          accounts: [account('a1', 'claude-code', { fiveHour: { used: 10, limit: 100, resetAt: null, windowLengthMs: null } })]
+          accounts: [
+            account('a1', 'claude-code', { fiveHour: { used: 10, limit: 100, resetAt: null, windowLengthMs: null } })
+          ]
         }),
         candidate('claude-code,opus-5', {
-          accounts: [account('a1', 'claude-code', { fiveHour: { used: 10, limit: 100, resetAt: null, windowLengthMs: null } })]
+          accounts: [
+            account('a1', 'claude-code', { fiveHour: { used: 10, limit: 100, resetAt: null, windowLengthMs: null } })
+          ]
         })
       ]
     )
@@ -84,10 +85,14 @@ test('exhausted account demotes the candidate to zero-healthiness', () => {
       [{ target: 'claude-code,fable-5' }, { target: 'claude-code,opus-5' }],
       [
         candidate('claude-code,fable-5', {
-          accounts: [account('a1', 'claude-code', { fiveHour: { used: 100, limit: 100, resetAt: null, windowLengthMs: null } })]
+          accounts: [
+            account('a1', 'claude-code', { fiveHour: { used: 100, limit: 100, resetAt: null, windowLengthMs: null } })
+          ]
         }),
         candidate('claude-code,opus-5', {
-          accounts: [account('a1', 'claude-code', { fiveHour: { used: 20, limit: 100, resetAt: null, windowLengthMs: null } })]
+          accounts: [
+            account('a1', 'claude-code', { fiveHour: { used: 20, limit: 100, resetAt: null, windowLengthMs: null } })
+          ]
         })
       ]
     )
@@ -140,10 +145,7 @@ test('disabled entry contributes zero weight', () => {
 
 test('unknown budget with default policy (allow) treats candidate as full budget', () => {
   const result = computeWeights(
-    stateOf(
-      [{ target: 'a,x' }],
-      [candidate('a,x', { accounts: [account('a1', 'a', { refreshedAt: null })] })]
-    )
+    stateOf([{ target: 'a,x' }], [candidate('a,x', { accounts: [account('a1', 'a', { refreshedAt: null })] })])
   )
   const a = result.weights.find((w) => w.target === 'a,x')
   expect(a?.reasons).toContain('unknown_budget')
@@ -177,9 +179,7 @@ test('stale account (past 3× ttlMs since refreshedAt) is demoted with reason', 
     fiveHour: { used: 20, limit: 100, resetAt: null, windowLengthMs: null },
     refreshedAt: NOW - 4 * TTL_MS
   })
-  const result = computeWeights(
-    stateOf([{ target: 'a,x' }], [candidate('a,x', { accounts: [staleAcct] })])
-  )
+  const result = computeWeights(stateOf([{ target: 'a,x' }], [candidate('a,x', { accounts: [staleAcct] })]))
   const a = result.weights.find((w) => w.target === 'a,x')
   expect(a?.reasons).toContain('stale_quota')
 })
@@ -191,9 +191,7 @@ test('resetSoon downweight applies when reset is near and remaining is low', () 
       [{ target: 'a,x' }],
       [
         candidate('a,x', {
-          accounts: [
-            account('a1', 'a', { fiveHour: { used: 95, limit: 100, resetAt: near, windowLengthMs: null } })
-          ]
+          accounts: [account('a1', 'a', { fiveHour: { used: 95, limit: 100, resetAt: near, windowLengthMs: null } })]
         })
       ]
     )
@@ -203,7 +201,10 @@ test('resetSoon downweight applies when reset is near and remaining is low', () 
 })
 
 test('hold guard fires when top-preference primary would zero out despite budget', () => {
-  const previous = new Map([['a,x', 0.9], ['b,y', 0.1]])
+  const previous = new Map([
+    ['a,x', 0.9],
+    ['b,y', 0.1]
+  ])
   const result = computeWeights(
     stateOf(
       [{ target: 'a,x' }, { target: 'b,y' }],
@@ -233,7 +234,10 @@ test('empty preferences return no entries and no held state', () => {
 })
 
 test('changes[] captures moves ≥ 0.01 vs previousWeights', () => {
-  const previous = new Map([['a,x', 0.5], ['b,y', 0.5]])
+  const previous = new Map([
+    ['a,x', 0.5],
+    ['b,y', 0.5]
+  ])
   const result = computeWeights(
     stateOf(
       [{ target: 'a,x' }, { target: 'b,y' }],

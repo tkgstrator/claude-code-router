@@ -77,9 +77,7 @@ describe('tokenize', () => {
     const { tokenize } = signals(RESPONSES, {
       input: [{ type: 'function_call', name: 'Read', arguments: '{"path":' }]
     })
-    expect(tokenize.messages).toEqual([
-      { role: 'assistant', content: [{ type: 'tool_use', input: '{"path":' }] }
-    ])
+    expect(tokenize.messages).toEqual([{ role: 'assistant', content: [{ type: 'tool_use', input: '{"path":' }] }])
   })
 
   test('responses skips reasoning items rather than counting the opaque blob', () => {
@@ -379,10 +377,14 @@ describe('the lanes are reachable from an OpenAI surface', () => {
     // `isHeavyRequest` grades high/xhigh/max as heavy. With a think
     // primary configured the think lane outranks it — see the next test —
     // so this drops that lane to isolate the effort mapping.
-    const req = await route(CHAT, { messages: [{ role: 'user', content: 'hi' }], reasoning_effort: 'high' }, {
-      default: LANES.default,
-      longContext: LANES.longContext
-    })
+    const req = await route(
+      CHAT,
+      { messages: [{ role: 'user', content: 'hi' }], reasoning_effort: 'high' },
+      {
+        default: LANES.default,
+        longContext: LANES.longContext
+      }
+    )
     expect(req.scenarioType).toBe('longContext')
     expect(req.body.model).toBe('p,big')
   })

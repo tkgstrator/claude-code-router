@@ -108,7 +108,9 @@ describe('convertChatCompletionToGemini', () => {
     })
     // Empty content must NOT become `{ text: '' }` — clients render that
     // as a blank model turn next to the tool call.
-    expect(partsOf(envelope)).toEqual([{ functionCall: { name: 'get_weather', args: { city: 'tokyo' }, id: 'call_1' } }])
+    expect(partsOf(envelope)).toEqual([
+      { functionCall: { name: 'get_weather', args: { city: 'tokyo' }, id: 'call_1' } }
+    ])
     // Gemini has no tool-call finish reason; it says STOP and puts the
     // call in the content.
     expect(candidates(envelope)[0].finishReason).toBe('STOP')
@@ -222,7 +224,10 @@ describe('convertChatStreamToGeminiSse', () => {
           { index: 0, delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'f', arguments: '{"a"' } }] } }
         ]
       }) +
-      chunk({ id: 'c1', choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: ':1}' } }] } }] }) +
+      chunk({
+        id: 'c1',
+        choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: ':1}' } }] } }]
+      }) +
       chunk({ id: 'c1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })
     const events = await readSse(convertChatStreamToGeminiSse(streamOf(body)))
     expect(events).toHaveLength(1)

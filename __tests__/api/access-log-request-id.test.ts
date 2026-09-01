@@ -36,9 +36,7 @@ describe('accessLog — x-request-id', () => {
   })
 
   test('empty caller-supplied header falls back to a fresh uuid', async () => {
-    const res = await buildApp().fetch(
-      new Request('http://local/api/whatever', { headers: { 'x-request-id': '' } })
-    )
+    const res = await buildApp().fetch(new Request('http://local/api/whatever', { headers: { 'x-request-id': '' } }))
     const id = res.headers.get('x-request-id')
     expect(id).toMatch(UUID_LIKE)
   })

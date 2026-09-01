@@ -1,15 +1,17 @@
 /**
- * パリティ・マトリクス — 行「非ストリーム集約」。
+ * Parity matrix — the "non-streaming aggregation" row.
  *
- * `stream: false` で来たのに上流が SSE しか喋らない（codex-oauth が
- * 代表例）とき、面の記述子が持つ `aggregateSse` が自分の語彙の
- * ノンストリーム封筒に畳み直す。4面すべてに専用のアグリゲータがある。
+ * When a request arrives with `stream: false` but the upstream speaks
+ * only SSE — codex-oauth being the standing example — the surface
+ * descriptor's `aggregateSse` folds the events back into a non-streaming
+ * envelope in that surface's own vocabulary. All four have a dedicated
+ * aggregator.
  *
- * openai-chat / openai-responses / gemini の畳み込み仕様そのものは
- * `__tests__/llms/sse-aggregate.test.ts` が担保しているので、ここでは
- * **記述子経由で呼んだときに面ごとの封筒が返る**ことだけを面横断で
- * 押さえる。Anthropic のアグリゲータだけはどこにも単体テストが無かった
- * ため、ブロック単位の畳み込みをここで担保する。
+ * The folding rules for openai-chat, openai-responses and gemini are
+ * covered by `__tests__/llms/sse-aggregate.test.ts`, so what is pinned
+ * across surfaces here is only that **calling through the descriptor
+ * returns each surface's envelope**. The Anthropic aggregator had no
+ * unit test anywhere, so its block-level folding is covered here.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -20,8 +22,9 @@ const sse = (body: string): Response =>
 
 const event = (payload: Record<string, unknown>): string => `data: ${JSON.stringify(payload)}\n\n`
 
-// 面ごとの「その面の語彙で書かれた最小のストリーム」と、畳んだ結果が
-// その面の封筒であることを示す指紋。
+// Per surface: the smallest stream written in that surface's own
+// vocabulary, plus a fingerprint showing the fold produced that
+// surface's envelope.
 const CASES: ReadonlyArray<{
   path: string
   stream: string
@@ -85,8 +88,8 @@ const CASES: ReadonlyArray<{
   }
 ]
 
-describe('4面すべてが自分の封筒に畳める', () => {
-  test('記述子は全面ぶん揃っている（ケース表に取りこぼしがない）', () => {
+describe('every surface folds into its own envelope', () => {
+  test('the descriptors cover every surface, so the case table misses none', () => {
     expect(CASES.map((c) => surfaceForPath(c.path)?.id).sort()).toEqual(
       INBOUND_SURFACES.map((s) => s.id)
         .slice()
@@ -95,7 +98,7 @@ describe('4面すべてが自分の封筒に畳める', () => {
   })
 
   for (const testCase of CASES) {
-    test(`${testCase.path} — 記述子の aggregateSse がその面の封筒を返す`, async () => {
+    test(`${testCase.path} — the descriptor's aggregateSse returns that surface's envelope`, async () => {
       const surface = surfaceForPath(testCase.path)
       expect(surface).toBeDefined()
       testCase.expect(await surface!.aggregateSse(sse(testCase.stream)))
@@ -103,25 +106,34 @@ describe('4面すべてが自分の封筒に畳める', () => {
   }
 })
 
-describe('anthropic-messages — ブロック単位の畳み込み', () => {
-  // Anthropic だけは「インデックス付きのブロックが開いて/差分が来て/閉じる」
-  // という構造なので、走り書きの連結では復元できない。ここが他3面と
-  // 決定的に違うところで、単体テストが無かった唯一のアグリゲータでもある。
+describe('anthropic-messages — block-level folding', () => {
+  // Anthropic alone is structured as indexed blocks that open, receive
+  // deltas and close, so naive concatenation cannot rebuild it. That is
+  // what separates it from the other three, and it is also the one
+  // aggregator that had no unit test.
   const fold = async (body: string): Promise<Record<string, unknown>> =>
     await surfaceForPath('/v1/messages')!.aggregateSse(sse(body))
 
-  test('tool_use の partial_json 断片は閉じたときに 1 つの JSON に戻る', async () => {
+  test('tool_use partial_json fragments become one JSON document on close', async () => {
     const folded = await fold(
       event({ type: 'message_start', message: { id: 'msg_t', role: 'assistant' } }) +
-        event({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'tu_1', name: 'Read' } }) +
+        event({
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'tu_1', name: 'Read' }
+        }) +
         event({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"pa' } }) +
-        event({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: 'th":"a"}' } }) +
+        event({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: 'th":"a"}' }
+        }) +
         event({ type: 'content_block_stop', index: 0 })
     )
     expect(folded.content).toEqual([{ type: 'tool_use', id: 'tu_1', name: 'Read', input: { path: 'a' } }])
   })
 
-  test('thinking の差分と署名が同じブロックに集まる', async () => {
+  test('thinking deltas and the signature collect into the same block', async () => {
     const folded = await fold(
       event({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } }) +
         event({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'weigh' } }) +
@@ -132,7 +144,7 @@ describe('anthropic-messages — ブロック単位の畳み込み', () => {
     expect(folded.content).toEqual([{ type: 'thinking', thinking: 'weighing', signature: 'sig' }])
   })
 
-  test('複数ブロックはインデックス順に並ぶ（到着順ではなく）', async () => {
+  test('multiple blocks come out in index order, not arrival order', async () => {
     const folded = await fold(
       event({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: 'second' } }) +
         event({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: 'first' } }) +
@@ -145,7 +157,7 @@ describe('anthropic-messages — ブロック単位の畳み込み', () => {
     ])
   })
 
-  test('上流がブロックの途中で切れても閉じていない分を拾う', async () => {
+  test('an upstream that cuts off mid-block still yields the unclosed content', async () => {
     const folded = await fold(
       event({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }) +
         event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'partial' } })

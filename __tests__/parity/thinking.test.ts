@@ -1,12 +1,14 @@
 /**
- * パリティ・マトリクス — 行「thinking / reasoning」。
+ * Parity matrix — the "thinking / reasoning" row.
  *
- * 要求側（クライアント → 上流）と応答側（上流 → クライアント）の
- * 両方を見る。片方だけ通る面が実際にあり、「思考を要求できるが返って
- * こない」「返るが要求できない」はどちらも別の壊れ方をする。
+ * Both directions are checked: the request (client → upstream) and the
+ * response (upstream → client). Surfaces really do carry only one of
+ * them, and "can ask for thinking but never receives it" and "receives it
+ * but cannot ask" are different failures.
  *
- * 内部表現は要求側が `reasoning: { effort }`、応答側が
- * `choices[].message.thinking.content`（Rialto 内部の拡張フィールド）。
+ * The internal representation is `reasoning: { effort }` on the request
+ * and `choices[].message.thinking.content` — a Rialto-internal extension
+ * field — on the response.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -21,7 +23,8 @@ const ctx = { req: { id: 'parity' } } as unknown as TransformerContext
 const chatJson = (payload: Record<string, unknown>): Response =>
   new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
 
-// 思考つきの chat.completion 応答。4面の応答側はすべてこれを起点にする。
+// A chat.completion response carrying thinking. Every surface's
+// response direction starts from this.
 const THINKING_COMPLETION = {
   id: 'chatcmpl-think',
   object: 'chat.completion',
@@ -36,8 +39,8 @@ const THINKING_COMPLETION = {
   ]
 }
 
-describe('anthropic-messages — 対応済み（双方向）', () => {
-  test('要求: thinking.budget_tokens が reasoning.effort になる', async () => {
+describe('anthropic-messages — supported in both directions', () => {
+  test('request: thinking.budget_tokens becomes reasoning.effort', async () => {
     const unified = await new AnthropicTransformer().transformRequestOut(
       {
         model: 'm',
@@ -51,10 +54,11 @@ describe('anthropic-messages — 対応済み（双方向）', () => {
     expect(typeof unified.reasoning?.effort).toBe('string')
   })
 
-  test('要求: type=adaptive は unified の reasoning を立てない（think レーンの選択のみ）', async () => {
-    // `adaptive` はモデル側に判断を委ねる指定で、Rialto は予算を訳せない。
-    // シナリオ分類（think レーン）には効くが unified には出ない、という
-    // 非対称は意図的なもの。
+  test('request: type=adaptive sets no unified reasoning and only selects the think lane', async () => {
+    // `adaptive` hands the decision to the model, and Rialto has no
+    // budget to translate. Counting for scenario classification (the
+    // think lane) while staying out of unified is a deliberate
+    // asymmetry.
     const unified = await new AnthropicTransformer().transformRequestOut(
       {
         model: 'm',
@@ -67,7 +71,7 @@ describe('anthropic-messages — 対応済み（双方向）', () => {
     expect(unified.reasoning).toBeUndefined()
   })
 
-  test('応答: thinking が Anthropic の thinking ブロックとして戻る', async () => {
+  test('response: thinking comes back as an Anthropic thinking block', async () => {
     const converted = await new AnthropicTransformer().transformResponseIn(chatJson(THINKING_COMPLETION), ctx)
     const body: unknown = await converted.json()
     const content = Reflect.get(Object(body), 'content')
@@ -77,13 +81,14 @@ describe('anthropic-messages — 対応済み（双方向）', () => {
     expect(thinkingBlock).toMatchObject({ type: 'thinking', thinking: 'weighing options', signature: 'sig' })
   })
 
-  test('要注意: thinking ブロックが text の後ろに置かれる（Anthropic 実機は先頭）', async () => {
-    // `convertOpenAIResponseToAnthropic` は annotation → text → tool_use →
-    // thinking の順に積む。Anthropic 本家は思考を先頭に置き、アシスタント
-    // ターンを送り返すときも thinking が先頭であることを要求する。同じ
-    // 変換を書いている gemini 側（gemini-inbound-response.ts の buildParts）は
-    // 「思考 → 本文 → ツール」と明示的に並べているので、面の間で順序が
-    // 割れている。順序を直したらこの期待値も反転させること。
+  test('caveat: the thinking block is placed after the text, where Anthropic itself puts it first', async () => {
+    // `convertOpenAIResponseToAnthropic` stacks annotation → text →
+    // tool_use → thinking. Anthropic puts thinking first, and requires it
+    // first when an assistant turn is sent back. The gemini side writing
+    // the same conversion (buildParts in gemini-inbound-response.ts)
+    // explicitly orders thinking → body → tools, so the order is forked
+    // between surfaces. Fix the order and invert this expectation with
+    // it.
     const converted = await new AnthropicTransformer().transformResponseIn(chatJson(THINKING_COMPLETION), ctx)
     const body: unknown = await converted.json()
     const content = Reflect.get(Object(body), 'content')
@@ -92,10 +97,12 @@ describe('anthropic-messages — 対応済み（双方向）', () => {
   })
 })
 
-describe('openai-chat — 部分対応', () => {
-  test('要求: 対応済み — reasoning_effort が nested reasoning.effort になる', async () => {
-    // 変換規則そのものは __tests__/llms/openai-transformer-request-out.test.ts
-    // 「reasoning_effort translation」が担保。ここでは面の担保として1点だけ。
+describe('openai-chat — partial', () => {
+  test('request: supported — reasoning_effort becomes the nested reasoning.effort', async () => {
+    // The translation rule itself is covered by "reasoning_effort
+    // translation" in
+    // __tests__/llms/openai-transformer-request-out.test.ts. This is the
+    // single surface-level check.
     const unified = await new OpenAITransformer().transformRequestOut(
       { model: 'm', messages: [{ role: 'user', content: 'hi' }], reasoning_effort: 'high' },
       ctx
@@ -103,7 +110,7 @@ describe('openai-chat — 部分対応', () => {
     expect(unified.reasoning).toEqual({ effort: 'high' })
   })
 
-  test('応答: 対応済み（非ストリーム素通し）— message.thinking がそのまま届く', async () => {
+  test('response: supported by passing a non-streaming body through — message.thinking arrives intact', async () => {
     const upstream = chatJson(THINKING_COMPLETION)
     const relayed = await new OpenAITransformer().transformResponseIn(upstream, ctx)
     const body: unknown = await relayed.json()
@@ -112,10 +119,12 @@ describe('openai-chat — 部分対応', () => {
     expect(Reflect.get(Object(message), 'thinking')).toEqual({ content: 'weighing options', signature: 'sig' })
   })
 
-  test('応答: 未対応 — 非ストリーム集約の経路では thinking の差分が捨てられる', async () => {
-    // `stream:false` のクライアントを SSE 上流が服務する経路
-    // （codex-oauth）だけ、集約が delta.thinking を読まないので思考が消える。
-    // 素通し経路では残るぶん、面の中で経路によって挙動が割れている。
+  test('response: unsupported — the non-streaming aggregation path discards the thinking deltas', async () => {
+    // Only on the path where an SSE upstream serves a `stream:false`
+    // client (codex-oauth) does the aggregation fail to read
+    // delta.thinking, and the thinking disappears. It survives on the
+    // pass-through path, so behaviour forks by path within one
+    // surface.
     const stream =
       `data: ${JSON.stringify({ id: 'c', model: 'm', choices: [{ index: 0, delta: { role: 'assistant', thinking: { content: 'weighing' } } }] })}\n\n` +
       `data: ${JSON.stringify({ id: 'c', choices: [{ index: 0, delta: { content: 'pong' }, finish_reason: 'stop' }] })}\n\n`
@@ -128,8 +137,8 @@ describe('openai-chat — 部分対応', () => {
   })
 })
 
-describe('openai-responses — 部分対応', () => {
-  test('要求: 対応済み — reasoning ブロックが unified に残る', async () => {
+describe('openai-responses — partial', () => {
+  test('request: supported — the reasoning block survives into unified', async () => {
     const unified = await new OpenAIResponsesTransformer().transformRequestOut(
       { model: 'm', input: 'hi', reasoning: { effort: 'high' } },
       ctx
@@ -137,10 +146,11 @@ describe('openai-responses — 部分対応', () => {
     expect(unified.reasoning).toEqual({ effort: 'high' })
   })
 
-  test('応答: 未対応 — Responses 封筒に reasoning の出力アイテムが作られない', async () => {
-    // `convertChatCompletionToResponses` が組み立てるのは message と
-    // function_call だけ。Responses API の `reasoning` アイテムに相当する
-    // ものが無いので、思考は封筒に載らず Codex CLI からは見えない。
+  test('response: unsupported — no reasoning output item is built in the Responses envelope', async () => {
+    // `convertChatCompletionToResponses` assembles only message and
+    // function_call. With no counterpart to the Responses API's
+    // `reasoning` item, the thinking never reaches the envelope and is
+    // invisible to the Codex CLI.
     const converted = await new OpenAIResponsesTransformer().transformResponseIn(chatJson(THINKING_COMPLETION), ctx)
     const body: unknown = await converted.json()
     const output = Reflect.get(Object(body), 'output')
@@ -150,11 +160,11 @@ describe('openai-responses — 部分対応', () => {
   })
 })
 
-describe('gemini-generate — 対応済み（双方向）', () => {
-  test('要求: thinkingBudget が reasoning.effort になる', async () => {
-    // 予算 → 段階の丸めは `/v1/messages` が Anthropic の budget_tokens に
-    // 使うのと同じ `getThinkLevel`。面によって「8192 トークンの思考」の
-    // 意味が変わってはいけない。
+describe('gemini-generate — supported in both directions', () => {
+  test('request: thinkingBudget becomes reasoning.effort', async () => {
+    // Rounding a budget to a level uses the same `getThinkLevel`
+    // /v1/messages applies to Anthropic's budget_tokens. "8192 tokens of
+    // thinking" must not mean different things on different surfaces.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -166,7 +176,7 @@ describe('gemini-generate — 対応済み（双方向）', () => {
     expect(unified.reasoning).toEqual({ enabled: true, effort: 'medium', max_tokens: 8_192 })
   })
 
-  test('要求: Gemini 3 の thinkingLevel はそのまま effort になる', async () => {
+  test("request: Gemini 3's thinkingLevel maps straight onto effort", async () => {
     const unified = await new GeminiTransformer().transformRequestOut(
       { model: 'gemini-3-pro', contents: [], generationConfig: { thinkingConfig: { thinkingLevel: 'high' } } },
       ctx
@@ -174,9 +184,10 @@ describe('gemini-generate — 対応済み（双方向）', () => {
     expect(unified.reasoning).toEqual({ enabled: true, effort: 'high' })
   })
 
-  test('要求: 未知の thinkingLevel でリクエスト全体を落とさない', async () => {
-    // Google は think レベルを増やす。厳格な enum にすると、知らない値
-    // ひとつで 500 になり会話が死ぬ。読めないフィールドは無視して通す。
+  test('request: an unknown thinkingLevel does not sink the whole request', async () => {
+    // Google adds thinking levels. A strict enum would turn one
+    // unrecognised value into a 500 and kill the conversation, so an
+    // unreadable field is ignored and the request goes on.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -188,7 +199,7 @@ describe('gemini-generate — 対応済み（双方向）', () => {
     expect(unified.reasoning).toEqual({ enabled: true })
   })
 
-  test('要求: thinkingConfig が無ければ reasoning を立てない', async () => {
+  test('request: no thinkingConfig means no reasoning', async () => {
     const unified = await new GeminiTransformer().transformRequestOut(
       { model: 'gemini-3-pro', contents: [], generationConfig: { maxOutputTokens: 64 } },
       ctx
@@ -196,20 +207,17 @@ describe('gemini-generate — 対応済み（双方向）', () => {
     expect(unified.reasoning).toBeUndefined()
   })
 
-  test('要求: 思考パートは content ではなく thinking に載る', async () => {
-    // Gemini は過去ターンのモデル思考を `thought: true` のパートとして
-    // 送り返す。これを本文に混ぜると、モデルの内心が次のプロバイダに
-    // 発話として渡る。
+  test('request: a thought part lands in thinking, not in content', async () => {
+    // Gemini sends a previous turn's model thinking back as a part with
+    // `thought: true`. Mixed into the body, the model's private
+    // reasoning would reach the next provider as speech.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
         contents: [
           {
             role: 'model',
-            parts: [
-              { text: 'weighing options', thought: true, thoughtSignature: 'sig' },
-              { text: 'pong' }
-            ]
+            parts: [{ text: 'weighing options', thought: true, thoughtSignature: 'sig' }, { text: 'pong' }]
           }
         ]
       },
@@ -222,7 +230,7 @@ describe('gemini-generate — 対応済み（双方向）', () => {
     })
   })
 
-  test('応答: 対応済み — thought: true のパートとして戻る', async () => {
+  test('response: supported — comes back as a part with thought: true', async () => {
     const converted = await new GeminiTransformer().transformResponseIn(chatJson(THINKING_COMPLETION), ctx)
     const body: unknown = await converted.json()
     const candidates = Reflect.get(Object(body), 'candidates')
@@ -233,6 +241,6 @@ describe('gemini-generate — 対応済み（双方向）', () => {
     ])
   })
 
-  // ストリーミング応答側の thought パートは
-  // __tests__/llms/gemini-inbound-response.test.ts が担保している。
+  // Thought parts on the streaming response side are covered by
+  // __tests__/llms/gemini-inbound-response.test.ts.
 })

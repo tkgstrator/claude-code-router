@@ -83,9 +83,7 @@ describe.skipIf(!HAS_DB)('upsertProvider — no cascade to sibling providers', (
     expect(openai?.apiKey).toBe('sk-openai-ROTATED')
     // Postgres collation orders `.` and `-` differently from JS; sort
     // in JS so the assertion is deterministic across host collations.
-    expect(openai?.models.map((m) => m.name).sort()).toEqual(
-      ['gpt-5-mini', 'gpt-5-nano', 'gpt-5.6-luna'].sort()
-    )
+    expect(openai?.models.map((m) => m.name).sort()).toEqual(['gpt-5-mini', 'gpt-5-nano', 'gpt-5.6-luna'].sort())
 
     // siblings intact
     const anthropic = providers.find((p) => p.name === 'anthropic')
@@ -95,7 +93,7 @@ describe.skipIf(!HAS_DB)('upsertProvider — no cascade to sibling providers', (
     expect(deepseek?.apiKey).toBe('sk-deep')
   })
 
-  test('editing a provider does not cascade-delete a sibling subscription provider\'s SubAccount rows', async () => {
+  test("editing a provider does not cascade-delete a sibling subscription provider's SubAccount rows", async () => {
     const prisma = getPrismaClient()
     // Seed openai + a subscription-shaped claude-code with a SubAccount
     // row. `applyProviders` never creates SubAccount rows itself — the
@@ -158,7 +156,7 @@ describe.skipIf(!HAS_DB)('upsertProvider — no cascade to sibling providers', (
     expect(after?.activeSubscriptionAccountId).toBe(seededAccount.id)
   })
 
-  test('editing a provider does not null RouterSlot bindings pointing at another provider\'s models', async () => {
+  test("editing a provider does not null RouterSlot bindings pointing at another provider's models", async () => {
     // Full round-trip via applyUiConfig so the RouterSlot for 'default'
     // exists and binds to anthropic's model.
     await applyUiConfig({

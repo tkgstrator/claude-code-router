@@ -2,11 +2,7 @@ import { expect, test } from 'bun:test'
 import { HTTPException } from 'hono/http-exception'
 import { prepareSubscriptionBetas } from '../../src/api/v1/subscription-betas'
 import { isLongContextGate } from '../../src/api/v1/upstream-error'
-import {
-  clearLongContextDenial,
-  isLongContextDenied,
-  markLongContextDenied
-} from '../../src/services/failover-state'
+import { clearLongContextDenial, isLongContextDenied, markLongContextDenied } from '../../src/services/failover-state'
 
 const OAUTH_BETA = 'oauth-2025-04-20'
 const CLIENT_BETAS = 'claude-code-20250219,context-1m-2025-08-07,fine-grained-tool-streaming-2025-05-14'

@@ -1,10 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  colorHex,
-  moduleMeta,
-  moveModule,
-  previewText
-} from '../../../../src/lib/rialto/settings-content/statusline'
+import { colorHex, moduleMeta, moveModule, previewText } from '../../../../src/lib/rialto/settings-content/statusline'
 import type { StatusLineModuleConfig } from '../../../../src/types'
 
 const module = (over: Partial<StatusLineModuleConfig> = {}): StatusLineModuleConfig => ({

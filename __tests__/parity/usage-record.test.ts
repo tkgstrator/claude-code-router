@@ -1,19 +1,22 @@
 /**
- * パリティ・マトリクス — 行「usage 記録 (RequestLog)」。
+ * Parity matrix — the "usage record (RequestLog)" row.
  *
- * RequestLog の1行は 2 つの独立した出所から組み立てられる:
+ * A RequestLog row is assembled from two independent sources:
  *
- *   (1) **面の帰属**  `inboundType` / `surface` 列。記述子から
- *       `resolveInvocationForModel` が押す。面ごとに違い、面ごとに壊れうる。
- *   (2) **トークン数** 上流応答の usage ブロック。`captureUsage` が
- *       **変換前の生の上流応答**のクローンから読む（provider-send.ts が
- *       `processResponseTransformers` の手前でクローンする）ので、
- *       読める語彙は**プロバイダ**の wire format で決まる。
+ *   (1) **Surface attribution** — the `inboundType` / `surface` columns,
+ *       stamped by `resolveInvocationForModel` from the descriptor.
+ *       Per-surface, and breakable per-surface.
+ *   (2) **Token counts** — the usage block on the upstream response.
+ *       `captureUsage` reads them from a clone of the **raw upstream
+ *       response, before conversion** (provider-send.ts clones ahead of
+ *       `processResponseTransformers`), so the vocabulary it can read is
+ *       decided by the **provider's** wire format.
  *
- * (2) が面の表に載るのは、面ごとに「素通しで当たる既定のプロバイダ」が
- * 決まっているから。gemini 面 → Google プロバイダの組み合わせでは上流が
- * `usageMetadata` を返し、これは `UsageBlockSchema` に無いので usage が
- * null になり、**行そのものが作られない**。
+ * (2) belongs on a surface table because each surface has a default
+ * provider it reaches when passing through. On gemini surface → Google
+ * provider the upstream returns `usageMetadata`, which is absent from
+ * `UsageBlockSchema`; usage comes back null and **no row is written at
+ * all**.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -35,7 +38,8 @@ import type { TransformerContext, UsageRecord } from '../../src/schemas/domain'
 const log = pino({ level: 'silent' })
 const provider = { name: 'p' } as ResolvedProvider
 
-// captureUsage を1回まわして、書かれた行（書かれなければ null）を返す。
+// Run captureUsage once and return the row it wrote, or null if it
+// wrote none.
 const rowFor = async (upstream: Response, context: TransformerContext): Promise<UsageRecord | null> => {
   const captured: { value: UsageRecord | null } = { value: null }
   const deps: PipelineDeps = {
@@ -55,9 +59,11 @@ const sse = (body: string): Response =>
   new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } })
 
 const ctxWithSession = (extra: Record<string, unknown> = {}): TransformerContext =>
-  ({ req: { headers: { 'x-claude-code-session-id': 'sess-1' }, model: 'm', ...extra } }) as unknown as TransformerContext
+  ({
+    req: { headers: { 'x-claude-code-session-id': 'sess-1' }, model: 'm', ...extra }
+  }) as unknown as TransformerContext
 
-// ─── (1) 面の帰属 ────────────────────────────────────────────────────
+// ─── (1) surface attribution ────────────────────────────────────────
 
 const PROVIDERS = [
   {
@@ -99,7 +105,7 @@ const planFor = (path: string): RoutePlan => ({
   search: ''
 })
 
-describe('面の帰属 — 4面すべてが自分の inboundType / surface を刻む', () => {
+describe('surface attribution — every surface stamps its own inboundType and surface', () => {
   const CASES: ReadonlyArray<[string, string, string]> = [
     ['/v1/messages', 'anthropic', 'anthropic-messages'],
     ['/v1/chat/completions', 'openai', 'openai-chat'],
@@ -116,14 +122,14 @@ describe('面の帰属 — 4面すべてが自分の inboundType / surface を�
     })
   }
 
-  test('面でないパス（/v1/models 等）は null のまま — 誤ったバケットに入れない', async () => {
+  test('a path that is not a surface (/v1/models and friends) stays null rather than landing in the wrong bucket', async () => {
     const ctx = await buildContext()
     const inv = resolveInvocationForModel(planFor('/v1/models'), 'p,m', ctx)
     expect(inv?.request.inboundType).toBeUndefined()
     expect(inv?.request.surface).toBeUndefined()
   })
 
-  test('刻んだ帰属が RequestLog の行にそのまま載る', async () => {
+  test('the stamped attribution reaches the RequestLog row unchanged', async () => {
     const row = await rowFor(
       json({ usage: { input_tokens: 10, output_tokens: 4 } }),
       ctxWithSession({ inboundType: 'gemini', surface: 'gemini-generate', requestedModel: 'gemini-3-pro' })
@@ -137,15 +143,15 @@ describe('面の帰属 — 4面すべてが自分の inboundType / surface を�
   })
 })
 
-// ─── (2) トークン数 ──────────────────────────────────────────────────
+// ─── (2) token counts ───────────────────────────────────────────────
 
-describe('トークン数 — 上流 wire format 別', () => {
-  test('anthropic（JSON）— 対応済み', async () => {
+describe('token counts, by upstream wire format', () => {
+  test('anthropic (JSON) — supported', async () => {
     const row = await rowFor(json({ usage: { input_tokens: 10, output_tokens: 4 } }), ctxWithSession())
     expect(row).toMatchObject({ inputTokens: 10, outputTokens: 4, totalInputTokens: 10 })
   })
 
-  test('anthropic（SSE）— 対応済み: message_start と message_delta が合流する', async () => {
+  test('anthropic (SSE) — supported: message_start and message_delta merge', async () => {
     const row = await rowFor(
       sse(
         `data: ${JSON.stringify({ type: 'message_start', message: { usage: { input_tokens: 10 } } })}\n\n` +
@@ -156,12 +162,12 @@ describe('トークン数 — 上流 wire format 別', () => {
     expect(row).toMatchObject({ inputTokens: 10, outputTokens: 4 })
   })
 
-  test('openai-chat（JSON）— 対応済み: prompt_tokens / completion_tokens', async () => {
+  test('openai-chat (JSON) — supported: prompt_tokens / completion_tokens', async () => {
     const row = await rowFor(json({ usage: { prompt_tokens: 20, completion_tokens: 7 } }), ctxWithSession())
     expect(row).toMatchObject({ inputTokens: 20, outputTokens: 7 })
   })
 
-  test('openai-responses（SSE）— 対応済み: response.completed の usage を読む', async () => {
+  test('openai-responses (SSE) — supported: reads the usage on response.completed', async () => {
     const row = await rowFor(
       sse(
         `data: ${JSON.stringify({ type: 'response.completed', response: { usage: { input_tokens: 30, output_tokens: 9 } } })}\n\n`
@@ -171,11 +177,12 @@ describe('トークン数 — 上流 wire format 別', () => {
     expect(row).toMatchObject({ inputTokens: 30, outputTokens: 9 })
   })
 
-  test('gemini（JSON）— 対応済み: usageMetadata を読む', async () => {
-    // Gemini は counters を `usage` ではなく応答ルートの `usageMetadata` に
-    // 置く。これが読めないと `extractUsage` が null を返し、`captureUsage` は
-    // 即 return するので RequestLog に行が 1 行も残らない —— Activity にも
-    // 料金にも Gemini のトラフィックが一切出てこない状態になっていた。
+  test('gemini (JSON) — supported: reads usageMetadata', async () => {
+    // Gemini puts its counters in `usageMetadata` at the response root
+    // rather than under `usage`. Unread, `extractUsage` returns null,
+    // `captureUsage` returns immediately, and not one RequestLog row is
+    // written — which is why Gemini traffic appeared in neither Activity
+    // nor the cost figures.
     const row = await rowFor(
       json({
         candidates: [],
@@ -186,8 +193,8 @@ describe('トークン数 — 上流 wire format 別', () => {
     expect(row).toMatchObject({ inputTokens: 30, outputTokens: 9, totalInputTokens: 30 })
   })
 
-  test('gemini（SSE）— 対応済み: チャンクの usageMetadata を拾う', async () => {
-    // 累積値なので最後に見たものが勝つ。
+  test('gemini (SSE) — supported: picks up usageMetadata from the chunks', async () => {
+    // The values are cumulative, so the last one seen wins.
     const row = await rowFor(
       sse(
         `data: ${JSON.stringify({ candidates: [], usageMetadata: { promptTokenCount: 30 } })}\n\n` +

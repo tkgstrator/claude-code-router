@@ -1,15 +1,16 @@
 /**
- * パリティ・マトリクス — 行「failover / 429」。
+ * Parity matrix — the "failover / 429" row.
  *
- * この行は 4 面で**同一の実装**が動く。チェーンの構築
- * （`buildFailoverChain`）も 429 の判定（`isRateLimited` /
- * `isInsufficientQuota`）もアカウント回転も、面を一切見ていない。
- * 面によって変わるのは、失敗を返すときの封筒だけ。
+ * **One implementation** serves all four surfaces here. Building the
+ * chain (`buildFailoverChain`), classifying a 429 (`isRateLimited` /
+ * `isInsufficientQuota`) and rotating accounts never look at the
+ * surface. The only thing that varies is the envelope the failure comes
+ * back in.
  *
- * したがってこの行の担保は「面ごとに別々に動くこと」ではなく
- * **「面によって差が出ないこと」**の証明になる。差が出うる唯一の点
- * ——ルーティングが有効な面でしかフォールバック先が解決されない——は
- * `__tests__/parity/routing-mode.test.ts` が担保する。
+ * So this row is backed not by "each surface works separately" but by
+ * **"no surface differs"**. The one place they could — a fallback is
+ * only resolved on a surface where routing is on — is covered by
+ * `__tests__/parity/routing-mode.test.ts`.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -80,23 +81,24 @@ const planFor = (path: string, fallbacks: readonly string[]): RoutePlan => ({
 const upstream429 = (rawBody: string): HTTPException =>
   new HTTPException(429 as never, { message: `Error from provider(sub,fable: 429): ${rawBody}` })
 
-describe('チェーン構築は面に依存しない', () => {
-  test('同じ計画なら 4 面すべてで同じ候補列になる', () => {
+describe('building the chain does not depend on the surface', () => {
+  test('the same plan yields the same candidate list on all four', () => {
     const ctx = buildLlmsContext()
     const chains = SURFACE_PATHS.map((path) => buildFailoverChain(planFor(path, ['sub,opus']), ctx))
     for (const chain of chains) expect(chain).toEqual(['sub,fable', 'sub,opus'])
   })
 
-  test('auth_mode ゲートも面に依存しない（無料枠 → 従量課金への滑落を止める）', () => {
-    // subscription を primary にした要求は、429 のたびに api_key
-    // プロバイダへ落ちてはいけない。この判断はどの面から来た要求でも同じ。
+  test('the auth_mode gate is surface-independent too, stopping a slide from subscription onto metered billing', () => {
+    // A request whose primary is a subscription must not fall through to
+    // an api_key provider on every 429. That call is the same wherever
+    // the request came in.
     const ctx = buildLlmsContext()
     for (const path of SURFACE_PATHS) {
       expect(buildFailoverChain(planFor(path, ['paid,opus']), ctx)).toEqual(['sub,fable'])
     }
   })
 
-  test('同一プロバイダの別モデルへの退避は残る（fable → opus）', () => {
+  test('falling back to another model on the same provider is kept (fable → opus)', () => {
     const ctx = buildLlmsContext()
     expect(buildFailoverChain(planFor('/v1/messages', ['sub,opus', 'sub,fable']), ctx)).toEqual([
       'sub,fable',
@@ -105,27 +107,27 @@ describe('チェーン構築は面に依存しない', () => {
   })
 })
 
-describe('429 の判定は面に依存しない', () => {
-  test('429 はフェイルオーバー対象', () => {
+describe('classifying a 429 does not depend on the surface', () => {
+  test('a 429 is a failover', () => {
     expect(isRateLimited(upstream429('{"type":"error"}'))).toBe(true)
   })
 
-  test('400 / 401 はフェイルオーバーしない（本当の問題を隠さない）', () => {
+  test('400 and 401 do not fail over, so a real problem is not hidden', () => {
     expect(isRateLimited(new HTTPException(400 as never, { message: 'Error from provider(p,m: 400): x' }))).toBe(false)
     expect(isRateLimited(new HTTPException(401 as never, { message: 'Error from provider(p,m: 401): x' }))).toBe(false)
   })
 
-  test('insufficient_quota は恒久的な上限としてプロバイダごと切り離される', () => {
+  test('insufficient_quota is a permanent limit and detaches the whole provider', () => {
     const err = upstream429(JSON.stringify({ error: { type: 'insufficient_quota', message: 'quota' } }))
     expect(isRateLimited(err)).toBe(true)
     expect(isInsufficientQuota(err)).toBe(true)
   })
 })
 
-describe('チェーンを使い切ったときの 429 は面の封筒で返る', () => {
+describe('a 429 after the chain is exhausted comes back in the surface envelope', () => {
   const RATE_LIMIT_BODY = JSON.stringify({ type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } })
 
-  test('各面が自分の SDK の読める形で 429 を受け取る', async () => {
+  test('each surface receives the 429 in a shape its own SDK can read', async () => {
     const bodies = await Promise.all(
       SURFACE_PATHS.map(async (path) => {
         const forwarded = forwardUpstreamError(upstream429(RATE_LIMIT_BODY), errorShapeForPath(path), 'sub')

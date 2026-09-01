@@ -8,8 +8,7 @@
  * boot mistakes for a finished one.
  */
 import { afterEach, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { chmodSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HOME_DIR_NAME, LEGACY_HOME_DIR_NAME, migrateHomeDir } from '../../../src/services/config/migrate-home-dir'
