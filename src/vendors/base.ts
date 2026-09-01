@@ -74,12 +74,41 @@ const extractModelIds = (data: VendorModelsResponse): string[] | null => {
   return null
 }
 
+/**
+ * How the catalog call proves who it is.
+ *
+ * `api_key` is the vendor's own scheme, chosen per vendor by
+ * `modelsAuth`. `subscription` is a Claude Code / Codex OAuth access
+ * token, which Anthropic accepts on the same endpoint but only as a
+ * bearer carrying the oauth beta — an `x-api-key` bearing an OAuth token
+ * is rejected. Without this a subscription provider could never read its
+ * own catalog, which is why every Claude model but the four on the docs
+ * comparison table had a null context window: the figure is published on
+ * `/v1/models` as `max_input_tokens`, and nothing could authenticate to
+ * go and read it.
+ */
+export type ModelsCredential = { kind: 'api_key'; key: string } | { kind: 'subscription'; accessToken: string }
+
+const OAUTH_BETA = 'oauth-2025-04-20'
+
 const buildAuthedRequest = (
   auth: ModelsAuth,
-  apiKey: string,
+  credential: ModelsCredential,
   url: string
 ): { url: string; headers: Record<string, string> } => {
   const base: Record<string, string> = { Accept: 'application/json' }
+  if (credential.kind === 'subscription') {
+    return {
+      url,
+      headers: {
+        ...base,
+        Authorization: `Bearer ${credential.accessToken}`,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': OAUTH_BETA
+      }
+    }
+  }
+  const apiKey = credential.key
   if (auth === 'bearer') return { url, headers: { ...base, Authorization: `Bearer ${apiKey}` } }
   if (auth === 'x-api-key') {
     return { url, headers: { ...base, 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' } }
@@ -112,7 +141,7 @@ export abstract class VendorProvider {
    * present) are omitted rather than reported; the caller only updates
    * rows the vendor confirmed a value for.
    */
-  async fetchContextWindows(ids: readonly string[], apiKey?: string): Promise<Map<string, number>> {
+  async fetchContextWindows(ids: readonly string[], credential?: ModelsCredential): Promise<Map<string, number>> {
     // Default source is the vendor's own catalog endpoint, because some
     // vendors publish the limit right there — Google's ListModels returns
     // `inputTokenLimit` on every model, and discarding it was why every
@@ -120,8 +149,8 @@ export abstract class VendorProvider {
     // answering the question all along. Vendors whose catalog omits it
     // (OpenAI) override this with a docs-scraping implementation.
     if (this.modelsEndpoint === null || this.modelsAuth === null) return new Map()
-    if (apiKey === undefined || apiKey.trim() === '') return new Map()
-    const { url, headers } = buildAuthedRequest(this.modelsAuth, apiKey, this.modelsEndpoint)
+    if (credential === undefined) return new Map()
+    const { url, headers } = buildAuthedRequest(this.modelsAuth, credential, this.modelsEndpoint)
     const res = await fetch(url, { headers }).catch(() => null)
     if (res === null || !res.ok) return new Map()
     const body: unknown = await res.json().catch(() => null)
@@ -143,7 +172,7 @@ export abstract class VendorProvider {
     if (this.modelsEndpoint === null || this.modelsAuth === null) {
       return { error: 'no models endpoint configured for this vendor' }
     }
-    const { url, headers } = buildAuthedRequest(this.modelsAuth, apiKey, this.modelsEndpoint)
+    const { url, headers } = buildAuthedRequest(this.modelsAuth, { kind: 'api_key', key: apiKey }, this.modelsEndpoint)
     const res = await fetch(url, { headers })
     if (!res.ok) return { error: `${this.vendor} returned HTTP ${res.status}` }
     const parsed = VendorModelsResponseSchema.safeParse(await res.json())
