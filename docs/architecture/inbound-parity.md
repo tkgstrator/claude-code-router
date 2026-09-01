@@ -60,7 +60,8 @@ Rialto は 4 つの受け口（[inbound surface](./inbound-surfaces.md)）を 1 
 | failover / 429 | `__tests__/parity/failover-429.test.ts`、`__tests__/parity/routing-mode.test.ts` |
 
 面そのもの（記述子・パス解決・集約関数の割り当て）は `__tests__/llms/inbound-surfaces.test.ts` と
-`__tests__/api/route-plan.test.ts` が担保している。gemini 列の未対応が単一の原因に帰着することは
+`__tests__/api/route-plan.test.ts` が担保している。gemini 列の欠落が単一の原因
+（`contents[]` 変換の破綻）に帰着していたことと、その修正後の `contents[]` の全形は
 `__tests__/parity/gemini-request-conversion.test.ts` が固定している。
 
 ## セル注記
@@ -72,32 +73,55 @@ Rialto は 4 つの受け口（[inbound surface](./inbound-surfaces.md)）を 1 
 組み直す。イベント列は本物と同じ順序で出るのでワイヤ契約は満たすが、最初の `output_text.delta` が
 出るのは上流の完了後 —— つまり TTFT が失われる。Chat → Responses の境界を逐次で通す実装が要る。
 
-### (2) gemini × tool use —— 宣言だけ通り、呼び出しと結果が落ちる
+### (2) gemini × tool use —— **修正済み**（2026-09-01）
 
-`tools[].functionDeclarations` は unified のツール定義に変換される。落ちるのは、
-`contents[]` に載る `functionCall`（アシスタントの呼び出し）と `functionResponse`（ツールの返り値）。
-原因は (3)(4) と同じ `contents[]` 変換の破綻。**1 往復目は動いてツール結果を返す 2 往復目で
-会話が空になる**ので、宣言だけ見ていると気づけない壊れ方をする。
+`tools[].functionDeclarations` は元から通っていた。落ちていたのは `contents[]` に載る
+`functionCall`（アシスタントの呼び出し）と `functionResponse`（ツールの返り値）で、原因は
+(3)(4) と同じ `contents[]` 変換の破綻（下の「共通原因」）。**1 往復目は動いてツール結果を返す
+2 往復目で会話が空になる**ので、宣言だけ見ていると気づけない壊れ方だった。
 
-`toolConfig.functionCallingConfig`（Gemini の呼び出しモード指定）も読まれない。
-`GeminiInboundRequestSchema` が宣言しているのは OpenAI 語彙の `tool_choice` で、
-Gemini クライアントが実際に送るキーではない。
+現在は `functionCall` が unified の `tool_calls`、`functionResponse` が `role: 'tool'` の
+メッセージになる。Gemini は結果をユーザーターンにまとめて詰めるが unified は
+OpenAI 流に 1 結果 = 1 メッセージなので、`contents[]` の 1 エントリが複数メッセージを産む。
 
-### (3) gemini × system プロンプト —— `systemInstruction` を読んでいない
+**id の合成規則**が要点。Gemini の `functionResponse` は id を持たないのが普通なので、
+関数名と到着順で呼び出しに突き合わせ、`gemini_call_<name>_<n>` を合成する。採番カウンタは
+減らないので、同名ツールを 2 回呼んでも 2 回目の結果が 1 回目に紐づくことはない
+（`__tests__/parity/tool-use.test.ts`「同名ツールの複数呼び出し」）。呼び出しの見つからない
+結果は `gemini_call_<name>_orphan` になる —— クライアントが古いターンを削るのは合法なので、
+捨てずに宛先を与えている。
 
-`GeminiInboundRequestSchema`（`src/schemas/wire/gemini/content.ts`）に `systemInstruction` の宣言が無く、
-`transformRequestOut`（`src/llms/utils/gemini-request.ts`）も読まない。よって gemini 面を
-非 Gemini プロバイダへルーティングすると system プロンプトが消える。エラーにならないぶん質が悪い。
+`toolConfig.functionCallingConfig` も読むようになった（`buildToolConfig` のちょうど逆写像）。
+`ANY` + `allowedFunctionNames` が 1 件なら OpenAI 語彙の function 指定、複数なら `required`。
+ワイヤ上の大文字（`AUTO` / `ANY` / `NONE`）と自前の outbound が出す小文字の両方を受ける。
 
-### (4) gemini × 画像入力 —— `inlineData` / `file_data` を読んでいない
+### (3) gemini × system プロンプト —— **修正済み**（2026-09-01）
 
-`GeminiInboundPartSchema` が宣言しているのは `text` だけ。画像パートは変換前に落ちる。
+`GeminiInboundRequestSchema`（`src/schemas/wire/gemini/content.ts`）が `systemInstruction`
+（と snake_case の `system_instruction`）を宣言し、`transformRequestOut` が unified の
+`role: 'system'` メッセージへ写す。**contents[] より前に積む**ので、system を先頭でしか
+受けないプロバイダでも効く。
 
-### (2)(3)(4) の共通原因 —— `contents[]` 変換が本文ごと落としている
+複数パートは改行で連結して**素の文字列**にする。他の 3 面の system も文字列なので、
+gemini だけブロック配列にすると面によって形が割れる。
 
-gemini 列が横並びで欠けているのは、機能ごとの取りこぼしではなく**単一のバグ**である。
+### (4) gemini × 画像入力 —— **修正済み**（2026-09-01）
 
-`GeminiInboundContentObjectSchema` が `text: z.string().default('')` を宣言しているため、
+`GeminiInboundPartSchema` が `inlineData` / `fileData` を宣言し、unified の
+`image_url` ブロックに写す。inlineData は `data:<mime>;base64,<payload>` に組み直す ——
+`request-content.ts` の `buildImagePart` がカンマで割って base64 に戻すので、
+gemini → gemini の往復で元の形に返る。`media_type` も残す（Anthropic outbound が
+`source.media_type` を組むのに要る）。
+
+Google の JSON マッピングは camelCase と proto の snake_case を両方受けるので、
+`inlineData.mimeType` / `inline_data.mime_type`、`fileData.fileUri` / `file_data.file_uri` の
+どちらの綴りでも読む。片方しか読まないと、クライアントの実装次第で画像が消える。
+
+### (2)(3)(4)(8) の共通原因 —— `contents[]` 変換が本文ごと落としていた（修正済み）
+
+gemini 列が横並びで欠けていたのは、機能ごとの取りこぼしではなく**単一のバグ**だった。
+
+`GeminiInboundContentObjectSchema` が `text: z.string().default('')` を宣言していたため、
 `inboundContentToMessage`（`src/llms/utils/gemini-request.ts`）の
 
 ```ts
@@ -107,18 +131,28 @@ if (typeof content.text === 'string') {
 ```
 
 が**常に真**になり、その下にある `role === 'user'` / `role === 'model'` の `parts` 分岐に
-決して到達しない。結果、Gemini の正規ワイヤ形式
+決して到達しなかった。結果、Gemini の正規ワイヤ形式
 
 ```json
 { "contents": [{ "role": "user", "parts": [{ "text": "hello" }] }] }
 ```
 
-は `[{ role: 'user', content: null }]` になる —— **本文が消え、`model` ロールは `user` に潰れる**。
-`generationConfig.maxOutputTokens` / `temperature` / `thinkingConfig` も同様に、スキーマが
-OpenAI 語彙（`max_tokens` / `temperature`）しか宣言していないので読まれない。
+が `[{ role: 'user', content: null }]` になる —— **本文が消え、`model` ロールは `user` に潰れる**。
 
-バイパス経路（gemini 面 → Google プロバイダ）はこの変換を通らないので影響しない。
-**gemini 面を `routed` にした瞬間に壊れる**、という形の未対応である。
+修正は 2 段構え。`text` の `.default('')` を外して本当に省略可能にし、さらに分岐順を
+**「parts があれば parts → 無ければ text → どちらも無ければ捨てる」**に直した。片方だけだと、
+レガシーな `{ text }` 形と正規形のどちらかがまた黙って落ちる。あわせて `role` の省略を
+`user` 扱いにした —— Gemini API では role は省略可で、以前はそのエントリを丸ごと捨てていた。
+
+inbound 側の変換は `src/llms/utils/gemini/inbound-request.ts` に分離してある
+（outbound の `request-content.ts` / `request-config.ts` と対になる）。
+
+`generationConfig.maxOutputTokens` / `temperature` / `thinkingConfig` も読むようになった。
+`generationConfig.temperature` の `0` が既定値に化けないことは明示的にテストしてある ——
+`||` で書くと落ちる値で、決定論的な出力を求めるクライアントが必ず送る。
+
+バイパス経路（gemini 面 → Google プロバイダ）はこの変換を通らないので、元から影響は無かった。
+**gemini 面を `routed` にした瞬間に壊れる**、という形の未対応だったということ。
 
 ### (5) messages × thinking —— 対応済み、ただしブロック順が本家と逆
 
@@ -145,10 +179,24 @@ annotation → text → tool_use → **thinking** の順に積む。Anthropic �
 組み立てるのは `message` と `function_call` のアイテムだけ。Responses API 本家が返す
 `reasoning` アイテムに相当するものが無いので、Codex CLI からは思考が見えない。
 
-### (8) gemini × thinking —— 応答は通るが要求できない
+### (8) gemini × thinking —— **修正済み**（2026-09-01）
 
-応答側は `thought: true` のパートとして正しく戻る（順序も本家どおり思考が先）。
-要求側の `generationConfig.thinkingConfig` が読まれない（(4) の共通原因）。
+応答側は元から `thought: true` のパートとして正しく戻っていた（順序も本家どおり思考が先）。
+要求側の `generationConfig.thinkingConfig` が読まれていなかったのが欠けていた半分で、
+これは上の「共通原因」に含まれる。
+
+現在は `thinkingLevel`（Gemini 3）をそのまま `reasoning.effort` に、旧モデルの
+`thinkingBudget` は `getThinkLevel` で段階に丸める。**この丸めは `/v1/messages` が
+Anthropic の `budget_tokens` に使うのと同じ関数**である —— 面によって「8192 トークンの思考」の
+意味が変わってはいけない。`thinkingBudget` は `reasoning.max_tokens` にも残すので、
+`buildGenerationConfig`（outbound）を通した往復で予算が戻る。
+
+`thinkingLevel` は enum ではなく文字列として読む。Google は think レベルを増やすので、
+厳格な enum にすると知らない値ひとつでリクエスト全体が 500 になる。読めない値は
+`includeThoughts` だけを見て `reasoning: { enabled: true }` に落とす。
+
+過去ターンの `thought: true` パートは `content` ではなく unified の `thinking` フィールドに
+載せる。本文に混ぜると、モデルの内心が次のプロバイダに**ユーザーの発話として**渡る。
 
 ### (9) gemini × usage 記録 —— **修正済み**（2026-09-01）
 
@@ -273,8 +321,9 @@ Codex CLI 側のキャッシュ表示は常に 0 になる。
 ## 未対応セルを直すときの手順
 
 未対応セルのテストは、**現在の（壊れた）挙動を固定する**書き方になっている
-（例: `expect(unified.messages).toEqual([{ role: 'user', content: null }])`）。
+（例: 注記 (6) の `expect(Reflect.get(Object(choices[0].message), 'thinking')).toBeUndefined()`）。
 これは意図的で、実装を直すとテストが落ち、この文書の更新を強制する。
+実際 2026-09-01 の gemini 列の修正は、この仕掛けどおり 8 本のテストを落として始まった。
 
 1. 実装を直す（`src/` 側）
 2. 該当セルのテストの期待値を反転させる（`__tests__/parity/`）

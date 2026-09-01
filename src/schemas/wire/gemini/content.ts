@@ -136,7 +136,6 @@ const GeminiInboundBlobSchema = z
     data: z.string().nonempty().optional()
   })
   .loose()
-export type GeminiInboundBlob = z.infer<typeof GeminiInboundBlobSchema>
 
 const GeminiInboundFileRefSchema = z
   .object({
@@ -146,7 +145,6 @@ const GeminiInboundFileRefSchema = z
     file_uri: z.string().nonempty().optional()
   })
   .loose()
-export type GeminiInboundFileRef = z.infer<typeof GeminiInboundFileRefSchema>
 
 const GeminiInboundFunctionCallSchema = z
   .object({

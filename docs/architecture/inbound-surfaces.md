@@ -194,7 +194,11 @@ DBマイグレーションは不要（`InboundSurfaceConfig` は行が無けれ�
 
 ## 関連
 
-- `docs/architecture/request-flow.md` — この後段の chain / failover
+- [`docs/architecture/inbound-parity.md`](./inbound-parity.md) — **面 × 機能のパリティ表**。
+  記述子を足せば面は増えるが、増えた面がどこまで実際に動くかは記述子の外側（変換層）で決まる。
+  その実態と、未対応セルの理由・担保テストはあちら。
+- [`docs/architecture/request-flow.md`](./request-flow.md) — この後段の chain / failover
+- [`docs/architecture/pipeline-overview.md`](./pipeline-overview.md) — 起動から応答整形までの通し動線
 - `docs/plan/rialto/master-plan.md` §4.1, §4.2 — 設計の経緯
 
 ## 実装状況（Phase 5 時点）
