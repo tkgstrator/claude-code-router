@@ -10,6 +10,7 @@ import type { TFunction } from 'i18next'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
 import { refreshPrices, removeProvider, saveApiKey, syncModels, testModels, toggleModel } from './actions'
@@ -62,12 +63,21 @@ export function ProvidersScreen() {
   // Every mutation is a write-then-reread: the server derives model rows,
   // prices and test status, so the response body is never the whole truth
   // about what changed.
+  //
+  // The catch is not optional. Without it a failed action rejects into
+  // nothing — the spinner stops, the screen re-reads unchanged data, and a
+  // refresh that never reached the vendor looks exactly like one that did.
+  // Several of these actions (price scrape, model sync) also produce no
+  // visible change on a install with no providers even when they succeed,
+  // so silence cannot be read as success here.
   const run = useCallback(
     async (work: () => Promise<void>) => {
       setBusy(true)
       try {
         await work()
         await reload()
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : String(err))
       } finally {
         setBusy(false)
       }
