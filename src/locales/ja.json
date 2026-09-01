@@ -213,7 +213,8 @@
       "copyTarget": "{{target}} をコピー",
       "noSurfaces": "受信サーフェスが設定されていません。",
       "liveMap": "ライブマップ",
-      "passthroughNote": "このサーフェスを <mono>Routed</mono> に切り替えると、Claude Code と同じクォータ考慮のフェイルオーバーを {{client}} にも適用できます。呼び出し元は今までどおり自分のモデル名を送れます。それが最終ターゲットではなく、ルールの照合対象となる <mono>requestedModel</mono> として扱われるようになります。"
+      "passthroughNote": "このサーフェスを <mono>Routed</mono> に切り替えると、Claude Code と同じクォータ考慮のフェイルオーバーを {{client}} にも適用できます。呼び出し元は今までどおり自分のモデル名を送れます。それが最終ターゲットではなく、ルールの照合対象となる <mono>requestedModel</mono> として扱われるようになります。",
+      "schedulerIdle": "ルーティングスケジューラは quota-aware モードでのみ動くため、以下の State はすべて <mono>unknown</mono> になります。実際の状態を見るには Settings で <mono>ROUTER_MODE</mono> を <mono>quota-aware</mono> にしてください。"
     },
     "map": {
       "title": "ルーティングマップ",

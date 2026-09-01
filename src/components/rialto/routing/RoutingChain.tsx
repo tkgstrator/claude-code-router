@@ -21,7 +21,7 @@ import { AddTargetDialog } from './AddTargetDialog'
 import { ChainRail } from './ChainRail'
 import { ChainTable } from './ChainTable'
 import { useEnabledTargets, usePreferences, useProfiles, useScheduler, useSurfaces } from './data'
-import { profileEntryCount, weightIndex } from './derive'
+import { profileEntryCount, schedulerRuns, weightIndex } from './derive'
 import { PassthroughPanel } from './PassthroughPanel'
 import { SurfaceTabs } from './RoutingTabs'
 import { Segmented, SurfaceModeBar } from './SurfaceModeBar'
@@ -211,9 +211,31 @@ const subtitleFor = (surface: InboundSurfaceWire, t: TFunction): string =>
     ? t('routing.chain.subtitleRouted')
     : t('routing.chain.subtitlePassthrough', { path: surface.path })
 
+/**
+ * Why every State column reads `unknown`.
+ *
+ * The states come from the scheduler's published weights, and the
+ * scheduler only ticks for quota-aware selection. Under `scenario` it
+ * never publishes, so the column is permanently `unknown` — which looks
+ * like a screen full of unhealthy targets rather than a feature that is
+ * switched off. Naming the setting, and where to change it, is the whole
+ * point: an operator who wanted live states can act on this.
+ */
+function SchedulerIdleNote() {
+  return (
+    <div className='px-6 pt-5'>
+      <div className='rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground'>
+        <i className='ri-information-line mr-1 align-[-1px]' />
+        <Trans i18nKey='routing.chain.schedulerIdle' components={{ mono: <span className='font-mono' /> }} />
+      </div>
+    </div>
+  )
+}
+
 export function RoutingChain() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { config } = useConfig()
   const { surfaces, loading, error, setMode, setProfile: setSurfaceProfile } = useSurfaces()
   const profiles = useProfiles()
   const { snapshot: scheduler } = useScheduler()
@@ -227,6 +249,10 @@ export function RoutingChain() {
 
   const { profile, setProfile, dirty, save } = usePreferences(surface === undefined ? null : surface.profileKey)
   const weights = useMemo(() => weightIndex(scheduler), [scheduler])
+  // Read from the mode rather than from an empty snapshot: a cold boot in
+  // quota-aware mode also has no weights yet, and that one resolves on its
+  // own within a tick. Only the mode makes it permanent.
+  const schedulerIdle = !schedulerRuns(config?.ROUTER_MODE, config?.ROUTER_SHADOW)
 
   const notify = useCallback((text: string, ok: boolean) => {
     if (ok) toast.success(text)
@@ -304,6 +330,7 @@ export function RoutingChain() {
         <>
           <SurfaceTabs surfaces={surfaces} active={surface.id} onSelect={selectSurface} />
           <SurfaceModeBar surface={surface} profiles={profiles} onMode={onMode} onProfile={onProfile} />
+          {schedulerIdle ? <SchedulerIdleNote /> : null}
           {surface.routingMode === 'routed' ? (
             <RoutedBody
               surface={surface}

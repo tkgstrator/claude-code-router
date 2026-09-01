@@ -213,7 +213,8 @@
       "copyTarget": "Copy {{target}}",
       "noSurfaces": "No inbound surfaces are configured.",
       "liveMap": "Live map",
-      "passthroughNote": "Switch this surface to <mono>Routed</mono> to give {{client}} the same quota-aware failover Claude Code gets. Callers keep sending their own model string — it becomes the <mono>requestedModel</mono> that rules match on, rather than the final target."
+      "passthroughNote": "Switch this surface to <mono>Routed</mono> to give {{client}} the same quota-aware failover Claude Code gets. Callers keep sending their own model string — it becomes the <mono>requestedModel</mono> that rules match on, rather than the final target.",
+      "schedulerIdle": "The routing scheduler only runs in quota-aware mode, so every target below reads <mono>unknown</mono>. Set <mono>ROUTER_MODE</mono> to <mono>quota-aware</mono> in Settings to see live states."
     },
     "map": {
       "title": "Routing map",
