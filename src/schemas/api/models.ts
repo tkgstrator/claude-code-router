@@ -87,7 +87,27 @@ export const UpdateModelErrorResponseSchema = z
 // (description, capabilities, …) is ignored.
 export const VendorModelsResponseSchema = z
   .object({
-    data: z.array(z.object({ id: z.string().nonempty().optional() })).optional(),
-    models: z.array(z.object({ name: z.string().nonempty().optional() })).optional()
+    // OpenAI shape. `context_window` is not part of OpenAI's own catalog
+    // response, but several OpenAI-compatible vendors add it, and reading
+    // it costs nothing when it is absent.
+    data: z
+      .array(
+        z.object({
+          id: z.string().nonempty().optional(),
+          context_window: z.number().int().positive().optional()
+        })
+      )
+      .optional(),
+    // Google shape. `inputTokenLimit` is the context window, published
+    // per model — the only first-party source for it, since the pricing
+    // page carries it for a handful of models at most.
+    models: z
+      .array(
+        z.object({
+          name: z.string().nonempty().optional(),
+          inputTokenLimit: z.number().int().positive().optional()
+        })
+      )
+      .optional()
   })
   .loose()

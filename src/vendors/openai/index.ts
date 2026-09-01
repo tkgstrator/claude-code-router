@@ -167,7 +167,10 @@ export class OpenAIProvider extends VendorProvider {
   // refreshOneProvider so every DB row (including Codex subscription
   // ids like `gpt-5.6-*` that never appear on the pricing table) gets
   // its context refreshed against the vendor's own docs.
-  async fetchContextWindows(ids: readonly string[]): Promise<Map<string, number>> {
+  // `apiKey` is accepted to match the base signature and deliberately
+  // unused: OpenAI's catalog endpoint does not publish the context
+  // window, so this reads the per-model docs pages instead.
+  async fetchContextWindows(ids: readonly string[], _apiKey?: string): Promise<Map<string, number>> {
     const out = new Map<string, number>()
     const queue = [...ids]
     const worker = async (): Promise<void> => {

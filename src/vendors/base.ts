@@ -37,6 +37,29 @@ export type ModelsAuth = 'bearer' | 'x-api-key' | 'google-key-param'
 
 type VendorModelsResponse = z.infer<typeof VendorModelsResponseSchema>
 
+/**
+ * Context window per model id, from whatever the catalog response
+ * published. Google's ListModels carries `inputTokenLimit` on every
+ * entry; OpenAI's does not, and OpenAI-compatible vendors that add
+ * `context_window` are read on the same pass. Ids the response did not
+ * describe are simply absent — the caller only writes what a vendor
+ * confirmed.
+ */
+const extractContextWindows = (data: VendorModelsResponse): Map<string, number> => {
+  const out = new Map<string, number>()
+  for (const m of data.data === undefined ? [] : data.data) {
+    if (typeof m.id === 'string' && m.id.length > 0 && m.context_window !== undefined) {
+      out.set(m.id, m.context_window)
+    }
+  }
+  for (const m of data.models === undefined ? [] : data.models) {
+    if (typeof m.name === 'string' && m.name.length > 0 && m.inputTokenLimit !== undefined) {
+      out.set(m.name.replace(/^models\//, ''), m.inputTokenLimit)
+    }
+  }
+  return out
+}
+
 const extractModelIds = (data: VendorModelsResponse): string[] | null => {
   if (Array.isArray(data.data)) {
     return data.data.flatMap((m) => (typeof m.id === 'string' && m.id.length > 0 ? [m.id] : []))
@@ -88,8 +111,25 @@ export abstract class VendorProvider {
    * present) are omitted rather than reported; the caller only updates
    * rows the vendor confirmed a value for.
    */
-  async fetchContextWindows(_ids: readonly string[]): Promise<Map<string, number>> {
-    return new Map()
+  async fetchContextWindows(ids: readonly string[], apiKey?: string): Promise<Map<string, number>> {
+    // Default source is the vendor's own catalog endpoint, because some
+    // vendors publish the limit right there — Google's ListModels returns
+    // `inputTokenLimit` on every model, and discarding it was why every
+    // Gemini row carried a null context window while the vendor had been
+    // answering the question all along. Vendors whose catalog omits it
+    // (OpenAI) override this with a docs-scraping implementation.
+    if (this.modelsEndpoint === null || this.modelsAuth === null) return new Map()
+    if (apiKey === undefined || apiKey.trim() === '') return new Map()
+    const { url, headers } = buildAuthedRequest(this.modelsAuth, apiKey, this.modelsEndpoint)
+    const res = await fetch(url, { headers }).catch(() => null)
+    if (res === null || !res.ok) return new Map()
+    const body: unknown = await res.json().catch(() => null)
+    const parsed = VendorModelsResponseSchema.safeParse(body)
+    if (!parsed.success) return new Map()
+    const published = extractContextWindows(parsed.data)
+    // Only answer for ids the caller actually holds rows for.
+    const wanted = new Set(ids)
+    return new Map([...published].filter(([id]) => wanted.has(id)))
   }
 
   /**
