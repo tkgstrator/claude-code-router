@@ -16,8 +16,8 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 import { GeminiTransformer } from '../../src/llms/transformers/gemini'
+import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 
 const provider = (apiBaseUrl: string): RuntimeProvider =>
   ({

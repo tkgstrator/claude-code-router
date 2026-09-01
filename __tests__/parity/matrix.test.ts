@@ -1,29 +1,33 @@
 /**
- * パリティ・マトリクスそのものの検査。
+ * Checks on the parity matrix itself.
  *
- * master-plan §2-5 の完了条件は「全セルに対応済み / 未対応（理由付き）の
- * ラベルとテストがある」こと。**空白セルの洗い出しが成果物**である以上、
- * 表の側にも「空欄を作れない」保証が要る —— でなければ面を1つ足したとき、
- * 列が1つ足りない表が静かに残る。
+ * master-plan §2-5 is done when every cell carries a label — supported,
+ * or unsupported with a reason — and a test. Since **the deliverable is
+ * finding the blank cells**, the table needs its own guarantee that a
+ * blank cannot exist: otherwise adding a surface quietly leaves a table
+ * one column short.
  *
- * ここでは docs/architecture/inbound-parity.md を実際に読み、
- *   - 面の列が記述子レジストリと一致しているか
- *   - 機能の行が 10 行そろっているか
- *   - すべてのセルが 3 種類のラベルのどれかで埋まっているか
- *   - 未対応 / 部分対応のセルが実在する注記を指しているか
- *   - 各行が実在するテストファイルを担保として挙げているか
- * を検査する。
+ * This reads docs/architecture/inbound-parity.md and checks that
+ *   - the surface columns match the descriptor registry
+ *   - all ten feature rows are present
+ *   - every cell carries one of the three labels
+ *   - unsupported and partial cells point at a note that exists
+ *   - each row names a test file that exists
+ *
+ * The Japanese string literals below are matched against that document
+ * and are data, not prose: they must stay in step with the file's own
+ * headings and labels.
  */
 
-import { existsSync } from 'node:fs'
 import { describe, expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 import { INBOUND_SURFACES } from '../../src/llms/inbound/surfaces'
 
 const DOC_PATH = new URL('../../docs/architecture/inbound-parity.md', import.meta.url).pathname
 const REPO_ROOT = new URL('../../', import.meta.url).pathname
 
-// master-plan §2-5 が定義している機能軸。表がこの 10 行から欠けても
-// 増えても落ちる。
+// The feature axis master-plan §2-5 defines. This fails if the table
+// drops one of these ten rows or grows an eleventh.
 const FEATURES: readonly string[] = [
   'ストリーミング (SSE)',
   '非ストリーム集約',
@@ -41,7 +45,7 @@ const LABELS: readonly string[] = ['対応', '部分', '未対応']
 
 const doc = await Bun.file(DOC_PATH).text()
 
-/** `## <heading>` から次の `## ` までの本文。 */
+/** The body from `## <heading>` up to the next `## `. */
 const sectionOf = (heading: string): string => {
   const start = doc.indexOf(`## ${heading}`)
   if (start === -1) throw new Error(`section not found: ${heading}`)
@@ -50,7 +54,7 @@ const sectionOf = (heading: string): string => {
   return end === -1 ? rest : rest.slice(0, end)
 }
 
-/** markdown テーブルを行×セルに割る（区切り行は捨てる）。 */
+/** Split a markdown table into rows of cells, dropping the rule row. */
 const tableRows = (section: string): string[][] =>
   section
     .split('\n')
@@ -69,19 +73,20 @@ const matrix = tableRows(sectionOf('マトリクス'))
 const header = matrix[0]
 const body = matrix.slice(1)
 
-describe('マトリクスの形', () => {
-  test('列が記述子レジストリの 4 面と対応している', () => {
-    // 見出しは短縮名なので、記述子の path の末尾で照合する。面を足したのに
-    // 列を足し忘れたらここで落ちる。
+describe('the shape of the matrix', () => {
+  test("the columns correspond to the registry's four surfaces", () => {
+    // The headings are abbreviated, so match on the tail of each
+    // descriptor's path. Adding a surface without adding a column fails
+    // here.
     expect(header.length).toBe(INBOUND_SURFACES.length + 1)
     expect(header.slice(1)).toEqual(['messages', 'chat/completions', 'responses', 'gemini'])
   })
 
-  test('行が master-plan の機能軸 10 項目とちょうど一致している', () => {
+  test('the rows are exactly the ten features master-plan names', () => {
     expect(body.map((row) => row[0])).toEqual(FEATURES)
   })
 
-  test('40 セルすべてがラベルで埋まっている（空欄を残さない）', () => {
+  test('all 40 cells carry a label, leaving no blank', () => {
     const cells = body.flatMap((row) => row.slice(1))
     expect(cells.length).toBe(FEATURES.length * INBOUND_SURFACES.length)
     for (const cell of cells) {
@@ -92,8 +97,9 @@ describe('マトリクスの形', () => {
   })
 })
 
-describe('注記', () => {
-  // `### (n) ...` と `### (2)(3)(4) の共通原因` の両方から番号を拾う。
+describe('the notes', () => {
+  // Pick up numbers from both `### (n) ...` and the combined
+  // `### (2)(3)(4) …` heading form.
   const defined = new Set(
     doc
       .split('\n')
@@ -101,7 +107,7 @@ describe('注記', () => {
       .flatMap((line) => [...line.matchAll(/\((\d+)\)/g)].map((m) => m[1]))
   )
 
-  test('未対応 / 部分対応のセルは必ず注記を指している', () => {
+  test('every unsupported or partial cell points at a note', () => {
     for (const row of body) {
       for (const cell of row.slice(1)) {
         const label = cell.replace(/\s*\(\d+\)\s*$/, '')
@@ -111,7 +117,7 @@ describe('注記', () => {
     }
   })
 
-  test('セルが指す注記番号がすべて実在する', () => {
+  test('every note number a cell points at exists', () => {
     const referenced = new Set(
       body.flatMap((row) => row.slice(1)).flatMap((cell) => [...cell.matchAll(/\((\d+)\)/g)].map((m) => m[1]))
     )
@@ -119,14 +125,14 @@ describe('注記', () => {
   })
 })
 
-describe('担保テストの実在', () => {
+describe('the backing tests exist', () => {
   const rows = tableRows(sectionOf('セル別の担保テスト')).slice(1)
 
-  test('担保テスト表が機能軸 10 項目をすべて挙げている', () => {
+  test('the backing-test table lists all ten features', () => {
     expect(rows.map((row) => row[0])).toEqual(FEATURES)
   })
 
-  test('挙げられているテストファイルがすべて実在する', () => {
+  test('every test file it names exists', () => {
     const paths = rows.flatMap((row) => [...row[1].matchAll(/`([^`]+\.test\.ts)`/g)].map((m) => m[1]))
     expect(paths.length).toBeGreaterThanOrEqual(FEATURES.length)
     for (const path of paths) expect(existsSync(`${REPO_ROOT}${path}`)).toBe(true)

@@ -1,15 +1,16 @@
 /**
- * gemini 面のルーティング・シグナル抽出。
+ * Routing-signal extraction for the gemini surface.
  *
- * `/v1beta/models/*` は 4 面の中で唯一、本文もシステムプロンプトも
- * 思考設定もツールも Anthropic と別のキーに置く面で、リーダーが無い
- * 間はそのすべてが「無い」と読まれていた（`contents` を数えないので
- * longContext が常に 0 トークン、`thinkingConfig` は不可視、
- * `functionDeclarations` は hasTool に出てこない）。
+ * `/v1beta/models/*` is the one surface of the four that puts the body,
+ * the system prompt, the thinking config and the tools under different
+ * keys than Anthropic. While it had no reader, all of that read as
+ * absent: `contents` was never counted so longContext always saw 0
+ * tokens, `thinkingConfig` was invisible, and `functionDeclarations`
+ * never reached hasTool.
  *
- * 検証は `readSignals` 越しに行う。面 id → リーダーの登録まで含めて
- * 見ておかないと、リーダーだけ正しくて配線されていない状態を通して
- * しまう。
+ * These go through `readSignals` rather than calling the reader
+ * directly. Covering the surface-id → reader registration is what stops
+ * a correct-but-unwired reader from passing.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -24,7 +25,8 @@ const signals = (body: Record<string, unknown>) => {
   return readSignals(withModel, GEMINI_PATH)
 }
 
-/** 実トークナイザ（cl100k_base）で数える。0 かどうかが本題なので。 */
+/** Count with the real tokenizer (cl100k_base) — whether the answer is
+ *  zero is the whole question. */
 async function countTokens(body: Record<string, unknown>): Promise<number> {
   const tokenizers = new TokenizerRegistry()
   await tokenizers.initialize()
@@ -32,8 +34,8 @@ async function countTokens(body: Record<string, unknown>): Promise<number> {
   return result.tokenCount
 }
 
-describe('tokenize — contents[] を数える', () => {
-  test('parts[].text が messages に落ちる', () => {
+describe('tokenize — counting contents[]', () => {
+  test('parts[].text lands in messages', () => {
     const { tokenize } = signals({
       contents: [
         { role: 'user', parts: [{ text: 'hello' }, { text: 'world' }] },
@@ -41,21 +43,27 @@ describe('tokenize — contents[] を数える', () => {
       ]
     })
     expect(tokenize.messages).toEqual([
-      { role: 'user', content: [{ type: 'text', text: 'hello' }, { type: 'text', text: 'world' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'hello' },
+          { type: 'text', text: 'world' }
+        ]
+      },
       { role: 'assistant', content: [{ type: 'text', text: 'hi' }] }
     ])
   })
 
-  test('長い会話が 0 トークンにならない（これが未対応だった本体）', async () => {
+  test('a long conversation is not 0 tokens — the gap itself', async () => {
     const long = 'lorem ipsum dolor sit amet '.repeat(200)
     expect(await countTokens({ contents: [{ role: 'user', parts: [{ text: long }] }] })).toBeGreaterThan(500)
   })
 
-  test('role 省略の contents も数える（Gemini は省略を user 扱いする）', async () => {
+  test('counts contents with no role, which Gemini treats as user', async () => {
     expect(await countTokens({ contents: [{ parts: [{ text: 'no role here' }] }] })).toBeGreaterThan(0)
   })
 
-  test('systemInstruction が数に含まれる', async () => {
+  test('systemInstruction is included in the count', async () => {
     const instruction = 'you are a terse assistant '.repeat(50)
     const withSystem = await countTokens({
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
@@ -66,11 +74,11 @@ describe('tokenize — contents[] を数える', () => {
     expect(signals({ systemInstruction: { parts: [{ text: 'be terse' }] } }).tokenize.system).toBe('be terse')
   })
 
-  test('snake_case の system_instruction も読む', () => {
+  test('reads snake_case system_instruction too', () => {
     expect(signals({ system_instruction: { parts: [{ text: 'be terse' }] } }).tokenize.system).toBe('be terse')
   })
 
-  test('functionCall の引数と functionResponse の中身が数に入る', async () => {
+  test('functionCall arguments and functionResponse contents are counted', async () => {
     const args = { query: 'x'.repeat(400) }
     const called = await countTokens({
       contents: [{ role: 'model', parts: [{ functionCall: { name: 'search', args } }] }]
@@ -84,7 +92,7 @@ describe('tokenize — contents[] を数える', () => {
     expect(answered).toBeGreaterThan(50)
   })
 
-  test('tools の JSON スキーマも数に入る', async () => {
+  test('a tool JSON schema is counted too', async () => {
     const withTools = await countTokens({
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
       tools: [
@@ -103,10 +111,10 @@ describe('tokenize — contents[] を数える', () => {
     expect(withTools).toBeGreaterThan(withoutTools + 50)
   })
 
-  test('Gemini 本文として読めない body は Anthropic の答えを借りない', () => {
-    // `messages` を持つ body を gemini 面で受けても、それは Gemini の
-    // 語彙ではない。フォールバックすると「面の語彙を読んでいない」状態に
-    // 静かに戻る。
+  test('a body that is not Gemini does not borrow the Anthropic answer', () => {
+    // A body carrying `messages` arriving on the gemini surface is not
+    // in Gemini's vocabulary. Falling back would quietly restore the
+    // state where the surface's own vocabulary goes unread.
     const { tokenize } = signals({ contents: 'not an array' })
     expect(tokenize.messages).toEqual([])
     expect(tokenize.tools).toEqual([])
@@ -117,44 +125,45 @@ describe('thinking / effort — generationConfig.thinkingConfig', () => {
   const thinkingConfig = (config: Record<string, unknown>, key = 'generationConfig') =>
     signals({ [key]: { thinkingConfig: config } })
 
-  test('thinkingLevel が effort にそのまま写る', () => {
+  test('thinkingLevel maps straight onto effort', () => {
     expect(thinkingConfig({ thinkingLevel: 'high' })).toMatchObject({ thinking: true, effort: 'high' })
     expect(thinkingConfig({ thinkingLevel: 'low' })).toMatchObject({ thinking: true, effort: 'low' })
   })
 
-  test('thinkingLevel: none は明示的なオプトアウト', () => {
+  test('thinkingLevel: none is an explicit opt-out', () => {
     expect(thinkingConfig({ thinkingLevel: 'none' })).toMatchObject({ thinking: false, effort: undefined })
   })
 
-  test('thinkingBudget は /v1/messages と同じバケットで effort になる', () => {
+  test('thinkingBudget becomes effort through the same buckets as /v1/messages', () => {
     expect(thinkingConfig({ thinkingBudget: 512 })).toMatchObject({ thinking: true, effort: 'low' })
     expect(thinkingConfig({ thinkingBudget: 8192 })).toMatchObject({ thinking: true, effort: 'medium' })
     expect(thinkingConfig({ thinkingBudget: 32_000 })).toMatchObject({ thinking: true, effort: 'high' })
     expect(thinkingConfig({ thinkingBudget: 0 })).toMatchObject({ thinking: false, effort: undefined })
   })
 
-  test('includeThoughts だけなら「思考するが強度は言っていない」', () => {
+  test('includeThoughts alone means thinking with no stated intensity', () => {
     expect(thinkingConfig({ includeThoughts: true })).toMatchObject({ thinking: true, effort: undefined })
   })
 
-  test('知らない thinkingLevel でも thinking は立つ', () => {
-    // Google が値を増やしたときに黙って default レーンへ落ちないこと。
+  test('an unknown thinkingLevel still sets thinking', () => {
+    // So a value Google adds later does not silently fall to the default
+    // lane.
     expect(thinkingConfig({ thinkingLevel: 'ultra' })).toMatchObject({ thinking: true, effort: undefined })
   })
 
-  test('router の effort 語彙にある値なら ThinkLevel に無くても拾う', () => {
+  test('a value in the router effort vocabulary is taken even when ThinkLevel lacks it', () => {
     expect(thinkingConfig({ thinkingLevel: 'max' })).toMatchObject({ thinking: true, effort: 'max' })
     expect(thinkingConfig({ thinkingLevel: 'XHIGH' })).toMatchObject({ thinking: true, effort: 'xhigh' })
   })
 
-  test('snake_case の generation_config も読む', () => {
+  test('reads snake_case generation_config too', () => {
     expect(thinkingConfig({ thinkingLevel: 'high' }, 'generation_config')).toMatchObject({
       thinking: true,
       effort: 'high'
     })
   })
 
-  test('thinkingConfig が無ければ思考要求ではない', () => {
+  test('no thinkingConfig means no thinking request', () => {
     expect(signals({ contents: [{ role: 'user', parts: [{ text: 'hi' }] }] })).toMatchObject({
       thinking: false,
       effort: undefined
@@ -163,7 +172,7 @@ describe('thinking / effort — generationConfig.thinkingConfig', () => {
 })
 
 describe('toolNames / webSearch', () => {
-  test('functionDeclarations[].name をベンダの語彙のまま返す', () => {
+  test('returns functionDeclarations[].name in the vendor vocabulary', () => {
     expect(
       signals({
         tools: [{ functionDeclarations: [{ name: 'search_web' }, { name: 'read_file' }] }]
@@ -171,29 +180,29 @@ describe('toolNames / webSearch', () => {
     ).toEqual(['search_web', 'read_file'])
   })
 
-  test('組み込みツールはキー名で出る（hasTool が当てられる唯一の名前）', () => {
+  test('a built-in tool surfaces under its key, the only name hasTool can match', () => {
     expect(signals({ tools: [{ googleSearch: {} }, { urlContext: {} }] }).toolNames).toEqual([
       'googleSearch',
       'urlContext'
     ])
   })
 
-  test('googleSearch で webSearch が立つ', () => {
+  test('googleSearch sets webSearch', () => {
     expect(signals({ tools: [{ googleSearch: {} }] }).webSearch).toBe(true)
   })
 
-  test('1.5 系の googleSearchRetrieval / snake_case でも立つ', () => {
+  test('1.5-era googleSearchRetrieval and its snake_case form set it too', () => {
     expect(signals({ tools: [{ googleSearchRetrieval: { dynamicRetrievalConfig: {} } }] }).webSearch).toBe(true)
     expect(signals({ tools: [{ google_search_retrieval: {} }] }).webSearch).toBe(true)
     expect(signals({ tools: [{ google_search: {} }] }).webSearch).toBe(true)
   })
 
-  test('ふつうの関数ツールだけなら webSearch は立たない', () => {
+  test('ordinary function tools alone do not set webSearch', () => {
     expect(signals({ tools: [{ functionDeclarations: [{ name: 'search_web' }] }] }).webSearch).toBe(false)
     expect(signals({ tools: [{ codeExecution: {} }] }).webSearch).toBe(false)
   })
 
-  test('tools が無ければ空', () => {
+  test('empty when there are no tools', () => {
     expect(signals({ contents: [] })).toMatchObject({ toolNames: [], webSearch: false })
   })
 })

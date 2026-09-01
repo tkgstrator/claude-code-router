@@ -13,65 +13,57 @@
  * free-tier quota 429.
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from 'bun:test'
+import { existsSync } from 'fs'
+import { homedir } from 'os'
+import { join } from 'path'
 import {
-  smokeSubscriptionModel,
   fetchSubscriptionModels,
-  TEST_TIMEOUT,
   IS_REPLAY,
   type SubscriptionModel,
-} from "./helpers";
-import { existsSync } from "fs";
-import { join } from "path";
-import { homedir } from "os";
+  smokeSubscriptionModel,
+  TEST_TIMEOUT
+} from './helpers'
 
-const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
+const CREDENTIALS_PATH = join(homedir(), '.claude', '.credentials.json')
 // Replay mode doesn't need real OAuth creds — fixtures supply the
 // subscription smokes.
-const hasCredentials =
-  IS_REPLAY ||
-  (existsSync(CREDENTIALS_PATH) && !process.env.RIALTO_SKIP_LIVE_TESTS);
+const hasCredentials = IS_REPLAY || (existsSync(CREDENTIALS_PATH) && !process.env.RIALTO_SKIP_LIVE_TESTS)
 
-const result = await (async (): Promise<
-  { models: SubscriptionModel[] } | { error: string }
-> => {
-  if (!hasCredentials) return { models: [] };
+const result = await (async (): Promise<{ models: SubscriptionModel[] } | { error: string }> => {
+  if (!hasCredentials) return { models: [] }
   try {
-    return { models: await fetchSubscriptionModels(/claude/i) };
+    return { models: await fetchSubscriptionModels(/claude/i) }
   } catch (e) {
-    return { error: (e as Error).message };
+    return { error: (e as Error).message }
   }
-})();
+})()
 
-describe.skipIf(!hasCredentials)("claude-code subscription / all enabled models", () => {
-  if ("error" in result) {
-    test("Rialto server reachable for /api/config", () => {
-      throw new Error(
-        `Could not load model matrix from Rialto — is the server running? ${result.error}`
-      );
-    });
-    return;
+describe.skipIf(!hasCredentials)('claude-code subscription / all enabled models', () => {
+  if ('error' in result) {
+    test('Rialto server reachable for /api/config', () => {
+      throw new Error(`Could not load model matrix from Rialto — is the server running? ${result.error}`)
+    })
+    return
   }
 
   if (result.models.length === 0) {
-    test("at least one enabled claude-code subscription model", () => {
-      throw new Error(
-        "No enabled claude-* subscription models in /api/config — nothing to verify"
-      );
-    });
-    return;
+    test('at least one enabled claude-code subscription model', () => {
+      throw new Error('No enabled claude-* subscription models in /api/config — nothing to verify')
+    })
+    return
   }
 
   for (const { provider, model } of result.models) {
     describe(`${provider},${model}`, () => {
       test(
-        "HTTP 200 + valid Anthropic SSE with text",
+        'HTTP 200 + valid Anthropic SSE with text',
         async () => {
-          const text = await smokeSubscriptionModel(`${provider},${model}`);
-          expect(text.length).toBeGreaterThan(0);
+          const text = await smokeSubscriptionModel(`${provider},${model}`)
+          expect(text.length).toBeGreaterThan(0)
         },
         TEST_TIMEOUT
-      );
-    });
+      )
+    })
   }
-});
+})

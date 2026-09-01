@@ -15,8 +15,7 @@ import {
 const sseResponse = (body: string): Response =>
   new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } })
 
-const buildChatChunk = (payload: Record<string, unknown>): string =>
-  `data: ${JSON.stringify(payload)}\n\n`
+const buildChatChunk = (payload: Record<string, unknown>): string => `data: ${JSON.stringify(payload)}\n\n`
 
 describe('aggregateOpenAiChatSseToJson', () => {
   test('folds text-delta chunks into a single choice with joined content', async () => {
@@ -92,13 +91,12 @@ describe('aggregateOpenAiChatSseToJson', () => {
   })
 
   test('preserves usage when the terminal chunk carries it', async () => {
-    const body =
-      buildChatChunk({
-        id: 'chatcmpl-usage',
-        model: 'gpt-4.1-mini',
-        choices: [{ index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 }
-      })
+    const body = buildChatChunk({
+      id: 'chatcmpl-usage',
+      model: 'gpt-4.1-mini',
+      choices: [{ index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 }
+    })
     const result = await aggregateOpenAiChatSseToJson(sseResponse(body))
     expect(result.usage).toEqual({ prompt_tokens: 8, completion_tokens: 1, total_tokens: 9 })
   })
@@ -206,10 +204,7 @@ describe('aggregateGeminiSseToJson', () => {
       buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'weighing ', thought: true }] }, index: 0 }] }) +
       buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'options' }], role: 'model' }, index: 0 }] })
     const result = await aggregateGeminiSseToJson(sseResponse(body))
-    expect(candidatesOf(result)[0].content?.parts).toEqual([
-      { text: 'weighing ', thought: true },
-      { text: 'options' }
-    ])
+    expect(candidatesOf(result)[0].content?.parts).toEqual([{ text: 'weighing ', thought: true }, { text: 'options' }])
   })
 
   test('a functionCall part closes the open text run and survives verbatim', async () => {

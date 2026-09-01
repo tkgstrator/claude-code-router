@@ -1,12 +1,13 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
-import { HAS_DB, resetDbTables, teardownPrisma } from '../db/helpers'
 import { getPrismaClient } from '../../src/db/client'
+import type { PreferenceKind, RouterPreferenceEntry } from '../../src/schemas/domain/preference'
 import {
   applyRouterPreferences,
   loadPreferenceChain,
   loadRouterPreferences
 } from '../../src/services/router-preference-service'
-import type { PreferenceKind, RouterPreferenceEntry } from '../../src/schemas/domain/preference'
+import { HAS_DB, resetDbTables, teardownPrisma } from '../db/helpers'
+
 const describeOrSkip = HAS_DB ? describe : describe.skip
 
 // Helper: build an entriesByScenario map where only the given
@@ -164,9 +165,7 @@ describeOrSkip('router-preference-service (DB)', () => {
     })
     await prisma.model.create({ data: { providerId: provider.id, name: 'sonnet-5', enabled: true } })
     await applyRouterPreferences({
-      entriesByScenario: only('default', 'agent', [
-        { priority: 1, target: 'anthropic,sonnet-5', enabled: true }
-      ]),
+      entriesByScenario: only('default', 'agent', [{ priority: 1, target: 'anthropic,sonnet-5', enabled: true }]),
       constraints: null
     })
     const defaultAgent = await loadPreferenceChain('default', 'agent')
@@ -223,9 +222,7 @@ describeOrSkip('router-preference-service (DB)', () => {
     expect(outcome.success).toBe(true)
     expect(outcome.warnings).toHaveLength(2)
     expect(
-      outcome.warnings.some(
-        (w) => w.includes('claude-nonexistent') && w.includes('think') && w.includes('subagent')
-      )
+      outcome.warnings.some((w) => w.includes('claude-nonexistent') && w.includes('think') && w.includes('subagent'))
     ).toBe(true)
 
     const round = await loadRouterPreferences()
@@ -240,9 +237,7 @@ describeOrSkip('router-preference-service (DB)', () => {
     })
     await prisma.model.create({ data: { providerId: provider.id, name: 'x', enabled: true } })
     await applyRouterPreferences({
-      entriesByScenario: only('default', 'agent', [
-        { priority: 1, target: 'anthropic,x', enabled: true }
-      ]),
+      entriesByScenario: only('default', 'agent', [{ priority: 1, target: 'anthropic,x', enabled: true }]),
       constraints: { staleQuotaFactor: 0.5 }
     })
     await applyRouterPreferences({

@@ -13,12 +13,12 @@
  */
 
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { __setSurfacesForTests } from '../../src/services/inbound-surface-service'
-import { routeScenario } from '../../src/llms/scenario-router'
-import type { RouterRequest } from '../../src/llms/scenario-router/types'
+import pino from 'pino'
 import { ConfigStore } from '../../src/llms/registry/config'
 import { TokenizerRegistry } from '../../src/llms/registry/tokenizer'
-import pino from 'pino'
+import { routeScenario } from '../../src/llms/scenario-router'
+import type { RouterRequest } from '../../src/llms/scenario-router/types'
+import { __setSurfacesForTests } from '../../src/services/inbound-surface-service'
 
 const log = pino({ level: 'silent' })
 
@@ -42,9 +42,7 @@ async function runRouter(path: string | undefined, body: Record<string, unknown>
         models: ['claude-sonnet-5']
       }
     ],
-    Personas: [
-      { id: 'p1', name: 'brief', prompt: 'You are terse.' }
-    ],
+    Personas: [{ id: 'p1', name: 'brief', prompt: 'You are terse.' }],
     Router: {
       persona: 'p1',
       default: 'anthropic,claude-sonnet-5'

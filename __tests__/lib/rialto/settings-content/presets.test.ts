@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
+import type { RequiredInput } from '../../../../src/lib/presets/types'
 import {
   missingInputIds,
   presetCounts,
   presetDiff,
   seedInputs
 } from '../../../../src/lib/rialto/settings-content/presets'
-import type { RequiredInput } from '../../../../src/lib/presets/types'
 import type { Config } from '../../../../src/types'
 
 const target = (primary: string | null) => ({ primary, fallbacks: [], rules: [] })
@@ -22,10 +22,7 @@ const provider = (name: string, models: string[], authMode: 'api_key' | 'subscri
 
 // Only the two branches presetDiff reads are populated; the rest of the
 // envelope is irrelevant to the diff and would just be noise here.
-const makeConfig = (over: {
-  providers?: ReturnType<typeof provider>[]
-  router?: Record<string, unknown>
-}): Config =>
+const makeConfig = (over: { providers?: ReturnType<typeof provider>[]; router?: Record<string, unknown> }): Config =>
   ({
     Providers: over.providers === undefined ? [] : over.providers,
     Router: {
@@ -40,7 +37,14 @@ const makeConfig = (over: {
 
 describe('presetCounts', () => {
   test('sums models across the preset providers', () => {
-    expect(presetCounts({ Providers: [{ name: 'a', models: ['m1', 'm2'] }, { name: 'b', models: ['m3'] }] })).toEqual({
+    expect(
+      presetCounts({
+        Providers: [
+          { name: 'a', models: ['m1', 'm2'] },
+          { name: 'b', models: ['m3'] }
+        ]
+      })
+    ).toEqual({
       providers: 2,
       models: 3
     })
@@ -55,7 +59,9 @@ describe('presetCounts', () => {
 describe('presetDiff', () => {
   test('marks a provider the config does not have as an addition', () => {
     const rows = presetDiff({ Providers: [{ name: 'openai', models: ['gpt-5.5'] }] }, makeConfig({}))
-    expect(rows).toEqual([{ key: 'provider:openai', kind: 'add', label: 'provider', name: 'openai', from: null, to: null }])
+    expect(rows).toEqual([
+      { key: 'provider:openai', kind: 'add', label: 'provider', name: 'openai', from: null, to: null }
+    ])
   })
 
   test('reports a model-count change for a provider already installed', () => {

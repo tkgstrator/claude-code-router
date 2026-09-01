@@ -101,7 +101,7 @@ describe('the Providers screen and Routing agree', () => {
  * would strand every freshly added key with no way to switch it on, the
  * same trap this change exists to remove.
  */
-describe('hasCredential — when the switch is the operator\'s to set', () => {
+describe("hasCredential — when the switch is the operator's to set", () => {
   test('a subscription with an active account on a resolved plan has one', () => {
     expect(hasCredential(subProvider(), liveSub)).toBe(true)
   })
@@ -132,7 +132,10 @@ describe('hasCredential — when the switch is the operator\'s to set', () => {
   test('a subscription whose probe came back invalid keeps its switch too', () => {
     // The credential exists and the server would still route to it; the
     // probe verdict is not the same claim as "there is nothing here".
-    const bad = sub({ accounts: [account({ authStatus: 'invalid' })], activeAccount: account({ authStatus: 'invalid' }) })
+    const bad = sub({
+      accounts: [account({ authStatus: 'invalid' })],
+      activeAccount: account({ authStatus: 'invalid' })
+    })
     expect(providerState(subProvider(), bad)).toBe('invalid')
     expect(hasCredential(subProvider(), bad)).toBe(true)
   })

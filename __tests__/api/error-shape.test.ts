@@ -170,7 +170,7 @@ describe('buildErrorEnvelope — OpenAI shape', () => {
 
   test('maps status to canonical OpenAI type when upstream did not classify', () => {
     const env = buildErrorEnvelope({ shape: 'openai', status: 500, from: 'internal boom' })
-    const error = (env.error as Record<string, unknown>)
+    const error = env.error as Record<string, unknown>
     expect(error.type).toBe('api_error')
     expect(error.message).toBe('internal boom')
   })
@@ -228,9 +228,7 @@ describe('buildErrorEnvelope — via provider tag', () => {
       via: 'openai'
     })
     const error = env.error as Record<string, unknown>
-    expect(error.message).toBe(
-      '[via openai] Invalid or missing API key. Send it as Authorization: Bearer <key>.'
-    )
+    expect(error.message).toBe('[via openai] Invalid or missing API key. Send it as Authorization: Bearer <key>.')
     // Classifiers still surface — the tag is a message-only prefix.
     expect(error.type).toBe('invalid_request_error')
     expect(error.code).toBe('invalid_api_key')

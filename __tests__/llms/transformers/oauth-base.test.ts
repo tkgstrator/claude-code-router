@@ -18,8 +18,13 @@
 
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { HTTPException } from 'hono/http-exception'
-import { type OAuthRefreshResult, OAuthTransformer, type OauthCredentials } from '../../../src/llms/transformers/oauth-base'
+import {
+  type OAuthRefreshResult,
+  OAuthTransformer,
+  type OauthCredentials
+} from '../../../src/llms/transformers/oauth-base'
 import type { RuntimeProvider } from '../../../src/schemas/domain/pipeline'
+
 // Spy that records every call so tests can assert the refresh writeback
 // fired (or didn't).
 const updateMock = mock(async () => {})
@@ -110,9 +115,7 @@ describe('OAuthTransformer.resolveSubscriptionAuth — happy path (no refresh ne
 
   test('returns the DB token without accountId when accountId is absent', async () => {
     const t = new TestTransformer()
-    const result = await t.resolveAuth(
-      makeProvider({ subAccountId: 'sa-1', accessToken: 'token-A', expiresAt: null })
-    )
+    const result = await t.resolveAuth(makeProvider({ subAccountId: 'sa-1', accessToken: 'token-A', expiresAt: null }))
     expect(result).toEqual({ token: 'token-A' })
     expect(t.refreshCalls).toEqual([])
   })

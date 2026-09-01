@@ -12,8 +12,8 @@
  *     updateSubAccountAccessToken.
  */
 
-import { createCipheriv, randomBytes } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { createCipheriv, randomBytes } from 'node:crypto'
 import {
   decryptString,
   getActiveSubAccountAuth,
@@ -161,8 +161,7 @@ describe.skipIf(!HAS_DB)('subscription-account-sync-service (DB)', () => {
     return db.provider.create({
       data: {
         name: kind === 'claude' ? 'claude-code-oauth' : 'codex-oauth',
-        apiBaseUrl:
-          kind === 'claude' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1',
+        apiBaseUrl: kind === 'claude' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1',
         authMode: AuthMode.subscription,
         enabled
       }

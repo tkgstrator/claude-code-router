@@ -31,13 +31,53 @@ describeOrSkip('collectSolverInput (DB)', () => {
     await prisma.requestLog.createMany({
       data: [
         // default: 3 rows, one 429, one other-error, one success.
-        { sessionId: session.id, provider: 'p', model: 'm', scenario: 'default', inputTokens: 100, outputTokens: 10, status: 200 },
-        { sessionId: session.id, provider: 'p', model: 'm', scenario: 'default', inputTokens: 200, outputTokens: 20, status: 429 },
-        { sessionId: session.id, provider: 'p', model: 'm', scenario: 'default', inputTokens: 300, outputTokens: 30, status: 500 },
+        {
+          sessionId: session.id,
+          provider: 'p',
+          model: 'm',
+          scenario: 'default',
+          inputTokens: 100,
+          outputTokens: 10,
+          status: 200
+        },
+        {
+          sessionId: session.id,
+          provider: 'p',
+          model: 'm',
+          scenario: 'default',
+          inputTokens: 200,
+          outputTokens: 20,
+          status: 429
+        },
+        {
+          sessionId: session.id,
+          provider: 'p',
+          model: 'm',
+          scenario: 'default',
+          inputTokens: 300,
+          outputTokens: 30,
+          status: 500
+        },
         // think: 1 row, success.
-        { sessionId: session.id, provider: 'p', model: 'm', scenario: 'think', inputTokens: 400, outputTokens: 40, status: 200 },
+        {
+          sessionId: session.id,
+          provider: 'p',
+          model: 'm',
+          scenario: 'think',
+          inputTokens: 400,
+          outputTokens: 40,
+          status: 200
+        },
         // Legacy 'background' scenario — must be dropped.
-        { sessionId: session.id, provider: 'p', model: 'm', scenario: 'background', inputTokens: 999, outputTokens: 0, status: 200 }
+        {
+          sessionId: session.id,
+          provider: 'p',
+          model: 'm',
+          scenario: 'background',
+          inputTokens: 999,
+          outputTokens: 0,
+          status: 200
+        }
       ]
     })
 
@@ -113,8 +153,24 @@ describeOrSkip('collectSolverInput (DB)', () => {
     const session = await prisma.session.create({ data: { id: 'sess-target' } })
     await prisma.requestLog.createMany({
       data: [
-        { sessionId: session.id, provider: 'anthropic', model: 'opus-9', scenario: 'think', inputTokens: 500, outputTokens: 50, status: 200 },
-        { sessionId: session.id, provider: 'anthropic', model: 'opus-9', scenario: 'think', inputTokens: 250, outputTokens: 25, status: 429 }
+        {
+          sessionId: session.id,
+          provider: 'anthropic',
+          model: 'opus-9',
+          scenario: 'think',
+          inputTokens: 500,
+          outputTokens: 50,
+          status: 200
+        },
+        {
+          sessionId: session.id,
+          provider: 'anthropic',
+          model: 'opus-9',
+          scenario: 'think',
+          inputTokens: 250,
+          outputTokens: 25,
+          status: 429
+        }
       ]
     })
 
@@ -129,9 +185,7 @@ describeOrSkip('collectSolverInput (DB)', () => {
     expect(opusTarget.contextWindow).toBe(400000)
     expect(opusTarget.inputPer1M).toBe(15.0)
     expect(opusTarget.outputPer1M).toBe(75.0)
-    expect(opusTarget.chainMemberships).toEqual([
-      { scenario: 'think', kind: 'subagent', priority: 1, enabled: true }
-    ])
+    expect(opusTarget.chainMemberships).toEqual([{ scenario: 'think', kind: 'subagent', priority: 1, enabled: true }])
     expect(opusTarget.observed.requestCount).toBe(2)
     expect(opusTarget.observed.totalInputTokens).toBe(750)
     expect(opusTarget.observed.totalOutputTokens).toBe(75)

@@ -1,19 +1,23 @@
 /**
- * E2E テストの共有基盤。
+ * Shared plumbing for the E2E suite.
  *
- * 使うのは実際に走っている dev サーバーで、テストがサーバーを起動する
- * ことはない（CLAUDE.md: dev サーバーは常時1台動いている前提で、2台目を
- * 立てると :16175 を奪い合う）。到達できなければ丸ごと skip する ——
- * `HAS_DB` と同じ作法で、CI や dev サーバーを止めている環境で赤くしない。
+ * These run against the dev server that is already up; nothing here starts
+ * one (CLAUDE.md: a dev server is normally already running, and a second
+ * would fight it for :16175). When it cannot be reached the whole suite
+ * skips itself — the same convention `HAS_DB` follows, so CI and a machine
+ * with the dev server stopped do not go red.
  *
- * ブラウザは playwright 同梱の chromium。`bunx playwright install chromium`
- * が済んでいない環境では launch が投げるので、そこも skip 条件に含める。
+ * The browser is playwright's bundled chromium. `launch` throws where
+ * `bunx playwright install chromium` has not been run, so that is part of
+ * the skip condition too.
  *
- * **相手が生きている dev サーバーである以上、編集中は落ちうる。** Vite が
- * HMR している最中に叩くと、実装の欠陥ではなく再ビルドの隙間で失敗する。
- * 実際このスイートを入れた日に、別作業の編集中だけ 15 件が落ち、編集が
- * 止まったあとは3回連続で緑だった。**赤を見たらまず「いま誰かが触って
- * いないか」を疑い、手を止めてから測り直すこと。** 落ち続けるなら本物。
+ * **Because the target is a live dev server, these can fail while someone
+ * is editing.** Hitting it mid-HMR fails in the gap between rebuilds, not
+ * because the implementation is wrong. On the day this suite landed, 15
+ * tests failed only while another change was in flight and then passed
+ * three runs in a row once the editing stopped. **A red run here should
+ * first raise the question "is someone touching the tree right now" —
+ * stop, then measure again.** If it stays red, it is real.
  */
 
 import { type Browser, chromium } from 'playwright'
@@ -24,8 +28,8 @@ export const E2E_BASE_URL = configured === undefined || configured.length === 0 
 async function serverUp(): Promise<boolean> {
   if (process.env.RIALTO_SKIP_E2E === '1') return false
   try {
-    // 短いタイムアウト。サーバーが居ないときに毎回待たされるのと、
-    // 居るのに取りこぼすののトレードオフ。
+    // Short timeout: a trade between waiting every run when no server is
+    // there, and missing one that is.
     const res = await fetch(E2E_BASE_URL, { signal: AbortSignal.timeout(3000) })
     return res.ok
   } catch {
@@ -44,9 +48,9 @@ async function browserUsable(): Promise<boolean> {
 }
 
 /**
- * サーバーとブラウザの両方が揃ったときだけ E2E を走らせる。両方を
- * 起動時に1度だけ確かめるのは、`describe.skipIf` が収集時に値を要求する
- * ため。
+ * Run E2E only when the server and the browser are both available. Both
+ * are probed once at load because `describe.skipIf` needs its value at
+ * collection time.
  */
 export const HAS_E2E = (await serverUp()) && (await browserUsable())
 

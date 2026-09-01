@@ -14,10 +14,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { SEED_PERSONAS } from '../../../src/shared/data'
-import { CONFIG_FILE } from '../../../src/shared/constants'
-import { ENVELOPE_ENV_KEYS } from '../../../src/shared/db/types'
 import { applyEnvelopeToEnv, readConfigFile } from '../../../src/services/config/envelope'
+import { CONFIG_FILE } from '../../../src/shared/constants'
+import { SEED_PERSONAS } from '../../../src/shared/data'
+import { ENVELOPE_ENV_KEYS } from '../../../src/shared/db/types'
 
 async function writeConfig(content: string): Promise<void> {
   await fs.mkdir(path.dirname(CONFIG_FILE), { recursive: true })
@@ -88,7 +88,9 @@ describe('readConfigFile', () => {
 
   test('interpolates ${VAR_NAME}', async () => {
     process.env.TEST_RIALTO_HOST = '0.0.0.0'
-    await writeConfig(JSON.stringify({ HOST: '${TEST_RIALTO_HOST}', LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' }))
+    await writeConfig(
+      JSON.stringify({ HOST: '${TEST_RIALTO_HOST}', LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' })
+    )
     const cfg = await readConfigFile()
     expect(cfg.HOST).toBe('0.0.0.0')
     delete process.env.TEST_RIALTO_HOST
@@ -111,7 +113,7 @@ describe('readConfigFile', () => {
         Providers: [{ name: 'test', api_base_url: '$TEST_RIALTO_BASE' }]
       })
     )
-    const cfg = await readConfigFile() as Record<string, unknown>
+    const cfg = (await readConfigFile()) as Record<string, unknown>
     const providers = cfg.Providers as { api_base_url: string }[]
     expect(providers[0].api_base_url).toBe('https://api.example.com')
     delete process.env.TEST_RIALTO_BASE
@@ -170,9 +172,7 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
   // every configured client. The invalid field is still dropped; what
   // must survive is the credential.
   test('a negative API_TIMEOUT_MS is dropped without taking the token with it', async () => {
-    await writeConfig(
-      JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: -1 })
-    )
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: -1 }))
     const cfg = await readConfigFile()
     expect(cfg.API_TIMEOUT_MS).toBeUndefined()
     expect(cfg.APIKEY).toBe('key')

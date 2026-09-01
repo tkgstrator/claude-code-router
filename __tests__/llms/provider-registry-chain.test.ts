@@ -8,12 +8,16 @@
  */
 import { describe, expect, test } from 'bun:test'
 import pino from 'pino'
-import type { ProviderConfigShape } from '../../src/schemas/domain/pipeline'
 import { ProviderRegistry } from '../../src/llms/registry/provider'
 import { TransformerRegistry } from '../../src/llms/registry/transformer'
 import { AnthropicTransformer, ClaudeCodeOauthTransformer } from '../../src/llms/transformers/anthropic'
 import { GeminiTransformer } from '../../src/llms/transformers/gemini'
-import { CodexOauthTransformer, OpenAIResponsesTransformer, OpenAITransformer } from '../../src/llms/transformers/openai'
+import {
+  CodexOauthTransformer,
+  OpenAIResponsesTransformer,
+  OpenAITransformer
+} from '../../src/llms/transformers/openai'
+import type { ProviderConfigShape } from '../../src/schemas/domain/pipeline'
 
 const log = pino({ level: 'silent' })
 

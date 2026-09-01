@@ -3,7 +3,10 @@ import { buildRoutingGraph, SCENARIOS, UNTRACKED } from '../../../src/lib/routin
 
 // Minimal RouterInput factory — every lane unset, no fallbacks — that tests
 // override field by field.
-function router(overrides: Partial<Record<string, string | null>> = {}, fallbacks: Partial<Record<string, string[]>> = {}) {
+function router(
+  overrides: Partial<Record<string, string | null>> = {},
+  fallbacks: Partial<Record<string, string[]>> = {}
+) {
   const base = { default: null, background: null, think: null, longContext: null, webSearch: null, image: null }
   const emptyFallbacks = {
     default: [],

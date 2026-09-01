@@ -12,6 +12,7 @@
 import { describe, expect, test } from 'bun:test'
 import { convertAnthropicToolsToUnified } from '../../../src/llms/transformers/anthropic/request'
 import { AnthropicIncomingRequestSchema } from '../../../src/schemas/wire/anthropic/messages'
+
 const baseRequest = {
   model: 'claude-sonnet-4-5',
   max_tokens: 1024,
@@ -39,7 +40,13 @@ describe('AnthropicToolDefSchema', () => {
   })
 
   test('accepts every Anthropic-hosted tool type prefix', () => {
-    const kinds = ['web_search_20250305', 'computer_20250124', 'bash_20250124', 'text_editor_20250124', 'code_execution_20250522']
+    const kinds = [
+      'web_search_20250305',
+      'computer_20250124',
+      'bash_20250124',
+      'text_editor_20250124',
+      'code_execution_20250522'
+    ]
     for (const type of kinds) {
       const parsed = AnthropicIncomingRequestSchema.parse({
         ...baseRequest,

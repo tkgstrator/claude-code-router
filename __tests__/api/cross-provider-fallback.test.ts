@@ -19,8 +19,8 @@
 import { expect, test } from 'bun:test'
 import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
-import { attemptChainEntry, type ChainCtx } from '../../src/api/v1/chain-failover'
 import { buildFailoverChain } from '../../src/api/v1/candidate-chain'
+import { attemptChainEntry, type ChainCtx } from '../../src/api/v1/chain-failover'
 import type { RoutePlan } from '../../src/api/v1/route-plan'
 import { ConfigStore } from '../../src/llms/registry/config'
 import { expandChainWithPeers } from '../../src/llms/scenario-router/peer-fallback'
@@ -64,7 +64,15 @@ const stubRegistry = {
   }
 }
 
-const noopLog = { info() {}, warn() {}, error() {}, debug() {}, child() { return noopLog } } as unknown as Logger
+const noopLog = {
+  info() {},
+  warn() {},
+  error() {},
+  debug() {},
+  child() {
+    return noopLog
+  }
+} as unknown as Logger
 
 const makeCtx = () =>
   ({

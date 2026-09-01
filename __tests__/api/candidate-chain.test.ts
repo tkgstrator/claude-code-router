@@ -41,10 +41,7 @@ test('buildFailoverChain: a subagent request walks whatever chain selectModel re
   // A subagent request gets its subagent-lane chain from selectModel;
   // the reactive path just uses whatever plan.fallbacks carries — it
   // does not re-look-up by scenario/kind.
-  const chain = buildFailoverChain(
-    plan({ isSubagent: true, fallbacks: ['claude-code,claude-haiku'] }),
-    ctx
-  )
+  const chain = buildFailoverChain(plan({ isSubagent: true, fallbacks: ['claude-code,claude-haiku'] }), ctx)
   expect(chain).toEqual(['codex,gpt-5.6-luna', 'claude-code,claude-haiku'])
 })
 

@@ -25,6 +25,7 @@
   "files": {
     "includes": [
       "src/**/*.{ts,tsx}",
+      "__tests__/**/*.{ts,tsx}",
       "vite.config.mts",
       "!src/generated",
       "!src/components/ui/**/*.{ts,tsx}",

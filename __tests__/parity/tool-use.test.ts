@@ -1,14 +1,16 @@
 /**
- * パリティ・マトリクス — 行「tool use」。
+ * Parity matrix — the "tool use" row.
  *
- * tool use は 3 つの別々のものからできていて、面ごとに欠け方が違う:
- *   (a) 宣言   — リクエストの `tools[]`
- *   (b) 呼び出し — アシスタントターンに載る tool 呼び出し
- *   (c) 結果   — ユーザーターンに載る tool の返り値
+ * Tool use is three separate things, and each surface loses a different
+ * one:
+ *   (a) declaration — the request's `tools[]`
+ *   (b) call        — the tool call carried on an assistant turn
+ *   (c) result      — the tool's return value carried on a user turn
  *
- * (a) だけ通って (b)(c) が落ちる面はマルチターンで壊れる——1 往復目は
- * 動いて 2 往復目で会話が消えるので、宣言だけ見ていると気づけない。
- * だから 3 つを分けて見る。
+ * A surface that carries (a) but drops (b) and (c) breaks on multi-turn:
+ * the first round trip works and the conversation vanishes on the second,
+ * which watching only the declaration will never reveal. So the three are
+ * checked apart.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -25,8 +27,8 @@ const roles = (messages: unknown): unknown[] =>
 const toolNames = (tools: unknown): unknown[] =>
   Array.isArray(tools) ? tools.map((t) => Reflect.get(Object(Reflect.get(Object(t), 'function')), 'name')) : []
 
-describe('anthropic-messages — 対応済み', () => {
-  test('(a) tools[] が unified の function ツールになる', async () => {
+describe('anthropic-messages — supported', () => {
+  test('(a) tools[] becomes a unified function tool', async () => {
     const unified = await new AnthropicTransformer().transformRequestOut(
       {
         model: 'm',
@@ -41,7 +43,7 @@ describe('anthropic-messages — 対応済み', () => {
     expect(unified.tool_choice).toEqual({ type: 'function', function: { name: 'Read' } })
   })
 
-  test('(b)(c) tool_use と tool_result が呼び出し/結果の対で残る', async () => {
+  test('(b)(c) tool_use and tool_result survive as a call/result pair', async () => {
     const unified = await new AnthropicTransformer().transformRequestOut(
       {
         model: 'm',
@@ -64,12 +66,13 @@ describe('anthropic-messages — 対応済み', () => {
     expect(Object(unified.messages[2])).toMatchObject({ tool_call_id: 'tu_1', content: 'file body' })
   })
 
-  // サーバーツール（web_search_* 等）が name だけの宣言でも unified に
-  // 落ちることは __tests__/llms/transformers/anthropic-request.test.ts が担保。
+  // That a server tool (web_search_* and friends) declared with only a
+  // name still folds into unified is covered by
+  // __tests__/llms/transformers/anthropic-request.test.ts.
 })
 
-describe('openai-chat — 対応済み（素通し）', () => {
-  test('(a)(b)(c) いずれも unified と同形なので素通る', async () => {
+describe('openai-chat — supported by passing through', () => {
+  test('(a)(b)(c) all already match unified and pass straight through', async () => {
     const body = {
       model: 'm',
       messages: [
@@ -91,8 +94,8 @@ describe('openai-chat — 対応済み（素通し）', () => {
   })
 })
 
-describe('openai-responses — 対応済み', () => {
-  test('(a) フラットな tools が Chat のネスト形に戻る', async () => {
+describe('openai-responses — supported', () => {
+  test("(a) flat tools are restored to Chat's nested shape", async () => {
     const unified = await new OpenAIResponsesTransformer().transformRequestOut(
       {
         model: 'm',
@@ -106,7 +109,7 @@ describe('openai-responses — 対応済み', () => {
     expect(unified.tool_choice).toEqual({ type: 'function', function: { name: 'Read' } })
   })
 
-  test('(b)(c) function_call と function_call_output が呼び出し/結果の対で残る', async () => {
+  test('(b)(c) function_call and function_call_output survive as a call/result pair', async () => {
     const unified = await new OpenAIResponsesTransformer().transformRequestOut(
       {
         model: 'm',
@@ -123,8 +126,8 @@ describe('openai-responses — 対応済み', () => {
   })
 })
 
-describe('gemini-generate — 対応済み', () => {
-  test('(a) functionDeclarations が unified の function ツールになる', async () => {
+describe('gemini-generate — supported', () => {
+  test('(a) functionDeclarations become unified function tools', async () => {
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -142,10 +145,10 @@ describe('gemini-generate — 対応済み', () => {
     expect(toolNames(unified.tools)).toEqual(['lookup'])
   })
 
-  test('(b)(c) functionCall / functionResponse が呼び出し/結果の対で残る', async () => {
-    // Gemini は functionResponse をユーザーターンに詰めるが、unified は
-    // OpenAI 流に結果 1 件 = 1 メッセージ。だから contents 2 件から
-    // assistant + tool の 2 メッセージが出る。
+  test('(b)(c) functionCall and functionResponse survive as a call/result pair', async () => {
+    // Gemini packs functionResponse onto a user turn, while unified
+    // follows OpenAI in giving each result its own message. So two
+    // contents entries produce two messages: assistant and tool.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -160,9 +163,10 @@ describe('gemini-generate — 対応済み', () => {
     const assistant = Object(unified.messages[0])
     const call = Object(Reflect.get(Object(Reflect.get(assistant, 'tool_calls')), '0'))
     expect(call).toMatchObject({ type: 'function', function: { name: 'lookup', arguments: '{"q":"x"}' } })
-    // Gemini の functionResponse は id を持たないのが普通なので、
-    // 名前と到着順で呼び出しに突き合わせて id を合成する。ここが
-    // ずれると OpenAI 系プロバイダが tool_call_id 不一致で 400 を返す。
+    // A Gemini functionResponse normally carries no id, so one is
+    // synthesised by matching name and arrival order against the calls.
+    // Get this wrong and an OpenAI-family provider 400s on a
+    // tool_call_id mismatch.
     expect(Object(unified.messages[1])).toMatchObject({
       role: 'tool',
       tool_call_id: Reflect.get(call, 'id'),
@@ -170,9 +174,10 @@ describe('gemini-generate — 対応済み', () => {
     })
   })
 
-  test('(b)(c) 同名ツールの複数呼び出しが取り違えられない', async () => {
-    // 合成 id が呼び出しごとに一意でないと、2 回目の結果が 1 回目の
-    // 呼び出しに紐づく。名前だけで対にすると起きる壊れ方。
+  test('(b)(c) repeated calls to the same tool are not mixed up', async () => {
+    // Unless the synthesised id is unique per call, the second result
+    // binds to the first call — the failure mode of pairing on name
+    // alone.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -202,9 +207,10 @@ describe('gemini-generate — 対応済み', () => {
     expect(Object(unified.messages[2])).toMatchObject({ tool_call_id: ids[1], content: 'B' })
   })
 
-  test('対応済み: Gemini の toolConfig（呼び出しモード）が tool_choice になる', async () => {
-    // `buildToolConfig`（outbound）のちょうど逆。許可名が 1 つの ANY は
-    // 「その関数を呼べ」なので、OpenAI 語彙の function 指定に落とす。
+  test("supported: Gemini's toolConfig calling mode becomes tool_choice", async () => {
+    // Exactly the inverse of `buildToolConfig` on the outbound side. An
+    // ANY with a single allowed name means "call that function", so it
+    // folds into OpenAI's function form.
     const unified = await new GeminiTransformer().transformRequestOut(
       {
         model: 'gemini-3-pro',
@@ -216,9 +222,10 @@ describe('gemini-generate — 対応済み', () => {
     expect(unified.tool_choice).toEqual({ type: 'function', function: { name: 'lookup' } })
   })
 
-  test('対応済み: 大文字の mode（ワイヤ上の綴り）も読む', async () => {
-    // Gemini がワイヤに載せるのは AUTO / ANY / NONE。自前の outbound は
-    // 小文字を出すので、どちらでも同じに読めないと往復で割れる。
+  test('supported: reads the upper-case mode the wire actually carries', async () => {
+    // Gemini puts AUTO / ANY / NONE on the wire while our own outbound
+    // emits lower case, so reading both identically is what keeps a
+    // round trip from forking.
     const auto = await new GeminiTransformer().transformRequestOut(
       { model: 'gemini-3-pro', contents: [], toolConfig: { functionCallingConfig: { mode: 'AUTO' } } },
       ctx
@@ -231,7 +238,7 @@ describe('gemini-generate — 対応済み', () => {
     expect(any.tool_choice).toBe('required')
   })
 
-  // 応答方向（OpenAI tool_calls → Gemini functionCall パート、引数の
-  // 分割断片の組み立てを含む）は __tests__/llms/gemini-inbound-response.test.ts
-  // が担保している。
+  // The response direction — OpenAI tool_calls → Gemini functionCall
+  // parts, including reassembling split argument fragments — is covered
+  // by __tests__/llms/gemini-inbound-response.test.ts.
 })

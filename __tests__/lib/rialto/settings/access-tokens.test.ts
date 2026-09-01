@@ -79,10 +79,7 @@ describe('sortTokens', () => {
   })
 
   test('within a state, newest first', () => {
-    const rows = sortTokens(
-      [token({ id: 'old', createdAt: at(-30) }), token({ id: 'new', createdAt: at(-1) })],
-      NOW
-    )
+    const rows = sortTokens([token({ id: 'old', createdAt: at(-30) }), token({ id: 'new', createdAt: at(-1) })], NOW)
     expect(rows.map((r) => r.id)).toEqual(['new', 'old'])
   })
 

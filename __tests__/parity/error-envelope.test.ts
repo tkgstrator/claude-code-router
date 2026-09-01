@@ -1,16 +1,18 @@
 /**
- * パリティ・マトリクス — 行「エラー形式」。
+ * Parity matrix — the "error shape" row.
  *
- * 面ごとにクライアント SDK がパースできる封筒が違う。Rialto は 1 本の
- * パイプラインで 4 種類の SDK を相手にしているので、**上流が何を返そうと
- * 面の封筒に詰め直す**必要がある——詰め直さないと、codex の `{detail}` が
- * OpenAI SDK に、Anthropic の `{type:'error'}` が Gemini SDK に、そのまま
- * 届く。
+ * Each surface has its own envelope that the client SDK can parse. One
+ * pipeline serves four SDKs, so **whatever the upstream returns has to be
+ * repacked into the surface's envelope** — without that, codex's
+ * `{detail}` reaches the OpenAI SDK and Anthropic's `{type:'error'}`
+ * reaches the Gemini SDK verbatim.
  *
- * 封筒そのものの語彙（error.type の分類、google.rpc.Code 名の対応表）は
- * `__tests__/api/error-shape.test.ts` が担保している。ここで見るのは
- * **面 → 封筒の対応が 4 面ぶん揃っていること**と、実際の実行経路である
- * `forwardUpstreamError` を通しても同じ封筒になること。
+ * The envelopes' own vocabulary (the error.type taxonomy, the
+ * google.rpc.Code name table) is covered by
+ * `__tests__/api/error-shape.test.ts`. What is checked here is that
+ * **all four surfaces have an envelope assigned**, and that going
+ * through the real path, `forwardUpstreamError`, produces the same
+ * one.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -19,23 +21,24 @@ import { errorShapeForPath } from '../../src/api/v1/error-shape'
 import { forwardUpstreamError } from '../../src/api/v1/upstream-error'
 import { INBOUND_SURFACES } from '../../src/llms/inbound/surfaces'
 
-// 上流の生エラー本文を、パイプラインが投げるのと同じ形の例外に包む。
-// このメッセージ書式は provider-send.ts と PROVIDER_ERR_RE の間の契約。
+// Wrap a raw upstream error body in the exception shape the pipeline
+// throws. This message format is the contract between provider-send.ts
+// and PROVIDER_ERR_RE.
 const upstreamError = (status: number, rawBody: string): HTTPException =>
   new HTTPException(status as never, { message: `Error from provider(p,m: ${status}): ${rawBody}` })
 
-// codex が実際に返す形。3 つの封筒のどれとも一致しないので、
-// 詰め直しが効いているかどうかがはっきり出る。
+// The shape codex actually returns. It matches none of the three
+// envelopes, so whether the repacking works shows up plainly.
 const CODEX_BODY = JSON.stringify({ detail: 'Unsupported parameter: system' })
 
-describe('4面すべてに封筒が割り当たっている', () => {
-  test('記述子の errorShape と errorShapeForPath が一致する', () => {
+describe('every surface has an envelope', () => {
+  test('the descriptor errorShape agrees with errorShapeForPath', () => {
     for (const surface of INBOUND_SURFACES) {
       expect(errorShapeForPath(surface.path.replace('/*', '/gemini-3-pro:generateContent'))).toBe(surface.errorShape)
     }
   })
 
-  test('4面が 3 種類の封筒に割り当たっている（openai 面は 2 つで共有）', () => {
+  test('four surfaces map onto three envelopes, the two openai ones sharing', () => {
     expect(INBOUND_SURFACES.map((s) => `${s.id}:${s.errorShape}`)).toEqual([
       'anthropic-messages:anthropic',
       'openai-chat:openai',
@@ -45,7 +48,7 @@ describe('4面すべてに封筒が割り当たっている', () => {
   })
 })
 
-describe('上流の未知形式が面の封筒に詰め直される', () => {
+describe('an unknown upstream shape is repacked into the surface envelope', () => {
   test('anthropic-messages — {type:"error", error:{type,message}}', async () => {
     const forwarded = forwardUpstreamError(upstreamError(400, CODEX_BODY), errorShapeForPath('/v1/messages'), 'p')
     expect(forwarded?.status).toBe(400)
@@ -62,18 +65,28 @@ describe('上流の未知形式が面の封筒に詰め直される', () => {
       'p'
     )
     expect(await forwarded!.json()).toEqual({
-      error: { message: '[via p] Unsupported parameter: system', type: 'invalid_request_error', param: null, code: null }
+      error: {
+        message: '[via p] Unsupported parameter: system',
+        type: 'invalid_request_error',
+        param: null,
+        code: null
+      }
     })
   })
 
-  test('openai-responses — chat/completions と同じ封筒', async () => {
+  test('openai-responses — the same envelope as chat/completions', async () => {
     const forwarded = forwardUpstreamError(upstreamError(400, CODEX_BODY), errorShapeForPath('/v1/responses'), 'p')
     expect(await forwarded!.json()).toEqual({
-      error: { message: '[via p] Unsupported parameter: system', type: 'invalid_request_error', param: null, code: null }
+      error: {
+        message: '[via p] Unsupported parameter: system',
+        type: 'invalid_request_error',
+        param: null,
+        code: null
+      }
     })
   })
 
-  test('gemini-generate — google.rpc.Status（code は数値の HTTP ステータス）', async () => {
+  test('gemini-generate — google.rpc.Status, code being the numeric HTTP status', async () => {
     const forwarded = forwardUpstreamError(
       upstreamError(400, CODEX_BODY),
       errorShapeForPath('/v1beta/models/gemini-3-pro:generateContent'),
@@ -85,13 +98,13 @@ describe('上流の未知形式が面の封筒に詰め直される', () => {
   })
 })
 
-describe('診断ヘッダは面によらず同じ', () => {
-  test('via プロバイダと問い合わせ先 URL が付く（チェーン Rialto の切り分け用）', () => {
+describe('the diagnostic headers are the same on every surface', () => {
+  test('carries the via provider and the URL it called, for isolating a chained Rialto', () => {
     const forwarded = forwardUpstreamError(upstreamError(401, '{"detail":"nope"}'), 'openai', 'p')
     expect(forwarded?.headers.get('x-rialto-upstream')).toBe('p')
   })
 
-  test('パイプライン起因の例外は詰め直さず null を返す（呼び出し側が 5xx を出す）', () => {
+  test('an exception from the pipeline itself returns null rather than being repacked, and the caller answers 5xx', () => {
     expect(forwardUpstreamError(new Error('boom'), 'openai', 'p')).toBeNull()
     expect(forwardUpstreamError(new HTTPException(500, { message: 'not the provider format' }), 'openai')).toBeNull()
   })

@@ -1,16 +1,17 @@
 /**
- * 初回起動ゲートの E2E。
+ * E2E for the first-run gate.
  *
- * ここで押さえているのは、ユニットテストでは原理的に捕まえられなかった
- * 種類のバグである。`markSetupOffered()` は実装され、テストもでき、
- * `ProtectedRoute` から読む側も実装されていた。**誰も呼んでいなかった**
- * だけで、その1点は「関数が正しいか」を見るテストのどこにも現れない。
- * 症状は「Skip setup を押しても何も起きない」——押下も遷移も起きていて、
- * ゲートが即座に引き戻していた。
+ * What this catches is a class of bug a unit test cannot reach.
+ * `markSetupOffered()` was implemented, was tested, and the side that
+ * reads it from `ProtectedRoute` was implemented too. **Nothing called
+ * it** — and that single fact appears nowhere in a test that asks whether
+ * the function is correct. The symptom was "Skip setup does nothing":
+ * the click and the navigation both happened, and the gate pulled the
+ * user straight back.
  *
- * したがってここでの主張は「関数が動く」ではなく、**画面がその関数を
- * 実際に呼んでいる**ことと、**押した結果ユーザーが目的地に留まる**こと
- * の2つに絞ってある。
+ * So the claims here are not "the function works" but the two things a
+ * unit test could not make: that **the screen actually calls it**, and
+ * that **the user stays where the click took them**.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
@@ -26,8 +27,9 @@ const browser = (): Browser => {
   return held.browser
 }
 
-/** 毎回まっさらなコンテキストで開く。sessionStorage を持ち越すと、前の
- *  テストが立てた「提示済み」で次のテストのゲートが開いてしまう。 */
+/** Open in a fresh context each time. Carrying sessionStorage over would
+ *  let the "already offered" mark one test writes open the next one's
+ *  gate. */
 async function open(path: string): Promise<Page> {
   const context = await browser().newContext()
   const page = await context.newPage()
@@ -35,7 +37,7 @@ async function open(path: string): Promise<Page> {
   return page
 }
 
-describe.skipIf(!HAS_E2E)('初回起動ゲート', () => {
+describe.skipIf(!HAS_E2E)('first-run gate', () => {
   beforeAll(async () => {
     held.browser = await launchBrowser()
   })
@@ -44,39 +46,39 @@ describe.skipIf(!HAS_E2E)('初回起動ゲート', () => {
     if (held.browser !== null) await held.browser.close()
   })
 
-  test('/setup を描画した時点で「提示済み」が記録される', async () => {
-    // これが配線バグそのものの回帰テスト。実装されているのに呼ばれて
-    // いない、という状態はここでしか現れない。
+  test('rendering /setup records that setup was offered', async () => {
+    // The regression test for the wiring bug itself. "Implemented but
+    // never called" shows up here and nowhere else.
     const page = await open('/setup')
     const marked = await page.evaluate((key) => sessionStorage.getItem(key), SETUP_OFFERED_KEY)
     expect(marked).not.toBeNull()
     await page.context().close()
   })
 
-  test('Skip setup を押すと /overview に着き、引き戻されない', async () => {
+  test('Skip setup lands on /overview and is not pulled back', async () => {
     const page = await open('/setup')
     await page.getByText('Skip setup', { exact: true }).click()
     await page.waitForURL(/\/overview$/, { timeout: 5000 })
 
-    // 引き戻しは遷移の直後に起きるので、着地して終わりではなく
-    // 「留まっている」ことまで見る。ゲートは再レンダーのたびに評価される。
+    // The pull-back happens right after the navigation, so arriving is
+    // not enough — this waits to confirm the page stays. The gate is
+    // evaluated on every re-render.
     await page.waitForTimeout(500)
     expect(new URL(page.url()).pathname).toBe('/overview')
     await page.context().close()
   })
 
-  test('Skip setup が 1 行に収まる', async () => {
-    // インライン要素が折り返すと client rect が複数になる。高さを閾値と
-    // 比べるより、DOM が直接答えてくれるこちらのほうが壊れにくい。
+  test('Skip setup fits on one line', async () => {
+    // A wrapped inline element reports more than one client rect. Asking
+    // the DOM directly is sturdier than comparing a height to a
+    // threshold.
     const page = await open('/setup')
-    const rects = await page
-      .getByText('Skip setup', { exact: true })
-      .evaluate((el) => el.getClientRects().length)
+    const rects = await page.getByText('Skip setup', { exact: true }).evaluate((el) => el.getClientRects().length)
     expect(rects).toBe(1)
     await page.context().close()
   })
 
-  test('/setup がコンソールエラーなしで描画される', async () => {
+  test('/setup renders with no console errors', async () => {
     const context = await browser().newContext()
     const page = await context.newPage()
     const errors: string[] = []
