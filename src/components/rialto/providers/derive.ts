@@ -71,6 +71,31 @@ export function apiStyleOverrideOf(p: Provider, model: string): ApiStyle | null 
 }
 
 /**
+ * Whether the provider holds something it could authenticate with.
+ *
+ * Mirrors the gate in `services/config/enabled-models.ts` deliberately:
+ * a subscription needs an active account with a resolved plan, an
+ * api_key provider needs a non-empty key. That gate is applied on top of
+ * `Provider.enabled`, so a provider failing it is already unroutable no
+ * matter how the switch is set — which is what makes it the right place
+ * to lock the switch rather than let an operator set a flag that changes
+ * nothing.
+ *
+ * Not the same question as `providerState() === 'live'`. Live is a
+ * verdict on a probe: for an api_key provider it means a model test has
+ * *passed*, so a key that works but has never been tested reads
+ * `unknown`. Locking on liveness would strand every freshly added key.
+ */
+export function hasCredential(p: Provider, sub: SubscriptionWire | undefined): boolean {
+  if (p.auth_mode === 'subscription') {
+    if (sub === undefined || sub.activeAccount === null) return false
+    return sub.activeAccount.plan !== null
+  }
+  const key = p.api_key === null ? '' : p.api_key.trim()
+  return key.length > 0
+}
+
+/**
  * State of the provider as a whole: will it take traffic, and if it may,
  * is its credential good.
  *

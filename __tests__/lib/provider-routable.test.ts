@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { providerState } from '../../src/components/rialto/providers/derive'
+import { hasCredential, providerState } from '../../src/components/rialto/providers/derive'
 import type { Provider, SubscriptionWire } from '../../src/components/rialto/providers/types'
 import { enabledTargets } from '../../src/components/rialto/routing/derive'
 
@@ -27,11 +27,29 @@ const subProvider = (over: Partial<Provider> = {}): Provider => ({
   ...over
 })
 
-const liveSub: SubscriptionWire = {
-  providerName: 'claude-code',
-  enabled: true,
-  accounts: [{ id: 'a1', label: 'acct', plan: 'claude_max', authStatus: 'live', userName: null, userEmail: null }]
-} as unknown as SubscriptionWire
+const account = (over: Record<string, unknown> = {}) => ({
+  id: 'a1',
+  label: 'acct',
+  plan: 'claude_max',
+  authStatus: 'live',
+  userName: null,
+  userEmail: null,
+  ...over
+})
+
+const sub = (over: Record<string, unknown> = {}): SubscriptionWire => {
+  const active = account()
+  return {
+    providerName: 'claude-code',
+    kind: 'claude',
+    enabled: true,
+    accounts: [active],
+    activeAccount: active,
+    ...over
+  } as unknown as SubscriptionWire
+}
+
+const liveSub = sub()
 
 describe('providerState', () => {
   test('a switched-off provider reads off, however live its credential', () => {
@@ -68,5 +86,54 @@ describe('the Providers screen and Routing agree', () => {
       'claude-code,claude-sonnet-5'
     ])
     expect(providerState(on, liveSub)).toBe('live')
+  })
+})
+
+/**
+ * The switch is locked exactly when turning it on would change nothing:
+ * `getEnabledModels` drops a provider with no credential whatever the
+ * flag says, so offering the control there would be offering a setting
+ * nothing reads.
+ *
+ * The threshold is deliberately NOT `providerState() === 'live'`. For an
+ * api_key provider `live` means a model test has passed, so a key that
+ * works but has never been tested reads `unknown` — locking on liveness
+ * would strand every freshly added key with no way to switch it on, the
+ * same trap this change exists to remove.
+ */
+describe('hasCredential — when the switch is the operator\'s to set', () => {
+  test('a subscription with an active account on a resolved plan has one', () => {
+    expect(hasCredential(subProvider(), liveSub)).toBe(true)
+  })
+
+  test('a subscription with no accounts at all does not', () => {
+    expect(hasCredential(subProvider(), undefined)).toBe(false)
+  })
+
+  test('an account whose plan never resolved does not count', () => {
+    const unresolved = sub({ activeAccount: account({ plan: null }) })
+    expect(hasCredential(subProvider(), unresolved)).toBe(false)
+  })
+
+  test('an api_key provider needs only a non-empty key', () => {
+    expect(hasCredential(subProvider({ auth_mode: 'api_key', api_key: 'sk-x' }), undefined)).toBe(true)
+    expect(hasCredential(subProvider({ auth_mode: 'api_key', api_key: '   ' }), undefined)).toBe(false)
+    expect(hasCredential(subProvider({ auth_mode: 'api_key', api_key: null }), undefined)).toBe(false)
+  })
+
+  test('an untested api_key provider is not live, but its switch stays settable', () => {
+    // The regression this threshold avoids: `unknown` is the resting
+    // state of a key nobody has run a model test against.
+    const fresh = subProvider({ auth_mode: 'api_key', api_key: 'sk-x' })
+    expect(providerState(fresh, undefined)).toBe('unknown')
+    expect(hasCredential(fresh, undefined)).toBe(true)
+  })
+
+  test('a subscription whose probe came back invalid keeps its switch too', () => {
+    // The credential exists and the server would still route to it; the
+    // probe verdict is not the same claim as "there is nothing here".
+    const bad = sub({ accounts: [account({ authStatus: 'invalid' })], activeAccount: account({ authStatus: 'invalid' }) })
+    expect(providerState(subProvider(), bad)).toBe('invalid')
+    expect(hasCredential(subProvider(), bad)).toBe(true)
   })
 })

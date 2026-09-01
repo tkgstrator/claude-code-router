@@ -334,7 +334,8 @@
       "testAll": "全部测试",
       "syncModels": "同步模型",
       "routable": "可路由",
-      "toggleProvider": "切换 {{provider}}"
+      "toggleProvider": "切换 {{provider}}",
+      "routableNeedsCredential": "需要可用的凭据才能接收流量"
     },
     "credentials": {
       "title": "凭据",

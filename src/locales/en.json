@@ -334,7 +334,8 @@
       "testAll": "Test all",
       "syncModels": "Sync models",
       "routable": "Routable",
-      "toggleProvider": "Toggle {{provider}}"
+      "toggleProvider": "Toggle {{provider}}",
+      "routableNeedsCredential": "Needs a working credential before it can take traffic"
     },
     "credentials": {
       "title": "Credentials",

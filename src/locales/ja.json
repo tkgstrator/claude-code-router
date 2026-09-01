@@ -334,7 +334,8 @@
       "testAll": "すべてテスト",
       "syncModels": "モデルを同期",
       "routable": "振り分け対象",
-      "toggleProvider": "{{provider}} の振り分け対象を切り替え"
+      "toggleProvider": "{{provider}} の振り分け対象を切り替え",
+      "routableNeedsCredential": "資格情報が無いため振り分け対象にできません"
     },
     "credentials": {
       "title": "認証情報",

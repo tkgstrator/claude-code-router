@@ -14,6 +14,7 @@ import { CredentialsPanel } from './CredentialsPanel'
 import {
   buildModelRows,
   enabledCountOf,
+  hasCredential,
   listedModelsOf,
   type ModelRow,
   type ProviderState,
@@ -58,6 +59,7 @@ function DetailHeader({
   provider,
   label,
   state,
+  credentialed,
   busy,
   onTestAll,
   onSync,
@@ -67,6 +69,7 @@ function DetailHeader({
   provider: Provider
   label: string
   state: ProviderState
+  credentialed: boolean
   busy: boolean
   onTestAll: () => void
   onSync: () => void
@@ -95,11 +98,17 @@ function DetailHeader({
         {/* The switch that Routing actually reads. It sits with the
             actions rather than in the model table, because it gates the
             whole provider: off, every model below it is unroutable no
-            matter what its own row says. */}
+            matter what its own row says.
+
+            Locked with no credential, because `getEnabledModels` drops
+            such a provider regardless of the flag — an operator turning
+            it on there would be setting something nothing reads. */}
         <span className='flex items-center gap-1.5 pr-1 text-[11px] text-muted-foreground'>
           {t('providers.detail.routable')}
           <Toggle
             on={enabled}
+            disabled={!credentialed}
+            title={credentialed ? undefined : t('providers.detail.routableNeedsCredential')}
             label={t('providers.detail.toggleProvider', { provider: label })}
             onClick={() => onToggleProvider(!enabled)}
           />
@@ -231,6 +240,7 @@ export function ProviderDetail(props: ProviderDetailProps) {
         provider={provider}
         label={props.label}
         state={props.state}
+        credentialed={hasCredential(provider, subscription)}
         busy={props.busy}
         onTestAll={props.onTestAll}
         onSync={props.onSync}
