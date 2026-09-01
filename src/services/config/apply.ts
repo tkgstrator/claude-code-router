@@ -19,7 +19,7 @@ import { applyRouter } from './apply/router'
 import { applyEnvelopeToEnv, readRawConfigFile, writeConfigFile } from './envelope'
 import { pruneUnsetEnvelopePaths } from './sync-to-disk'
 
-export { apiKeyForStorage, buildStoredTransformer, parseSlot } from './apply/fields'
+export { apiKeyForStorage, parseSlot } from './apply/fields'
 export { syncDeprecationFlags } from './apply/model-rows'
 export { applyProviderRow, applyProviders } from './apply/providers'
 

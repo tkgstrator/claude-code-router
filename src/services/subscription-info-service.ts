@@ -2,15 +2,9 @@ import type { z } from '@hono/zod-openapi'
 import { getPrismaClient } from '../db/client'
 import type { PrismaClient } from '../generated/prisma/client'
 import type { SubscriptionInfoSchema, SubscriptionProviderInfoSchema } from '../schemas/api/subscriptions'
-import { isJsonObject } from './config/transformer'
 
 export type SubscriptionAccountInfo = z.infer<typeof SubscriptionInfoSchema>
 export type SubscriptionInfo = z.infer<typeof SubscriptionProviderInfoSchema>
-
-const isProviderEnabled = (transformer: unknown): boolean => {
-  if (!isJsonObject(transformer)) return true
-  return transformer.providerEnabled !== false
-}
 
 // Map a provider's apiBaseUrl to a vendor family for the UI. Mirrors the
 // substring matching in getSubAccountTokensForKind so the two stay in sync.
@@ -71,7 +65,7 @@ export async function getSubscriptionsInfo(prisma: PrismaClient = getPrismaClien
     return {
       providerName: p.name,
       kind: providerKind(p.apiBaseUrl),
-      enabled: isProviderEnabled(p.transformer),
+      enabled: p.enabled,
       accounts,
       activeAccount: active
     }

@@ -365,9 +365,8 @@ interface InboundSurface {
 `src/shared/preset/schema/post-process.ts`（ファイル全体が孤立、import 元ゼロ）と、
 参照コードの無い locale キー `nav.transformers` / `providers.transformers` を削除。
 
-**持ち越し**: 「`Provider.transformer` JSONB を Phase 4 で正式カラムへ昇格させて畳む」は
-**未着手**。Phase 4（Zodスキーマ層分け）は別の作業として閉じており、この昇格は Prisma
-マイグレーションを伴うため 2-4 の範囲外とした。
+**持ち越し**: 「`Provider.transformer` JSONB を正式カラムへ昇格させて畳む」は
+**2026-09-01 に完了**（マイグレーション `20260901081806_promote_provider_enabled`）。
 
 ##### 昇格の設計 (2026-09-01 棚卸し)
 
@@ -380,8 +379,37 @@ JSONB が運んでいる3つは**性質が違い、行き先も違う**。ひと
 | `providerEnabled` | provider 単位の有効/無効 | **新規カラム `Provider.enabled Boolean @default(true)`。** `providerEnabled === false` のときだけ false を backfill（`!== false` が現行の判定なので、キー無し = 有効） |
 | `subscriptionAuth` | OAuth 資格情報 | **カラムにしない。** `subscription-overlay.ts` が実行時に載せるだけで**DBには一度も書かれない**。列にすると平文の資格情報が永続化される。パイプライン側の provider 型に残す実行時フィールドであって、ドメイン型のフィールドではない |
 
-したがって作業は「JSONB を列にする」ではなく、**永続化される2つを列へ移し、3つ目を
-ドメイン型から実行時型へ切り離す**こと。切り離しが済めば `Provider.transformer` 列は落とせる。
+したがって作業は「JSONB を列にする」ではなく、**永続化される1つを列へ移し、残り2つが
+そもそも永続化されていないことを確認する**ことだった。実際 `_disabledModels` は読むたびに
+`Model.enabled` から再生成され、書き込み前に落とされていた（＝一度も保存されていない）ので、
+列は `Provider.enabled` 1本で足り、JSONB は丸ごと落とせた。
+
+##### 実施結果 (2026-09-01) — **Done**
+
+`Provider.enabled Boolean @default(true)` を追加し、`Provider.transformer` を削除した。
+
+マイグレーションで**順序が本質的**だった。`prisma migrate dev` が生成した SQL は
+`DROP COLUMN transformer` と `ADD COLUMN enabled DEFAULT true` を1文にまとめており、
+これをそのまま適用すると **operator が無効化していた provider が全部黙って有効に戻る**。
+`ADD` → `UPDATE ... WHERE transformer -> 'providerEnabled' = 'false'::jsonb` → `DROP` の
+3段に書き直してある。
+
+型が守ってくれなかった点も記録しておく。列を削除して client を再生成したあとも、
+`prisma.provider.upsert({ update: { transformer: ... } })` は **`tsc` を素通りした**
+（Prisma 7 の入力型が余剰プロパティを弾かない）。存在しない列への書き込みは実行時にしか
+落ちないので、スキーマから列を消すときは型検査ではなく**呼び出し箇所の grep** で追うこと。
+
+読み替えた箇所: `compose.ts`（`enabled: p.enabled`、`toWireTransformer` は
+`_disabledModels` の射影だけになった）、`apply/providers.ts`（`enabled` を直接 upsert）、
+`apply/fields.ts`（`buildStoredTransformer` 削除）、`config/transformer.ts`
+（`providerEnabledFromTransformer` 削除）、`enabled-models.ts`、`provider-test-service.ts`、
+`subscription-info-service.ts`。ドメイン型の `Provider.transformer` は**残る** —
+subscription の資格情報を実行時に載せる器と、UI 向けの `_disabledModels` ビューであって、
+DB の列ではないため。
+
+回帰テストは `__tests__/db/config-service.test.ts` に3本追加（有効/無効の往復、
+`enabled` を含まない payload が無効化しないこと、無効な provider の model が
+`getEnabledModels` から外れること）。
 
 読み替えが要る箇所（実測）— `_disabledModels`: `components/rialto/providers/{derive,actions,connect-actions}.ts`、
 `components/rialto/routing/derive.ts`、`lib/providers/provider-edits.ts`、`lib/models/build-rows.ts`。

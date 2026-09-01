@@ -29,15 +29,20 @@ const DOT: Record<StepState, string> = {
   todo: 'bg-muted text-muted-foreground'
 }
 
-// Only claude and codex have an OAuth initiate endpoint. Gemini is listed
-// because it is one of the four inbound surfaces, and every card hands off
-// to the Providers screen, which owns the connect flow either way.
-// The labels are product names and the hints are plan names, so both are
-// the same in every language — only the surrounding prose is translated.
-const CONNECT_OPTIONS: Array<{ label: string; icon: string; hint: string }> = [
-  { label: 'Claude Code', icon: 'ri-sparkling-line', hint: 'Pro / Max' },
-  { label: 'Codex', icon: 'ri-terminal-line', hint: 'ChatGPT plan' },
-  { label: 'Gemini CLI', icon: 'ri-gemini-line', hint: 'AI Pro / Ultra' }
+// Only claude and codex are subscription seats: they are the whole of
+// SUBSCRIPTION_PRESETS, and each has an OAuth initiate endpoint. Gemini is
+// listed because it is one of the four inbound surfaces, but it reaches
+// upstream through the `google` api_key vendor, NOT through a plan —
+// Gemini CLI / Code Assist stopped serving the individual, AI Pro and AI
+// Ultra tiers on 2026-06-18, so naming a plan here would promise a seat
+// that no longer exists. Every card hands off to Providers regardless.
+//
+// The labels are product names, identical in every language; the hints say
+// how the vendor is paid for, so they come from the bundle.
+const CONNECT_OPTIONS: Array<{ label: string; icon: string; hintKey: string }> = [
+  { label: 'Claude Code', icon: 'ri-sparkling-line', hintKey: 'system.setup.optionHintClaudeCode' },
+  { label: 'Codex', icon: 'ri-terminal-line', hintKey: 'system.setup.optionHintCodex' },
+  { label: 'Google AI', icon: 'ri-gemini-line', hintKey: 'system.setup.optionHintGoogle' }
 ]
 
 // A seeded catalog row is not a usable provider: api_key stays null until
@@ -231,7 +236,7 @@ export function SetupScreen() {
               >
                 <i className={cn(option.icon, 'text-sm text-muted-foreground')} />
                 <div className='mt-1 text-[11px] font-medium'>{option.label}</div>
-                <div className='text-[10px] text-muted-foreground'>{option.hint}</div>
+                <div className='text-[10px] text-muted-foreground'>{t(option.hintKey)}</div>
               </Link>
             ))}
           </div>

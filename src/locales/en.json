@@ -309,16 +309,6 @@
     "apply": "Apply",
     "hex_input_help": "Enter hex color value (e.g.: #FF0000)"
   },
-  "errors": {
-    "generic_title": "Something went wrong",
-    "generic_body": "The page hit an unexpected error. You can retry or return home.",
-    "not_found_title": "Page not found",
-    "not_found_body": "We couldn't find the page you're looking for.",
-    "retry": "Retry",
-    "go_home": "Go home",
-    "show_details": "Show technical details",
-    "hide_details": "Hide technical details"
-  },
   "presets": {
     "form": {
       "field_required": "{{field}} is required",
@@ -445,7 +435,7 @@
     "vendorHint": {
       "claudeCode": "Pro / Max via Claude CLI OAuth",
       "codex": "ChatGPT plan via Codex CLI OAuth",
-      "geminiCli": "AI Pro / Ultra via Gemini CLI OAuth",
+      "geminiCli": "Code Assist Standard / Enterprise via Gemini CLI OAuth",
       "payAsYouGo": "Pay-as-you-go API key",
       "aiStudio": "AI Studio API key",
       "openaiCompatible": "OpenAI-compatible",
@@ -907,7 +897,10 @@
       "footerNote": "The token in <mono>~/.rialto/config.json</mono> signs you into this UI. Clients use an access token.",
       "skip": "Skip setup",
       "databaseBody": "Migrations applied and the model catalog seeded. Registered providers: {{n}} — {{authenticated}}.",
-      "alreadyHave": "Live tokens so far: {{n}}. Issue another, or paste one you saved — the plaintext of an existing token cannot be shown again."
+      "alreadyHave": "Live tokens so far: {{n}}. Issue another, or paste one you saved — the plaintext of an existing token cannot be shown again.",
+      "optionHintClaudeCode": "Pro / Max subscription",
+      "optionHintCodex": "ChatGPT plan",
+      "optionHintGoogle": "AI Studio API key"
     }
   }
 }

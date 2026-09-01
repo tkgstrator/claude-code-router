@@ -309,16 +309,6 @@
     "apply": "应用",
     "hex_input_help": "输入十六进制颜色值 (例如: #FF0000)"
   },
-  "errors": {
-    "generic_title": "出错了",
-    "generic_body": "页面渲染时发生意外错误。您可以重新加载或返回首页。",
-    "not_found_title": "页面未找到",
-    "not_found_body": "找不到您访问的页面。",
-    "retry": "重试",
-    "go_home": "返回首页",
-    "show_details": "显示技术细节",
-    "hide_details": "隐藏技术细节"
-  },
   "presets": {
     "form": {
       "field_required": "{{field}} 为必填项",
@@ -445,7 +435,7 @@
     "vendorHint": {
       "claudeCode": "通过 Claude CLI OAuth 使用 Pro / Max",
       "codex": "通过 Codex CLI OAuth 使用 ChatGPT 套餐",
-      "geminiCli": "通过 Gemini CLI OAuth 使用 AI Pro / Ultra",
+      "geminiCli": "通过 Gemini CLI OAuth 使用 Code Assist Standard / Enterprise",
       "payAsYouGo": "按量付费的 API key",
       "aiStudio": "AI Studio 的 API key",
       "openaiCompatible": "OpenAI 兼容",
@@ -907,7 +897,10 @@
       "footerNote": "<mono>~/.rialto/config.json</mono> 中的令牌用于登录这个 UI；客户端使用的是访问令牌。",
       "skip": "跳过设置",
       "databaseBody": "已应用迁移并初始化模型目录。已注册 provider：{{n}} 个——{{authenticated}}。",
-      "alreadyHave": "当前有效令牌：{{n}} 个。可以再签发一个，或粘贴此前保存的那个——已有令牌的明文无法再次显示。"
+      "alreadyHave": "当前有效令牌：{{n}} 个。可以再签发一个，或粘贴此前保存的那个——已有令牌的明文无法再次显示。",
+      "optionHintClaudeCode": "Pro / Max 订阅",
+      "optionHintCodex": "ChatGPT 套餐",
+      "optionHintGoogle": "AI Studio 的 API key"
     }
   }
 }

@@ -101,10 +101,18 @@ model Provider {
   // for every provider; the default only covers a row created before
   // the seed runs.
   apiStyle                    ApiStyle     @default(openai_chat)
-  // Free-form provider-level transformer block. The legacy shape is
-  // { use: string[] | [string, opts][], [modelName]: { use: ... } } —
-  // PR #2 will normalize this into a Transformer table.
-  transformer                 Json?
+  // Whether this provider is offered for routing at all. This used to be
+  // `providerEnabled` inside a free-form `transformer` JSONB blob, which
+  // meant the one question the scheduler asks most often could not be
+  // filtered or indexed in SQL. The blob is gone: its other two tenants
+  // were a derived view of `Model.enabled` (`_disabledModels`, rebuilt on
+  // read and stripped before write, so never really stored) and the OAuth
+  // credential the pipeline grafts on at request time (never persisted,
+  // and a column would have written a live secret to disk).
+  //
+  // Defaults true because the blob's absence meant "enabled" — only an
+  // explicit `providerEnabled: false` turned a provider off.
+  enabled                     Boolean      @default(true)
   // Selected account for subscription-auth providers. Null for api_key providers.
   activeSubscriptionAccountId String?
   activeSubscriptionAccount   SubAccount?  @relation("ProviderActiveSubscriptionAccount", fields: [activeSubscriptionAccountId], references: [id], onDelete: SetNull)

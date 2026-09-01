@@ -309,16 +309,6 @@
     "apply": "適用",
     "hex_input_help": "16 進数のカラー値を入力 (例: #FF0000)"
   },
-  "errors": {
-    "generic_title": "問題が発生しました",
-    "generic_body": "画面の描画中に想定外のエラーが起きました。再読み込みするか、ホームに戻ってください。",
-    "not_found_title": "ページが見つかりません",
-    "not_found_body": "指定された URL のページは存在しませんでした。",
-    "retry": "再読み込み",
-    "go_home": "ホームに戻る",
-    "show_details": "技術的な詳細を表示",
-    "hide_details": "技術的な詳細を隠す"
-  },
   "presets": {
     "form": {
       "field_required": "{{field}} は必須です",
@@ -445,7 +435,7 @@
     "vendorHint": {
       "claudeCode": "Claude CLI の OAuth 経由で Pro / Max",
       "codex": "Codex CLI の OAuth 経由で ChatGPT プラン",
-      "geminiCli": "Gemini CLI の OAuth 経由で AI Pro / Ultra",
+      "geminiCli": "Gemini CLI の OAuth 経由で Code Assist Standard / Enterprise",
       "payAsYouGo": "従量課金の API キー",
       "aiStudio": "AI Studio の API キー",
       "openaiCompatible": "OpenAI 互換",
@@ -907,7 +897,10 @@
       "footerNote": "この UI へのサインインには <mono>~/.rialto/config.json</mono> のトークンを使います。クライアントが使うのはアクセストークンです。",
       "skip": "セットアップをスキップ",
       "databaseBody": "マイグレーションを適用し、モデルカタログを初期化しました。登録済みプロバイダー: {{n}} 件 — {{authenticated}}。",
-      "alreadyHave": "現在有効なトークン: {{n}} 件。もう 1 つ発行するか、保存済みのものを貼り付けてください。既存トークンの平文を再表示することはできません。"
+      "alreadyHave": "現在有効なトークン: {{n}} 件。もう 1 つ発行するか、保存済みのものを貼り付けてください。既存トークンの平文を再表示することはできません。",
+      "optionHintClaudeCode": "Pro / Max サブスクリプション",
+      "optionHintCodex": "ChatGPT プラン",
+      "optionHintGoogle": "AI Studio の API キー"
     }
   }
 }
