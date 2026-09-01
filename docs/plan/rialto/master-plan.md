@@ -196,6 +196,7 @@ if (req.inboundPath === '/v1/chat/completions' || req.inboundPath === '/v1/respo
 - `CLAUDE.md` の陳腐化修正 — monorepo記述の削除、`ccr` CLIコマンド節の削除、実体（単一パッケージ / `src/` レイアウト / Hono+Vite+Prisma+Docker）への更新
 - `knip` でデッドコード棚卸し。`google-auth-library` / `fastify` / `@fastify/cors` / `fastify-plugin` の削除可否を確定
 - `src/providers/`（vendorスクレイパ registry）と `src/llms/registry/provider.ts`（ランタイム provider registry）の役割境界をドキュメント化。同名で別物なので混同のもと
+  → **2026-09-01 に解消**: ドキュメント化ではなく**改名**した。`src/providers/` → **`src/vendors/`**。中の型は最初から `VendorProvider` / `getVendorProvider` / `scrapedVendors` と呼び分けていて、ディレクトリ名だけがそれを言っていなかった。参照は import 4行だけだった。CLAUDE.md に3者（Prisma の `Provider` 行 / ランタイム registry / vendor アダプタ）の対照表を追加
 - テストのフレーク解消 — フルスイート実行時のみ `__tests__/services/config/envelope.test.ts` が8件落ちる既知の問題を切り分けて潰す
 - inboundパリティ用のゴールデンフィクスチャ基盤を `__tests__/providers/__fixtures__` の仕組みの上に**inbound面別**へ拡張
 

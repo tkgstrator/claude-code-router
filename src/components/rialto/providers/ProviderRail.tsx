@@ -131,11 +131,20 @@ export function ProviderRail({
         quota={quota}
         className='mt-2 flex items-center gap-2 border-t border-border px-4 pt-5 pb-2'
       />
-      <div className='p-4'>
-        <RButton variant='outline' icon='ri-add-line' onClick={onAdd}>
-          {t('providers.screen.addProvider')}
-        </RButton>
-      </div>
+      {/* This button appends to the list above it, so it only earns its
+          place when there is a list. On a fresh install the rail is empty
+          and the same action is already offered twice on the screen — as
+          the header's primary button and in the empty-state text next to
+          it — which reads as three ways to do one thing stacked in a
+          column. The mock only ever depicts a populated rail, so this
+          state had no design to follow. */}
+      {entries.length === 0 ? null : (
+        <div className='p-4'>
+          <RButton variant='outline' icon='ri-add-line' onClick={onAdd}>
+            {t('providers.screen.addProvider')}
+          </RButton>
+        </div>
+      )}
     </aside>
   )
 }

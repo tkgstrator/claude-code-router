@@ -25,6 +25,7 @@ is not a dependency either; that code was absorbed into `src/llms/`.
 | `src/api/` | One `route.ts` per endpoint, Next.js-style directory naming (`providers/[name]/models/[model]/route.ts`) |
 | `src/llms/` | Transformers, request pipeline, `scenario-router`, `quota-router`, tokenizers, inbound-surface descriptors |
 | `src/services/` | config, OAuth, usage, routing-scheduler, access tokens, model tests |
+| `src/vendors/` | Per-vendor catalog + pricing adapters (`VendorProvider`): fetch a vendor's live model list, scrape its published prices. Read by `model-sync-service` / `catalog-service`, **never on the request path**. Named `vendors` and not `providers` because `src/llms/registry/provider.ts` is a different thing — see below |
 | `src/schemas/` | Zod, split into four layers — `primitives / wire / domain / api`. There is **no** global `@/schemas` barrel; import from the layer. `wire` / `domain` / `api` each expose one; `primitives` has no barrel because nothing composes the layer as a whole — import `primitives/record` and friends by name |
 | `src/components/rialto/` | The UI — five screens (Overview / Routing / Providers / Activity / Settings) |
 | `src/components/ui/` | shadcn components. Never edit (see Rules) |
@@ -368,6 +369,18 @@ optional fields — but since nothing parses a manifest, that compatibility is c
 theoretical.
 
 ## Dependencies
+
+**Three unrelated things are called "provider".** Do not conflate them.
+
+| | What it is |
+|---|---|
+| `Provider` (Prisma row) | An upstream Rialto can route to: base URL, key, auth mode, api style |
+| `src/llms/registry/provider.ts` | The **runtime** registry. Resolves those rows into pipeline-ready objects with their transformer chain, on the request path |
+| `src/vendors/` | **Catalog and pricing** adapters, one per vendor. Fetch model lists and scrape prices for the Providers screen and the seed. Never touched while serving a request |
+
+(`src/shared/data/providers/<vendor>/prices.json` is a fourth use of the
+word, but it is static scraped output rather than code.)
+
 
 There is no dependency graph to learn — this is one package. Two rules matter:
 

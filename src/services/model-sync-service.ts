@@ -22,9 +22,9 @@ import { isDeprecatedModel, LLM_PRICES_SEED, SUBSCRIPTION_PRESETS } from '@/shar
 import { getPrismaClient } from '../db/client'
 import { AuthMode, type Prisma } from '../generated/prisma/client'
 import { logger } from '../logger'
-import type { ScrapedPriceEntry } from '../providers/base'
-import { getVendorProvider, isScrapedVendor } from '../providers/registry'
 import type { RefreshOutcomeSchema } from '../schemas/api/models'
+import type { ScrapedPriceEntry } from '../vendors/base'
+import { getVendorProvider, isScrapedVendor } from '../vendors/registry'
 import { modelApiStyleOverride } from './config'
 
 export type RefreshOutcome = z.infer<typeof RefreshOutcomeSchema>
