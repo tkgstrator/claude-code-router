@@ -1,24 +1,27 @@
 /**
- * 列ソートの比較規則。
+ * The comparison rules behind column sorting.
  *
- * フック本体（`useTableSort`）はコンポーネントテストの基盤が無いので
- * 直接は叩けない。代わりに、そこが依存している**並べ替えの規則**を
- * 同じ形で組み立てて固定する。守りたいのは実装の内部ではなく、
- * 操作者から見える3つの性質である。
+ * The hook itself (`useTableSort`) cannot be called directly — there is no
+ * component-test harness here — so this rebuilds the *ordering rules* it
+ * depends on in the same shape and pins those. What matters is not the
+ * internals but the three properties an operator can see:
  *
- * 1. 欠損値は**方向によらず末尾**。価格未公開のモデルを昇順で最安として
- *    先頭に出すと、答えていない問いに答えたことになる
- * 2. 同値は**入力順を保つ**。粗い列（tier / status）で並べたとき、
- *    グループ内が勝手に混ざらない
- * 3. 真偽値は false < true。有効・無効の列で off がまとまる
+ * 1. Missing values sort last **in both directions**. Floating a model with
+ *    no published price to the top of an ascending sort answers a question
+ *    nobody asked.
+ * 2. Ties keep the incoming order, so sorting by a coarse column (tier,
+ *    status) does not shuffle the rows within each group.
+ * 3. Booleans compare false < true, so an on/off column groups the off rows
+ *    together at one end.
  */
 
 import { describe, expect, test } from 'bun:test'
 import type { SortValue } from '../../src/components/rialto/table-sort'
 
-// useTableSort の sorted と同じ比較。フックから切り出せないので写している
-// が、writeup ではなく振る舞いを固定するのが目的なので、ここが本体と
-// 食い違ったらこのテストが落ちるべきである。
+// The same comparison `useTableSort`'s `sorted` performs. Copied rather
+// than imported because it cannot be lifted out of the hook — the point is
+// to pin the behaviour, so if this drifts from the real one, this test is
+// what should fail.
 const isMissing = (v: SortValue): boolean => v === null || v === undefined
 
 const compare = (a: SortValue, b: SortValue): number => {
@@ -52,48 +55,48 @@ const ROWS: Row[] = [
 
 const ids = (rows: Row[]): string[] => rows.map((r) => r.id)
 
-describe('欠損値', () => {
-  test('昇順で末尾に来る', () => {
+describe('missing values', () => {
+  test('sort last ascending', () => {
     expect(ids(sortBy(ROWS, (r) => r.price, 'asc'))).toEqual(['c', 'e', 'a', 'b', 'd'])
   })
 
-  test('降順でも末尾に来る —— 方向を反転しても先頭に回らない', () => {
-    // ここが症状の本体。単純に符号を掛けるだけの実装だと、降順で
-    // 「価格未公開」が最上位に並ぶ。
+  test('sort last descending too — reversing must not float them to the top', () => {
+    // This is the symptom itself. An implementation that merely multiplies
+    // by the sign puts "price unpublished" at the head of a descending sort.
     expect(ids(sortBy(ROWS, (r) => r.price, 'desc'))).toEqual(['a', 'e', 'c', 'b', 'd'])
   })
 
-  test('欠損同士は入力順のまま', () => {
+  test('keep their incoming order relative to each other', () => {
     const onlyMissing = ROWS.filter((r) => r.price === null)
     expect(ids(sortBy(onlyMissing, (r) => r.price, 'asc'))).toEqual(['b', 'd'])
     expect(ids(sortBy(onlyMissing, (r) => r.price, 'desc'))).toEqual(['b', 'd'])
   })
 })
 
-describe('同値', () => {
-  test('粗い列で並べてもグループ内の順序が保たれる', () => {
-    // haiku < opus < sonnet。opus は a, c の順で入力されており、tier で
-    // 並べてもそのまま。haiku 側の b, e も同じ。
+describe('ties', () => {
+  test('a coarse column leaves the order within each group alone', () => {
+    // haiku < opus < sonnet. `opus` arrived as a, c and stays that way after
+    // sorting by tier; so does haiku's b, e.
     const sorted = sortBy(ROWS, (r) => r.tier, 'asc')
     expect(ids(sorted)).toEqual(['b', 'e', 'a', 'c', 'd'])
   })
 })
 
-describe('真偽値', () => {
-  test('false が先、true が後（昇順）', () => {
+describe('booleans', () => {
+  test('false first, true after (ascending)', () => {
     expect(ids(sortBy(ROWS, (r) => r.on, 'asc'))).toEqual(['b', 'd', 'a', 'c', 'e'])
   })
 
-  test('降順で反転する', () => {
+  test('reverse descending', () => {
     expect(ids(sortBy(ROWS, (r) => r.on, 'desc'))).toEqual(['a', 'c', 'e', 'b', 'd'])
   })
 })
 
-describe('文字列', () => {
-  test('ロケール比較で並ぶ', () => {
+describe('strings', () => {
+  test('order by locale comparison', () => {
     const rows = [{ v: 'b' }, { v: 'A' }, { v: 'a' }]
-    // localeCompare なので大文字小文字をまたいで自然に並ぶ。コードポイント
-    // 順だと 'A' < 'a' < 'b' になり、表の見た目と合わない。
+    // localeCompare folds case naturally. Code-point order would give
+    // 'A' < 'a' < 'b', which does not match how the column reads.
     expect(sortBy(rows, (r) => r.v, 'asc').map((r) => r.v)).toEqual(['a', 'A', 'b'])
   })
 })

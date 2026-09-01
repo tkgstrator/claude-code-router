@@ -1,16 +1,17 @@
 /**
- * Provider.models の並びが安定していること。
+ * That `Provider.models` comes back in a stable order.
  *
- * Providers 画面のモデル表は `provider.models` の配列順をそのまま描く。
- * その配列は Prisma のリレーションから来ていて、**`orderBy` が無かった**。
- * リレーションに順序指定が無いと Postgres は好きな順で返すので、モデルを
- * 1つトグルした UPDATE が行の物理位置を動かし、**操作した瞬間に表が
- * 並び替わる**という形で現れていた。
+ * The Providers screen's model table renders that array in the order it
+ * arrives, and the array comes from a Prisma relation that carried **no
+ * `orderBy`**. Without one Postgres may return the rows in any order, so
+ * the UPDATE behind a single model toggle moved a row's physical position
+ * and the table reordered itself the moment the operator touched it.
  *
- * 同じ `include` の `subscriptionAccounts` には最初から `orderBy` が
- * 付いていた——一度は気づいて片方だけ直した跡である。
+ * `subscriptionAccounts` in the same `include` had an `orderBy` from the
+ * start — the trace of someone noticing this once and fixing only one half.
  *
- * ここで見るのは「何順か」ではなく「**同じ入力なら同じ順**」であること。
+ * What is pinned here is not *which* order, but that the same input always
+ * produces the same one.
  */
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
@@ -40,7 +41,7 @@ const modelOrder = async (): Promise<string[]> => {
   return p.models
 }
 
-describe.skipIf(!HAS_DB)('Provider.models の並び', () => {
+describe.skipIf(!HAS_DB)('Provider.models ordering', () => {
   beforeEach(async () => {
     await resetDbTables()
     await ensureRouterSlots()
@@ -51,20 +52,21 @@ describe.skipIf(!HAS_DB)('Provider.models の並び', () => {
     await teardownPrisma()
   })
 
-  test('続けて読んでも同じ順で返る', async () => {
+  test('repeated reads return the same order', async () => {
     const first = await modelOrder()
     expect(await modelOrder()).toEqual(first)
     expect(await modelOrder()).toEqual(first)
   })
 
-  test('モデルを1つ無効にしても並びが変わらない —— これが症状そのもの', async () => {
+  test('disabling one model leaves the order alone — this is the symptom itself', async () => {
     const before = await modelOrder()
-    // トグル1回ぶん。UPDATE が行を動かしても表示順は動いてはいけない。
+    // One toggle's worth. The UPDATE may move the row; the displayed
+    // order must not move with it.
     await applyUiConfig(seed(['gpt-4o']))
     expect(await modelOrder()).toEqual(before)
   })
 
-  test('複数回トグルしても並びが変わらない', async () => {
+  test('repeated toggling leaves the order alone', async () => {
     const before = await modelOrder()
     await applyUiConfig(seed(['gpt-4o']))
     await applyUiConfig(seed(['gpt-4o', 'o3']))
@@ -72,8 +74,8 @@ describe.skipIf(!HAS_DB)('Provider.models の並び', () => {
     expect(await modelOrder()).toEqual(before)
   })
 
-  test('宣言した全モデルが揃っている', async () => {
-    // 並びの担保が、取りこぼしの見落としにならないように。
+  test('every declared model is present', async () => {
+    // So that pinning the order does not quietly hide a dropped row.
     expect((await modelOrder()).slice().sort()).toEqual(MODELS.slice().sort())
   })
 })
