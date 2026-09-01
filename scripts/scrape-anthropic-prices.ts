@@ -129,16 +129,30 @@ const parsePrice = (raw: string): number | null => {
 // "Claude Opus 4 (deprecated)" → "Claude Opus 4"
 const stripStatus = (display: string): string => display.replace(/\s*\([^)]*\)\s*$/, '').trim()
 
-// "Claude Opus 4.7" → "claude-opus-4-7"
-// "Claude Opus 4"   → "claude-opus-4-0"  (.0 implicit when no minor given)
+// "Claude Opus 4.7"  → "claude-opus-4-7"
+// "Claude Opus 4"    → "claude-opus-4-0"   (.0 implicit on the 4 generation)
+// "Claude Opus 5"    → "claude-opus-5"     (no implicit .0 from 5 on)
+// "Claude Fable 5.1" → "claude-fable-5-1"
+//
+// Two things were wrong here and each produced a different failure.
+//
+// The family list omitted Fable and Mythos, so those rows fell through to
+// the "no API id mapping" skip list and never reached the price table at
+// all — `claude-fable-5-1` was published on the pricing page and dropped
+// on the floor.
+//
+// The `.0` was appended unconditionally, which invented ids that do not
+// exist: the docs list `claude-opus-5` and `claude-sonnet-5`, never
+// `claude-opus-5-0`. Naming changed at the 5 generation — an x.0 model
+// carries no minor segment — so the implicit zero is correct only for 4.
 const claude4PlusSlug = (display: string): string | null => {
-  const m = display.match(/^Claude\s+(Opus|Sonnet|Haiku)\s+(\d+)(?:\.(\d+))?$/i)
+  const m = display.match(/^Claude\s+(Opus|Sonnet|Haiku|Fable|Mythos)\s+(\d+)(?:\.(\d+))?$/i)
   if (!m) return null
   const tier = m[1].toLowerCase()
   const major = Number(m[2])
-  const minor = m[3] === undefined ? '0' : m[3]
   if (major < 4) return null // legacy lineage handled separately
-  return `claude-${tier}-${major}-${minor}`
+  if (m[3] !== undefined) return `claude-${tier}-${major}-${m[3]}`
+  return major >= 5 ? `claude-${tier}-${major}` : `claude-${tier}-${major}-0`
 }
 
 const headerIdx = (label: string): number =>

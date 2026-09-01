@@ -39,15 +39,28 @@ const orEmpty = (v: string | undefined): string => (v === undefined ? '' : v)
 // "Claude Opus 4 (deprecated)" → "Claude Opus 4"
 const stripStatus = (display: string): string => display.replace(/\s*\([^)]*\)\s*$/, '').trim()
 
-// "Claude Opus 4.7" → "claude-opus-4-7". "Claude Opus 4" → null: for
-// dateless / no-minor rows we prefer the displayToApiId lookup from the
-// overview page.
+// "Claude Opus 4.7"  → "claude-opus-4-7"
+// "Claude Opus 5"     → "claude-opus-5"    (no implicit .0 from 5 on)
+// "Claude Fable 5.1"  → "claude-fable-5-1"
+//
+// Kept in step with the build-time scraper
+// (scripts/scrape-anthropic-prices.ts). This copy used to recognise only
+// Opus / Sonnet / Haiku *and* to require a minor, so every no-minor row
+// fell through to the overview-page lookup — which is how a live refresh
+// returned nine models and silently omitted Claude Opus 5, Claude Fable
+// 5.1 and Claude Sonnet 5 while the pricing page listed all three.
+// `modelPrefix` below already knew about Fable and Mythos; only this
+// half of the pair did not.
 const claude4PlusSlug = (display: string): string | null => {
-  const m = display.match(/^Claude\s+(Opus|Sonnet|Haiku)\s+(\d+)\.(\d+)$/i)
+  const m = display.match(/^Claude\s+(Opus|Sonnet|Haiku|Fable|Mythos)\s+(\d+)(?:\.(\d+))?$/i)
   if (m === null) return null
+  const tier = m[1].toLowerCase()
   const major = Number(m[2])
   if (major < 4) return null
-  return `claude-${m[1].toLowerCase()}-${major}-${m[3]}`
+  if (m[3] !== undefined) return `claude-${tier}-${major}-${m[3]}`
+  // The 4 generation spells x.0 as `-4-0`; from 5 on there is no minor
+  // segment at all, and inventing one produces ids that do not exist.
+  return major >= 5 ? `claude-${tier}-${major}` : `claude-${tier}-${major}-0`
 }
 
 // Extract just the "Claude <Tier> <Major>[.Minor]" prefix, dropping any
@@ -219,3 +232,10 @@ export class AnthropicProvider extends VendorProvider {
 
 // Re-export for callers that still import the old service name.
 export const scrapeAnthropicPricing = (): Promise<ScrapedPriceEntry[]> => new AnthropicProvider().scrape()
+
+// Exposed for tests only. The display-name → API-id rule is the piece
+// that silently drops models when it is wrong (a family it does not
+// know is skipped; an invented `.0` produces an id the vendor never
+// published), and both failures are invisible from the scrape's output
+// alone — the model simply is not there.
+export const __testables = { claude4PlusSlug }
