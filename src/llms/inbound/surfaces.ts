@@ -192,7 +192,11 @@ export interface CatalogPath {
 }
 
 export const CATALOG_PATHS: readonly CatalogPath[] = [
-  { path: '/v1/models', auth: 'bearer', errorShape: 'openai' }
+  { path: '/v1/models', auth: 'bearer', errorShape: 'openai' },
+  // Anthropic's pre-flight size check. Not a completion, so not a surface —
+  // but it still has to answer in the Anthropic SDK's auth convention and
+  // error envelope, which is what this list carries.
+  { path: '/v1/messages/count_tokens', auth: 'x-api-key', errorShape: 'anthropic' }
 ] as const
 
 /**
