@@ -32,11 +32,37 @@
  */
 
 import { Hono } from 'hono'
-import { getLlmsContext } from '@/llms/context'
+import { TokenizerRegistry } from '@/llms/registry/tokenizer'
 import { readSignals } from '@/llms/scenario-router/surface-signals'
 import type { RouterRequestBody } from '@/llms/scenario-router/types'
+import { logger } from '@/logger'
 
 export const countTokensRoute = new Hono()
+
+/**
+ * A tokenizer registry of its own, not the pipeline's.
+ *
+ * Reaching for `getLlmsContext()` would have been shorter, but it builds
+ * the whole request-time context — provider registry, transformers,
+ * config — and config reads Postgres. Counting tokens needs none of
+ * that, and tying a pre-flight size check to the database means a
+ * Postgres hiccup turns into a client that cannot decide when to
+ * compact. (It also made this route untestable without a live DB, which
+ * is how the coupling surfaced.)
+ *
+ * Built once and reused: `initialize()` loads the tokenizer, and doing
+ * that per request would be the expensive part of an otherwise trivial
+ * endpoint.
+ */
+const tokenizers: { value: TokenizerRegistry | null } = { value: null }
+
+const getTokenizers = async (): Promise<TokenizerRegistry> => {
+  if (tokenizers.value !== null) return tokenizers.value
+  const built = new TokenizerRegistry(logger)
+  await built.initialize()
+  tokenizers.value = built
+  return built
+}
 
 const errorEnvelope = (message: string) => ({
   type: 'error' as const,
@@ -58,8 +84,8 @@ countTokensRoute.post('/v1/messages/count_tokens', async (c) => {
   const body: RouterRequestBody = { model: '', ...parsed }
   const { tokenize } = readSignals(body, '/v1/messages')
 
-  const ctx = await getLlmsContext()
-  const { tokenCount } = await ctx.tokenizers.countTokens(tokenize)
+  const registry = await getTokenizers()
+  const { tokenCount } = await registry.countTokens(tokenize)
 
   // Anthropic's shape. `input_tokens` only — the endpoint does not report
   // cache or output figures.
