@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# Release script — Docker only now that the @CCR/cli npm package and the
+# Release script — Docker only now that the npm CLI package and the
 # packages/core npm publish flow have been retired. Publishes the
 # consolidated Vite + Hono image to Docker Hub.
 
 VERSION=$(node -p "require('../package.json').version")
-IMAGE_NAME="ccr/router"
+IMAGE_NAME="tkgling/rialto"
 IMAGE_TAG="${VERSION}"
 LATEST_TAG="latest"
 
@@ -17,7 +17,7 @@ if [ "$PUBLISH_TYPE" != "docker" ] && [ "$PUBLISH_TYPE" != "all" ]; then
   exit 1
 fi
 
-echo "Releasing Claude Code Router v${VERSION}"
+echo "Releasing Rialto v${VERSION}"
 
 if ! docker info &>/dev/null; then
   echo "Error: Docker is not running"

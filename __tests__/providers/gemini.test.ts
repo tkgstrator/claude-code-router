@@ -1,7 +1,7 @@
 /**
  * Integration tests for the gemini provider.
  * Requires GEMINI_API_KEY environment variable to be set.
- * CCR must be running at http://127.0.0.1:3456.
+ * Rialto must be running at http://127.0.0.1:3456.
  */
 
 import { describe, test, expect } from "bun:test";
@@ -18,7 +18,7 @@ import {
 // Replay mode never needs an upstream key — see openai.test.ts.
 const hasApiKey =
   IS_REPLAY ||
-  (Boolean(process.env.GEMINI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS);
+  (Boolean(process.env.GEMINI_API_KEY) && !process.env.RIALTO_SKIP_LIVE_TESTS);
 
 describe.skipIf(!hasApiKey)("gemini / gemini-2.5-flash", () => {
   test(

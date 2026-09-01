@@ -12,8 +12,8 @@
  *     response.body   raw response text (SSE or JSON)
  *
  * Default mode is `replay` — every fetch is served from disk. Set
- * `CCR_FIXTURE_MODE=live` to bypass and hit the running CCR server
- * (default http://127.0.0.1:16173, override with CCR_TEST_URL).
+ * `RIALTO_FIXTURE_MODE=live` to bypass and hit the running Rialto server
+ * (default http://127.0.0.1:16173, override with RIALTO_TEST_URL).
  *
  * Fixtures are produced by `scripts/capture-fixtures.ts`; rerun that
  * to refresh them after a transformer change.
@@ -27,7 +27,7 @@ const FIXTURES_DIR = join(import.meta.dir, "__fixtures__");
 
 export type FixtureMode = "replay" | "live";
 export const FIXTURE_MODE: FixtureMode =
-  (process.env.CCR_FIXTURE_MODE as FixtureMode) ?? "replay";
+  (process.env.RIALTO_FIXTURE_MODE as FixtureMode) ?? "replay";
 
 interface ResponseMeta {
   status: number;
@@ -105,7 +105,7 @@ function buildResponse(meta: ResponseMeta, body: string): Response {
 
 /**
  * Drop-in replacement for `fetch` that loads from fixtures by default
- * and falls through to the live server when CCR_FIXTURE_MODE=live.
+ * and falls through to the live server when RIALTO_FIXTURE_MODE=live.
  *
  * Body shape note: when `init.body` is a string, we JSON.parse it to
  * canonicalise the hash key (so an extra space in the wire JSON would
@@ -131,7 +131,7 @@ export async function cachedFetch(url: string, init: RequestInit = {}): Promise<
 
   throw new Error(
     `No fixture for ${method} ${url} (hash=${hash}). ` +
-      `Run with CCR_FIXTURE_MODE=live to bypass, or refresh fixtures via ` +
+      `Run with RIALTO_FIXTURE_MODE=live to bypass, or refresh fixtures via ` +
       `\`bun run scripts/capture-fixtures.ts\`.`
   );
 }

@@ -5,7 +5,7 @@ import {
   RoutingPresetListResponseSchema,
   RoutingPresetSchema,
   UpdateRoutingPresetSchema
-} from '../../schemas'
+} from '../../schemas/api/routing-preset'
 import {
   createRoutingPreset,
   deleteRoutingPreset,

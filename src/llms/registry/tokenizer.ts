@@ -10,7 +10,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { ProviderTokenizerConfig } from '@/schemas'
+import type { ProviderTokenizerConfig } from '@/schemas/domain/tokenizer'
 import { ApiTokenizer } from '../tokenizers/api'
 import type { TokenizeRequest, Tokenizer } from '../tokenizers/base'
 import { HuggingFaceTokenizer } from '../tokenizers/huggingface'

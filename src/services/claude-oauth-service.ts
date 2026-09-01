@@ -14,15 +14,15 @@
 
 import { logger } from '../logger'
 
-// Diagnostic flag — set CCR_DEBUG_OAUTH=1 to log the token-exchange
+// Diagnostic flag — set RIALTO_DEBUG_OAUTH=1 to log the token-exchange
 // request body alongside the response on failure. Off by default to
-// keep the `code` / `code_verifier` out of routine logs.
-const DEBUG_OAUTH = process.env.CCR_DEBUG_OAUTH === '1'
+// keep the `code` / `code_verifier` out of routine logs. The pre-rename
+const DEBUG_OAUTH = process.env.RIALTO_DEBUG_OAUTH === '1'
 
 // Loopback OAuth flow — the only redirect_uri pattern the Claude Code
 // OAuth client allows (per the public metadata at
 // https://claude.ai/oauth/claude-code-client-metadata). Port is
-// wildcarded by Anthropic so we can use the same port the CCR server
+// wildcarded by Anthropic so we can use the same port the Rialto server
 // is already listening on; path must be exactly `/callback`.
 //
 // Endpoint hosts copied verbatim from the strings table of the claude
@@ -37,7 +37,7 @@ export const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 // Order + composition copied verbatim from a real `claude login`
 // authorize URL — Anthropic rejects the request with "Invalid request
 // format" when `org:create_api_key` is missing, even though the
-// downstream CCR proxy never uses that scope.
+// downstream Rialto proxy never uses that scope.
 export const CLAUDE_SCOPES = [
   'org:create_api_key',
   'user:profile',

@@ -666,7 +666,7 @@ test('selectModel: rule cascade skips the scenario primary when the scenario has
 
 // ---- selectModel: subagent route (tag presence, not value) ---------
 
-test('selectModel: a <CCR-SUBAGENT-MODEL> tag selects the subagent route (value ignored, tag stripped)', () => {
+test('selectModel: a <RIALTO-SUBAGENT-MODEL> tag selects the subagent route (value ignored, tag stripped)', () => {
   // The tag PRESENCE picks the scenario's subagent primary; the tag VALUE
   // (anthropic,claude-fable) is NOT used to route. The tag is stripped so
   // the marker never leaks upstream.
@@ -679,7 +679,7 @@ test('selectModel: a <CCR-SUBAGENT-MODEL> tag selects the subagent route (value 
     model: 'claude-sonnet-4-5',
     system: [
       { type: 'text', text: 'You are a subagent.' },
-      { type: 'text', text: '<CCR-SUBAGENT-MODEL>anthropic,claude-fable</CCR-SUBAGENT-MODEL>' }
+      { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>anthropic,claude-fable</RIALTO-SUBAGENT-MODEL>' }
     ]
   })
   const out = selectModel(req, 1000, router, config)
@@ -703,7 +703,7 @@ test('selectModel: the subagent route classifies scenarios independently of the 
       output_config: { effort: 'high' },
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,
@@ -734,7 +734,7 @@ test('selectModel: falls back to the request model when the chosen subagent rout
       model: 'claude-sonnet-4-5',
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,
@@ -1003,14 +1003,14 @@ test('selectModel: an unclosed subagent tag still selects the subagent route (pr
     model: 'claude-sonnet-4-5',
     system: [
       { type: 'text', text: 'sys' },
-      { type: 'text', text: '<CCR-SUBAGENT-MODEL>anthropic,x' }
+      { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>anthropic,x' }
     ]
   })
   const out = selectModel(req, 1000, router, config)
   expect(out).toEqual({ model: 'anthropic,claude-sub', scenarioType: 'default', isSubagent: true, fallbacks: [] })
   // Unclosed tag is left untouched (only a well-formed tag is stripped).
   const system = req.body.system as { text: string }[]
-  expect(system[1].text).toBe('<CCR-SUBAGENT-MODEL>anthropic,x')
+  expect(system[1].text).toBe('<RIALTO-SUBAGENT-MODEL>anthropic,x')
 })
 
 test('selectModel: a tag outside the second system block is ignored (agent route)', () => {
@@ -1022,7 +1022,7 @@ test('selectModel: a tag outside the second system block is ignored (agent route
   const req = makeReq({
     model: 'claude-sonnet-4-5',
     system: [
-      { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' },
+      { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' },
       { type: 'text', text: 'sys' }
     ]
   })
@@ -1038,7 +1038,7 @@ test('selectModel: a single-block system cannot carry the tag (agent route)', ()
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
   const req = makeReq({
     model: 'claude-sonnet-4-5',
-    system: [{ type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }]
+    system: [{ type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }]
   })
   const out = selectModel(req, 1000, router, config)
   expect(out).toEqual({ model: 'anthropic,claude-agent', scenarioType: 'default', isSubagent: false, fallbacks: [] })
@@ -1058,7 +1058,7 @@ test('selectModel: a subagent web_search request uses the subagent webSearch rou
       tools: [{ type: 'web_search_20250305' }],
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,
@@ -1083,7 +1083,7 @@ test('selectModel: an unset subagent lane falls through even when the agent lane
       model: 'claude-haiku-4-5',
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,

@@ -7,6 +7,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import {
+  aggregateGeminiSseToJson,
   aggregateOpenAiChatSseToJson,
   aggregateOpenAiResponsesSseToJson
 } from '../../src/llms/utils/sse-aggregate'
@@ -159,5 +160,109 @@ describe('aggregateOpenAiResponsesSseToJson', () => {
     expect(result.object).toBe('response')
     expect(result.status).toBe('incomplete')
     expect(result.output).toEqual([])
+  })
+})
+
+// ─── Gemini ────────────────────────────────────────────────────────────
+
+const buildGeminiChunk = (payload: Record<string, unknown>): string => `data: ${JSON.stringify(payload)}\n\n`
+
+type GeminiCandidate = {
+  index?: number
+  finishReason?: string
+  content?: { role?: string; parts?: Array<Record<string, unknown>> }
+}
+
+const candidatesOf = (result: Record<string, unknown>): GeminiCandidate[] => result.candidates as GeminiCandidate[]
+
+describe('aggregateGeminiSseToJson', () => {
+  test('joins the text parts of one candidate into a single part', async () => {
+    const body =
+      buildGeminiChunk({
+        candidates: [{ content: { parts: [{ text: 'Hel' }], role: 'model' }, index: 0 }],
+        modelVersion: 'gemini-3-pro'
+      }) +
+      buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'lo' }], role: 'model' }, index: 0 }] }) +
+      buildGeminiChunk({
+        candidates: [{ content: { parts: [{ text: '!' }], role: 'model' }, index: 0, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 4, candidatesTokenCount: 3, totalTokenCount: 7 }
+      })
+    const result = await aggregateGeminiSseToJson(sseResponse(body))
+    const candidates = candidatesOf(result)
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0].content?.parts).toEqual([{ text: 'Hello!' }])
+    expect(candidates[0].content?.role).toBe('model')
+    expect(candidates[0].finishReason).toBe('STOP')
+    expect(result.usageMetadata).toEqual({ promptTokenCount: 4, candidatesTokenCount: 3, totalTokenCount: 7 })
+    expect(result.modelVersion).toBe('gemini-3-pro')
+  })
+
+  test('reasoning text is not merged into the answer', async () => {
+    // Gemini streams `thought: true` parts alongside answer parts on the
+    // same candidate. Concatenating both into one part would hand the
+    // caller a response whose visible text opens with the model's
+    // private reasoning.
+    const body =
+      buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'weighing ', thought: true }] }, index: 0 }] }) +
+      buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'options' }], role: 'model' }, index: 0 }] })
+    const result = await aggregateGeminiSseToJson(sseResponse(body))
+    expect(candidatesOf(result)[0].content?.parts).toEqual([
+      { text: 'weighing ', thought: true },
+      { text: 'options' }
+    ])
+  })
+
+  test('a functionCall part closes the open text run and survives verbatim', async () => {
+    const body =
+      buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'checking' }] }, index: 0 }] }) +
+      buildGeminiChunk({
+        candidates: [
+          {
+            content: { parts: [{ functionCall: { name: 'get_weather', args: { city: 'tokyo' } } }], role: 'model' },
+            index: 0,
+            finishReason: 'STOP'
+          }
+        ]
+      })
+    const result = await aggregateGeminiSseToJson(sseResponse(body))
+    expect(candidatesOf(result)[0].content?.parts).toEqual([
+      { text: 'checking' },
+      { functionCall: { name: 'get_weather', args: { city: 'tokyo' } } }
+    ])
+  })
+
+  test('multiple candidates stay separate and come back in index order', async () => {
+    const body =
+      buildGeminiChunk({
+        candidates: [
+          { content: { parts: [{ text: 'b' }] }, index: 1 },
+          { content: { parts: [{ text: 'a' }] }, index: 0 }
+        ]
+      }) + buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'a2' }] }, index: 0 }] })
+    const candidates = candidatesOf(await aggregateGeminiSseToJson(sseResponse(body)))
+    expect(candidates.map((c) => c.index)).toEqual([0, 1])
+    expect(candidates[0].content?.parts).toEqual([{ text: 'aa2' }])
+    expect(candidates[1].content?.parts).toEqual([{ text: 'b' }])
+  })
+
+  test('a truncated stream still yields the text that did arrive', async () => {
+    // No finishReason, no usageMetadata — the client gets a coherent
+    // envelope rather than a parse error on the raw SSE bytes.
+    const body = buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'partial' }] }, index: 0 }] })
+    const result = await aggregateGeminiSseToJson(sseResponse(body))
+    expect(candidatesOf(result)[0].content?.parts).toEqual([{ text: 'partial' }])
+    expect(result.usageMetadata).toBeUndefined()
+  })
+
+  test('malformed events are dropped rather than throwing', async () => {
+    const body =
+      'data: {not json\n\n' + buildGeminiChunk({ candidates: [{ content: { parts: [{ text: 'ok' }] }, index: 0 }] })
+    const result = await aggregateGeminiSseToJson(sseResponse(body))
+    expect(candidatesOf(result)[0].content?.parts).toEqual([{ text: 'ok' }])
+  })
+
+  test('an empty stream yields an empty candidate list, not a crash', async () => {
+    const result = await aggregateGeminiSseToJson(sseResponse(''))
+    expect(result.candidates).toEqual([])
   })
 })

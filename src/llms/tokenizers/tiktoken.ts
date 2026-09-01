@@ -7,7 +7,7 @@
  */
 
 import { get_encoding, type Tiktoken, type TiktokenEncoding } from 'tiktoken'
-import type { ProviderTokenizerConfig } from '@/schemas'
+import type { ProviderTokenizerConfig } from '@/schemas/domain/tokenizer'
 import { type TokenizeContentBlock, type TokenizeRequest, Tokenizer } from './base'
 
 const DEFAULT_ENCODING: TiktokenEncoding = 'cl100k_base'

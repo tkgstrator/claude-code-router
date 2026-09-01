@@ -609,4 +609,50 @@ describe.skipIf(!HAS_DB)('configService', () => {
     expect(ui.Router.default.agent.primary).toBe('openai,gpt-5')
     expect(ui.Providers[0].models.sort()).toEqual(['gpt-5', 'gpt-5-nano'])
   })
+
+  test('provider enabled round-trips through the Provider.enabled column', async () => {
+    // This used to live as `providerEnabled: false` inside the
+    // `Provider.transformer` JSONB. The promotion to a real column is
+    // only safe if the flag still survives apply -> compose, and if the
+    // absence of the flag still reads as enabled rather than as null.
+    const base = {
+      name: 'openai',
+      api_base_url: 'https://api.openai.com/v2',
+      api_key: 'sk-x',
+      auth_mode: 'api_key' as const,
+      models: ['gpt-5']
+    }
+    await applyUiConfig({ Providers: [{ ...base, enabled: false }] })
+    const disabled = await composeUiConfig()
+    expect(disabled.Providers[0].enabled).toBe(false)
+
+    await applyUiConfig({ Providers: [{ ...base, enabled: true }] })
+    const enabled = await composeUiConfig()
+    expect(enabled.Providers[0].enabled).toBe(true)
+
+    // A payload that never mentions `enabled` must not silently disable
+    // the provider — the old blob's absence meant "on".
+    await applyUiConfig({ Providers: [base] })
+    const unspecified = await composeUiConfig()
+    expect(unspecified.Providers[0].enabled).toBe(true)
+  })
+
+  test('a disabled provider keeps its models out of the routable set', async () => {
+    // The reason the flag is worth a column: getEnabledModels filters on
+    // it, and it used to have to parse JSON to do so.
+    await applyUiConfig({
+      Providers: [
+        {
+          name: 'openai',
+          api_base_url: 'https://api.openai.com/v2',
+          api_key: 'sk-x',
+          auth_mode: 'api_key',
+          models: ['gpt-5'],
+          enabled: false
+        }
+      ]
+    })
+    const { getEnabledModels } = await import('../../src/services/config/enabled-models')
+    expect(await getEnabledModels()).toEqual([])
+  })
 })

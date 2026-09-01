@@ -18,7 +18,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { ResponsesStreamEventSchema } from '../../src/schemas'
+import { ResponsesStreamEventSchema } from '../../src/schemas/wire/openai/responses'
 import { ResponsesStreamSession } from '../../src/llms/transformers/openai/responses/response-stream'
 
 function sse(lines: string[]): ReadableStreamDefaultReader<Uint8Array> {

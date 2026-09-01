@@ -8,10 +8,17 @@
 実装は以下に分散している:
 
 - `src/api/v1/route.ts` — HTTP ハンドラ / chain ループ
-- `src/api/v1/invocation.ts` — `buildRoutePlan` / `resolveInvocationForModel` / `buildFailoverChain`
+- `src/api/v1/route-plan.ts` — `buildRoutePlan`（リクエストごとに1回）
+- `src/api/v1/candidate-chain.ts` — `buildFailoverChain`（試す候補の順序）
+- `src/api/v1/invocation.ts` — `resolveInvocationForModel`（候補1件 → 実行可能な invocation）
 - `src/api/v1/chain-failover.ts` — `attemptChainEntry` / `tryRotateAccount`
-- `src/llms/scenario-router.ts` — `routeScenario` / `selectModel` / `applyProactiveFailover`
+- `src/llms/scenario-router.ts` — `routeScenario`
+- `src/llms/scenario-router/model-selection.ts` — `selectModel` / `classifyScenario` / `resolveTarget`
+- `src/llms/scenario-router/failover.ts` — `applyProactiveFailover`
 - `src/llms/pipeline.ts` — `runPipeline` / `handleProviderError`
+
+> **前提**: 以下は面の `routingMode` が `routed` のときの話である。`passthrough`（全面の初期値）
+> では `selectModel` 以降の段は丸ごとスキップされ、`body.model` がそのまま候補になる。
 
 ## 全体フロー
 
@@ -27,10 +34,11 @@ flowchart TD
   subgraph RS_BOX[routeScenario]
     direction TB
     SM[selectModel]
-    SM --> SM3[resolveByModelName]
-    SM3 --> SM4{thresh/heuristic<br/>シナリオ判定}
-    SM4 --> APF
-    APF[applyProactiveFailover<br/>weekly drain guard<br/>capability gate]
+    SM --> SM1[stripSubagentTag<br/>= agent / subagent レーン決定]
+    SM1 --> SM2{classifyScenario<br/>longContext / webSearch /<br/>think / effort・tier}
+    SM2 --> SM3[resolveTarget<br/>ルールスタック → catch-all primary]
+    SM3 --> APF
+    APF[applyProactiveFailover<br/>exhausted mark<br/>capability gate]
   end
 
   RS --> CHAIN[buildFailoverChain<br/>primary + fallbacks<br/>exhausted除外]
@@ -115,7 +123,7 @@ flowchart TD
 
 `handleProviderError` がスローする `HTTPException` の message は
 `Error from provider(<name>,<model>: <status>): <rawBody>` 固定形式。
-`v1/route.ts` 側の `forwardUpstreamError` が `PROVIDER_ERR_RE` で
+`src/api/v1/upstream-error.ts` の `forwardUpstreamError` が `PROVIDER_ERR_RE` で
 逆パースして upstream の生 body を verbatim 返す。
 
 ## fallback の制約 (subscription only ユーザ向け)
@@ -129,7 +137,7 @@ flowchart TD
 
 | 場面 | 挙動 |
 |------|------|
-| bare 名 `claude-opus-4-8` を受信 | `resolveByModelName` は **subscription provider を先に走査** し、見つかればそこに解決。subscription が同じ model を持っていれば api_key の `anthropic` には落ちない。 |
+| bare 名 `claude-opus-4-8` を受信 | **bare 名解決は廃止された。** `resolveByModelName` はもう存在しない。`selectModel` はモデル名でプロバイダを逆引きせず、レーンとシナリオを決めて設定済みの `provider,model` を返す。呼び出し側のモデル名が使われるのは、ルールにもシナリオ primary にもマッチしなかった最終フォールバックのときだけ。 |
 | primary が subscription で 429 | `buildFailoverChain` が **同 auth_mode かつ別 provider** の fallback だけ残す。subscription primary なら api_key fallback も同 provider 別 model も chain から除外される。 |
 | primary が subscription で 429、別 provider の subscription fallback なし | チェーンは primary 1 件のみ。`tryRotateAccount` で peer サブアカへ回って終了、回せなければ 429 を verbatim 返却。 |
 | primary が api_key で 429 | 同 auth_mode (api_key) かつ別 provider の fallback を順に試す。 |
@@ -142,12 +150,12 @@ flowchart TD
 | 1 | claude-code (sub) `claude-sonnet-4-6` で正常応答 | `selectModel` → `attemptChainEntry` → 2xx → SSE 返却 |
 | 2 | 同上で **5h 窓 429**、サブアカ 3 つあり 1 つだけ枯渇 | 429 → `tryRotateAccount` で当該アカ exhaust → 同 entry 再試行 → peer アカで成功 |
 | 3 | 全サブアカが 5h 枯渇 | 429 → 全アカ exhaust → `markProviderExhausted` → 次 fallback (例 `gemini,gemini-2.5-pro`) |
-| 4 | weekly 7d 窓が **proactive** に target 超え | `applyProactiveFailover` が primary を捨てて先に fallback へ。`markProviderExhausted` の resetAt は weekly reset 時刻 |
-| 5 | model 名 bare で `claude-opus-4-8` 指定 | `resolveByModelName` が subscription を優先し `claude-code,claude-opus-4-8` に解決（subscription が hosts している前提）|
-| 6 | 同じ model を api_key の `anthropic` も hosts している | subscription preference により subscription 側が選ばれる。api_key には落ちない |
+| 4 | 直前のリクエストで 429 を食って provider / model に exhausted マークが付いている | `applyProactiveFailover` が投げる前に primary を捨てて次の候補へ。マークは 429 レスポンスの実 resetAt（無ければ 5 分）で自動失効する |
+| 5 | model 名 bare で `claude-opus-4-8` 指定 | bare 名では**解決しない**。`classifyScenario` が effort/tier シグナル（opus → heavy）で `longContext` レーンに寄せ、そのレーンの設定値が使われる。どのレーンにも primary が無ければ `body.model` がそのまま通る |
+| 6 | 同じ model を api_key の `anthropic` も hosts している | どちらが選ばれるかは Routing の設定次第。モデル名から provider を逆引きする経路は無い |
 | 7 | subscription primary が 429、fallback に api_key 混在 | auth_mode gate で api_key fallback は弾かれる。subscription fallback のみ試行 → 全部枯渇なら 429 verbatim |
 | 8 | `anthropic` provider が **api_key 未設定** | router がこの provider をスキップ＋registry が warn 出力 |
-| 9 | inbound `body.model` に `provider,model` 形式（コンマ）が来た | 入力側のコンマ解釈は廃止。`resolveByModelName` は bare 名一致せず素通り → シナリオルーティング（最終的に `Router.default`）に落ちる。※ `provider,model` は router 出力〜下流の内部表現としては引き続き使用 |
+| 9 | inbound `body.model` に `provider,model` 形式（コンマ）が来た | `routed` な面では素通りしてシナリオルーティング（最終的に `default` レーン）に落ちる。`passthrough` な面では `provider,model` がそのまま宛先として使われる — OpenAI 互換面が `/v1/models` の id をそのまま投げ返せるのはこの経路。※ `provider,model` は router 出力〜下流の内部表現としても引き続き使用 |
 | 10 | upstream が 401/403 (subscription) | `handleProviderError` が「OAuth 期限切れ → CLI 再ログイン」と warn、HTTPException として上に伝播 → 429 ではないので verbatim 返却（rotate なし）|
 | 11 | upstream が 400 で `effort` 不一致 | `attempt` 内で `bestSupportedLevel` を読んで effort 差し替え → 同 model に 1 回だけ retry |
 | 12 | 全 fallback exhaust | `lastForwarded` (最後の 429 body) を verbatim 返却 |
@@ -159,7 +167,7 @@ flowchart TD
 | `failover-state` (`isProviderExhausted` / `isAccountExhausted`) | provider / sub-account 単位の枯渇フラグ | `markXxxExhausted(until?)` の `until` 時刻 or デフォルト 5min |
 | `session-account-router` (`getActiveAccountForSession`) | session ↔ 選択 sub-account の sticky マップ | `releaseAccountForSession` で剥がす |
 | `subaccount-usage-store` (`getPerAccountUsage`) | DB の `SubAccountUsage` 行をキャッシュ | 周期 polling で更新 |
-| `usage-service` (`getKindWindowHeadroom`) | weekly / 5h ウィンドウのキャッシュ | 周期 polling で更新 |
+| `usage-service` (`getKindWindowHeadroom`) | weekly / 5h ウィンドウのキャッシュ。**ルーティング判断からは外れた** — 現在の呼び出し元はテストと UI 表示のみで、`applyProactiveFailover` はこれを読まない | 周期 polling で更新 |
 
 ## ログ整合
 

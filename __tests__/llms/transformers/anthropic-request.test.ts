@@ -11,8 +11,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { convertAnthropicToolsToUnified } from '../../../src/llms/transformers/anthropic/request'
-import { AnthropicIncomingRequestSchema } from '../../../src/schemas'
-
+import { AnthropicIncomingRequestSchema } from '../../../src/schemas/wire/anthropic/messages'
 const baseRequest = {
   model: 'claude-sonnet-4-5',
   max_tokens: 1024,

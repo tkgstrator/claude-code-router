@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { QuotaAwareConstraintsSchema } from '../../../src/schemas'
+import { QuotaAwareConstraintsSchema } from '../../../src/schemas/domain/preference'
 import { computeWeights } from '../../../src/services/routing-scheduler/compute'
 import type {
   AccountQuotaState,

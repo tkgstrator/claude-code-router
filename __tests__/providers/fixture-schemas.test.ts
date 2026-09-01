@@ -6,10 +6,10 @@
  *     run through the strict AnthropicSSEPayloadSchema discriminated
  *     union.
  *   - Non-streaming JSON bodies are run through AnthropicMessageResponseSchema.
- *   - The /api/config fixture is skipped (it's the CCR config, not an
+ *   - The /api/config fixture is skipped (it's the Rialto config, not an
  *     LLM response, so a separate schema owns it).
  *
- * The schemas in llm-anthropic-sse.dto.ts are intentionally strict —
+ * The schemas in wire/anthropic/sse.ts are intentionally strict —
  * required fields stay required until a fixture proves the field is
  * actually absent in the wild. This test is what surfaces that.
  */
@@ -23,7 +23,7 @@ import {
   AnthropicIncomingRequestSchema,
   AnthropicMessageResponseSchema,
   AnthropicSSEPayloadSchema,
-} from "@/schemas";
+} from "@/schemas/wire/anthropic";
 
 const FIXTURES_DIR = join(import.meta.dir, "__fixtures__");
 
@@ -128,7 +128,7 @@ describe("fixture response schema validation", () => {
   }
 });
 
-// Each request.json holds what we POST to CCR /v1/messages — the
+// Each request.json holds what we POST to Rialto /v1/messages — the
 // Anthropic-shaped inbound body. Running it through the production
 // AnthropicIncomingRequestSchema is the regression guard for tightening
 // that schema: a removed .optional() that breaks a real-world client

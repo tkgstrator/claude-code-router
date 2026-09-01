@@ -1,7 +1,7 @@
 /**
  * Integration tests for the openai provider.
  * Requires OPENAI_API_KEY environment variable to be set.
- * CCR must be running at http://127.0.0.1:3456.
+ * Rialto must be running at http://127.0.0.1:3456.
  */
 
 import { describe, test, expect } from "bun:test";
@@ -20,7 +20,7 @@ import {
 // caller hasn't provisioned credentials (or has opted out explicitly).
 const hasApiKey =
   IS_REPLAY ||
-  (Boolean(process.env.OPENAI_API_KEY) && !process.env.CCR_SKIP_LIVE_TESTS);
+  (Boolean(process.env.OPENAI_API_KEY) && !process.env.RIALTO_SKIP_LIVE_TESTS);
 
 describe.skipIf(!hasApiKey)("openai / gpt-4.1-mini", () => {
   test(

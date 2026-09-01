@@ -4,8 +4,8 @@
  * API / UI.
  */
 
-import type { AppConfig, Provider, RouteRule, Router } from '@/schemas'
-import { RouteRuleSchema } from '@/schemas'
+import type { AppConfig } from '@/schemas/api/config'
+import { type Provider, type RouteRule, RouteRuleSchema, type Router } from '@/schemas/domain'
 import type { ConfigEnvelope, ScenarioKey } from '@/shared'
 import { getPrismaClient } from '../../db/client'
 import {
@@ -16,7 +16,7 @@ import {
   ModelTestStatus
 } from '../../generated/prisma/client'
 import { readConfigFile } from './envelope'
-import { isJsonObject, providerEnabledFromTransformer } from './transformer'
+import { isJsonObject } from './transformer'
 
 // A fresh, unassigned route target: no primary, empty fallback chain, no
 // rules. Rules default to [] so a slot with no advanced routing is
@@ -96,20 +96,26 @@ export type ProviderWithModels = DbProvider & {
   subscriptionAccounts?: { id: string; enabled: boolean }[]
 }
 
+/**
+ * The `transformer` blob as the UI sees it.
+ *
+ * There is no stored blob any more — `Provider.transformer` was dropped
+ * when `providerEnabled` became `Provider.enabled`. What is left is a
+ * pure projection of `Model.enabled` that the provider editor and
+ * ModelsDashboard still read under its old name, so the wire shape is
+ * unchanged for the screens. Undefined when nothing is disabled, so a
+ * fully enabled provider sends no key at all.
+ */
+const toWireTransformer = (disabledModels: string[]): Record<string, unknown> | undefined =>
+  disabledModels.length === 0 ? undefined : { _disabledModels: disabledModels }
+
 export const toProvider = (p: ProviderWithModels): Provider => {
   const deprecatedModels = p.models.filter((m) => m.deprecated).map((m) => m.name)
   // Model.enabled is the source of truth. Synthesize the
   // transformer._disabledModels view that the provider editor /
   // ModelsDashboard read so the UI sees the DB state directly.
   const disabledModels = p.models.filter((m) => !m.enabled).map((m) => m.name)
-  const baseTransformer = isJsonObject(p.transformer) ? p.transformer : undefined
-  const transformerOut: Record<string, unknown> | undefined =
-    baseTransformer || disabledModels.length > 0
-      ? {
-          ...(baseTransformer ? baseTransformer : {}),
-          ...(disabledModels.length > 0 ? { _disabledModels: disabledModels } : {})
-        }
-      : undefined
+  const transformerOut = toWireTransformer(disabledModels)
   const tested = p.models.filter((m) => m.testStatus !== ModelTestStatus.unknown)
   const modelTestStatus: Record<string, { status: 'unknown' | 'ok' | 'fail'; passedAt: string | null }> =
     Object.fromEntries(
@@ -152,7 +158,7 @@ export const toProvider = (p: ProviderWithModels): Provider => {
   const modelReasoningEfforts = Object.fromEntries(withReasoningEffort.map((m) => [m.name, m.reasoningEffort]))
   return {
     name: p.name,
-    enabled: providerEnabledFromTransformer(baseTransformer),
+    enabled: p.enabled,
     api_base_url: p.apiBaseUrl,
     // DB value verbatim: null when unset. Never coerced to ''.
     api_key: p.apiKey,
@@ -166,9 +172,9 @@ export const toProvider = (p: ProviderWithModels): Provider => {
     ...(withManualTier.length > 0 ? { modelManualTiers } : {}),
     ...(withApiStyle.length > 0 ? { modelApiStyles } : {}),
     ...(withReasoningEffort.length > 0 ? { modelReasoningEfforts } : {}),
-    // transformer is stored as JSONB; we re-derive _disabledModels from
-    // Model.enabled so the UI sees the DB truth (the column on disk no
-    // longer carries _disabledModels — see applyProviders).
+    // Not a stored value: _disabledModels is derived from Model.enabled
+    // on every read, which is why the JSONB column it used to share with
+    // `providerEnabled` could be dropped outright.
     ...(transformerOut ? { transformer: transformerOut } : {}),
     // Subscription providers expose each discovered SubAccount's
     // enable/disable state so the editor can render a switch list and

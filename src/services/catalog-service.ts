@@ -1,6 +1,6 @@
 /**
  * Assemble the "provider catalog" — the read-only reference view of
- * every vendor CCR knows about, with its models and prices, plus
+ * every vendor Rialto knows about, with its models and prices, plus
  * whether the user has enabled it (i.e. a Provider row exists).
  *
  * The catalog fuses three sources:
@@ -24,10 +24,9 @@ import type { OfficialPricingEntry } from '@/shared/data'
 import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS, VENDOR_DEFAULTS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
-import type { ScrapedPriceEntry } from '../providers/base'
-import { getVendorProvider, scrapedVendors } from '../providers/registry'
-import type { CatalogEntrySchema, CatalogModelSchema } from '../schemas/catalog.dto'
-
+import type { CatalogEntrySchema, CatalogModelSchema } from '../schemas/api/catalog'
+import type { ScrapedPriceEntry } from '../vendors/base'
+import { getVendorProvider, scrapedVendors } from '../vendors/registry'
 export type CatalogEntry = z.infer<typeof CatalogEntrySchema>
 export type CatalogModel = z.infer<typeof CatalogModelSchema>
 

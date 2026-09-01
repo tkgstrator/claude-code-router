@@ -16,9 +16,10 @@
 const { renderShell, pill, btn } = window.Shell
 
 // The other half of the Routing screen: what a surface looks like when
-// the router does NOT apply. This is today's hardcoded behaviour for
-// /v1/responses and /v1/chat/completions (scenario-router.ts:117-128),
-// made visible and reversible instead of silent.
+// the router does NOT apply. This used to be hardcoded for
+// /v1/responses and /v1/chat/completions in scenario-router.ts, with
+// nothing in the UI to say so; it is now a per-surface mode, visible
+// and reversible. The mix below is illustrative — no mode is a default.
 const SURFACES = [
   { id: 'messages',  label: '/v1/messages',         mode: 'routed',      hint: 'Claude Code' },
   { id: 'chat',      label: '/v1/chat/completions', mode: 'routed',      hint: 'OpenAI SDK' },
@@ -80,22 +81,16 @@ document.getElementById('root').innerHTML = `
     </p>
   </div>
 
-  <div class="px-6 py-5">
-    <div class="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-      <div class="flex items-center gap-2">
-        <i class="ri-information-line text-sm text-amber-600 dark:text-amber-400"></i>
-        <span class="text-xs font-medium">This was the only behaviour before v3.0.0</span>
-      </div>
-      <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-        Passthrough was hardcoded for <span class="font-mono">/v1/chat/completions</span> and
-        <span class="font-mono">/v1/responses</span>, with nothing in the UI to say so — which is why
-        every routing screen looked like it only applied to <span class="font-mono">/v1/messages</span>.
-        It is now a per-surface switch, defaulting to the old behaviour so nothing changes on upgrade.
-      </p>
-    </div>
-  </div>
+  <!-- The amber "this was the only behaviour before v3.0.0" notice that
+       used to sit here is gone. It said passthrough defaulted to the old
+       behaviour "so nothing changes on upgrade", and that stopped being
+       true when per-surface defaults were removed: every surface now
+       carries an explicit mode and none is more default than another.
+       The history also does not earn a block on every visit — what the
+       operator needs is what passthrough does, which the header
+       explainer and the footer hint already say. -->
 
-  <div class="flex items-center gap-3 px-6 pb-3">
+  <div class="flex items-center gap-3 px-6 pt-6 pb-3">
     <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reachable targets</h2>
     <span class="text-[11px] text-muted-foreground">what a caller may put in <span class="font-mono">body.model</span></span>
     <div class="ml-auto">${btn('Copy as list', 'outline', 'ri-file-copy-line')}</div>

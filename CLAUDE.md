@@ -8,136 +8,270 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Claude Code Router is a tool that routes Claude Code requests to different LLM providers. It uses a Monorepo architecture with four main packages:
+Rialto is a **routing gateway**: it accepts several LLM wire formats on the inbound
+side and dispatches each request to one of several vendors upstream. The name
+"Claude Code Router" is retired — it described a `/v1/messages` proxy, which is now
+only one of four inbound surfaces.
 
-- **cli** (`@musistudio/claude-code-router`): Command-line tool providing the `ccr` command
-- **server** (`@CCR/server`): Core server handling API routing and transformations
-- **shared** (`@CCR/shared`): Shared constants, utilities, and preset management
-- **ui** (`@CCR/ui`): Web management interface (React + Vite)
+**This is a single package, not a monorepo.** `package.json` declares no
+`workspaces` and there is no `packages/` directory — all source is under `src/`.
+There is also **no CLI**: `package.json` has no `bin` field, so the `ccr` / `rialto`
+shell commands that older documentation described do not exist. `@musistudio/llms`
+is not a dependency either; that code was absorbed into `src/llms/`.
 
-## Build Commands
+| Path | Contents |
+|---|---|
+| `src/index.ts` | Hono (`OpenAPIHono`) entry. Mounts `/api/*`, the inbound surfaces, `/health`, and the OAuth loopback `/callback` |
+| `src/api/` | One `route.ts` per endpoint, Next.js-style directory naming (`providers/[name]/models/[model]/route.ts`) |
+| `src/llms/` | Transformers, request pipeline, `scenario-router`, `quota-router`, tokenizers, inbound-surface descriptors |
+| `src/services/` | config, OAuth, usage, routing-scheduler, access tokens, model tests |
+| `src/vendors/` | Per-vendor catalog + pricing adapters (`VendorProvider`): fetch a vendor's live model list, scrape its published prices. Read by `model-sync-service` / `catalog-service`, **never on the request path**. Named `vendors` and not `providers` because `src/llms/registry/provider.ts` is a different thing — see below |
+| `src/schemas/` | Zod, split into four layers — `primitives / wire / domain / api`. There is **no** global `@/schemas` barrel; import from the layer. `wire` / `domain` / `api` each expose one; `primitives` has no barrel because nothing composes the layer as a whole — import `primitives/record` and friends by name |
+| `src/components/rialto/` | The UI — five screens (Overview / Routing / Providers / Activity / Settings) |
+| `src/components/ui/` | shadcn components. Never edit (see Rules) |
+| `src/app/` | React entry point and the `react-router-dom` route table |
+| `src/shared/` | Code shared by the server and the browser bundle — must not import server-only modules |
+| `src/prisma/schema.prisma` | Prisma schema. The column comments are the real documentation for the data model |
+| `src/generated/prisma/` | Generated Prisma client. Never edit, never grep (it inlines the whole schema as one string) |
+| `__tests__/` | Mirrors the `src/` tree |
+| `mocks/` | Human-approved static HTML mocks. These are the implementation target for the UI, not throwaway sketches |
+| `docs/plan/rialto/master-plan.md` | The refactor plan and its phase-by-phase tracking table |
+| `docs/architecture/` | Inbound surfaces, pipeline, request flow, testing map |
 
-### Build all packages
+## Commands
+
 ```bash
-bun run build
+bun run dev            # Vite on :16175. Serves the SPA, and via @hono/vite-dev-server
+                       # the Hono app for /api/*, /v1/*, /health and /callback.
+                       # A dev server is usually already running — do not start a second.
+bun run build          # vite build (single-file output)
+bun run release        # build + scripts/release.sh docker
+
+bun test               # FULL test suite
+bun run test           # ONLY __tests__/lib __tests__/db __tests__/preset — a narrow subset
+bun run test:providers # provider contract tests (fixture replay)
+bun run test:e2e       # browser tests against the ALREADY-RUNNING dev server
+                       # (__tests__/e2e). Skips itself when :16175 is not
+                       # answering or playwright has no chromium, so it is
+                       # safe in `bun test` and in CI. Never starts a server.
+
+bunx tsc --noEmit      # type check
+bunx biome check --write .
+bunx knip              # dead-code inventory
 ```
 
-### Build individual packages
-```bash
-bun run build:cli      # Build CLI
-bun run build:server   # Build Server
-bun run build:ui       # Build UI
-```
+`bun test` and `bun run test` are **not** the same command. CI runs three gates:
+Build / Type Check / Test.
 
-### Development mode
-```bash
-bun run dev:cli        # Develop CLI (ts-node)
-bun run dev:server     # Develop Server (ts-node)
-bun run dev:ui         # Develop UI (Vite)
-```
+UI mock workflow (see `.claude/skills/ui-mock-diff/SKILL.md`):
 
-### Publish
 ```bash
-bun run release        # Build and publish all packages
+bun run mocks:css      # compile mocks/_shared/mock.css with the project's own Tailwind
+bun run mocks:serve    # http://localhost:16176/mocks/index.html
+bun run mocks:shoot    # screenshot mock + implementation at deviceScaleFactor 2
+bun run mocks:diff     # pixel diff. Judge by report.json's `regions`, not the headline %
 ```
 
 ## Core Architecture
 
-### 1. Routing System (packages/server/src/utils/router.ts)
+### 1. Inbound Surfaces
 
-The routing logic determines which model a request should be sent to:
+Everything a request's entry point needs to know lives in one **descriptor**
+(`src/llms/inbound/surfaces.ts`): mounted path, auth scheme, error-envelope shape,
+SSE aggregator, `inboundType`, model/stream extraction, and default routing mode.
+This knowledge used to be spread across four files, where forgetting one of them
+broke a surface silently.
 
-- **Default routing**: Uses `Router.default` configuration
-- **Project-level routing**: Checks `~/.claude/projects/<project-id>/claude-code-router.json`
-- **Custom routing**: Loads custom JavaScript router function via `CUSTOM_ROUTER_PATH`
-- **Built-in scenario routing**:
-  - `background`: Background tasks (typically lightweight models)
-  - `think`: Thinking-intensive tasks (Plan Mode)
-  - `longContext`: Long context (exceeds `longContextThreshold` tokens)
-  - `webSearch`: Web search tasks
-  - `image`: Image-related tasks
+| id | path | endpoint | inboundType | auth | errorShape |
+|---|---|---|---|---|---|
+| `anthropic-messages` | `/v1/messages` | `/v1/messages` | `anthropic` | `x-api-key` | `anthropic` |
+| `openai-chat` | `/v1/chat/completions` | `/v1/chat/completions` | `openai` | `bearer` | `openai` |
+| `openai-responses` | `/v1/responses` | `/v1/responses` | `openai` | `bearer` | `openai` |
+| `gemini-generate` | `/v1beta/models/*` | `/v1beta/models/:modelAndAction` | `gemini` | `google` | `google` |
 
-Token calculation uses `tiktoken` (cl100k_base) to estimate request size.
+`GET /v1/models` is a catalog read rather than a completion surface, so it is
+deliberately absent from the surface registry. It still has to answer in the OpenAI
+SDK's auth convention and error envelope, which is why it sits in `CATALOG_PATHS`
+in the same file.
 
-### 2. Transformer System
+**Routing mode is not a descriptor field.** There is no `defaultRoutingMode` — a
+per-surface default made the UI explain which of two identical values was "the
+shipped one". Every surface has one explicit stored mode in `InboundSurfaceConfig`,
+seeded at boot by `ensureInboundSurfaces()` from the single
+`INITIAL_ROUTING_MODE = 'passthrough'`. Passthrough is the seed because routing an
+unconfigured install does nothing useful: with no preference chain and no rules the
+selector falls straight through to the caller's own model. **A fresh install does not
+route `/v1/messages` — turn it on in Routing.**
 
-The project uses the `@musistudio/llms` package (external dependency) to handle request/response transformations. Transformers adapt to different provider API differences:
+Adding a surface should mean adding one descriptor. If you find yourself editing
+several files to add one, knowledge has leaked back out — put it in the descriptor.
+Details: `docs/architecture/inbound-surfaces.md`.
 
-- Built-in transformers: `anthropic`, `deepseek`, `gemini`, `openrouter`, `groq`, `maxtoken`, `tooluse`, `reasoning`, `enhancetool`, etc.
-- Custom transformers: Load external plugins via `transformers` array in `config.json`
+### 2. Routing System
 
-Transformer configuration supports:
-- Global application (provider level)
-- Model-specific application
-- Option passing (e.g., `max_tokens` parameter for `maxtoken`)
+Two selectors exist, chosen by `ROUTER_MODE`:
 
-### 3. Agent System (packages/server/src/agents/)
+- **`scenario-router`** (`src/llms/scenario-router.ts` + `src/llms/scenario-router/`) —
+  the original. Classifies the request into a `ScenarioKey`, applies per-scenario
+  `rules[]`, and rewrites `body.model`. **Marked `@deprecated`**, scheduled for
+  deletion once `ROUTER_MODE=quota-aware` has been at 100% rollout for a release cycle.
+- **`quota-router`** (`src/llms/quota-router/`) — the preference-based selector.
+  Walks an ordered chain from `RouterPreferenceProfile` / `RouterPreferenceEntry`,
+  skipping accounts whose `SubAccountQuota` says they are exhausted, then fails over.
 
-Agents are pluggable feature modules that can:
-- Detect whether to handle a request (`shouldHandle`)
-- Modify requests (`reqHandler`)
-- Provide custom tools (`tools`)
+Scenarios are the `ScenarioKey` enum: `default` / `think` / `longContext` /
+`webSearch` / `image`. **`background` is gone** — it was folded into a predicated
+rule on `default` (migration `20260728_router_rules_drop_background`).
 
-Built-in agents:
-- **imageAgent**: Handles image-related tasks
+Two independent lanes exist per scenario: `agent` (ordinary traffic) and `subagent`
+(requests carrying a subagent tag — see Subagent Routing below).
 
-Agent tool call flow:
-1. Detect and mark agents in `preHandler` hook
-2. Add agent tools to the request
-3. Intercept tool call events in `onSend` hook
-4. Execute agent tool and initiate new LLM request
-5. Stream results back
+Project- and session-level `Router` overrides are read from `~/.rialto/<project>/`;
+the session id is matched to a project via `~/.claude/projects/<project>/<sessionId>.jsonl`.
 
-### 4. SSE Stream Processing
+Token estimation for the `longContext` scenario goes through `src/llms/tokenizers/`,
+which has a tiktoken backend and a model-accurate `@huggingface/tokenizers` backend.
 
-The server uses custom Transform streams to handle Server-Sent Events:
-- `SSEParserTransform`: Parses SSE text stream into event objects
-- `SSESerializerTransform`: Serializes event objects into SSE text stream
-- `rewriteStream`: Intercepts and modifies stream data (for agent tool calls)
+The `longContext` threshold is **not a fixed 60 000**. `effectiveLongContextThreshold`
+(`src/llms/scenario-router/model-selection.ts`) takes a configured
+`Router.longContextThreshold` when one is set; otherwise it is 70 % of the default
+agent primary's `contextWindow` (`LONG_CONTEXT_AUTO_RATIO`), leaving headroom for the
+reply; and only when neither resolves does it fall back to
+`DEFAULT_LONG_CONTEXT_THRESHOLD = 128_000`.
+
+**There is no weekly drain guard on the request path any more.**
+`applyProactiveFailover` (`src/llms/scenario-router/failover.ts`) now walks
+`[primary, ...fallbacks]` against two gates only — the exhaustion marks written by the
+reactive 429 path, and the context-window capability gate. Subscription providers run
+to their upstream limit and are rotated reactively. `getKindWindowHeadroom` /
+`drainTarget` still exist in `src/services/usage-service/`, but nothing on the request
+path calls them — the only callers left are tests.
+
+> `CUSTOM_ROUTER_PATH` is not even declared by `ConfigEnvelopeSchema` — it survives on
+> disk through that schema's `.catchall`, and is re-declared by `AppConfigSchema` and the
+> settings form so it round-trips. **Nothing reads it at request time**; the only
+> references are those schemas, `OPTIONAL_ENVELOPE_PATHS` in the disk sync list, and the
+> form. Treat it as an unimplemented setting, not a feature.
+
+### 3. Transformer System
+
+Transformers adapt Anthropic-format requests to each provider's wire format. Six ship with the app and are registered in `src/llms/context.ts` (implementations in `src/llms/transformers/`):
+
+`anthropic`, `openai`, `openai-responses`, `gemini`, `claude-code-oauth`, `codex-oauth`
+
+There is no plugin loader: the set is fixed at build time, and a provider's transformer chain is **derived**, not configured. `src/shared/transformer-chain.ts` maps `Provider.apiStyle` + `Provider.authMode` to the chain; `ProviderRegistry` resolves it to instances, and the Providers screen's read-only "Request shape" block displays it by calling **the same function**, so what is shown cannot drift from what runs. `Provider.transformer` no longer holds a `use` — a stale one from an older build is dropped on both the read and the write path. `GET /api/transformers` returns the live registry (name + endpoint).
+
+A model whose `Model.apiStyle` disagrees with its provider's (codex-family models on the api_key OpenAI provider) gets its own conversion step appended after the provider chain.
+
+### 4. SSE and Non-Streaming Aggregation
+
+There are no `SSEParserTransform` / `SSESerializerTransform` / `rewriteStream`
+classes — those belonged to the absorbed vendor code and no longer exist.
+
+**Non-streaming aggregation** — when the caller wants one JSON body but the upstream
+only speaks SSE, `src/llms/utils/sse-aggregate/` folds the event stream into a single
+response. `parse.ts` holds the only shared piece (SSE framing); above it there is one
+aggregator per wire vocabulary: `anthropic` / `openai-chat` / `openai-responses` /
+`gemini`. **Pick the aggregator from the surface descriptor's `aggregateSse` field,
+never by branching on a transformer name.**
+
+**Streaming relay** — each wire format handles its own stream under its vendor
+directory (`src/llms/transformers/anthropic/`, `.../openai/`, `.../gemini/`), because
+the event vocabularies do not line up.
+
+**Server → browser** — `src/api/request-logs/sse.ts` pushes new-log notifications to
+the UI. Its auth is deliberately odd: `EventSource` cannot set headers, so `adminAuth`
+accepts an `apikey` query parameter on that one path.
 
 ### 5. Configuration Management
 
+The Rialto rename is complete: the pre-rename names below are **no
+longer read**. Anything still using one has to be updated.
+
+| Old | New | Notes |
+|-----|-----|-------|
+| `CCR_HOME_DIR` | `RIALTO_HOME_DIR` | ignored; the wrong home announces itself as an empty config |
+| `CCR_ACCOUNT_ENCRYPTION_KEY` | `RIALTO_ACCOUNT_ENCRYPTION_KEY` | **rename the variable, keep the value byte-for-byte** — it decrypts existing `SubAccount` rows. `encryptionKey()` throws with that instruction |
+| `CCR_DEBUG_OAUTH` | `RIALTO_DEBUG_OAUTH` | ignored |
+| `~/.claude-code-router` | `~/.rialto` | moved on first boot by `src/services/config/migrate-home-dir.ts` — copy, verify, then remove the original |
+| `ccr_` thinking signatures | `rialto_` | a pre-rename placeholder now reaches Anthropic and 400s that conversation; restart it |
+| `ccrVersion` (preset manifests) | `rialtoVersion` | `src/schemas/domain/preset.ts` |
+| DB `ccr` / `ccr_test` | `rialto` / `rialto_test` | fresh volumes are provisioned with the new names; existing ones need `bun run scripts/rename-dev-database.ts`, then `DATABASE_URL` / `TEST_DATABASE_URL` updated |
+
 Configuration is split across two stores:
 
-- **Disk envelope**: `~/.claude-code-router/config.json` holds boot-time scalars (HOST/PORT/APIKEY/LOG/LOG_LEVEL/PROXY_URL/API_TIMEOUT_MS/CLAUDE_PATH/NON_INTERACTIVE_MODE) plus disk-resident objects (StatusLine, transformers, plugins).
-- **PostgreSQL** (via Prisma, `packages/server/prisma/schema.prisma`): holds Providers, Models, and the six RouterSlot rows. `DATABASE_URL` is loaded from `.env` (`.devcontainer/compose.yaml` provides a local `postgres` service).
+- **Disk envelope**: `~/.rialto/config.json`. The whitelist is `ConfigEnvelopeSchema` in `src/schemas/domain/config.ts` — read that, not a list here, because it is what boot actually parses. It carries the boot-time scalars (`HOST` / `PORT` / `APIKEY` / `LOG` / `LOG_LEVEL` / `PROXY_URL` / `API_TIMEOUT_MS` / `CLAUDE_PATH` / `NON_INTERACTIVE_MODE`), the archive switches (`CAPTURE_REQUESTS` / `CAPTURE_MESSAGES` / `REDACT_TOOL_ARGUMENTS`), the Cloudflare Access pair (`ACCESS_TEAM_DOMAIN` / `ACCESS_AUD`), the quota-aware router knobs (`ROUTER_MODE` / `ROUTER_SHADOW` / `ROUTER_ROLLOUT_PCT` / `ROUTING_SCHEDULER_INTERVAL_MS` / `CROSS_PROVIDER_FALLBACK`), and the disk-resident objects (`Personas`, `StatusLine`, `ActivePersona`, `LiveRoutingName`). Keys the schema does not declare are preserved by its `.catchall`, not dropped.
+- **PostgreSQL** (via Prisma, `src/prisma/schema.prisma`): everything else. `DATABASE_URL` is loaded from `.env` (`.devcontainer/compose.yaml` provides `postgres` and `redis`).
 
-Schema (PR #1):
+The schema is well past the three tables the first PR shipped; the column comments in
+`src/prisma/schema.prisma` are the documentation. The rows worth knowing here:
 
 | Table | Notes |
 |-------|-------|
-| `Provider` | unique `name`, `apiBaseUrl`, `apiKey`, optional `transformer` JSONB |
-| `Model` | FK to Provider with `onDelete: Cascade`, composite unique `(providerId, name)` |
-| `RouterSlot` | one row per `ScenarioKey` enum value, nullable `modelId` FK with `onDelete: Restrict`, optional `params` JSONB (e.g. `{ "threshold": 60000 }` on longContext) |
+| `Provider` | unique `name`, `apiBaseUrl`, `apiKey`, `authMode`, `apiStyle`, optional `transformer` JSONB |
+| `Model` | FK to Provider with `onDelete: Cascade`, composite unique `(providerId, name)`, optional per-model `apiStyle` override |
+| `RouterSlot` | one row per `ScenarioKey` value — **five, not six** (`background` is gone) — with independent `agent` and `subagent` model references, each a nullable FK with `onDelete: Restrict` |
+| `SubAccount` / `SubAccountUsage` / `SubAccountQuota` | subscription accounts, their observed windows, and the exhaustion state the quota router reads |
+| `RouterPreferenceProfile` / `RouterPreferenceEntry` | the ordered chain the `quota-router` walks, per scenario and per `RouterPreferenceKind` lane |
+| `InboundSurfaceConfig` | one row per surface: `routingMode` + `profileKey` |
+| `AccessToken` | issued `/v1/*` credentials — sha256 only, optional surface and routing-profile scope |
+| `Session` / `Message` / `RequestLog` / `UsageSnapshot` | the archive behind Activity and Overview |
 
-Boot sequence (`packages/server/src/index.ts:getServer`):
+Boot sequence — top-level statements in `src/index.ts`, not a `getServer()`:
 
-1. `initDir()` — ensure home directories.
-2. `runJsonToDbMigration()` — one-shot, idempotent lift of legacy `Providers`/`Router` from disk into the DB; refuses to run when both stores are populated.
-3. `initConfig()` — read envelope from disk, mirror scalar keys onto `process.env` via `applyEnvelopeToEnv`.
-4. `loadFullConfig()` — compose the legacy-shaped config object (envelope + DB) and hand it to the rest of the bootstrap.
+1. `migrateHomeDir()` — carry a pre-rename `~/.claude-code-router` over to `~/.rialto`. **Must run first**: the migration is idempotent by "the destination already exists", so any earlier `mkdir` of `~/.rialto` makes the copy a permanent no-op. Skipped when `RIALTO_HOME_DIR` pins the home elsewhere.
+2. `initDir()` — ensure home directories.
+3. `initConfig()` — read the envelope from disk, mirror scalar keys onto `process.env` via `applyEnvelopeToEnv`, then `syncLoggerFromEnv()` re-applies `LOG_LEVEL` to the already-constructed pino instance.
+4. `reconcileActiveSubAccounts()` — self-heal subscription providers whose active account binding was orphaned by older toggle code.
+5. `ensureInboundSurfaces()` — give every registered surface an explicit stored routing mode.
+6. `startUsageCapture()` / `startAuthHealthCheck()` / `startRoutingScheduler()` — fire-and-forget background jobs; none of them may block boot.
 
-API routes (`packages/server/src/server.ts`):
+There is **no `runJsonToDbMigration()`** and no `getServer()`. The one-shot lift of
+legacy `Providers` / `Router` out of `config.json` is gone. The flow now runs the
+other way: `syncToConfigFile()` (`src/services/config/sync-to-disk.ts`) writes the
+DB's `Providers` / `Router` **back onto** `config.json` after every CRUD, so those two
+keys on disk are a read-only mirror. Editing them by hand does nothing and is
+overwritten on the next save. `loadFullConfig()` (`src/services/config/compose.ts`)
+is still there; it is called lazily by `buildLlmsContext`, not at boot.
 
-- `GET /api/config` returns `composeUiConfig()` (envelope on disk + Providers/Router from DB).
-- `POST /api/config` calls `applyUiConfig(body)`: diffs the incoming UI payload inside a single Prisma transaction (`prisma.$transaction`), nulls any RouterSlot bound to a removed model, and returns `{ success, warnings[] }`. Envelope keys land on disk via `writeConfigFile` after the DB transaction commits.
+**A fresh install mints no `APIKEY`.** `createDefaultConfig` used to generate one,
+which meant every install shipped a master key for `/api/*` that bypasses Cloudflare
+Access for whoever finds it. Nothing needs one now — a browser on this machine is
+exempt, remote admin goes through Access, and `/v1/*` takes issued tokens. Setting
+`APIKEY` by hand is still supported as a deliberate break-glass.
+
+DDL is not created at boot either: `entrypoint.sh` runs `prisma migrate deploy` and
+`prisma db seed` before exec'ing the process.
+
+Config API (`src/api/config/route.ts`, service in `src/services/config/`):
+
+- `GET /api/config` returns `composeUiConfig()` (envelope on disk + DB-resident config).
+- `POST /api/config` calls `applyUiConfig(body)`: diffs the incoming UI payload inside a single Prisma transaction, nulls any RouterSlot bound to a removed model, and returns `{ success, warnings[] }`. Envelope keys land on disk via `writeConfigFile` after the DB transaction commits, and `applyEnvelopeToEnv` re-mirrors them onto `process.env` — so envelope changes are hot, without a restart.
 
 Key features (disk envelope):
 - Environment variable interpolation (`$VAR_NAME` or `${VAR_NAME}`)
 - JSON5 format (supports comments)
 - Automatic backups (keeps last 3 backups)
-- Hot reload requires service restart (`ccr restart`)
 
-Configuration validation:
-- If `Providers` are configured, both `HOST` and `APIKEY` must be set
-- Otherwise listens on `0.0.0.0` without authentication
+There is no `rialto restart`, and no CLI at all. A Docker deployment restarts with
+`docker compose restart`; a local one restarts the process. Envelope scalars written
+through `POST /api/config` do not need either.
 
-Database tooling (`bun run` from `packages/server`):
+`HOST` defaults to `127.0.0.1` and there is **no validation coupling `Providers` to
+`HOST`/`APIKEY`** — that check does not exist. What actually gates access:
+`/api/*` takes Cloudflare Access (when `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` are both
+set) or the envelope `APIKEY`, and exempts a browser on the machine itself
+(`src/api/local-access.ts`). `/v1/*` takes **issued `AccessToken`s only** — the
+`APIKEY` is rejected there, so an install with no token issued cannot proxy.
+
+Database tooling (`bun run`, from the repo root — there is no `packages/`):
 
 - `db:generate` — regenerate the Prisma client into `src/generated/prisma/`. Also wired as `postinstall` so a fresh `bun install` materialises it.
 - `db:migrate` — create + apply a new migration (development).
 - `db:migrate:deploy` — apply existing migrations (production / CI).
+- `db:migrate:test` — apply them to `rialto_test`. **Separate database; CI fails without it.**
 - `db:reset` — drop and recreate the schema (destructive).
+- `db:seed` — `src/prisma/seed.ts`; idempotent, creates the RouterSlot rows and the preference profile. No placeholder Providers.
 - `db:studio` — open Prisma Studio.
 
 Never edit DDL directly; always go through Prisma migrations.
@@ -147,139 +281,137 @@ Never edit DDL directly; always go through Prisma migrations.
 Two separate logging systems:
 
 **Server-level logs** (pino):
-- Location: `~/.claude-code-router/logs/ccr-*.log`
+- Location: `~/.rialto/logs/rialto-*.log`
 - Content: HTTP requests, API calls, server events
 - Configuration: `LOG_LEVEL` (fatal/error/warn/info/debug/trace)
 
 **Application-level logs**:
-- Location: `~/.claude-code-router/claude-code-router.log`
+- Location: `~/.rialto/rialto.log`
 - Content: Routing decisions, business logic events
-
-## CLI Commands
-
-```bash
-ccr start      # Start server
-ccr stop       # Stop server
-ccr restart    # Restart server
-ccr status     # Show status
-ccr code       # Execute claude command
-ccr model      # Interactive model selection and configuration
-ccr preset     # Manage presets (export, install, list, info, delete)
-ccr activate   # Output shell environment variables (for integration)
-ccr ui         # Open Web UI
-ccr statusline # Integrated statusline (reads JSON from stdin)
-```
-
-### Preset Commands
-
-```bash
-ccr preset export <name>      # Export current configuration as a preset
-ccr preset install <source>   # Install a preset from file, URL, or name
-ccr preset list               # List all installed presets
-ccr preset info <name>        # Show preset information
-ccr preset delete <name>      # Delete a preset
-```
 
 ## Subagent Routing
 
-Use special tags in subagent prompts to specify models:
+A subagent tag in the second system block selects the scenario's **`subagent` lane**:
+
 ```
-<CCR-SUBAGENT-MODEL>provider,model</CCR-SUBAGENT-MODEL>
+<RIALTO-SUBAGENT-MODEL>anything</RIALTO-SUBAGENT-MODEL>
 Please help me analyze this code...
 ```
 
-## Preset System
+**Only the tag's presence is read. Its value is ignored.** `stripSubagentTag`
+(`src/llms/scenario-router/request-signals.ts`) returns a boolean and strips the tag
+in place so the internal marker never reaches upstream; `selectModel` then reads
+`router.subagent` / `router.subagentRules` instead of `router.agent` /
+`router.agentRules`. It no longer resolves `provider,model` out of the tag body — the
+model comes from the subagent lane's configuration, which is what makes the lane
+editable in Routing instead of scattered across prompt files. A tag whose body is a
+now-deleted `provider,model` pair still routes correctly; it just routes by lane.
 
-The preset system allows users to save, share, and reuse configurations easily.
+`<CCR-SUBAGENT-MODEL>` is the pre-rename spelling and is still accepted (same file,
+`SUBAGENT_TAGS`). It lives in prompts users have already written, and dropping it
+would silently reroute that traffic onto the main-agent chain, so it must not be
+removed.
 
-### Preset Structure
+Only a well-formed (closed) tag is stripped; a malformed one still counts as present
+but is left in the prompt.
 
-Presets are stored in `~/.claude-code-router/presets/<preset-name>/manifest.json`
+## Presets
 
-Each preset contains:
-- **Metadata**: name, version, description, author, keywords, etc.
-- **Configuration**: Providers, Router, transformers, and other settings
-- **Dynamic Schema** (optional): Input fields for collecting required information during installation
-- **Required Inputs** (optional): Fields that need to be filled during installation (e.g., API keys)
+**Three** unrelated things are called "preset". Do not conflate them.
 
-### Core Functions
+**1. `RoutingPreset` — the live feature.** Named snapshots of the Router config, stored
+as JSONB in the `RoutingPreset` table. `src/services/routing-preset.ts` is a typed
+Prisma wrapper; `/api/routing-presets` is the endpoint; the UI is Settings → Presets.
+Applying a preset is a **client-side** action: the editor loads the snapshot into its
+draft state, and the ordinary `/api/config` save path writes it to `RouterSlot`. A
+snapshot may reference `provider,model` pairs that no longer resolve — the editor
+surfaces those as unresolved rather than failing to load.
 
-Located in `packages/shared/src/preset/`:
+**2. `src/lib/presets/` — the live dynamic-input form.** `form-logic.ts`
+(`evaluateCondition` + field validators) and `types.ts`, which declares its own
+`Condition` / `InputOption` / `RequiredInput` / `PresetConfigSection`. Read by
+`src/components/rialto/settings/presets/RequiredInputs.tsx` to drive a preset's
+required-input form. Pure and React-free so the `when`-conditions can be tested
+without mounting the form (`__tests__/lib/preset-form-logic.test.ts`).
 
-- **export.ts**: Export current configuration as a preset directory
-  - `exportPreset(presetName, config, options)`: Creates preset directory with manifest.json
-  - Automatically sanitizes sensitive data (api_key fields become `{{field}}` placeholders)
+**3. `src/schemas/domain/preset.ts` — the manifest schemas, almost all dead.** Only
+`JsonValueSchema` has production readers: `schemas/api/config.ts` and
+`schemas/domain/config.ts` both use it as their `.catchall`, and the latter also types
+`StatusLine` with it. `JsonPrimitiveSchema` exists solely to build it. `JsonObjectSchema`
+is reached only by `__tests__/preset/schema.test.ts`.
 
-- **install.ts**: Install and manage presets
-  - `installPreset(preset, config, options)`: Install preset to config
-  - `loadPreset(source)`: Load preset from directory
-  - `listPresets()`: List all installed presets
-  - `isPresetInstalled(presetName)`: Check if preset is installed
-  - `validatePreset(preset)`: Validate preset structure
+Everything else in that file has **zero readers** — not even a test:
+`PresetFileSchema`, `PresetMetadataSchema`, `ConditionSchema`, `RequiredInputSchema`,
+`ManifestFileSchema`, `InputType`, `MergeStrategy`, `UserInputValuesSchema`,
+`InputOptionSchema`, `DynamicOptionsSchema`, `PresetProviderSchema`,
+`PresetRouterConfigSchema`, `PresetConfigSectionSchema`, `TemplateConfigSchema`,
+`ConfigMappingSchema`, `PresetIndexEntrySchema`, `PresetRegistrySchema`,
+`ValidationResultSchema`, `SanitizeResultSchema`, `PresetInfoSchema`.
 
-- **merge.ts**: Merge preset configuration with existing config
-  - Handles conflicts using different strategies (ask, overwrite, merge, skip)
+> `ConditionSchema` in `src/api/routing-rules/test/route.ts` is a **local `const` in
+> that file**, not this one. Same name, different type — do not read it as evidence
+> that the manifest schema is used.
 
-- **sensitiveFields.ts**: Identify and sanitize sensitive fields
-  - Detects api_key, password, secret fields automatically
-  - Replaces sensitive values with environment variable placeholders
+**`src/shared/preset/` no longer exists** (9 files, 461 lines, plus its two
+`export *` lines in `src/shared/index.ts`). It was a dead twin of #2 — the
+dynamic-input-schema machinery inherited from the deleted CLI preset installer
+(conditions, template interpolation, dependency graph, config mappings, user inputs) —
+kept alive by one test, whose coverage moved to `__tests__/lib/preset-form-logic.test.ts`.
+`__tests__/preset/schema.test.ts` stayed at its path (so `bun run test`'s glob is still
+correct) and is now scoped to `JsonValueSchema` / `JsonObjectSchema`.
 
-### Preset File Format
+The functions older docs describe (`exportPreset` / `installPreset` / `loadPreset` /
+`listPresets` / `merge.ts` / `sensitiveFields.ts`) never survived either, and neither
+did the `rialto preset *` subcommands. Run `bunx knip` before building on anything here.
 
-**manifest.json** (in preset directory):
-```json
-{
-  "name": "my-preset",
-  "version": "1.0.0",
-  "description": "My configuration",
-  "author": "Author Name",
-  "keywords": ["openai", "production"],
-  "Providers": [...],
-  "Router": {...},
-  "schema": [
-    {
-      "id": "apiKey",
-      "type": "password",
-      "label": "OpenAI API Key",
-      "prompt": "Enter your OpenAI API key"
-    }
-  ]
-}
-```
-
-### CLI Integration
-
-The CLI layer (`packages/cli/src/utils/preset/`) handles:
-- User interaction and prompts
-- File operations
-- Display formatting
-
-Key files:
-- `commands.ts`: Command handlers for `ccr preset` subcommands
-- `export.ts`: CLI wrapper for export functionality
-- `install.ts`: CLI wrapper for install functionality
+The manifest schemas accept both `rialtoVersion` and the pre-rename `ccrVersion` as
+optional fields — but since nothing parses a manifest, that compatibility is currently
+theoretical.
 
 ## Dependencies
 
-```
-cli → server → shared
-server → @musistudio/llms (core routing and transformation logic)
-ui (standalone frontend application)
-```
+**Three unrelated things are called "provider".** Do not conflate them.
+
+| | What it is |
+|---|---|
+| `Provider` (Prisma row) | An upstream Rialto can route to: base URL, key, auth mode, api style |
+| `src/llms/registry/provider.ts` | The **runtime** registry. Resolves those rows into pipeline-ready objects with their transformer chain, on the request path |
+| `src/vendors/` | **Catalog and pricing** adapters, one per vendor. Fetch model lists and scrape prices for the Providers screen and the seed. Never touched while serving a request |
+
+(`src/shared/data/providers/<vendor>/prices.json` is a fourth use of the
+word, but it is static scraped output rather than code.)
+
+
+There is no dependency graph to learn — this is one package. Two rules matter:
+
+- **`src/shared/` is shared with the browser.** Anything imported there ends up in
+  the UI bundle, so it must not reach into Node built-ins, Prisma, or `src/services/`.
+  `src/shared/transformer-chain.ts` is the model: a pure string mapping with zero
+  imports, read by both `ProviderRegistry` on the server and the Providers screen.
+- **`@/schemas` as a whole no longer exists.** Import from the layer
+  (`@/schemas/domain/provider`, `@/schemas/wire/anthropic/sse`, …). The global barrel
+  was deleted precisely because `export *` across 29 files dragged server-only
+  schemas into the browser bundle.
 
 ## Development Notes
 
-1. **Node.js version**: Requires >= 18.0.0
-2. **Package manager**: Uses bun (monorepo workspace support via `workspaces` in package.json)
-3. **TypeScript**: All packages use TypeScript, but UI package is ESM module
-4. **Build tools**:
-   - cli/server/shared: esbuild
-   - ui: Vite + TypeScript
-5. **@musistudio/llms**: This is an external dependency package providing the core server framework and transformer functionality, type definitions in `packages/server/src/types.d.ts`
-6. **Code comments**: All comments in code MUST be written in English
-7. **Documentation**: When implementing new features, add documentation to the docs project instead of creating standalone md files
+1. **Runtime / package manager**: bun. Use `bun` and `bunx`, never npm/npx.
+2. **Formatting and lint**: Biome (`biome.json`, plus local rules in `biome-plugins/`).
+   No `??`, no `let`, no type assertions, no `while`.
+3. **TypeScript**: strict. Derive types with `z.infer` rather than hand-writing an
+   interface beside a schema.
+4. **Code comments MUST be in English**, and should explain *why*, not *what* — the
+   existing comments in `src/prisma/schema.prisma` and `src/llms/` are the house style.
+5. **Documentation**: when implementing a feature, add to `docs/` rather than
+   creating a standalone markdown file at the repo root.
+6. **After a Prisma migration**, run `bun run db:migrate:test` as well — the test
+   database `rialto_test` is separate and CI will fail without it.
+7. **Do not start a dev server.** One is normally already running on :16175.
 
-## Configuration Example Locations
+## Configuration Examples
 
-- Main configuration example: Complete example in README.md
-- Custom router example: `custom-router.example.js`
+- Full configuration example: `README.md` (also `README_ja.md` / `README_zh.md`)
+- Custom router example: `custom-router.example.js` — note that `CUSTOM_ROUTER_PATH`
+  currently has no runtime reader (see Routing System above)
+- Migration off the pre-rename build: `docs/guides/migration-v3.md`
+- Public deployment behind Cloudflare Access: `docs/guides/public-deployment.md`

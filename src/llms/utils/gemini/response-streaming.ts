@@ -8,15 +8,15 @@
 
 import type { Logger } from 'pino'
 import dayjs from '@/lib/dayjs'
-import type {
-  GeminiCandidate,
-  GeminiResponsePart,
-  GeminiStreamChunk,
-  PipelineDelta,
-  PipelineStreamChunk,
-  PipelineToolCall
-} from '@/schemas'
-import { GeminiStreamChunkSchema } from '@/schemas'
+import {
+  type GeminiCandidate,
+  type GeminiResponsePart,
+  type GeminiStreamChunk,
+  GeminiStreamChunkSchema,
+  type PipelineDelta,
+  type PipelineStreamChunk,
+  type PipelineToolCall
+} from '@/schemas/wire'
 import { cloneResponse } from '../response-clone'
 import {
   buildAnnotations,
@@ -173,7 +173,10 @@ function emitEmptyContentChunk(
  * Emit a synthetic signature chunk for non-`gemini-3*` models when
  * thinking content was produced but no real signature arrived from
  * upstream. The signature is a wall-clock millisecond stamp prefixed
- * with `ccr_` so downstream clients can still pair text with reasoning.
+ * with `rialto_` so downstream clients can still pair text with reasoning.
+ * The Anthropic transformer strips blocks carrying either this prefix or
+ * the pre-rename `ccr_` one — Anthropic cannot validate a signature it
+ * did not issue.
  */
 function emitSyntheticSignature(
   chunk: GeminiStreamChunk,
@@ -187,7 +190,7 @@ function emitSyntheticSignature(
     newChunkShell(
       chunk,
       state.contentIndex,
-      { role: 'assistant', content: null, thinking: { signature: `ccr_${dayjs().valueOf()}` } },
+      { role: 'assistant', content: null, thinking: { signature: `rialto_${dayjs().valueOf()}` } },
       null
     )
   )
@@ -282,7 +285,7 @@ function processChunk(
     emitSignatureChunk(signature, chunk, state, controller, encoder)
   }
 
-  const tool_calls = toPipelineToolCalls(parts, 'ccr_tool')
+  const tool_calls = toPipelineToolCalls(parts, 'rialto_tool')
   const textContent = parts
     .filter((part) => typeof part.text === 'string' && part.text.length > 0 && part.thought !== true)
     .map((part) => part.text)

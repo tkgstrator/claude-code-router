@@ -1,15 +1,21 @@
 /**
  * Project-specific router override.
  *
- * Looks up a per-session or per-project `Router` override file under
- * `~/.claude/projects/<project>/`. Both files are optional; a missing
- * file / bad JSON / unknown shape silently falls through to the next
- * candidate (the global Router is the always-available fallback).
+ * The session id is mapped to a project by finding the transcript
+ * `<sessionId>.jsonl` under `~/.claude/projects/`; the override files
+ * themselves live under the Rialto home, at `<HOME_DIR>/<project>/`.
+ * Both are optional; a missing file / bad JSON / unknown shape silently
+ * falls through to the next candidate (the global Router is the
+ * always-available fallback).
+ *
+ * The filenames are unchanged by the rename — the directory moved with
+ * the rest of the home (see services/config/migrate-home-dir), so an
+ * operator's existing override files are carried over as they are.
  */
 
 import { opendir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ProjectRouterFileSchema } from '@/schemas'
+import { ProjectRouterFileSchema } from '@/schemas/domain/scenario'
 import { CLAUDE_PROJECTS_DIR, HOME_DIR } from '@/shared/constants'
 import type { RouterConfig, RouterRequest } from './types'
 

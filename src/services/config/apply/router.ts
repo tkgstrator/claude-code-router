@@ -4,8 +4,7 @@
  * rules.
  */
 
-import type { RouteRule, Router } from '@/schemas'
-import { RouteRuleSchema } from '@/schemas'
+import { type RouteRule, RouteRuleSchema, type Router } from '@/schemas/domain/router'
 import { SCENARIO_KEYS } from '@/shared'
 import { Prisma } from '../../../generated/prisma/client'
 import type { Tx } from '../apply'

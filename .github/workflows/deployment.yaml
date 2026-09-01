@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOCKER_IMAGE: tkgling/claude-code-router
+  DOCKER_IMAGE: tkgling/rialto
 
 jobs:
   build-and-push:

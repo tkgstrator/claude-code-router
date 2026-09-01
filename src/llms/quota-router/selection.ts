@@ -32,7 +32,7 @@
  *     model (L4 behaviour).
  */
 
-import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry } from '@/schemas'
+import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry } from '@/schemas/domain'
 import { tierOf } from '../scenario-router/model-selection'
 
 // Fable = 0 (top / most capable), haiku = 3 (bottom / cheapest).

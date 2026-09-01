@@ -6,7 +6,8 @@
  * purely to keep that file under the line-count budget.
  */
 
-import type { MessageContent, ResponsesStreamEvent } from '@/schemas'
+import type { MessageContent } from '@/schemas/domain/unified'
+import type { ResponsesStreamEvent } from '@/schemas/wire/openai/responses'
 import { nowSeconds } from '../../../utils/time'
 import { firstDefined, modelOr, newChatcmplId, stringDeltaOrEmpty } from './helpers'
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import type { ClaudeUsage, CodexUsage } from '../../src/schemas/usage.dto'
+import type { ClaudeUsage, CodexUsage } from '../../src/schemas/api/usage'
 import {
   __clearUsageCachesForTest,
   __seedClaudeCacheForTest,

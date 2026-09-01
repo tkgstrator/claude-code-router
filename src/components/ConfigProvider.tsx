@@ -1,8 +1,8 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { ApiUnreachableScreen } from '@/components/rialto/system/ApiUnreachable'
 import { api } from '@/lib/api'
-import type { RouteRule } from '@/schemas'
-import { RouteRuleSchema } from '@/schemas'
+import { type RouteRule, RouteRuleSchema } from '@/schemas/domain/router'
 import type { Config } from '@/types'
 
 interface ConfigContextType {
@@ -15,6 +15,13 @@ interface ConfigContextType {
   // (possibly-null) payload the editor itself displays.
   reloadConfig: () => Promise<void>
   error: Error | null
+  // True once a request came back 401. ProtectedRoute reads this to send
+  // the operator to /access-denied — including when the failure happened
+  // before the shell mounted, which the 'unauthorized' event alone
+  // cannot cover. (There is no login screen to send them to: Cloudflare
+  // Access authenticates at the edge, and the old form was removed with
+  // its route in Phase 3.5.)
+  authFailed: boolean
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined)
@@ -124,7 +131,6 @@ function normalizeConfig(data: Config): Config {
     APIKEY: typeof data.APIKEY === 'string' ? data.APIKEY : '',
     API_TIMEOUT_MS: typeof data.API_TIMEOUT_MS === 'number' ? data.API_TIMEOUT_MS : 600000,
     PROXY_URL: typeof data.PROXY_URL === 'string' ? data.PROXY_URL : '',
-    transformers: Array.isArray(data.transformers) ? data.transformers : [],
     Providers: Array.isArray(data.Providers) ? data.Providers : [],
     StatusLine:
       data.StatusLine && typeof data.StatusLine === 'object'
@@ -190,7 +196,6 @@ const emptyConfig = (): Config => ({
   APIKEY: '',
   API_TIMEOUT_MS: 600000,
   PROXY_URL: '',
-  transformers: [],
   Providers: [],
   StatusLine: undefined,
   Router: {
@@ -225,21 +230,20 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
   }, [])
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      // Reset fetch state when API key changes
-      setHasFetched(false)
-      setConfig(null)
-      setError(null)
-      setAuthFailed(false)
-    }
-
-    fetchConfig()
+    // Nothing here is async — this only resets fetch state so the effect
+    // below re-runs for the new key. It used to be wrapped in an async
+    // function and called as a floating promise, which read as if it
+    // awaited something.
+    setHasFetched(false)
+    setConfig(null)
+    setError(null)
+    setAuthFailed(false)
   }, [apiKey])
 
   // api.ts strips the stored key and emits this on an auth failure.
   // The 401 path never resolves the fetch (config stays null), so this
   // is what releases the loading gate below and lets the router show
-  // the login screen.
+  // /access-denied.
   useEffect(() => {
     const onUnauthorized = () => setAuthFailed(true)
     window.addEventListener('unauthorized', onUnauthorized)
@@ -251,13 +255,17 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
       const data = await api.getConfig()
       setConfig(normalizeConfig(data))
       setError(null)
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to fetch config:', err)
-      // If we get a 401, the API client will redirect to login
-      // Otherwise, set an empty config or error
-      if ((err as Error).message !== 'Unauthorized') {
+      // A 401 is handled by the 'unauthorized' event below, which flips
+      // authFailed so ProtectedRoute can route to /access-denied. Anything
+      // else is a real failure worth showing, so it lands in `error` with
+      // an empty config behind it rather than leaving the app on the
+      // loading gate forever.
+      const failure = err instanceof Error ? err : new Error(String(err))
+      if (failure.message !== 'Unauthorized') {
         setConfig(emptyConfig())
-        setError(err as Error)
+        setError(failure)
       }
     }
   }, [])
@@ -273,13 +281,17 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
       await reloadConfig()
     }
 
-    fetchConfig()
+    // Deliberately not awaited: an effect cannot be async, and this cannot
+    // reject — reloadConfig catches everything and reports through `error`
+    // / `authFailed`. `void` says that rather than leaving a bare call that
+    // reads like an oversight.
+    void fetchConfig()
   }, [hasFetched, apiKey, reloadConfig])
 
   // Hold the whole app on a single loading screen until the first
   // config fetch settles, so no page ever renders against a null or
   // half-loaded config. On auth failure authFailed flips (above) so
-  // the router can still reach /login.
+  // the router can still reach /access-denied.
   if (config === null && error === null && !authFailed) {
     return (
       <div className='h-screen bg-background font-sans flex items-center justify-center'>
@@ -288,5 +300,18 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
     )
   }
 
-  return <ConfigContext.Provider value={{ config, setConfig, reloadConfig, error }}>{children}</ConfigContext.Provider>
+  // The config fetch failed for a reason that is not authentication —
+  // the server is down, or the browser cannot reach it. Every screen
+  // below would render an empty shell and blame itself, so show the
+  // state that explains it instead. It keeps probing, so the app comes
+  // back on its own once the server does.
+  if (error !== null && !authFailed) {
+    return <ApiUnreachableScreen />
+  }
+
+  return (
+    <ConfigContext.Provider value={{ config, setConfig, reloadConfig, error, authFailed }}>
+      {children}
+    </ConfigContext.Provider>
+  )
 }

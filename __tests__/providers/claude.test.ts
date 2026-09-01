@@ -2,8 +2,8 @@
  * Integration tests for the claude-code subscription provider
  * (Anthropic via Claude Code OAuth credentials).
  *
- * Requires ~/.claude/.credentials.json to be present and the CCR server
- * running (default http://127.0.0.1:16173, override with CCR_TEST_URL).
+ * Requires ~/.claude/.credentials.json to be present and the Rialto server
+ * running (default http://127.0.0.1:16173, override with RIALTO_TEST_URL).
  *
  * Every *enabled* model of every claude-* subscription provider in
  * /api/config is smoke-tested, so the matrix tracks the DB instead of a
@@ -30,7 +30,7 @@ const CREDENTIALS_PATH = join(homedir(), ".claude", ".credentials.json");
 // subscription smokes.
 const hasCredentials =
   IS_REPLAY ||
-  (existsSync(CREDENTIALS_PATH) && !process.env.CCR_SKIP_LIVE_TESTS);
+  (existsSync(CREDENTIALS_PATH) && !process.env.RIALTO_SKIP_LIVE_TESTS);
 
 const result = await (async (): Promise<
   { models: SubscriptionModel[] } | { error: string }
@@ -45,9 +45,9 @@ const result = await (async (): Promise<
 
 describe.skipIf(!hasCredentials)("claude-code subscription / all enabled models", () => {
   if ("error" in result) {
-    test("CCR server reachable for /api/config", () => {
+    test("Rialto server reachable for /api/config", () => {
       throw new Error(
-        `Could not load model matrix from CCR — is the server running? ${result.error}`
+        `Could not load model matrix from Rialto — is the server running? ${result.error}`
       );
     });
     return;

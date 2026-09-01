@@ -7,7 +7,7 @@
  * extra Anthropic cache breakpoint).
  */
 
-import type { Persona } from '@/schemas'
+import type { Persona } from '@/schemas/domain/config'
 import type { ConfigStore } from '../registry/config'
 import type { TokenizeSystem } from '../tokenizers/base'
 import type { RouterConfig } from './types'

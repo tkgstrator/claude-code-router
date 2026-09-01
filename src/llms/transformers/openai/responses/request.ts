@@ -6,7 +6,8 @@
  * input/instructions/tools wire shape.
  */
 
-import type { ResponsesUnifiedChatRequest, UnifiedChatRequest } from '@/schemas'
+import type { UnifiedChatRequest } from '@/schemas/domain/unified'
+import type { ResponsesUnifiedChatRequest } from '@/schemas/wire/openai/responses'
 import { isObject } from '../../../utils/guards'
 
 type MutableMessage = Record<string, unknown>

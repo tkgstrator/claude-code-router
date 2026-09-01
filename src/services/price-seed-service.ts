@@ -20,8 +20,8 @@
 import type { z } from '@hono/zod-openapi'
 import { isDeprecatedModel, OFFICIAL_VENDOR_PRICES, VENDOR_DEFAULTS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
-import { AuthMode, Prisma, type PrismaClient } from '../generated/prisma/client'
-import type { PriceSeedOutcomeSchema } from '../schemas/price.dto'
+import { AuthMode, type Prisma, type PrismaClient } from '../generated/prisma/client'
+import type { PriceSeedOutcomeSchema } from '../schemas/api/price'
 import { apiStyleForVendor, modelApiStyleOverride } from './config'
 
 const OFFICIAL_VENDORS = ['openai', 'anthropic', 'google'] as const
@@ -55,8 +55,7 @@ const ensureProviderRow = async (tx: Tx, vendor: OfficialVendor): Promise<Provid
       apiBaseUrl: defaults.baseUrl,
       apiKey: null,
       authMode: AuthMode.api_key,
-      apiStyle: apiStyleForVendor(vendor),
-      transformer: defaults.transformer === undefined ? Prisma.DbNull : defaults.transformer
+      apiStyle: apiStyleForVendor(vendor)
     },
     include: { models: true }
   })

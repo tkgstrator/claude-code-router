@@ -16,8 +16,8 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
-import type { RuntimeProvider, TransformerContext, UnifiedChatRequest, UnifiedMessage } from '@/schemas'
-import { AnthropicIncomingRequestSchema } from '@/schemas'
+import type { RuntimeProvider, TransformerContext, UnifiedChatRequest, UnifiedMessage } from '@/schemas/domain'
+import { AnthropicIncomingRequestSchema } from '@/schemas/wire/anthropic/messages'
 import { getThinkLevel } from '../../utils/thinking'
 import { Transformer, type TransformerAuthResult } from '../base'
 import { appendIncomingMessage, buildSystemMessage, buildToolChoice, convertAnthropicToolsToUnified } from './request'

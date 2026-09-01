@@ -3,9 +3,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline'
 import JSON5 from 'json5'
-import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas'
+import { type ConfigEnvelope, ConfigEnvelopeSchema } from '@/schemas/domain/config'
 import { ENVELOPE_ENV_KEYS, type EnvelopeEnvKey } from '@/shared'
-import { CONFIG_FILE, HOME_DIR, PLUGINS_DIR } from '@/shared/constants'
+import { CONFIG_FILE, HOME_DIR } from '@/shared/constants'
 import { SEED_PERSONAS } from '@/shared/data'
 import { logger } from '../../logger'
 
@@ -43,6 +43,10 @@ const coerceEnvelopeValue = (key: EnvelopeEnvKey, value: string): unknown => {
     }
     case 'LOG':
     case 'NON_INTERACTIVE_MODE':
+    case 'CROSS_PROVIDER_FALLBACK':
+    case 'CAPTURE_REQUESTS':
+    case 'CAPTURE_MESSAGES':
+    case 'REDACT_TOOL_ARGUMENTS':
       // Only the strings the operator would reasonably type. Anything
       // else (unset, empty, arbitrary) leaves the field alone.
       return value === 'true' || value === '1'
@@ -78,7 +82,6 @@ const ensureDir = async (dir_path: string) => {
 
 export const initDir = async () => {
   await ensureDir(HOME_DIR)
-  await ensureDir(PLUGINS_DIR)
   await ensureDir(path.join(HOME_DIR, 'logs'))
 }
 
@@ -104,18 +107,69 @@ const confirm = async (query: string): Promise<boolean> => {
   return answer.toLowerCase() !== 'n'
 }
 
-const generateApiKey = () => crypto.randomBytes(32).toString('hex')
+/**
+ * Move an unusable config file aside instead of deleting it.
+ *
+ * A config that fails to parse or validate is still the operator's only
+ * copy of their settings, and there are no backups. Unlinking it meant a
+ * single bad key — including one arriving from a stray environment
+ * variable — destroyed the file and rotated the bootstrap token, locking
+ * out every client. Renaming keeps the boot path working while leaving
+ * the original recoverable.
+ */
+const quarantineConfigFile = async (): Promise<void> => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const aside = `${CONFIG_FILE}.invalid-${stamp}`
+  try {
+    await fs.rename(CONFIG_FILE, aside)
+    logger.error({ from: CONFIG_FILE, to: aside }, 'Config file was unusable — moved aside, not deleted')
+  } catch (err) {
+    logger.error({ path: CONFIG_FILE, err }, 'Could not move the unusable config file aside')
+  }
+}
 
-const createDefaultConfig = async (): Promise<ConfigEnvelope> => {
+/**
+ * Values worth carrying out of a config that failed to load.
+ *
+ * `APIKEY` above all: regenerating it locks out every configured client,
+ * and a file that failed schema validation usually still holds a
+ * perfectly good token. Personas are the other envelope-only data with
+ * no copy anywhere else — Providers and Router live in the database.
+ */
+const salvageFromRaw = (raw: unknown): Partial<{ APIKEY: string; Personas: unknown[] }> => {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const obj: Record<string, unknown> = { ...raw }
+  const salvaged: Partial<{ APIKEY: string; Personas: unknown[] }> = {}
+  if (typeof obj.APIKEY === 'string' && obj.APIKEY.length > 0) salvaged.APIKEY = obj.APIKEY
+  if (Array.isArray(obj.Personas) && obj.Personas.length > 0) salvaged.Personas = obj.Personas
+  return salvaged
+}
+
+/**
+ * A fresh install has no bootstrap token.
+ *
+ * It used to mint one, which meant every install carried a master key
+ * for /api/* that bypasses Cloudflare Access for anyone who obtains it —
+ * from config.json, a backup, or shell history. Nothing needs it now: a
+ * browser on this machine is exempt, remote admin access goes through
+ * Access, and /v1 takes issued tokens only.
+ *
+ * Setting APIKEY by hand still works, as a deliberate break-glass for
+ * remote admin access when Access itself is broken. Opting in to a
+ * master key is a different decision from being handed one.
+ */
+const createDefaultConfig = async (salvaged: ReturnType<typeof salvageFromRaw> = {}): Promise<ConfigEnvelope> => {
   await initDir()
   const raw = {
     PORT: 3456,
-    APIKEY: generateApiKey(),
+    // Preserved when recovering a config that failed to load; never
+    // invented.
+    ...(salvaged.APIKEY === undefined ? {} : { APIKEY: salvaged.APIKEY }),
     Providers: [],
     Router: {},
     // Ship a few ready-made personas in the default config so a fresh
     // install has something to pick on the Router page out of the box.
-    Personas: SEED_PERSONAS
+    Personas: salvaged.Personas === undefined ? SEED_PERSONAS : salvaged.Personas
   }
   await writeConfigFile(raw)
   logger.info({ path: CONFIG_FILE }, 'Created default configuration file')
@@ -156,7 +210,8 @@ export const readConfigFile = async (): Promise<ConfigEnvelope> => {
       parsed = JSON5.parse(raw)
     } catch (parseError) {
       logger.error({ path: CONFIG_FILE, err: parseError }, 'Failed to parse config file')
-      await fs.unlink(CONFIG_FILE)
+      await quarantineConfigFile()
+      // Nothing is salvageable from a file JSON5 could not read.
       return createDefaultConfig()
     }
 
@@ -167,8 +222,11 @@ export const readConfigFile = async (): Promise<ConfigEnvelope> => {
     const result = ConfigEnvelopeSchema.safeParse(overlaid)
     if (!result.success) {
       logger.error({ err: result.error }, 'Config file failed schema validation')
-      await fs.unlink(CONFIG_FILE)
-      return createDefaultConfig()
+      await quarantineConfigFile()
+      // The file parsed as JSON — one key failing validation is no
+      // reason to rotate a working bootstrap token or drop the persona
+      // library, neither of which is stored anywhere else.
+      return createDefaultConfig(salvageFromRaw(parsed))
     }
 
     // Return the schema-parsed envelope (defaults applied, API_TIMEOUT_MS

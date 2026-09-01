@@ -52,11 +52,11 @@ mock.module('../../src/services/claude-profile-service', () => ({
 const TEST_KEY_HEX = 'ab'.repeat(32)
 
 const setTestKey = () => {
-  process.env.CCR_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
+  process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
 }
 
 const clearTestKey = () => {
-  delete process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+  delete process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
 }
 
 // Build a valid AES-256-GCM ciphertext in the iv.tag.body format that

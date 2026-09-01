@@ -59,7 +59,7 @@ flowchart TD
 | 日時 | 保存値は `src/lib/dayjs` 経由。`new Date()` / `Date.now()` を保存パスで直接使わない（in-memory TTL 比較のみ既存慣行として `Date.now()` 使用箇所あり） |
 | UI | `src/components/ui/*.tsx` は編集禁止（shadcn 管理）。**Card コンポーネントは使わない**（border-l accent + `hover:bg-muted/50` のフラットパターンで統一） |
 | 金額表示 | 有効数字 5 桁（`Intl.NumberFormat`, `minimum/maximumSignificantDigits: 5`） |
-| DB | DDL 直接編集禁止。`bun run db:migrate`。**migration 後は `bun run db:migrate:test` も必須**（ccr_test） |
+| DB | DDL 直接編集禁止。`bun run db:migrate`。**migration 後は `bun run db:migrate:test` も必須**（rialto_test） |
 | テスト | ランナーは `bun test`（vitest ではない）。`__tests__/` が `src/` をミラー。DB テストは `HAS_DB` + `describe.skipIf(!HAS_DB)` パターン（`__tests__/db/helpers.ts`） |
 | コメント | コード内コメントは英語。plan doc は日本語 |
 | フロント | `src/lib/api.ts` の `ApiClient` に型付きメソッドを足す（コンポーネントから生 fetch しない） |

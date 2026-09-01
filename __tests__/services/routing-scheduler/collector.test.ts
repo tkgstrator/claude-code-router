@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { ClaudeUsage, CodexUsage } from '../../../src/schemas/usage.dto'
+import type { ClaudeUsage, CodexUsage } from '../../../src/schemas/api/usage'
 import { mapClaudeToQuota, mapCodexToQuota } from '../../../src/services/routing-scheduler/collector'
 
 const NOW = new Date('2026-08-11T21:00:00.000Z')

@@ -8,7 +8,7 @@
  */
 
 import { expect, test } from 'bun:test'
-import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry } from '../../../src/schemas'
+import type { PreferenceConstraints, RequestedModelTier, RouterPreferenceEntry } from '../../../src/schemas/domain'
 import { selectByPreference } from '../../../src/llms/quota-router/selection'
 
 const STRICT: PreferenceConstraints = {

@@ -4,7 +4,7 @@
  * Each scenario exercises a transformer concern that the basic
  * hello/pong/42 smokes don't reach. Bodies match what
  * `scripts/capture-fixtures.ts` recorded; the assertions check the
- * unified Anthropic SSE shape coming back out of CCR.
+ * unified Anthropic SSE shape coming back out of Rialto.
  *
  *   tool-use     model uses a function call instead of plain text
  *   system       system prompt steers the reply
@@ -25,7 +25,7 @@ import {
 
 // In replay mode any captured request body works without creds. In live
 // mode we honour the same per-provider gates the smokes already use.
-const liveOff = process.env.CCR_SKIP_LIVE_TESTS;
+const liveOff = process.env.RIALTO_SKIP_LIVE_TESTS;
 const hasOpenAI = IS_REPLAY || (Boolean(process.env.OPENAI_API_KEY) && !liveOff);
 const hasGemini = IS_REPLAY || (Boolean(process.env.GEMINI_API_KEY) && !liveOff);
 const hasClaudeOauth = IS_REPLAY || !liveOff; // creds detection is per-suite; keep loose here

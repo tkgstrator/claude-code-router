@@ -16,10 +16,9 @@ import type {
   TransformerContext,
   TransformerHookResult,
   UnifiedChatRequest
-} from '@/schemas'
+} from '@/schemas/domain'
 
-export type { TransformerAuthResult } from '@/schemas'
-
+export type { TransformerAuthResult } from '@/schemas/domain/pipeline'
 export abstract class Transformer {
   /** Unique name used in provider.transformer.use[] chains. */
   abstract readonly name: string

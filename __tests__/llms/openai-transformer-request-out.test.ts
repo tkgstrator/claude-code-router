@@ -14,7 +14,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas'
+import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 import { OpenAITransformer } from '../../src/llms/transformers/openai'
 
 const t = new OpenAITransformer()

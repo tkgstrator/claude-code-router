@@ -3,7 +3,7 @@
  *
  * Downloads `tokenizer.json` and `tokenizer_config.json` for the configured
  * repo from huggingface.co (caching them under
- * `~/.claude-code-router/.huggingface`) and feeds them to
+ * `~/.rialto/.huggingface`) and feeds them to
  * `@huggingface/tokenizers` for real model-accurate token counts on
  * open-source models.
  */
@@ -13,7 +13,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Tokenizer as HFTokenizer } from '@huggingface/tokenizers'
 import type { Logger } from 'pino'
-import type { ProviderTokenizerConfig } from '@/schemas'
+import type { ProviderTokenizerConfig } from '@/schemas/domain/tokenizer'
 import { type TokenizeContentBlock, type TokenizeRequest, Tokenizer } from './base'
 
 export type HuggingFaceTokenizerOptions = {
@@ -46,7 +46,7 @@ export class HuggingFaceTokenizer extends Tokenizer {
     this.modelId = config.model
     this.logger = options.logger
     this.timeout = options.timeout !== undefined ? options.timeout : 30_000
-    this.cacheDir = options.cacheDir ? options.cacheDir : join(homedir(), '.claude-code-router', '.huggingface')
+    this.cacheDir = options.cacheDir ? options.cacheDir : join(homedir(), '.rialto', '.huggingface')
     // Cache safe model name to avoid repeated regex operations
     this.safeModelName = this.modelId.replace(/\//g, '_').replace(/[^a-zA-Z0-9_-]/g, '_')
   }

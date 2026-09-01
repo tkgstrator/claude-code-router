@@ -1,0 +1,169 @@
+/**
+ * Overview aggregation.
+ *
+ * The subtle part is the surface breakdown. `RequestLog.surface` is
+ * nullable — rows written before the column landed cannot be attributed
+ * to a surface, and 'openai' covers two of them — so the screen has to
+ * exclude untracked rows from per-surface traffic rather than dump them
+ * into a bucket. These tests pin that, plus the distinction between "no
+ * traffic" (null latency / null error rate) and "traffic with zero
+ * errors" (0), which the mock renders differently on purpose.
+ */
+
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
+import { getPrismaClient } from '../../src/db/client'
+import { invalidateSurfaceCache } from '../../src/services/inbound-surface-service'
+import { getOverview } from '../../src/services/overview-service'
+import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
+
+interface LogSeed {
+  surface: string | null
+  durationMs: number
+  status: number
+  minutesAgo?: number
+}
+
+async function seedLogs(sessionId: string, logs: LogSeed[]): Promise<void> {
+  const prisma = getPrismaClient()
+  await prisma.session.upsert({ where: { id: sessionId }, create: { id: sessionId }, update: {} })
+  for (const [i, log] of logs.entries()) {
+    const minutes = log.minutesAgo === undefined ? i : log.minutesAgo
+    await prisma.requestLog.create({
+      data: {
+        sessionId,
+        provider: 'acme',
+        model: 'acme-1',
+        surface: log.surface,
+        durationMs: log.durationMs,
+        status: log.status,
+        inputTokens: 10,
+        outputTokens: 5,
+        totalInputTokens: 10,
+        createdAt: new Date(Date.now() - minutes * 60_000)
+      }
+    })
+  }
+}
+
+const bySurface = (surfaces: Awaited<ReturnType<typeof getOverview>>['surfaces'], id: string) =>
+  surfaces.find((s) => s.id === id)
+
+describe.skipIf(!HAS_DB)('getOverview', () => {
+  beforeEach(async () => {
+    await resetDbTables()
+    invalidateSurfaceCache()
+  })
+
+  afterAll(teardownPrisma)
+
+  test('lists every registered surface even when none has traffic', async () => {
+    const out = await getOverview(24)
+    expect(out.surfaces.map((s) => s.id)).toEqual([
+      'anthropic-messages',
+      'openai-chat',
+      'openai-responses',
+      'gemini-generate'
+    ])
+    expect(out.surfaces.every((s) => s.requests === 0)).toBe(true)
+  })
+
+  test('a surface with no traffic reports no latency and no error rate, not zero', async () => {
+    const out = await getOverview(24)
+    const messages = bySurface(out.surfaces, 'anthropic-messages')
+    expect(messages?.p50Ms).toBeNull()
+    expect(messages?.errorRate).toBeNull()
+  })
+
+  test('traffic with no failures reports a zero error rate, which is not the same as none', async () => {
+    await seedLogs('s1', [
+      { surface: 'anthropic-messages', durationMs: 100, status: 200 },
+      { surface: 'anthropic-messages', durationMs: 300, status: 200 }
+    ])
+    const messages = bySurface((await getOverview(24)).surfaces, 'anthropic-messages')
+    expect(messages?.requests).toBe(2)
+    expect(messages?.errorRate).toBe(0)
+  })
+
+  test('untracked rows are excluded from every surface rather than bucketed into one', async () => {
+    await seedLogs('s1', [
+      { surface: null, durationMs: 100, status: 200 },
+      { surface: null, durationMs: 100, status: 200 },
+      { surface: 'openai-chat', durationMs: 100, status: 200 }
+    ])
+    const out = await getOverview(24)
+    expect(bySurface(out.surfaces, 'openai-chat')?.requests).toBe(1)
+    expect(bySurface(out.surfaces, 'openai-responses')?.requests).toBe(0)
+    expect(bySurface(out.surfaces, 'anthropic-messages')?.requests).toBe(0)
+  })
+
+  test('the two OpenAI-compat surfaces are counted separately', async () => {
+    await seedLogs('s1', [
+      { surface: 'openai-chat', durationMs: 100, status: 200 },
+      { surface: 'openai-responses', durationMs: 100, status: 200 },
+      { surface: 'openai-responses', durationMs: 100, status: 200 }
+    ])
+    const out = await getOverview(24)
+    expect(bySurface(out.surfaces, 'openai-chat')?.requests).toBe(1)
+    expect(bySurface(out.surfaces, 'openai-responses')?.requests).toBe(2)
+  })
+
+  test('p50 averages the middle pair so a slow outlier is not reported as typical', async () => {
+    await seedLogs('s1', [
+      { surface: 'anthropic-messages', durationMs: 100, status: 200 },
+      { surface: 'anthropic-messages', durationMs: 200, status: 200 },
+      { surface: 'anthropic-messages', durationMs: 300, status: 200 },
+      { surface: 'anthropic-messages', durationMs: 9000, status: 200 }
+    ])
+    expect(bySurface((await getOverview(24)).surfaces, 'anthropic-messages')?.p50Ms).toBe(250)
+  })
+
+  test('the error rate counts every non-2xx status, not only 429', async () => {
+    await seedLogs('s1', [
+      { surface: 'anthropic-messages', durationMs: 100, status: 200 },
+      { surface: 'anthropic-messages', durationMs: 100, status: 429 },
+      { surface: 'anthropic-messages', durationMs: 100, status: 500 },
+      { surface: 'anthropic-messages', durationMs: 100, status: 200 }
+    ])
+    expect(bySurface((await getOverview(24)).surfaces, 'anthropic-messages')?.errorRate).toBe(0.5)
+  })
+
+  test('traffic older than the window is excluded', async () => {
+    await seedLogs('s1', [
+      { surface: 'anthropic-messages', durationMs: 100, status: 200, minutesAgo: 30 },
+      { surface: 'anthropic-messages', durationMs: 100, status: 200, minutesAgo: 60 * 30 }
+    ])
+    expect(bySurface((await getOverview(1)).surfaces, 'anthropic-messages')?.requests).toBe(1)
+  })
+
+  test('a routing-mode override shows up on the surface row', async () => {
+    const prisma = getPrismaClient()
+    await prisma.inboundSurfaceConfig.create({
+      data: { surface: 'openai-chat', routingMode: 'routed' }
+    })
+    invalidateSurfaceCache()
+    const out = await getOverview(24)
+    expect(bySurface(out.surfaces, 'openai-chat')?.routingMode).toBe('routed')
+    expect(bySurface(out.surfaces, 'openai-responses')?.routingMode).toBe('passthrough')
+  })
+
+  test('recent sessions carry the surface of their newest request', async () => {
+    await seedLogs('s1', [
+      { surface: 'openai-responses', durationMs: 100, status: 200, minutesAgo: 1 },
+      { surface: 'openai-responses', durationMs: 100, status: 200, minutesAgo: 5 }
+    ])
+    const out = await getOverview(24)
+    expect(out.recentSessions).toHaveLength(1)
+    expect(out.recentSessions[0].sessionId).toBe('s1')
+    expect(out.recentSessions[0].surface).toBe('openai-responses')
+    expect(out.recentSessions[0].turns).toBe(2)
+  })
+
+  test('spend reports no delta when the previous period had nothing to compare against', async () => {
+    await seedLogs('s1', [{ surface: 'anthropic-messages', durationMs: 100, status: 200 }])
+    const out = await getOverview(24)
+    // No Model row exists for acme-1, so nothing is priced and every
+    // tile is null — including the delta, which must not read as 0%.
+    expect(out.spend.every((s) => s.deltaRatio === null)).toBe(true)
+    expect(out.spend.find((s) => s.label === 'savedBySubscription')?.usd).toBeNull()
+  })
+})

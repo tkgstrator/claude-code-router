@@ -1,5 +1,5 @@
 /**
- * GET/PUT the singleton RouterPreferenceProfile (Phase 2b).
+ * GET/PUT a RouterPreferenceProfile, plus the list of profiles.
  *
  * Dedicated endpoints — NOT routed through /api/config —
  * so unknown preference keys can never leak onto disk via the envelope
@@ -9,8 +9,13 @@
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { RouterPreferenceProfileSchema } from '../../schemas'
-import { applyRouterPreferences, loadRouterPreferences } from '../../services/router-preference-service'
+import { RouterPreferenceProfileSchema } from '../../schemas/domain/preference'
+import {
+  applyRouterPreferences,
+  DEFAULT_PROFILE_KEY,
+  listPreferenceProfiles,
+  loadRouterPreferences
+} from '../../services/router-preference-service'
 
 export const routerPreferencesRoute = new OpenAPIHono()
 
@@ -21,9 +26,44 @@ const ApplyResponseSchema = z
   })
   .openapi('RouterPreferencesApplyResponse')
 
+// Which profile the request addresses. Omitted means the default one,
+// so every pre-existing caller keeps hitting the same row it always did.
+const ProfileQuerySchema = z.object({
+  profile: z.string().nonempty().default(DEFAULT_PROFILE_KEY)
+})
+
+const ProfileListSchema = z
+  .object({
+    profiles: z.array(
+      z.object({
+        key: z.string().nonempty(),
+        entryCount: z.number().int().nonnegative(),
+        updatedAt: z.string().nonempty().nullable(),
+        // 'passthrough' is reserved and holds no chain — it means the
+        // traffic skips the selector entirely.
+        kind: z.enum(['chain', 'passthrough'])
+      })
+    )
+  })
+  .openapi('RouterPreferenceProfileList')
+
+const listRoute = createRoute({
+  method: 'get',
+  path: '/api/router-preferences/profiles',
+  responses: {
+    200: {
+      description: 'Every configured profile key; the default is always listed',
+      content: { 'application/json': { schema: ProfileListSchema } }
+    }
+  }
+})
+
+routerPreferencesRoute.openapi(listRoute, async (c) => c.json({ profiles: await listPreferenceProfiles() }, 200))
+
 const getRoute = createRoute({
   method: 'get',
   path: '/api/router-preferences',
+  request: { query: ProfileQuerySchema },
   responses: {
     200: {
       description: 'Current preference chain (empty entries + null constraints on a fresh DB)',
@@ -33,14 +73,15 @@ const getRoute = createRoute({
 })
 
 routerPreferencesRoute.openapi(getRoute, async (c) => {
-  const profile = await loadRouterPreferences()
-  return c.json(profile, 200)
+  const { profile } = c.req.valid('query')
+  return c.json(await loadRouterPreferences(undefined, profile), 200)
 })
 
 const putRoute = createRoute({
   method: 'put',
   path: '/api/router-preferences',
   request: {
+    query: ProfileQuerySchema,
     body: { content: { 'application/json': { schema: RouterPreferenceProfileSchema } } }
   },
   responses: {
@@ -53,6 +94,6 @@ const putRoute = createRoute({
 
 routerPreferencesRoute.openapi(putRoute, async (c) => {
   const body = c.req.valid('json')
-  const outcome = await applyRouterPreferences(body)
-  return c.json(outcome, 200)
+  const { profile } = c.req.valid('query')
+  return c.json(await applyRouterPreferences(body, undefined, profile), 200)
 })

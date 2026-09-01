@@ -26,13 +26,13 @@ import { getPrismaClient } from '../../db/client'
 import type { PrismaClient } from '../../generated/prisma/client'
 import dayjs from '../../lib/dayjs'
 import type {
+  ScenarioKey,
   SolverInput,
   SolverInputAccount,
   SolverInputChainMembership,
   SolverInputScenario,
   SolverInputTarget
-} from '../../schemas'
-import type { ScenarioKey } from '../../schemas/router.dto'
+} from '../../schemas/domain'
 
 const VALID_SCENARIOS: readonly ScenarioKey[] = ['default', 'think', 'longContext', 'webSearch', 'image']
 

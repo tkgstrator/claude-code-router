@@ -25,7 +25,9 @@
  * per-session/per-project Router override lookup.
  */
 
-import type { FlatRouter } from '@/schemas'
+import type { FlatRouter } from '@/schemas/domain/router'
+import { isRoutedPath, resolveSurfaceForPath } from '../services/inbound-surface-service'
+import { PASSTHROUGH_PROFILE_KEY } from '../services/router-preference-service'
 import { isSessionInRollout } from '../services/routing-scheduler/rollout'
 import { getRoutingSnapshot } from '../services/routing-scheduler/state'
 import { logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
@@ -34,6 +36,7 @@ import { selectModel } from './scenario-router/model-selection'
 import { expandChainWithPeers, type HealthinessLookup } from './scenario-router/peer-fallback'
 import { applyGlobalSystemPrompt, resolveActivePersonaPrompt } from './scenario-router/persona'
 import { getProjectRouter } from './scenario-router/project-config'
+import { signalsOf } from './scenario-router/surface-signals'
 import type {
   ConfigProvider,
   RouterConfig,
@@ -93,7 +96,7 @@ const applyPeerFallback = (
   return { primary, fallbacks: expanded.chain.slice(1), peerTargets: expanded.peerTargets }
 }
 
-export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas'
+export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas/domain/scenario'
 export type { SubscriptionKindProvider } from './scenario-router/failover'
 export { applyProactiveFailover, candidateUsable, subscriptionKindOf } from './scenario-router/failover'
 export type { EffortLevel, ModelTier } from './scenario-router/model-selection'
@@ -114,15 +117,23 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     if (parts.length > 1) req.sessionId = parts[1]
   }
 
-  // Bypass for OpenAI-compat inbound: /v1/chat/completions and
-  // /v1/responses callers hand-pick their target with `provider,model`
-  // in body.model and expect that exact model to reach upstream — the
-  // scenario map, per-project overrides, rule stack, and quota-aware
-  // selector are all Anthropic-idiom conveniences that would silently
-  // rewrite the caller's choice. Skip the whole selector, leave
+  // Passthrough surfaces: the caller hand-picks its target with
+  // `provider,model` in body.model and expects that exact model to reach
+  // upstream — the scenario map, per-project overrides, rule stack, and
+  // quota-aware selector are all Anthropic-idiom conveniences that would
+  // silently rewrite the caller's choice. Skip the whole selector, leave
   // body.model as-is, and stamp default-scenario metadata so the
   // downstream pipeline has the fields it reads.
-  if (req.inboundPath === '/v1/chat/completions' || req.inboundPath === '/v1/responses') {
+  //
+  // Which surfaces those are is configuration, not a constant. Every
+  // surface carries an explicit mode, set from the Routing screen; there
+  // is no per-surface default for this to fall back to.
+  // A token may name the reserved passthrough profile, which opts that
+  // one client out of routing without changing the mode for everyone
+  // else sharing the endpoint.
+  const forcedPassthrough = req.profileKeyOverride === PASSTHROUGH_PROFILE_KEY
+
+  if (forcedPassthrough || !(await isRoutedPath(req.inboundPath))) {
     req.scenarioType = 'default'
     req.isSubagent = false
     req.resolvedFallbacks = []
@@ -130,7 +141,7 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
   }
 
   try {
-    const tokenCount = await countRequestTokens(ctx.tokenizers, req.body)
+    const tokenCount = await countRequestTokens(ctx.tokenizers, signalsOf(req).tokenize)
     req.tokenCount = tokenCount
 
     const project = await getProjectRouter(req)
@@ -148,6 +159,14 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // session falls into the rollout bucket. Outside the bucket
     // (or when preferences resolve to nothing) we fall back to the
     // scenario router's output so behaviour degrades gracefully.
+    // Which preference profile this request routes through. The token
+    // that authenticated the call wins when it names one — that is what
+    // makes per-client routing possible — otherwise the inbound
+    // surface's profile applies, which is the default for everyone.
+    const surface = await resolveSurfaceForPath(req.inboundPath)
+    const surfaceProfile = surface === undefined ? undefined : surface.profileKey
+    const profileKey = req.profileKeyOverride !== undefined ? req.profileKeyOverride : surfaceProfile
+
     let model = scenarioResult.model
     let fallbacks: string[] = scenarioResult.fallbacks
     if (mode === 'quota-aware' && inRollout) {
@@ -156,7 +175,8 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
         requestedModel,
         isSubagent: scenarioResult.isSubagent,
         scenario: scenarioResult.scenarioType,
-        requestTokenCount: tokenCount
+        requestTokenCount: tokenCount,
+        profileKey
       })
       if (quotaAware.selection.primary !== null) {
         model = quotaAware.selection.primary
@@ -192,7 +212,8 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
         requestedModel,
         isSubagent: scenarioResult.isSubagent,
         scenario: scenarioResult.scenarioType,
-        requestTokenCount: tokenCount
+        requestTokenCount: tokenCount,
+        profileKey
       }).catch((err) => {
         req.log.warn({ err }, '[routing-shadow] resolveQuotaAwareSelection threw — dropping shadow log')
         return null
@@ -267,12 +288,12 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
   }
 }
 
-async function countRequestTokens(tokenizers: RouterContext['tokenizers'], body: RouterRequestBody): Promise<number> {
-  const tokenize: TokenizeRequest = {
-    messages: Array.isArray(body.messages) ? body.messages : [],
-    system: body.system,
-    tools: body.tools
-  }
+// Counted from the request's normalised signals rather than from
+// `body.messages` directly: a Responses caller carries its turns in
+// `input` and a Gemini caller in `contents`, so reading the Anthropic
+// key made the size-based longContext branch permanently see 0 tokens
+// on those surfaces.
+async function countRequestTokens(tokenizers: RouterContext['tokenizers'], tokenize: TokenizeRequest): Promise<number> {
   const result = await tokenizers.countTokens(tokenize)
   return result.tokenCount
 }

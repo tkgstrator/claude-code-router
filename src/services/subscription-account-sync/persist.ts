@@ -7,7 +7,7 @@
 import { getPrismaClient } from '../../db/client'
 import { AuthMode, type PrismaClient, type SubAccount } from '../../generated/prisma/client'
 import { logger } from '../../logger'
-import type { DiscoveredAccount } from '../../schemas/subscription.dto'
+import type { DiscoveredAccount } from '../../schemas/domain/subscription'
 import { encryptionKey } from './crypto'
 import {
   buildAccountPayload,

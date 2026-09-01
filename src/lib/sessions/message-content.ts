@@ -9,7 +9,7 @@ export type NormalisedBlock =
   | { kind: 'tool_result'; text: string }
   | { kind: 'raw'; text: string }
 
-// Text blocks in CCR sessions are a mix of natural chat and framework-injected
+// Text blocks in Rialto sessions are a mix of natural chat and framework-injected
 // noise: <system-reminder> / <command-*> wrappers, proxied tool traffic
 // serialised as {"Agent": …} / {"Bash": …} / {"user": …}, bracketed mode
 // instructions like [SUGGESTION MODE …], and tagless dumps Claude Code

@@ -1,8 +1,14 @@
 /**
- * /v1/* LLM proxy. The single entry the Claude Code client (and ccr)
- * actually targets. Resolves the inbound path to the matching endpoint
- * transformer, runs the app-side pipeline, and relays the upstream
- * response back to the client as JSON or SSE.
+ * The completion proxy — every inbound surface's HTTP handler.
+ *
+ * One handler serves all of them: the mounts, the SSE→JSON aggregator
+ * and the error envelope all come from the surface registry, so this
+ * file holds the request lifecycle (plan → chain → pipeline → relay) and
+ * none of the per-surface knowledge. Adding a surface does not touch it.
+ *
+ * Resolves the inbound path to its endpoint transformer, runs the
+ * app-side pipeline, and relays the upstream response back to the client
+ * as JSON or SSE.
  */
 
 import type { Context } from 'hono'
@@ -11,24 +17,33 @@ import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
 import { getPrismaClient } from '../../db/client'
 import { getLlmsContext, type MessageRecord, runPipeline, type UsageRecord } from '../../llms'
-import type { Transformer } from '../../llms/transformers/base'
+import { INBOUND_SURFACES, surfaceForPath } from '../../llms/inbound/surfaces'
+import { aggregateAnthropicSseToJson, isSseContentType } from '../../llms/utils/sse-aggregate'
 import { requestLogEmitter } from '../request-logs/events'
+import { buildFailoverChain } from './candidate-chain'
 import { attemptChainEntry, type ChainCtx, type SubscriptionKindProvider, sessionIdFrom } from './chain-failover'
 import { buildErrorEnvelope, errorShapeForPath } from './error-shape'
-import { buildFailoverChain, buildRoutePlan, type ResolvedInvocation } from './invocation'
-import {
-  aggregateAnthropicSseToJson,
-  aggregateOpenAiChatSseToJson,
-  aggregateOpenAiResponsesSseToJson,
-  isSseContentType
-} from './sse-to-json'
+import type { ResolvedInvocation } from './invocation'
+import { redactToolArguments } from './redact'
+import { buildRoutePlan } from './route-plan'
 import { bestSupportedLevel, deepReplaceValue, forwardUpstreamError } from './upstream-error'
 
 export const v1Route = new Hono()
 
 // ─── Usage capture sink ─────────────────────────────────────────────────
 
+/**
+ * Envelope switch, read per request rather than at boot.
+ *
+ * The reason to turn capture off is usually that something is being
+ * recorded right now that should not be, so waiting for a restart is
+ * the wrong behaviour. Absent reads as on, which is what capture did
+ * before these keys existed.
+ */
+const captureEnabled = (key: 'CAPTURE_REQUESTS' | 'CAPTURE_MESSAGES'): boolean => process.env[key] !== 'false'
+
 async function recordUsage(entry: UsageRecord): Promise<void> {
+  if (!captureEnabled('CAPTURE_REQUESTS')) return
   const prisma = getPrismaClient()
   // New activity un-archives a previously archived session so it returns to
   // the History list (archivedAt: null), while still bumping updatedAt.
@@ -50,7 +65,8 @@ async function recordUsage(entry: UsageRecord): Promise<void> {
 // Session first because the user turn can land before recordUsage has
 // created it.
 async function recordMessages(entries: MessageRecord[]): Promise<void> {
-  if (entries.length === 0) return
+  if (entries.length === 0 || !captureEnabled('CAPTURE_MESSAGES')) return
+  const redact = process.env.REDACT_TOOL_ARGUMENTS === 'true'
   const prisma = getPrismaClient()
   const sessionIds = new Set(entries.map((e) => e.sessionId))
   for (const id of sessionIds) {
@@ -62,7 +78,11 @@ async function recordMessages(entries: MessageRecord[]): Promise<void> {
   }
   await prisma.message.createMany({
     // biome-ignore plugin: MessageRecord.content is unknown by wire schema (Anthropic block arrays and user content shapes vary); Prisma InputJsonValue wants a concrete JSON value. The pipeline only passes wire-safe values here.
-    data: entries.map((e) => ({ sessionId: e.sessionId, role: e.role, content: e.content as never }))
+    data: entries.map((e) => ({
+      sessionId: e.sessionId,
+      role: e.role,
+      content: (redact ? redactToolArguments(e.content) : e.content) as never
+    }))
   })
 }
 
@@ -72,7 +92,7 @@ async function recordMessages(entries: MessageRecord[]): Promise<void> {
 // and total bytes; on flush (end-of-stream) fire a warn when nothing came
 // through. This surfaces the "HTTP 200 but empty body" case that Claude
 // Code shows as "API returned an empty or malformed response" — until now
-// CCR silently relayed the empty stream and the operator had no signal.
+// Rialto silently relayed the empty stream and the operator had no signal.
 function countingSseTransform(
   log: Logger,
   ctx: { provider: string; model: string | undefined; status: number }
@@ -103,21 +123,23 @@ function countingSseTransform(
   })
 }
 
-// Pick the SSE→JSON aggregator that matches the inbound endpoint. The
-// upstream response has already been reshaped by the endpoint
-// transformer's `transformResponseIn` into the inbound wire form, so
-// the aggregator only needs to know which wire shape it is:
+// The SSE→JSON aggregator that matches the inbound surface. The upstream
+// response has already been reshaped by the endpoint transformer's
+// `transformResponseIn` into the inbound wire form, so the aggregator
+// only needs to know which wire shape that is — which is the surface's
+// own answer, and now lives on its descriptor.
 //
-//   AnthropicTransformer      → Anthropic message envelope
-//   OpenAITransformer         → OpenAI chat.completion envelope
-//   OpenAIResponsesTransformer→ OpenAI Responses `response` envelope
+// This used to dispatch on `transformer.name`. That read the same answer
+// off a different object: a transformer is only reachable here through
+// the endpoint it registered, so surface and transformer were 1:1 and
+// the two dispatches could not disagree. Asking the surface is simply
+// asking the thing that knows.
 //
-// Falls back to the Anthropic aggregator for unknown endpoints so the
-// long-standing /v1/messages path is untouched.
-function pickSseAggregator(transformer: Transformer): (response: Response) => Promise<Record<string, unknown>> {
-  if (transformer.name === 'openai') return aggregateOpenAiChatSseToJson
-  if (transformer.name === 'openai-responses') return aggregateOpenAiResponsesSseToJson
-  return aggregateAnthropicSseToJson
+// Unknown paths (the /v1/* catch-all's 404 lane) keep the Anthropic
+// aggregator they have always had.
+function pickSseAggregator(path: string): (response: Response) => Promise<Record<string, unknown>> {
+  const surface = surfaceForPath(path)
+  return surface !== undefined ? surface.aggregateSse : aggregateAnthropicSseToJson
 }
 
 async function formatResponse(
@@ -125,7 +147,7 @@ async function formatResponse(
   response: Response,
   stream: boolean,
   log: Logger,
-  observed: { provider: string; model: string | undefined; transformer: Transformer }
+  observed: { provider: string; model: string | undefined; path: string }
 ): Promise<Response> {
   if (!stream) {
     // A few provider paths (codex-oauth notably) force stream=true
@@ -136,7 +158,7 @@ async function formatResponse(
     // this the parse throws on "event: ...\ndata: ..." and the client
     // sees a 500.
     if (isSseContentType(response.headers.get('content-type'))) {
-      const aggregate = pickSseAggregator(observed.transformer)
+      const aggregate = pickSseAggregator(observed.path)
       const message = await aggregate(response)
       return c.json(message, (response.status || 200) as 200)
     }
@@ -197,7 +219,7 @@ function errorResponse(c: Context, err: unknown): Response {
 
 // ─── Handler ────────────────────────────────────────────────────────────
 
-v1Route.post('/v1/*', async (c) => {
+const handleInbound = async (c: Context): Promise<Response> => {
   const ctx = await getLlmsContext()
   const planOrResponse = await buildRoutePlan(c, ctx)
   if (planOrResponse instanceof Response) return planOrResponse
@@ -229,7 +251,7 @@ v1Route.post('/v1/*', async (c) => {
     return formatResponse(c, upstream, clientAskedStream, ctx.log, {
       provider: inv.provider.name,
       model: inv.request.model,
-      transformer: inv.transformer
+      path: plan.path
     })
   }
 
@@ -268,4 +290,13 @@ v1Route.post('/v1/*', async (c) => {
   // Chain exhausted: every candidate was rate-limited (or unresolvable).
   if (lastForwarded) return lastForwarded
   return c.json({ type: 'error', error: { type: 'invalid_request', message: 'No usable model for this request' } }, 400)
-})
+}
+
+// Route mounts come from the registry, one per surface — including
+// `/v1beta/models/:modelAndAction`, which no `/v1/*` pattern can reach.
+for (const surface of INBOUND_SURFACES) v1Route.post(surface.endpoint, handleInbound)
+
+// Not a surface: the fail-closed lane for an unknown /v1 path, which has
+// to answer 404 in the caller's own envelope rather than fall through to
+// the SPA catch-all. Registered last so a surface's own mount wins.
+v1Route.post('/v1/*', handleInbound)

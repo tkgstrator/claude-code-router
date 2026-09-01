@@ -3,17 +3,17 @@
  *
  * By default the suite runs in *replay* mode against fixtures captured
  * via `scripts/capture-fixtures.ts` — no live server needed. Set
- * `CCR_FIXTURE_MODE=live` to bypass fixtures and hit the running CCR
- * server (default http://127.0.0.1:16173, override with CCR_TEST_URL).
+ * `RIALTO_FIXTURE_MODE=live` to bypass fixtures and hit the running Rialto
+ * server (default http://127.0.0.1:16173, override with RIALTO_TEST_URL).
  * "provider,model" routing in the body still applies in either mode.
  */
 
 import { FIXTURE_MODE, cachedFetch } from "./fixtures";
 
-const CCR_BASE = process.env.CCR_TEST_URL ?? "http://127.0.0.1:16173";
-const CCR_APIKEY = process.env.CCR_TEST_APIKEY ?? "test";
-export const CCR_URL = `${CCR_BASE}/v1/messages`;
-export const CCR_CONFIG_URL = `${CCR_BASE}/api/config`;
+const RIALTO_BASE = process.env.RIALTO_TEST_URL ?? "http://127.0.0.1:16173";
+const RIALTO_APIKEY = process.env.RIALTO_TEST_APIKEY ?? "test";
+export const RIALTO_URL = `${RIALTO_BASE}/v1/messages`;
+export const RIALTO_CONFIG_URL = `${RIALTO_BASE}/api/config`;
 export const TEST_TIMEOUT = 60_000;
 export const IS_REPLAY = FIXTURE_MODE === "replay";
 
@@ -33,7 +33,7 @@ export interface SubscriptionModel {
 export async function fetchSubscriptionModels(
   nameMatch: RegExp
 ): Promise<SubscriptionModel[]> {
-  const res = await cachedFetch(CCR_CONFIG_URL, { headers: { "x-api-key": CCR_APIKEY } });
+  const res = await cachedFetch(RIALTO_CONFIG_URL, { headers: { "x-api-key": RIALTO_APIKEY } });
   if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`);
   const cfg = (await res.json()) as {
     Providers?: {
@@ -109,7 +109,7 @@ export interface AnthropicRequest {
   system?: string | unknown[];
   // Optional Anthropic features used by the scenario tests. Typed as
   // unknown here so the test surface doesn't have to mirror every
-  // upstream schema — CCR forwards these to the upstream provider.
+  // upstream schema — Rialto forwards these to the upstream provider.
   tools?: unknown[];
   thinking?: { type: "enabled"; budget_tokens: number };
 }
@@ -119,13 +119,13 @@ export interface SSEEvent {
   data: unknown;
 }
 
-/** Send a request to CCR and return the raw Response. */
+/** Send a request to Rialto and return the raw Response. */
 export async function sendMessage(body: AnthropicRequest): Promise<Response> {
-  const res = await cachedFetch(CCR_URL, {
+  const res = await cachedFetch(RIALTO_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": CCR_APIKEY,
+      "x-api-key": RIALTO_APIKEY,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),
@@ -214,10 +214,10 @@ export async function streamMessage(body: Omit<AnthropicRequest, "stream">): Pro
 }
 
 /**
- * Heuristic for "this model can't be exercised through CCR right now"
+ * Heuristic for "this model can't be exercised through Rialto right now"
  * — used by individual tests to skip rather than fail. Covers:
  *   - 404 / model_not_found: model isn't registered upstream.
- *   - unsupported_parameter: OpenAI gpt-5.x rejects `max_tokens`; CCR's
+ *   - unsupported_parameter: OpenAI gpt-5.x rejects `max_tokens`; Rialto's
  *     openai transformer hasn't been taught to rewrite it to
  *     `max_completion_tokens` yet, so the fixtures lock in a 400.
  *     Drop this branch once that's fixed.
@@ -234,7 +234,7 @@ export function isUnavailableModelSignal(text: string | undefined): boolean {
 
 /**
  * Check that events contain the minimum expected Anthropic SSE event types.
- * Note: message_stop is omitted — CCR's OpenAI/Gemini transformers may not emit it reliably.
+ * Note: message_stop is omitted — Rialto's OpenAI/Gemini transformers may not emit it reliably.
  */
 export function assertAnthropicSSEShape(events: SSEEvent[]): void {
   const eventTypes = events.map((e) => e.event);

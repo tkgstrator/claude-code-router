@@ -3,8 +3,9 @@ import { keepSignedBlock } from '../../src/llms/transformers/anthropic/claude-co
 
 // Only Anthropic can validate an Anthropic thinking signature. A block
 // replayed from another provider carries either nothing or a placeholder
-// CCR minted itself, and sending either back to Anthropic 400s the whole
-// request — permanently, because the transcript replays it every turn.
+// Rialto minted itself, and sending either back to Anthropic 400s the
+// whole request — permanently, because the transcript replays it every
+// turn.
 
 test('a real Anthropic signature is preserved', () => {
   // Dropping these would be the expensive mistake: it invalidates the
@@ -17,11 +18,19 @@ test('a thinking block with no signature is dropped', () => {
   expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: '' })).toBe(false)
 })
 
-test('a CCR-minted placeholder signature is dropped', () => {
+test('a Rialto-minted placeholder signature is dropped', () => {
   // Shape produced by the Gemini streaming converter when the upstream
   // returned reasoning without a signature of its own. It is non-empty,
   // so a bare emptiness check let it reach Anthropic.
-  expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'ccr_1756468800000' })).toBe(false)
+  expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'rialto_1756468800000' })).toBe(false)
+})
+
+test('a pre-rename placeholder is no longer recognised', () => {
+  // The `ccr_` prefix is gone. Such a placeholder now reaches Anthropic,
+  // which rejects it — accepted because no transcript in the installs
+  // this rename covers contains one. Pinned so the consequence of
+  // re-adding a prefix, or of this one resurfacing, is visible.
+  expect(keepSignedBlock({ type: 'thinking', thinking: 'x', signature: 'ccr_1756468800000' })).toBe(true)
 })
 
 test('non-thinking blocks are never touched', () => {

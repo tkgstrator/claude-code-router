@@ -10,7 +10,7 @@ import {
   SessionLogsResponseSchema,
   SessionMessagesQuerySchema,
   SessionMessagesResponseSchema
-} from '../../schemas'
+} from '../../schemas/api/request-log'
 import { buildPriceMap, computeCosts } from '../../services/cost-service'
 import { requestLogsRoute } from './app'
 

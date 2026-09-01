@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { getPrismaClient } from '../../../src/db/client'
-import { SolverInputSchema } from '../../../src/schemas'
+import { SolverInputSchema } from '../../../src/schemas/domain/solver-input'
 import { collectSolverInput } from '../../../src/services/solver/collect-input'
 import { HAS_DB, resetDbTables, teardownPrisma } from '../../db/helpers'
 

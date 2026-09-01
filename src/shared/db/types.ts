@@ -1,8 +1,8 @@
 /**
  * Plain-data constants and type re-exports for the Postgres-backed config
- * store. Zod schemas have been relocated to `src/schemas/*.dto.ts` — see
- * `@/schemas/router.dto` (ScenarioKeySchema), `@/schemas/env.dto`
- * (LogLevelSchema), and `@/schemas/config.dto` (ConfigEnvelopeSchema).
+ * store. Zod schemas have been relocated to the `src/schemas` layers — see
+ * `@/schemas/domain/router` (ScenarioKeySchema), `@/schemas/primitives/env`
+ * (LogLevelSchema), and `@/schemas/domain/config` (ConfigEnvelopeSchema).
  *
  * - `SCENARIO_KEYS` mirrors the Prisma `ScenarioKey` enum and the legacy
  *   `Router.*` keys; its iteration order is the order used by the
@@ -14,7 +14,7 @@
  *   seed.
  */
 
-import type { ConfigEnvelope, ScenarioKey } from '@/schemas'
+import type { ConfigEnvelope, ScenarioKey } from '@/schemas/domain'
 
 // Re-export the relocated types so legacy `from '@/shared/db/types'`
 // imports keep working without churn.
@@ -32,9 +32,9 @@ export const SCENARIO_KEYS = ['default', 'think', 'longContext', 'webSearch', 'i
 // --- Config envelope --------------------------------------------------------
 
 // Scalar envelope keys that may be mirrored onto process.env at boot.
-// Object/array fields (StatusLine, transformers, plugins, Plugins) are
-// envelope-resident but never copied onto process.env, so they live in
-// the schema (config.dto.ts) but not in this list.
+// Object/array fields (Personas, StatusLine) are envelope-resident but
+// never copied onto process.env, so they live in the schema
+// (`@/schemas/domain/config`) but not in this list.
 export const ENVELOPE_ENV_KEYS = [
   'HOST',
   'PORT',
@@ -54,7 +54,22 @@ export const ENVELOPE_ENV_KEYS = [
   'ROUTER_MODE',
   'ROUTER_SHADOW',
   'ROUTER_ROLLOUT_PCT',
-  'CROSS_PROVIDER_FALLBACK'
+  'CROSS_PROVIDER_FALLBACK',
+  // Archive capture switches. Mirrored onto process.env for the same
+  // reason as the router knobs: the request-log writer reads them per
+  // request, so turning capture off takes effect on the next call
+  // rather than at the next restart — which matters, because the
+  // reason to turn it off is usually that something is being recorded
+  // right now that should not be.
+  'CAPTURE_REQUESTS',
+  'CAPTURE_MESSAGES',
+  'REDACT_TOOL_ARGUMENTS',
+  // Cloudflare Access. Envelope keys rather than environment-only so an
+  // operator can turn Access on from the Access screen — the screen that
+  // tells them to. A real environment value still wins, which is what a
+  // container deployment needs.
+  'ACCESS_TEAM_DOMAIN',
+  'ACCESS_AUD'
 ] as const
 export type EnvelopeEnvKey = (typeof ENVELOPE_ENV_KEYS)[number]
 

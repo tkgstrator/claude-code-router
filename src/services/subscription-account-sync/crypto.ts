@@ -17,11 +17,22 @@ export const firstString = (...vs: Array<unknown>): string | null => {
   return null
 }
 
+/**
+ * The key material, from RIALTO_ACCOUNT_ENCRYPTION_KEY.
+ *
+ * The pre-rename CCR_ACCOUNT_ENCRYPTION_KEY is no longer read. That name
+ * is what existing SubAccount rows were encrypted under, so an operator
+ * still using it must rename the variable — the VALUE must not change,
+ * or every stored token becomes undecryptable. The error below says so,
+ * because this is the one rename whose failure is not self-explanatory.
+ */
 export const encryptionKey = (): Buffer => {
-  const envValue = process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+  const envValue = firstString(process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY)
   const raw = typeof envValue === 'string' ? envValue.trim() : ''
   if (!raw) {
-    throw new Error('CCR_ACCOUNT_ENCRYPTION_KEY is required for SubAccount token encryption')
+    throw new Error(
+      'RIALTO_ACCOUNT_ENCRYPTION_KEY is required for SubAccount token encryption. If you set CCR_ACCOUNT_ENCRYPTION_KEY before the rename, rename the variable and keep the value byte-for-byte — a different value cannot decrypt existing accounts.'
+    )
   }
   if (/^[a-fA-F0-9]{64}$/.test(raw)) return Buffer.from(raw, 'hex')
   try {

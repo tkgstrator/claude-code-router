@@ -9,11 +9,9 @@
  */
 
 import type { Logger } from 'pino'
-import type { Provider, ProviderConfigShape } from '@/schemas'
-import { flattenNestedRouter } from '@/schemas'
+import { flattenNestedRouter, type Provider, type ProviderConfigShape } from '@/schemas/domain'
 import { logger } from '../logger'
 import { loadFullConfig } from '../services/config'
-import { applyOpenAIOverlay } from '../services/openai-overlay'
 import { getActiveSubAccountAuth } from '../services/subscription-account-sync-service'
 import { getSubscriptionsInfo } from '../services/subscription-info-service'
 import { applySubscriptionAuth, type SubscriptionAuthOverlay } from '../services/subscription-overlay'
@@ -51,12 +49,10 @@ async function buildLlmsContext(): Promise<LlmsContext> {
   // 1. Subscription overlay — inject OAuth credentials onto subscription
   //    providers so the OAuth transformers can read them at request time.
   //    AppConfig.Providers is non-optional per the schema, so no nullish
-  //    fallback is needed here.
-  // api_key openai providers get OpenAITransformer mounted on the chain
-  // (max_tokens → max_completion_tokens for gpt-5.x) plus a per-model
-  // openai-responses override for codex models. Stays on the raw
-  // payload — subscription overlay applies next on top.
-  const rawProviders: Provider[] = applyOpenAIOverlay(cfg.Providers)
+  //    fallback is needed here. The transformer chain itself is not
+  //    overlaid: the registry derives it from api_style + auth_mode in
+  //    step 4.
+  const rawProviders: Provider[] = cfg.Providers
   const [activeAccountPaths, authByProvider] = await Promise.all([
     collectActiveAccountPaths(),
     collectAuthByProvider(rawProviders)
@@ -97,8 +93,9 @@ async function buildLlmsContext(): Promise<LlmsContext> {
     new CodexOauthTransformer()
   ])
 
-  // 4. Provider registry — resolve each provider's transformer chain
-  //    against the freshly-built transformer registry.
+  // 4. Provider registry — derive each provider's transformer chain from
+  //    its api_style / auth_mode and resolve it against the freshly-built
+  //    transformer registry.
   const providers = new ProviderRegistry(transformers, logger)
   providers.registerFromConfig(toProviderConfigShapes(providersWithAuth))
 
@@ -110,13 +107,14 @@ async function buildLlmsContext(): Promise<LlmsContext> {
 }
 
 /**
- * Bridge Provider[] (the disk/DB shape with looser `api_key:
- * string | null` and the broader `use[]` union) into the registry input
- * shape ProviderConfigShape[]. registerFromConfig defensively skips
- * rows with falsy name/api_base_url/api_key, so the unused-null and
- * shape differences are runtime-safe; the structural mismatch is
- * unavoidable at the type layer because the two schemas describe the
- * same data at different boundaries.
+ * Bridge Provider[] (the disk/DB shape, with a looser `api_key:
+ * string | null`) into the registry input shape ProviderConfigShape[].
+ * registerFromConfig defensively skips rows with falsy
+ * name/api_base_url/api_key, so the unused-null is runtime-safe.
+ *
+ * `api_style` / `auth_mode` / `modelApiStyles` come across because the
+ * registry derives the transformer chain from them; `transformer` comes
+ * across only for the subscription credential keys the overlay grafted on.
  */
 function toProviderConfigShapes(providers: Provider[]): ProviderConfigShape[] {
   return providers.map((p) => ({
@@ -126,11 +124,11 @@ function toProviderConfigShapes(providers: Provider[]): ProviderConfigShape[] {
     // registry filters out null/empty rows in registerFromConfig; the empty-string
     // fallback keeps the type union narrow without a cast.
     api_key: p.api_key ?? '',
+    auth_mode: p.auth_mode,
     models: p.models,
-    // biome-ignore plugin: `transformer.use` entries are structurally the same on
-    // both schemas (string | [string, options]) but the disk schema models them
-    // with a wider union; this structural pass-through is the safe bridge.
-    transformer: p.transformer as ProviderConfigShape['transformer'],
+    ...(p.api_style ? { api_style: p.api_style } : {}),
+    ...(p.modelApiStyles ? { modelApiStyles: p.modelApiStyles } : {}),
+    ...(p.transformer ? { transformer: p.transformer } : {}),
     ...(p.modelReasoningEfforts ? { modelReasoningEfforts: p.modelReasoningEfforts } : {})
   }))
 }

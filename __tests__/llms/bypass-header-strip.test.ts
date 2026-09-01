@@ -1,11 +1,11 @@
 /**
  * Regression: bypass-mode header passthrough used to forward the
- * client's own `Authorization` (which for CCR is the caller's CCR
+ * client's own `Authorization` (which for Rialto is the caller's Rialto
  * APIKEY, not any upstream credential). buildRequestHeaders set
  * `Authorization: Bearer <provider.api_key>` first, then spread the
  * inbound header set on top — the lowercase `authorization` in the
  * spread overwrote the correct default, so OpenAI upstream received
- * the CCR APIKEY as its Bearer and 400'd with "Incorrect API key".
+ * the Rialto APIKEY as its Bearer and 400'd with "Incorrect API key".
  *
  * The strip now also targets x-api-key (Anthropic idiom) for the
  * same reason. content-length + accept-encoding stripping (hop-by-hop
@@ -15,7 +15,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { ResolvedProvider } from '../../src/llms/registry/provider'
 import type { Transformer } from '../../src/llms/transformers/base'
-import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas'
+import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 import { processRequestTransformers } from '../../src/llms/pipeline/request-chain'
 
 // Bare-minimum transformer stub — bypass mode doesn't call any hooks
@@ -61,7 +61,7 @@ describe('processRequestTransformers — bypass mode header strip', () => {
   test('strips lowercase authorization so provider.api_key wins', async () => {
     const { config } = await processRequestTransformers(
       inputWithHeaders({
-        authorization: 'Bearer ccr-caller-key',
+        authorization: 'Bearer rialto-caller-key',
         'content-type': 'application/json',
         'x-something': 'keep'
       }),
@@ -75,8 +75,8 @@ describe('processRequestTransformers — bypass mode header strip', () => {
   test('strips Authorization regardless of case', async () => {
     const { config } = await processRequestTransformers(
       inputWithHeaders({
-        Authorization: 'Bearer ccr-caller-key',
-        'X-Api-Key': 'ccr-caller-key'
+        Authorization: 'Bearer rialto-caller-key',
+        'X-Api-Key': 'rialto-caller-key'
       }),
       true
     )
@@ -100,7 +100,7 @@ describe('processRequestTransformers — bypass mode header strip', () => {
 
   test('non-bypass mode still starts config with an empty header set (not touched by this fix)', async () => {
     const { config } = await processRequestTransformers(
-      inputWithHeaders({ authorization: 'Bearer ccr-caller-key' }),
+      inputWithHeaders({ authorization: 'Bearer rialto-caller-key' }),
       false
     )
     // Non-bypass never copies inbound headers into config; the provider
@@ -109,7 +109,7 @@ describe('processRequestTransformers — bypass mode header strip', () => {
     expect(config.headers).toBeUndefined()
   })
 
-  // A remote CCR fronted by Cloudflare receives cf-* / cdn-loop /
+  // A remote Rialto fronted by Cloudflare receives cf-* / cdn-loop /
   // x-forwarded-* headers on every inbound request. Forwarding them to
   // api.openai.com (also Cloudflare-fronted) triggered CF's loop
   // detection → 403 HTML back to the client. The strip below is what
@@ -146,7 +146,7 @@ describe('processRequestTransformers — bypass mode header strip', () => {
     expect(config.headers?.['content-type']).toBe('application/json')
   })
 
-  test('strips inbound Host so undici cannot leak the CCR domain into the upstream request', async () => {
+  test('strips inbound Host so undici cannot leak the Rialto domain into the upstream request', async () => {
     // api.openai.com routes by Host; a stale `Host: llm.tkgstrator.work`
     // spread onto the upstream call would earn a 403 by itself.
     const { config } = await processRequestTransformers(

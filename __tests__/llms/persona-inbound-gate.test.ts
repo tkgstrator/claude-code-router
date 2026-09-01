@@ -12,7 +12,8 @@
  * persona) is only touched on the Anthropic path.
  */
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import { __setSurfacesForTests } from '../../src/services/inbound-surface-service'
 import { routeScenario } from '../../src/llms/scenario-router'
 import type { RouterRequest } from '../../src/llms/scenario-router/types'
 import { ConfigStore } from '../../src/llms/registry/config'
@@ -59,6 +60,13 @@ async function runRouter(path: string | undefined, body: Record<string, unknown>
   await routeScenario(req, { config, tokenizers })
   return req
 }
+
+// The router's behaviour depends on the surface's mode, so the tests
+// set it rather than inheriting whatever a fresh install seeds. These
+// cases describe the routed path.
+beforeEach(() => {
+  __setSurfacesForTests({ 'anthropic-messages': 'routed' })
+})
 
 describe('routeScenario — persona gate', () => {
   test('applies persona on /v1/messages (Anthropic inbound)', async () => {

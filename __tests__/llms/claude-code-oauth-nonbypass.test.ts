@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '../../src/schemas'
+import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 import { ClaudeCodeOauthTransformer } from '../../src/llms/transformers/anthropic'
 
 // A minimal RuntimeProvider carrying an already-active subscription

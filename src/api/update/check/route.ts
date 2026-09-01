@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
-import { UpdateCheckResponseSchema } from '../../../schemas'
+import { UpdateCheckResponseSchema } from '../../../schemas/api/update'
 import { checkForUpdates } from '../../../services/update'
 import { APP_VERSION } from '../../../version'
 

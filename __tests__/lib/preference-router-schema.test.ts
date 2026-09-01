@@ -1,11 +1,5 @@
 import { expect, test } from 'bun:test'
-import {
-  PreferenceConstraintsSchema,
-  QuotaAwareConstraintsSchema,
-  RouterPreferenceEntrySchema,
-  RouterPreferenceProfileSchema
-} from '../../src/schemas'
-
+import { PreferenceConstraintsSchema, QuotaAwareConstraintsSchema, RouterPreferenceEntrySchema, RouterPreferenceProfileSchema } from '../../src/schemas/domain/preference'
 test('PreferenceConstraintsSchema fills every knob with a documented default', () => {
   const parsed = PreferenceConstraintsSchema.parse({})
   // The two directional tier gates default to `true` — every

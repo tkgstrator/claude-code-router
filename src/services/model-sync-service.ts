@@ -18,13 +18,13 @@
  */
 
 import type { z } from '@hono/zod-openapi'
-import { isDeprecatedModel, LLM_PRICES_SEED, SUBSCRIPTION_PRESETS } from '@/shared/data'
+import { isDeprecatedModel, LLM_PRICES_SEED, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, type Prisma } from '../generated/prisma/client'
 import { logger } from '../logger'
-import type { ScrapedPriceEntry } from '../providers/base'
-import { getVendorProvider, isScrapedVendor } from '../providers/registry'
-import type { RefreshOutcomeSchema } from '../schemas/model.dto'
+import type { RefreshOutcomeSchema } from '../schemas/api/models'
+import type { ScrapedPriceEntry } from '../vendors/base'
+import { getVendorProvider, isScrapedVendor } from '../vendors/registry'
 import { modelApiStyleOverride } from './config'
 
 export type RefreshOutcome = z.infer<typeof RefreshOutcomeSchema>
@@ -53,19 +53,48 @@ interface VendorCatalog {
 
 const emptyCatalog: VendorCatalog = { scraped: [], scrapedById: new Map() }
 
+// The static price table as a catalog, for vendors Rialto has prices for
+// but no runtime scraper.
+//
+// This exists because filtering on `isScrapedVendor` alone threw prices
+// away. Google has no native scraper — its numbers come from a build-time
+// script committed into `src/shared/data/providers/google/prices.json` —
+// so it fell out of the filter and every Gemini row was created with a
+// null price, while Rialto held the published figure the whole time. The
+// live `/v1/models` list only names models; it never carries a price, so
+// nothing downstream filled the gap in.
+const staticCatalog = (vendor: string): VendorCatalog | undefined => {
+  const priced = OFFICIAL_VENDOR_PRICES[vendor]
+  if (priced === undefined) return undefined
+  const scraped: ScrapedPriceEntry[] = Object.entries(priced).map(([apiId, entry]) => ({
+    apiId,
+    inputPer1M: entry.inputPer1M,
+    outputPer1M: entry.outputPer1M,
+    cachedInputPer1M: entry.cachedInputPer1M === undefined ? null : entry.cachedInputPer1M,
+    contextWindow: entry.contextWindow === undefined ? null : entry.contextWindow,
+    legacy: entry.legacy === true
+  }))
+  return { scraped, scrapedById: new Map(scraped.map((s) => [s.apiId, s])) }
+}
+
 // Fetch every vendor scrape once up front so multiple providers that
 // share a vendor (e.g. anthropic + claude-code) don't hit the docs site
-// twice per refresh. Only vendors with a native scraper are queried;
-// generic-fallback vendors return [] anyway.
+// twice per refresh. A vendor with a native scraper is queried live;
+// one without falls back to the committed price table rather than to
+// nothing.
 async function loadVendorCatalogs(providerNames: ReadonlySet<string>): Promise<Map<string, VendorCatalog>> {
-  const scrapedTargets = [...providerNames].filter((n) => isScrapedVendor(n))
   const out = new Map<string, VendorCatalog>()
   await Promise.all(
-    scrapedTargets.map(async (name) => {
-      const provider = getVendorProvider(name)
-      if (provider === undefined) return
-      const scraped = await provider.scrape()
-      out.set(name, { scraped, scrapedById: new Map(scraped.map((s) => [s.apiId, s])) })
+    [...providerNames].map(async (name) => {
+      if (isScrapedVendor(name)) {
+        const provider = getVendorProvider(name)
+        if (provider === undefined) return
+        const scraped = await provider.scrape()
+        out.set(name, { scraped, scrapedById: new Map(scraped.map((s) => [s.apiId, s])) })
+        return
+      }
+      const fallback = staticCatalog(name)
+      if (fallback !== undefined) out.set(name, fallback)
     })
   )
   return out
@@ -174,7 +203,7 @@ async function syncDeprecationFlags(p: ProviderRow, allCurrentNames: string[]): 
 }
 
 // Ask the vendor to look up per-model contextWindow from its docs pages
-// for every id CCR knows about (DB rows ∪ freshly-added rows). Runs
+// for every id Rialto knows about (DB rows ∪ freshly-added rows). Runs
 // regardless of whether the pricing scrape or /v1/models returned
 // anything — subscription providers with an empty live catalog still
 // get their existing rows' context refreshed. Values the vendor returns
@@ -183,7 +212,9 @@ async function refreshContextWindows(p: ProviderRow, ids: string[]): Promise<num
   if (ids.length === 0) return 0
   const provider = getVendorProvider(p.name)
   if (provider === undefined) return 0
-  const contexts = await provider.fetchContextWindows(ids)
+  // The key is what lets the default implementation read the vendor's own
+  // catalog endpoint; scraping overrides ignore it.
+  const contexts = await provider.fetchContextWindows(ids, p.apiKey === null ? undefined : p.apiKey)
   if (contexts.size === 0) return 0
   const prisma = getPrismaClient()
   for (const [name, contextWindow] of contexts) {
@@ -234,11 +265,19 @@ async function refreshOneProvider(p: ProviderRow, catalog: VendorCatalog): Promi
   return { provider: p.name, added: toAdd, error: undefined }
 }
 
-// Which scrape bucket to consult for a given Provider. Subscription
+// Which price bucket to consult for a given Provider. Subscription
 // providers borrow their api_key sibling's vendor (claude-code →
-// anthropic, codex → openai) so they share the same scrape output.
+// anthropic, codex → openai) so they share the same output.
+//
+// A vendor Rialto holds committed prices for counts even without a
+// runtime scraper. Returning null for those was the second half of the
+// Gemini bug: `loadVendorCatalogs` could build a catalog from the static
+// table, but nothing ever asked for it, so every Gemini row kept the null
+// price it was created with. Both the load and the lookup have to agree
+// on which vendors have prices at all.
 const scrapeVendorFor = (providerName: string): string | null => {
   if (isScrapedVendor(providerName)) return providerName
+  if (OFFICIAL_VENDOR_PRICES[providerName] !== undefined) return providerName
   const preset = SUBSCRIPTION_PRESETS.find((p) => p.id === providerName)
   if (preset === undefined) return null
   const v = preset.vendor.toLowerCase()

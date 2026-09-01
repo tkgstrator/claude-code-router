@@ -3,8 +3,7 @@
  * response conversion modules.
  */
 
-import type { ResponsesStreamEvent } from '@/schemas'
-
+import type { ResponsesStreamEvent } from '@/schemas/wire/openai/responses'
 export function newChatcmplId(seed: string | undefined): string {
   if (seed && seed.length > 0) return seed
   return `chatcmpl-${Date.now()}`

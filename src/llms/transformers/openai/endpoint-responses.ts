@@ -15,16 +15,14 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
-import type {
-  ResponsesAPIPayload,
-  ResponsesStreamItem,
-  ResponsesUnifiedChatRequest,
-  RuntimeProvider,
-  TransformerContext,
-  TransformerHookResult,
-  UnifiedChatRequest
-} from '@/schemas'
-import { ChatCompletionResponseSchema, ResponsesAPIPayloadSchema } from '@/schemas'
+import type { RuntimeProvider, TransformerContext, TransformerHookResult, UnifiedChatRequest } from '@/schemas/domain'
+import {
+  ChatCompletionResponseSchema,
+  type ResponsesAPIPayload,
+  ResponsesAPIPayloadSchema,
+  type ResponsesStreamItem,
+  type ResponsesUnifiedChatRequest
+} from '@/schemas/wire'
 import { cloneResponse } from '../../utils/response-clone'
 import { aggregateOpenAiChatSseToJson, isSseContentType } from '../../utils/sse-aggregate'
 import { Transformer } from '../base'

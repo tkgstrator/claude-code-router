@@ -3,7 +3,7 @@
  * SubAccount rows a Provider owns.
  */
 
-import type { Provider } from '@/schemas'
+import type { Provider } from '@/schemas/domain/provider'
 import { AuthMode, type Provider as DbProvider } from '../../../generated/prisma/client'
 import type { Tx } from '../apply'
 

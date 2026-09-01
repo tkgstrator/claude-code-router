@@ -9,7 +9,12 @@
 import { randomUUID } from 'node:crypto'
 import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
-import { isTransformerHookResult, type TransformerConfig, type TransformerContext, viewPipelineBody } from '@/schemas'
+import {
+  isTransformerHookResult,
+  type TransformerConfig,
+  type TransformerContext,
+  viewPipelineBody
+} from '@/schemas/domain/pipeline'
 import { fetchProvider } from '../provider-fetch'
 import type { ResolvedProvider } from '../registry/provider'
 import type { Transformer } from '../transformers/base'
@@ -200,9 +205,9 @@ function logResponse(log: Logger, provider: ResolvedProvider, body: unknown, sta
 
 // Symbol key used to attach the resolved outbound URL to an HTTPException
 // so `forwardUpstreamError` can surface it back to the client as
-// `x-ccr-upstream-url`. Symbol-keyed (not a plain field) so a caller
+// `x-rialto-upstream-url`. Symbol-keyed (not a plain field) so a caller
 // enumerating the exception's own keys never sees it.
-export const UPSTREAM_URL_SYMBOL = Symbol.for('ccr.upstreamUrl')
+export const UPSTREAM_URL_SYMBOL = Symbol.for('rialto.upstreamUrl')
 
 // Strip query params from an outbound URL before it lands in logs or a
 // response header. Gemini authenticates via `?key=<apiKey>` on the URL,
@@ -243,7 +248,7 @@ async function handleProviderError(
   const message = `Error from provider(${provider.name},${model}: ${response.status}): ${errorText}`
   // Include the actual outbound URL in the error log so operators can
   // distinguish provider.api_base_url (what the config says) from the
-  // URL CCR really posted to (which a custom transformer or overlay may
+  // URL Rialto really posted to (which a custom transformer or overlay may
   // have rewritten via config.url).
   log.error(
     {

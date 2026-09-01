@@ -5,7 +5,7 @@
  * regular inference probes.
  */
 
-import { isTransformerHookResult, type RuntimeProvider } from '@/schemas'
+import { isTransformerHookResult, type RuntimeProvider } from '@/schemas/domain/pipeline'
 import { ApiStyle } from '../../generated/prisma/client'
 import { ClaudeCodeOauthTransformer } from '../../llms/transformers/anthropic'
 import { getActiveSubAccountAuth } from '../subscription-account-sync-service'

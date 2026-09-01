@@ -22,7 +22,7 @@
 import type { PrismaClient } from '../../generated/prisma/client'
 import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
-import type { CodexRefreshResponse } from '../../schemas/llm-oauth.dto'
+import type { CodexRefreshResponse } from '../../schemas/wire/oauth'
 import { withRefreshLock } from '../oauth/refresh-lock'
 import { updateSubAccountAccessToken } from '../subscription-account-sync/read'
 import { codexAccessTokenExpiry } from './claims'

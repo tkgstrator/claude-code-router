@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
-import { UsageHistoryQuerySchema, UsageHistoryResponseSchema } from '../../../schemas'
+import { UsageHistoryQuerySchema, UsageHistoryResponseSchema } from '../../../schemas/api/usage'
 import { getUsageHistory } from '../../../services/usage-history-service'
 
 export const usageHistoryRoute = new OpenAPIHono()

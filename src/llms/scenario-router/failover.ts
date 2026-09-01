@@ -10,7 +10,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { ScenarioType } from '@/schemas'
+import type { ScenarioType } from '@/schemas/domain/scenario'
 import { isModelExhausted, isProviderExhausted } from '../../services/failover-state'
 import type { ConfigStore } from '../registry/config'
 import type { ConfigProvider } from './types'

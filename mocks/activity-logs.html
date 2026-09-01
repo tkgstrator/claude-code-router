@@ -21,10 +21,10 @@ const { renderShell, pill, btn, tabs } = window.Shell
 // a flat pino tail is unreadable once two clients are active at once.
 
 const FILES = [
-  { name: 'ccr-2026-08-31.log', size: '4.2 MB', active: true },
-  { name: 'ccr-2026-08-30.log', size: '11.8 MB' },
-  { name: 'ccr-2026-08-29.log', size: '9.1 MB' },
-  { name: 'ccr-2026-08-28.log', size: '6.7 MB' }
+  { name: 'rialto-2026-08-31.log', size: '4.2 MB', active: true },
+  { name: 'rialto-2026-08-30.log', size: '11.8 MB' },
+  { name: 'rialto-2026-08-29.log', size: '9.1 MB' },
+  { name: 'rialto-2026-08-28.log', size: '6.7 MB' }
 ]
 
 const GROUPS = [
@@ -128,7 +128,7 @@ document.getElementById('root').innerHTML = `
 
     <div class="min-w-0 overflow-y-auto">
       <div class="flex items-center gap-2 border-b border-border px-4 py-2.5">
-        <span class="font-mono text-[11px] text-muted-foreground">ccr-2026-08-31.log</span>
+        <span class="font-mono text-[11px] text-muted-foreground">rialto-2026-08-31.log</span>
         <i class="ri-arrow-right-s-line text-sm text-muted-foreground/50"></i>
         <span class="font-mono text-[11px]">req_71bd08</span>
         ${pill('warn', 'warn')}
@@ -156,7 +156,7 @@ document.getElementById('root').innerHTML = `
 renderShell({
   active: 'activity',
   title: 'Logs',
-  subtitle: 'ccr-2026-08-31.log · 4.2 MB · grouped by request',
+  subtitle: 'rialto-2026-08-31.log · 4.2 MB · grouped by request',
   actions: btn('Follow', 'outline', 'ri-broadcast-line') + btn('Download', 'ghost', 'ri-download-line')
 })
 </script>

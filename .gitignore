@@ -48,10 +48,13 @@ captures/
 # Local self-host runtime state: compose.yaml bind-mounts the config
 # envelope here, including the minted APIKEY, rotating backups and logs.
 # Never commit it (already excluded from the image via .dockerignore).
+rialto-config/
+# Pre-rename name of the same host directory.
 ccr-config/
 
 # Local subscription credential mirrors fed to the dev server. Both
 # directories hold OAuth tokens / IDE configs and must never be committed.
+rialto-auth/
 ccr-auth/
 .codex/
 

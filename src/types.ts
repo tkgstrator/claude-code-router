@@ -1,30 +1,24 @@
-// Type-only shim that re-exports every domain type from src/schemas.
-// New code should import from '@/schemas' directly; this file exists
-// so existing `from '@/types'` imports keep working without churn.
-export type {
-  AccessLevel,
-  Config,
-  Persona,
-  Provider,
-  ProviderAuthMode,
-  ProviderTransformer,
-  RouterConfig,
-  StatusLineConfig,
-  StatusLineModuleConfig,
-  StatusLineThemeConfig,
-  Transformer
-} from '@/schemas'
-
-// Schemas that were value-exported from this file before the move.
+// Type-only shim that re-exports the domain types the UI reads most.
+// New code should import the owning layer directly (`@/schemas/domain`,
+// `@/schemas/api`); this file exists so existing `from '@/types'`
+// imports keep working without churn.
+export { type Config, ConfigSchema } from '@/schemas/api/config'
 export {
-  AccessLevelSchema,
-  ConfigSchema,
+  type Persona,
+  type Provider,
+  type ProviderAuthMode,
   ProviderAuthModeSchema,
   ProviderSchema,
+  type ProviderTransformer,
   ProviderTransformerSchema,
+  type RouterConfig,
   RouterConfigSchema,
+  type StatusLineConfig,
   StatusLineConfigSchema,
+  type StatusLineModuleConfig,
   StatusLineModuleConfigSchema,
-  StatusLineThemeConfigSchema,
-  TransformerSchema
-} from '@/schemas'
+  type StatusLineThemeConfig,
+  StatusLineThemeConfigSchema
+} from '@/schemas/domain'
+export { type AccessLevel, AccessLevelSchema } from '@/schemas/primitives/common'
+// Schemas that were value-exported from this file before the move.
