@@ -33,13 +33,18 @@ async function openProviders(): Promise<Page> {
   return page
 }
 
-/** 見出しの "N providers · …" から件数を読む。DB の状態に依存しない
- *  テストにするために、期待値をこの数から決める。 */
+/**
+ * レールに並んでいる provider 行を数える。
+ *
+ * 最初は見出しの "N providers · …" から読んでいたが、あれは**何も選択
+ * されていないときだけ**出る要約で、provider が1件でもあると画面は先頭を
+ * 自動選択して個別の副題（"Google AI · API key · …"）に切り替わる。
+ * シード provider が入った瞬間にテストが壊れた —— まさにこのテストが
+ * 見ようとしている「空状態と非空状態の非対称」を、テスト自身が踏んだ。
+ * 行そのものを数えれば両方の状態で成り立つ。
+ */
 async function providerCount(page: Page): Promise<number> {
-  const text = await page.evaluate(() => document.body.innerText)
-  const match = text.match(/(\d+)\s+providers?\s+·/)
-  if (match === null) throw new Error(`provider count not found in: ${text.slice(0, 200)}`)
-  return Number(match[1])
+  return page.locator('aside a[href^="/providers/"]').count()
 }
 
 describe.skipIf(!HAS_E2E)('Providers 画面', () => {
