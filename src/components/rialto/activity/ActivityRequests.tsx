@@ -119,9 +119,16 @@ export function ActivityRequests() {
 
   useEffect(() => {
     if (!live) return
-    const apiKey = localStorage.getItem('apiKey')
-    if (apiKey === null || apiKey === '') return
-    const es = new EventSource(`/api/request-logs/events?apikey=${encodeURIComponent(apiKey)}`)
+    // No credential in the URL. The `apikey` query parameter existed
+    // because EventSource cannot set headers, back when the browser held
+    // a key it had typed into the login form. That form is gone (Phase
+    // 3.5: Cloudflare Access authenticates at the edge, local requests are
+    // trusted), so nothing writes `localStorage.apiKey` any more — the
+    // guard that read it was permanently true and this feature had
+    // silently stopped connecting at all. EventSource is same-origin, so
+    // it carries the Access cookie exactly like every other /api/* call
+    // this screen already makes.
+    const es = new EventSource('/api/request-logs/events')
     es.onmessage = () => {
       if (throttle.current !== null) return
       throttle.current = setTimeout(() => {
