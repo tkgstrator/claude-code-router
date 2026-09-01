@@ -13,6 +13,7 @@ import type { ScenarioRouterConfig, ScenarioType } from '@/schemas/domain/scenar
 import type { ConfigStore } from '../registry/config'
 import type { TokenizerRegistry } from '../registry/tokenizer'
 import type { TokenizeMessage, TokenizeSystem, TokenizeTool } from '../tokenizers/base'
+import type { RouterSignals } from './surface-signals'
 
 // Local, un-renamed alias so the rest of the scenario-router split can
 // `import type { RouterConfig } from './types'` — importing the schema
@@ -51,6 +52,10 @@ export type RouterRequest = {
   profileKeyOverride?: string
   scenarioType?: ScenarioType
   tokenCount?: number
+  // Normalised routing signals for this request, in whatever wire format
+  // it arrived in. Filled lazily by `signalsOf` so a caller that builds a
+  // RouterRequest by hand does not have to know about surfaces.
+  signals?: RouterSignals
   // Set by selectModel: true when the request carried a
   // <RIALTO-SUBAGENT-MODEL> tag, so the pipeline routes and fails over on the
   // scenario's `subagent` route instead of the `agent` route.

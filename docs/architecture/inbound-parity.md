@@ -299,24 +299,39 @@ Codex CLI 側のキャッシュ表示は常に 0 になる。
 `/v1/messages` 専用画面だった。今はモードが `InboundSurfaceConfig` の設定値で、
 4 面が対称に振る舞う（`__tests__/parity/routing-mode.test.ts`）。
 
-対称でない点が 2 つ残っている。
+**シナリオ分類の Anthropic 語彙依存は解消した**（2026-09-01）。以前はこの節に
+「`routed` にはできるが `/v1/messages` 以外はほぼ `default` レーンにしか落ちない」と
+書いてあった。分類器と**ルール述語**が `body.thinking` / `body.output_config.effort` /
+`tools[].type` を直読みしていたためで、面ごとにモードは選べるのにその裏のレーンへ道が無い、
+という状態だった。
+
+いまは `src/llms/scenario-router/surface-signals.ts` が面ごとの語彙差を吸収し、分類器・
+ルール述語・トークン計上の 3 箇所がそこだけを読む。
+
+| レーン | 読む信号（正規化後） | 選べる面 |
+|---|---|---|
+| `longContext`（サイズ） | `signals.tokenize`（面ごとに `messages` / `input` / `contents` から組む） | 4 面すべて |
+| `longContext`（effort/tier） | `signals.effort`、モデル名の tier | 4 面すべて（ただし下記の非対称あり） |
+| `webSearch` | `signals.webSearch`（ベンダごとの綴りを意味で判定） | 4 面すべて |
+| `think` | `signals.thinking` | 4 面すべて |
+| `default` | 上のどれにも当たらない | 4 面すべて |
+
+到達の担保は `__tests__/parity/routing-lanes.test.ts`（16 件）。**各面のクライアントが実際に
+送る綴り**でレーンを要求している —— テストが Anthropic 形に寄せて書かれていたら、
+正規化を何も検証しないことになるため。
+
+対称でない点は 3 つ残っている。いずれも塞げないものなので明示しておく。
 
 - **persona 注入は `/v1/messages` 限定**（意図的）。OpenAI 互換の面にトップレベル `system` を
   足すと、上流（codex が代表例）が未知パラメータとして 400 を返す。
-- **シナリオ分類が Anthropic 語彙に依存している**（未対応）。5 つのレーンのうち
-  `default` 以外は、面によって選べたり選べなかったりする。
-
-| レーン | 読む信号 | 選べる面 |
-|---|---|---|
-| `longContext`（サイズ） | `countRequestTokens` が `body.messages` / `body.system` / `body.tools` を数える | messages / chat（responses・gemini は本文が `input` / `contents` にあるので**常に 0 トークン**） |
-| `longContext`（effort/tier） | `body.output_config.effort`、モデル名の tier | messages のみ（`output_config` は Claude Code 固有） |
-| `webSearch` | `tools[].type` が `web_search*` で始まるか | messages のみ（他 3 面のツール型は `function` / `functionDeclarations`） |
-| `think` | `body.thinking.type` | messages のみ |
-| `default` | 上のどれにも当たらない | 4 面すべて |
-
-つまり **`routed` にはできるが、`/v1/messages` 以外はほぼ `default` レーンにしか落ちない**。
-4 面で等しく効くのは「`default` レーンの primary への書き換え」と
-「フォールバックチェーンの解決」まで。
+- **OpenAI 2 面では effort→longContext の escalation に到達しない**（think レーン設定時）。
+  Anthropic は `thinking` と `output_config.effort` が**独立した 2 フィールド**なので
+  「頑張れ、ただし考えるな」を表現できるが、**OpenAI はノブが 1 つ**（`reasoning_effort`）
+  しかない。`'none'` 以外の effort は必然的に reasoning の opt-in でもあるため、分岐順で
+  先に来る `think` が必ず勝つ。ベンダの語彙の制約であって、実装の欠落ではない。
+- **`minimal` / `none` は `low` に丸める**。`EffortLevel` に `low` より下の段が無い。
+  `undefined` に落とすと「何も言わなかった」扱いになり、モデル tier での escalation に
+  フォールスルーしてしまう —— 最安の推論を明示した呼び出し側は**何かを言っている**。
 
 ## 未対応セルを直すときの手順
 

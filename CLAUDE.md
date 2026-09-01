@@ -25,7 +25,7 @@ is not a dependency either; that code was absorbed into `src/llms/`.
 | `src/api/` | One `route.ts` per endpoint, Next.js-style directory naming (`providers/[name]/models/[model]/route.ts`) |
 | `src/llms/` | Transformers, request pipeline, `scenario-router`, `quota-router`, tokenizers, inbound-surface descriptors |
 | `src/services/` | config, OAuth, usage, routing-scheduler, access tokens, model tests |
-| `src/schemas/` | Zod, split into five layers — `primitives / wire / domain / api / forms`. There is **no** global `@/schemas` barrel; import from the layer |
+| `src/schemas/` | Zod, split into four layers — `primitives / wire / domain / api`. There is **no** global `@/schemas` barrel; import from the layer. `wire` / `domain` / `api` each expose one; `primitives` has no barrel because nothing composes the layer as a whole — import `primitives/record` and friends by name |
 | `src/components/rialto/` | The UI — five screens (Overview / Routing / Providers / Activity / Settings) |
 | `src/components/ui/` | shadcn components. Never edit (see Rules) |
 | `src/app/` | React entry point and the `react-router-dom` route table |
@@ -49,6 +49,10 @@ bun run release        # build + scripts/release.sh docker
 bun test               # FULL test suite
 bun run test           # ONLY __tests__/lib __tests__/db __tests__/preset — a narrow subset
 bun run test:providers # provider contract tests (fixture replay)
+bun run test:e2e       # browser tests against the ALREADY-RUNNING dev server
+                       # (__tests__/e2e). Skips itself when :16175 is not
+                       # answering or playwright has no chromium, so it is
+                       # safe in `bun test` and in CI. Never starts a server.
 
 bunx tsc --noEmit      # type check
 bunx biome check --write .

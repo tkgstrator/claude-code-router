@@ -11,7 +11,18 @@
  */
 
 import type { RouteRule } from '@/schemas/domain/router'
-import { globMatch, hasMatchingTool, isThinkingEnabled, readEffort, tierOf, toolTypes } from './request-signals'
+import { globMatch, tierOf } from './request-signals'
+import { signalsOf } from './surface-signals'
+
+// What the request actually carried, for the hasTool verdict — "no tool
+// matched" is only actionable alongside the list it was matched against.
+// Null rather than an empty string so the verdict renders "none" instead
+// of a blank.
+const toolNamesOf = (req: RouterRequest): string | null => {
+  const names = signalsOf(req).toolNames
+  return names.length === 0 ? null : names.join(', ')
+}
+
 import type { RouterRequest } from './types'
 
 // Context available to predicate evaluation. All rule predicates read
@@ -70,7 +81,7 @@ export function explainRule(
     })
   }
   if (when.thinking !== undefined) {
-    const thinking = isThinkingEnabled(req.body)
+    const thinking = signalsOf(req).thinking
     conditions.push({
       field: 'thinking',
       expected: show(when.thinking),
@@ -95,15 +106,18 @@ export function explainRule(
     })
   }
   if (when.hasTool !== undefined) {
+    // Bound outside the closure: the narrowing from the `if` does not
+    // survive into the callback.
+    const pattern = when.hasTool
     conditions.push({
       field: 'hasTool',
-      expected: when.hasTool,
-      actual: toolTypes(req.body.tools),
-      matched: hasMatchingTool(req.body.tools, when.hasTool)
+      expected: pattern,
+      actual: toolNamesOf(req),
+      matched: signalsOf(req).toolNames.some((name) => globMatch(pattern, name))
     })
   }
   if (when.effort !== undefined) {
-    const effort = readEffort(req.body)
+    const effort = signalsOf(req).effort
     conditions.push({
       field: 'effort',
       expected: show(when.effort),

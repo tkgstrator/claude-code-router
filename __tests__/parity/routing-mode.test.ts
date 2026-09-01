@@ -8,11 +8,13 @@
  * 素通しだった——つまりルーティング画面はすべて /v1/messages 専用画面
  * だった。今はモードが面ごとの設定値なので、4 面が対称に振る舞う。
  *
- * 対称でない点が 2 つ残っていて、どちらも意図的:
+ * 対称でない点が 1 つ残っていて、これは意図的:
  *   - persona 注入は /v1/messages 限定（他面ではトップレベル `system` が
  *     未知フィールドとして 400 になる上流がある）
- *   - longContext のトークン計数は `body.messages` を読むので、
- *     Responses / Gemini の語彙では常に 0 になる
+ *
+ * longContext のトークン計数はかつて `body.messages` 直読みだったため
+ * Responses / Gemini の語彙では常に 0 だったが、面ごとの正規化シグナル
+ * （`scenario-router/surface-signals.ts`）経由になり 4 面とも数えられる。
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
@@ -112,12 +114,12 @@ describe('意図的な非対称', () => {
     expect('system' in openai.body).toBe(false)
   })
 
-  test('未対応: longContext のトークン計数が Responses / Gemini の語彙を読めない', async () => {
-    // `countRequestTokens` が読むのは body.messages / body.system /
-    // body.tools。Responses は `input` / `instructions`、Gemini は
-    // `contents` に本文を置くので、どれだけ長い会話でも 0 と数えられ、
-    // longContext レーンへ入る道がない。計数が面の語彙を理解するように
-    // なったらこの期待値を反転させ、inbound-parity.md も更新すること。
+  test('longContext のトークン計数が 4 面すべての語彙を読める', async () => {
+    // かつて `countRequestTokens` は body.messages / body.system /
+    // body.tools を直読みしていた。Responses は `input` / `instructions`、
+    // Gemini は `contents` に本文を置くので、どれだけ長い会話でも 0 と
+    // 数えられ、longContext レーンへ入る道がなかった。計数が
+    // signalsOf() 経由になり、面ごとの語彙で数えられる。
     __setSurfacesForTests({
       'anthropic-messages': 'routed',
       'openai-chat': 'routed',
@@ -135,7 +137,7 @@ describe('意図的な非対称', () => {
 
     expect(anthropic.tokenCount).toBeGreaterThan(0)
     expect(chat.tokenCount).toBeGreaterThan(0)
-    expect(responses.tokenCount).toBe(0)
-    expect(gemini.tokenCount).toBe(0)
+    expect(responses.tokenCount).toBeGreaterThan(0)
+    expect(gemini.tokenCount).toBeGreaterThan(0)
   })
 })

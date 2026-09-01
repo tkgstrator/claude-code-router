@@ -16,9 +16,9 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { useConfig } from '@/components/ConfigProvider'
 import { Pill, RButton } from '@/components/rialto/primitives'
+import { isProviderConnected, markSetupOffered } from '@/components/rialto/system/first-run'
 import { type AccessTokenWire, api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import type { Provider } from '@/types'
 import { APP_VERSION } from '@/version'
 
 type StepState = 'done' | 'active' | 'todo'
@@ -44,17 +44,6 @@ const CONNECT_OPTIONS: Array<{ label: string; icon: string; hintKey: string }> =
   { label: 'Codex', icon: 'ri-terminal-line', hintKey: 'system.setup.optionHintCodex' },
   { label: 'Google AI', icon: 'ri-gemini-line', hintKey: 'system.setup.optionHintGoogle' }
 ]
-
-// A seeded catalog row is not a usable provider: api_key stays null until
-// someone pastes one, and a subscription row is dead until an account on
-// it is enabled.
-const isConnected = (provider: Provider): boolean => {
-  if (provider.auth_mode === 'subscription') {
-    const accounts = provider.subscription_accounts
-    return accounts === undefined ? false : accounts.some((account) => account.enabled)
-  }
-  return provider.api_key !== null && provider.api_key.length > 0
-}
 
 // Mirrors the server's own liveness test in access-token-service: listing
 // returns revoked and expired rows too, and neither will authenticate.
@@ -165,6 +154,16 @@ export function SetupScreen() {
   const [issuing, setIssuing] = useState(false)
   const [issueError, setIssueError] = useState<string | null>(null)
 
+  // Mark the nudge delivered as soon as this screen renders. ProtectedRoute
+  // sends a fresh install here and will keep doing so until it is told the
+  // offer was made — without this, "Skip setup" navigates to /overview, the
+  // gate re-evaluates, and the operator lands straight back on this page
+  // with nothing to show for the click. On mount rather than on the link so
+  // every way out (Continue, browser back, the sidebar) behaves the same.
+  useEffect(() => {
+    markSetupOffered()
+  }, [])
+
   useEffect(() => {
     api
       .getAccessTokens()
@@ -176,7 +175,7 @@ export function SetupScreen() {
   }, [])
 
   const providers = config === null ? [] : config.Providers
-  const connected = providers.filter(isConnected).length
+  const connected = providers.filter(isProviderConnected).length
   const live = tokens === null ? 0 : tokens.filter((token) => isLive(token, Date.now())).length
 
   // The URL the operator's browser used to get here is, by construction,
@@ -269,15 +268,24 @@ export function SetupScreen() {
         </Step>
 
         <div className='flex items-center gap-3 border-t border-border px-6 py-4'>
-          <span className='text-[11px] text-muted-foreground'>
+          {/* The note is the only part that may reflow. min-w-0 lets it
+              shrink below its content width; without it flex refuses to
+              compress the prose and squeezes the two actions instead,
+              which wrapped "Skip setup" onto a second line. */}
+          <span className='min-w-0 text-[11px] text-muted-foreground'>
             <Trans i18nKey='system.setup.footerNote' components={{ mono: <span className='font-mono' /> }} />
           </span>
-          <Link to='/overview' className='ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:underline'>
+          <Link
+            to='/overview'
+            className='ml-auto shrink-0 whitespace-nowrap text-[11px] text-muted-foreground underline-offset-2 hover:underline'
+          >
             {t('system.setup.skip')}
           </Link>
-          <RButton variant='primary' onClick={() => navigate(connected === 0 ? '/providers' : '/overview')}>
-            {t('common.continue')} <i className='ri-arrow-right-line text-sm' />
-          </RButton>
+          <div className='shrink-0'>
+            <RButton variant='primary' onClick={() => navigate(connected === 0 ? '/providers' : '/overview')}>
+              {t('common.continue')} <i className='ri-arrow-right-line text-sm' />
+            </RButton>
+          </div>
         </div>
       </div>
     </div>

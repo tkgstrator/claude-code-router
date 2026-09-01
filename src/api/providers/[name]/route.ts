@@ -75,6 +75,6 @@ providerByNameRoute.openapi(deleteProviderRoute, async (c) => {
     await deleteProviderByName(name)
     return c.json({ success: true as const }, 200)
   } catch (err) {
-    return c.json({ success: false as const, error: (err as Error).message }, 404)
+    return c.json({ success: false as const, error: err instanceof Error ? err.message : String(err) }, 404)
   }
 })

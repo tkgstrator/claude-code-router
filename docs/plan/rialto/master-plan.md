@@ -459,11 +459,69 @@ DB の列ではないため。
 効く」という Phase 2 の完了条件に直接抵触するので、修復を別作業として起票した。
 
 **もう一つ、完了条件に直接刺さる発見があった** — シナリオ分類そのものが Anthropic 語彙に
-依存している。`longContext`（サイズ判定）は messages / chat のみ、`webSearch` / `think` /
-effort ベースの `longContext` は **messages のみ**効く。つまり他3面を `routed` にしても、
-実質 `default` レーンにしか落ちない。「面ごとに routed を選べる」ところまでは 2-3 で
-できているが、**「4面すべてでルーティング設定が効く」はまだ満たしていない**。
-`routingMode` の多面化（2-3）とシナリオ分類の多面化は別の作業だった、というのが結論。
+依存していた。`longContext`（サイズ判定）は messages / chat のみ、`webSearch` / `think` /
+effort ベースの `longContext` は **messages のみ**効いていた。つまり他3面を `routed` にしても、
+実質 `default` レーンにしか落ちない。`routingMode` の多面化（2-3）とシナリオ分類の多面化は
+別の作業だった、というのが結論。
+
+##### 2-6. シナリオ分類の多面化 (2026-09-01) — **Done**
+
+`src/llms/scenario-router/surface-signals.ts` を新設し、**面ごとの語彙差をここ1枚に閉じ込めた**。
+
+```
+RouterSignals = { tokenize, thinking, effort, toolNames, webSearch }
+READERS: 面id → 抽出関数（未登録の面は Anthropic 版へフォールバック）
+```
+
+読み替えたのは3箇所。**分類器だけでは足りない**のがポイントで、`rules.ts` の述語
+（`hasTool` / `thinking` / `effort`）も同じ Anthropic 形を直読みしていたため、分類器だけ直すと
+Rules 画面が面ごとに割れたままになる。
+
+| 直した場所 | 前 | 後 |
+|---|---|---|
+| `classifyScenario` | `body.thinking` / `tools[].type` を直読み | `signalsOf(req)` |
+| `rules.ts` の述語 | 同上 | `signalsOf(req)` |
+| `countRequestTokens` | `body.messages` 固定 | `signals.tokenize` |
+
+**設計判断が2つ。** `toolNames` は**ベンダの語彙のまま**返す — 正規化すると Rules 画面で
+operator が「自分のクライアントが実際に送る名前」を書けなくなる。`webSearch` は綴りが全ベンダで
+違うので glob ではなく**意味論的な真偽値**として分離した。
+
+写像の実測:
+
+| シグナル | anthropic-messages | openai-chat | openai-responses | gemini-generate |
+|---|---|---|---|---|
+| 本文 | `messages` | `messages` | **`input`** | **`contents[].parts[]`** |
+| system | `system` | ロール `system` のメッセージ | **`instructions`** | **`systemInstruction`** |
+| thinking | `thinking.type !== 'disabled'` | `reasoning_effort` | `reasoning.effort` | `generationConfig.thinkingConfig` |
+| effort | `output_config.effort` | `reasoning_effort` | `reasoning.effort` | `thinkingLevel` → `thinkingBudget` |
+| tool 名 | `tools[].type` | `tools[].function.name` | `tools[].name`（平坦） | `functionDeclarations[].name` |
+| web 検索 | `type` が `web_search*` | `web_search_options` / `web_search*` | 同左 | `googleSearch` 系 |
+
+gemini 側は `src/llms/utils/gemini/inbound-request.ts` の `contents[]` walk を**再利用**した。
+変換とルーティングで `contents[]` の解釈が割れないことが、独立実装より重要だと判断した。
+
+受け入れテストは `__tests__/parity/routing-lanes.test.ts`（16件）。**各面のクライアントが
+実際に送る綴り**で think / webSearch を要求し、レーンに到達すること・シグナルが無ければ
+`default` に落ちること・分岐順序（webSearch が think より優先）が面をまたいで一致することを
+固定している。テストが Anthropic 形に寄せて書かれていたら何も検証しないことになるので、
+そこは意図的に面ごとの綴りにしてある。
+
+**残る非対称（ベンダ側の制約。塞げないので明示する）**:
+
+- **OpenAI 2面では effort→longContext の escalation に到達しない**（think レーンを設定している
+  場合）。Anthropic は `thinking` と `output_config.effort` が**独立した2フィールド**なので
+  「頑張れ、ただし考えるな」を表現できるが、**OpenAI はノブが1つ**（`reasoning_effort`）しかない。
+  `'none'` 以外の effort は必然的に reasoning の opt-in でもあるため、分岐順で先に来る think が
+  必ず勝つ。think 未設定なら longContext に落ちることはテストで固定してある
+- **`minimal` / `none` は `low` に丸める**。`EffortLevel` に `low` より下の段が無い。`undefined`
+  に落とすと「何も言わなかった」扱いになり、`isHeavyRequest` がモデル tier での escalation に
+  フォールスルーしてしまう。最安の推論を明示した呼び出し側は**何かを言っている**ので、
+  escalation を抑止する `low` が正しい
+- **画像パートは計数しない**（4面とも）。テキストを持たないため。Anthropic reader が自分の
+  image ブロックを無視しているのと揃えてある
+- **Codex CLI の `reasoning` item（`encrypted_content`）は計数しない**。不透明な base64 を
+  テキストとして数えると、省略による過小評価よりはるかに大きく過大評価する
 
 その他、面をまたいで見つかった歪み:
 
@@ -792,21 +850,24 @@ Routing画面には **Phase 2 で入る「面セレクタ」** が乗る。こ�
 `export *` が消えたコードを引きずっていた — §3.3-3 で `@/schemas` について指摘したのと同じ形の問題が
 `@/shared` にも小さく残っていたことになる。
 
-**判断を保留したもの**（削除ではなく設計判断が要る）:
+**保留していたものの決着 (2026-09-01)**:
 
-- `src/schemas/forms/**`（`index.ts` + `settings.ts`、35行）— `SettingsFormSchema` に読み手が無い。
-  `react-hook-form` は **shadcn が vendor した `ui/form.tsx` 以外どこからも import されていない**ので、
-  この層は「あるべき統合」を先取りしただけで、実装が伴っていない。Phase 4 が宣言した5層のうち
-  `forms/` を畳むかどうかは層構成の変更なので、掃除として黙って消さない
-- `src/schemas/primitives/index.ts` — 層 barrel。`common.ts` / `env.ts` / `record.ts` は直接 import
-  されており、barrel だけに利用者が無い。「barrel は層単位」という Phase 4 の規約からすると
-  **knip 側の設定で扱うのが筋**で、規約に反して削除するのは筋が悪い
-- `src/schemas/domain/preset.ts` — 生きているのは `JsonValueSchema` / `JsonPrimitiveSchema` /
-  `JsonObjectSchema` だけ。`PresetFileSchema` / `PresetMetadataSchema` / `ConditionSchema` /
-  `RequiredInputSchema` / `ManifestFileSchema` / `InputType` / `MergeStrategy` には読み手が無い。
-  なお `src/api/routing-rules/test/route.ts` の `ConditionSchema` は**同名のローカル定義**であって
-  これではない。JSON スカラだけを `primitives/` へ移してこのファイルを畳むのが素直だが、
-  マニフェスト形式を将来の外部契約として残すかの判断が先
+- **`src/schemas/forms/**` は層ごと削除した。** `SettingsFormSchema` に読み手が無いだけでなく、
+  `react-hook-form` 自体が **shadcn が vendor した `ui/form.tsx` からしか import されておらず、
+  その `ui/form.tsx` を import するものがゼロ**だった。つまり「あるべき統合」を先取りした層と、
+  その統合先の部品が、両方とも未接続のまま残っていた。連鎖ごと落として
+  `react-hook-form` と `@radix-ui/react-slot`（`form.tsx` が名前で直 import していた唯一の
+  利用者。他の shadcn は `radix-ui` アンブレラ経由）も依存から外した。
+  Phase 4 が宣言した層は **primitives / wire / domain / api の4層**になった。
+  必要になれば `bunx shadcn@latest add form` で1コマンドで戻る
+- **`src/schemas/primitives/index.ts` も削除した。** 「barrel は層単位」という規約に反すると
+  一度は判断したが、実測すると `wire` / `domain` / `api` の barrel は 5 / 34 / 1 ファイルから
+  使われていて、`primitives` だけが利用ゼロだった。規約を満たすために置いてある空の器であって、
+  規約が要求している「層をまとめて import する経路」の実需が無い。1行で戻せる
+- **`src/schemas/domain/preset.ts`** — 生きているのは `JsonValueSchema` /
+  `JsonPrimitiveSchema` / `JsonObjectSchema` だけ、という状況は変わっていない。JSON スカラを
+  `primitives/` へ移してこのファイルを畳むかは、マニフェスト形式を将来の外部契約として
+  残すかの判断が先（**未決**）
 - `src/lib/presets/form-logic.ts` の `validateField` — **削除済み**（2026-09-01）。必須チェックは
   `src/lib/rialto/settings-content/presets.ts` の `missingInputIds` に移設済み（テストあり）で、
   `validateField` には呼び出し元が無かった。放置できなかったのは、**この死んだ関数が
@@ -870,7 +931,7 @@ Prismaマイグレーション後は `bun run db:migrate:test`（`rialto_test`�
 | `ui-mock-diff` スキル | **Done** | `bun run mocks:{css,shoot,diff}` |
 | 0 土台整備 | **Done** | envelope.test.ts のフルスイート限定フレークは解消。原因は import順ではなく `readConfigFile` が `process.env` を上書き合成すること — テスト間で漏れた `API_TIMEOUT_MS` が結果を変えていた。各テストで `ENVELOPE_ENV_KEYS` を消して修正。フルスイート 1121 pass / 0 fail |
 | 1 Rialtoリネーム | **Done** | HOME_DIR移行（コピー→検証→旧削除）、旧環境変数の受理を全廃、DB名 `rialto` / `rialto_test`、`ccr_` thinking signature の受理を廃止。既存volumeは `bun run scripts/rename-dev-database.ts`。唯一残した後方互換は `<CCR-SUBAGENT-MODEL>` タグ（外部契約で、外すと**無言で**main-agent chainに落ちるため） |
-| 2 Inbound集約+多面ルーティング | **In Progress** | 2-1〜2-4 完了（記述子への集約、chain は `src/shared/transformer-chain.ts` が apiStyle+authMode から導出）。**2-5 完了** — 全40セルにラベルとテストが付いた（`docs/architecture/inbound-parity.md`、`__tests__/parity/**`）。表が暴いた欠落のうち **gemini の usage 記録**と **cache トークンの二重計上**は修正済み。gemini 面の `contents[]` 変換バグ（`parts` 分岐が到達不能で本文が消える）も修正済み — あわせて `systemInstruction` / 画像 / functionCall / `generationConfig` / `toolConfig` に対応し、gemini 列は10行中8行が「対応」になった。**残1件: シナリオ分類が Anthropic 語彙依存**。`webSearch` / `think` / effort ベースの `longContext` は `/v1/messages` でしか効かず、他3面は `routed` にしても `default` レーンにしか落ちない（gemini はさらに `contents` を数えないので `longContext` が常に0トークン）。これが残る限り「4面すべてでルーティング設定が効く」は満たせない |
+| 2 Inbound集約+多面ルーティング | **Done** | 2-1〜2-4 完了（記述子への集約、chain は `src/shared/transformer-chain.ts` が apiStyle+authMode から導出）。**2-5 完了** — 全40セルにラベルとテストが付いた（`docs/architecture/inbound-parity.md`、`__tests__/parity/**`）。表が暴いた欠落のうち **gemini の usage 記録**と **cache トークンの二重計上**は修正済み。gemini 面の `contents[]` 変換バグ（`parts` 分岐が到達不能で本文が消える）も修正済み — あわせて `systemInstruction` / 画像 / functionCall / `generationConfig` / `toolConfig` に対応し、gemini 列は10行中8行が「対応」になった。****2-6 完了** — シナリオ分類も多面化した（`surface-signals.ts` に面ごとの語彙を集約、分類器・ルール述語・トークン計上の3箇所を付け替え）。`__tests__/parity/routing-lanes.test.ts` が4面すべてから think / webSearch レーンに到達することを固定。**Phase 2 の完了条件を満たした** |
 | 3 Gemini | **Done** | 3-1(inbound有効化) 完了 — `/v1beta/models/:modelAndAction` をマウント、`x-goog-api-key`/`?key=` 認証、google エラー封筒、SSE集約、`inboundType='gemini'`、双方向のワイヤ変換。加えて `contents[]` 変換の破綻を修正し、`systemInstruction` / 画像 / functionCall / `generationConfig` / `toolConfig` に対応。**3-2 は descope** — 対象ティアが 2026-06-18 に提供停止され、実機でも `not eligible for ... for individuals` を確認。Code Assist は未契約で、契約しても $22.80/月・シート。api_key 経路で足りるため実施しない（`gemini-code-assist-spike.md` §0）。到達不能な `gemini-cli` の UI 残骸は削除済み |
 | 3.5 認証 | **Done** | 管理UIは Cloudflare Access JWT + ローカル免除、`/v1/*` は発行済みアクセストークンのみ。`AccessToken` テーブルと `src/services/access-token-service.ts` は稼働。bootstrap token は廃止済み。`/login`・`Login.tsx`・`PublicRoute.tsx` は削除済み（`ProtectedRoute` は資格情報ではなく状態を振り分ける役になった） |
 | 4 Zodスキーマ | **Done** | primitives / wire / domain / api / forms の5層に分割し、グローバルbarrelを削除。着手前の計測で、計画が前提にしていた重複は存在しないことが判明（§Phase 4 に記録） |

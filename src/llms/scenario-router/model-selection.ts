@@ -22,8 +22,9 @@
 // the config lookup and the classifier that pick which of them to ask.
 import { type RouteRule, RouteRuleSchema, type ScenarioType } from '@/schemas/domain'
 import type { ConfigStore } from '../registry/config'
-import { isHeavyRequest, isThinkingEnabled, isWebSearchTool, stripSubagentTag } from './request-signals'
+import { isHeavyRequest, stripSubagentTag } from './request-signals'
 import { matchesRule, type RuleEvalContext } from './rules'
+import { signalsOf } from './surface-signals'
 import type { RouterConfig, RouterRequest } from './types'
 
 // `selectModel` is the only entry point most callers need, but the
@@ -168,6 +169,7 @@ function classifyScenario(
   kind: RouteKind
 ): ScenarioType {
   const threshold = effectiveLongContextThreshold(router)
+  const signals = signalsOf(req)
 
   // Long context by size — token count exceeds threshold.
   if (tokenCount > threshold && primaryFor(router, kind, 'longContext') !== undefined) {
@@ -183,11 +185,7 @@ function classifyScenario(
   // Web search tools — higher priority than `thinking`. body.tools may
   // carry vendor-specific shapes (Anthropic's `{ type: 'web_search_*' }`
   // block) that TokenizeTool doesn't model.
-  if (
-    primaryFor(router, kind, 'webSearch') !== undefined &&
-    Array.isArray(req.body.tools) &&
-    req.body.tools.some(isWebSearchTool)
-  ) {
+  if (primaryFor(router, kind, 'webSearch') !== undefined && signals.webSearch) {
     return 'webSearch'
   }
 
@@ -197,7 +195,7 @@ function classifyScenario(
   // boolean check on `req.body.thinking` alone silently routes cheap
   // default traffic through the expensive `think` slot (Opus in most
   // configs). isThinkingEnabled excludes 'disabled' specifically.
-  if (isThinkingEnabled(req.body) && primaryFor(router, kind, 'think') !== undefined) {
+  if (signals.thinking && primaryFor(router, kind, 'think') !== undefined) {
     req.log.info({ thinking: req.body.thinking }, 'Using think model')
     return 'think'
   }
@@ -205,7 +203,7 @@ function classifyScenario(
   // Effort/tier escalation — high effort or an opus-tier requested model
   // routes into the longContext (Opus) lane even when the request is
   // short enough to skip the size-based branch above.
-  if (primaryFor(router, kind, 'longContext') !== undefined && isHeavyRequest(req.body)) {
+  if (primaryFor(router, kind, 'longContext') !== undefined && isHeavyRequest(req.body, signals)) {
     req.log.info({ model: req.body.model }, 'Using long context model due to heavy effort/tier signal')
     return 'longContext'
   }

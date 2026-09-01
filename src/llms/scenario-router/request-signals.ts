@@ -86,20 +86,15 @@ function classifyModelTier(model: string): ModelTier | undefined {
 // thinking presence and message size are NOT consulted here — they are
 // already routed by the `think` / `longContext`-by-threshold lanes in
 // classifyScenario and would double-count if we mixed them in.
-export function isHeavyRequest(body: RouterRequestBody): boolean {
-  const effort = readEffort(body)
+export function isHeavyRequest(body: RouterRequestBody, signals?: { effort: EffortLevel | undefined }): boolean {
+  // The effort reading comes from the caller's normalised signals when
+  // there are any, so a non-Anthropic surface is graded on the field its
+  // own clients actually send rather than on `output_config.effort`,
+  // which only Claude Code writes.
+  const effort = signals === undefined ? readEffort(body) : signals.effort
   if (effort === 'high' || effort === 'xhigh' || effort === 'max') return true
   if (effort === 'low' || effort === 'medium') return false
   return classifyModelTier(body.model) === 'opus'
-}
-// The tool types the request actually carried, for the hasTool verdict —
-// "no tool matched `web_*`" is only actionable alongside what was there.
-export function toolTypes(tools: unknown): string | null {
-  if (!Array.isArray(tools)) return null
-  const types = tools
-    .map((tool) => (tool !== null && typeof tool === 'object' ? Reflect.get(tool, 'type') : undefined))
-    .filter((t): t is string => typeof t === 'string')
-  return types.length === 0 ? null : types.join(', ')
 }
 
 // Bucket a model string into one of the four CC families. Case-
@@ -115,16 +110,6 @@ export function tierOf(model: string): RequestedModelTier | undefined {
   if (lower.includes('sonnet')) return 'sonnet'
   if (lower.includes('haiku')) return 'haiku'
   return undefined
-}
-
-export function hasMatchingTool(tools: unknown, pattern: string): boolean {
-  if (!Array.isArray(tools)) return false
-  for (const tool of tools) {
-    if (tool === null || typeof tool !== 'object') continue
-    const type: unknown = Reflect.get(tool, 'type')
-    if (typeof type === 'string' && globMatch(pattern, type)) return true
-  }
-  return false
 }
 
 // Match a shell-style glob against a string. `*` = any run of chars

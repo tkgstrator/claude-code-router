@@ -36,6 +36,7 @@ import { selectModel } from './scenario-router/model-selection'
 import { expandChainWithPeers, type HealthinessLookup } from './scenario-router/peer-fallback'
 import { applyGlobalSystemPrompt, resolveActivePersonaPrompt } from './scenario-router/persona'
 import { getProjectRouter } from './scenario-router/project-config'
+import { signalsOf } from './scenario-router/surface-signals'
 import type {
   ConfigProvider,
   RouterConfig,
@@ -140,7 +141,7 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
   }
 
   try {
-    const tokenCount = await countRequestTokens(ctx.tokenizers, req.body)
+    const tokenCount = await countRequestTokens(ctx.tokenizers, signalsOf(req).tokenize)
     req.tokenCount = tokenCount
 
     const project = await getProjectRouter(req)
@@ -287,12 +288,12 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
   }
 }
 
-async function countRequestTokens(tokenizers: RouterContext['tokenizers'], body: RouterRequestBody): Promise<number> {
-  const tokenize: TokenizeRequest = {
-    messages: Array.isArray(body.messages) ? body.messages : [],
-    system: body.system,
-    tools: body.tools
-  }
+// Counted from the request's normalised signals rather than from
+// `body.messages` directly: a Responses caller carries its turns in
+// `input` and a Gemini caller in `contents`, so reading the Anthropic
+// key made the size-based longContext branch permanently see 0 tokens
+// on those surfaces.
+async function countRequestTokens(tokenizers: RouterContext['tokenizers'], tokenize: TokenizeRequest): Promise<number> {
   const result = await tokenizers.countTokens(tokenize)
   return result.tokenCount
 }
