@@ -8,6 +8,12 @@
  *
  * ブラウザは playwright 同梱の chromium。`bunx playwright install chromium`
  * が済んでいない環境では launch が投げるので、そこも skip 条件に含める。
+ *
+ * **相手が生きている dev サーバーである以上、編集中は落ちうる。** Vite が
+ * HMR している最中に叩くと、実装の欠陥ではなく再ビルドの隙間で失敗する。
+ * 実際このスイートを入れた日に、別作業の編集中だけ 15 件が落ち、編集が
+ * 止まったあとは3回連続で緑だった。**赤を見たらまず「いま誰かが触って
+ * いないか」を疑い、手を止めてから測り直すこと。** 落ち続けるなら本物。
  */
 
 import { type Browser, chromium } from 'playwright'
