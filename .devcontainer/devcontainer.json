@@ -20,7 +20,12 @@
     "source=${env:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
     "source=${env:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly",
     "source=${env:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached",
-    "source=${env:HOME}/.codex,target=/home/vscode/.codex,type=bind,consistency=cached"
+    "source=${env:HOME}/.codex,target=/home/vscode/.codex,type=bind,consistency=cached",
+    // Read-only on purpose, unlike .claude / .codex: nothing in here is
+    // ours to rotate. Rialto only ever reads oauth_creds.json to import a
+    // Gemini account, and keeps the refreshed tokens in SubAccount — so a
+    // writable mount could only ever corrupt the host's own CLI session.
+    "source=${env:HOME}/.gemini,target=/home/vscode/.gemini,type=bind,consistency=cached,readonly"
   ],
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
