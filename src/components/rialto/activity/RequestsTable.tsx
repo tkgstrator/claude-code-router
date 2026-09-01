@@ -9,11 +9,12 @@
  * A column added below shows up in the table and in the menu together.
  */
 import type { TFunction } from 'i18next'
-import type { ReactNode } from 'react'
+import { type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LANE_KEYS, type Row } from '@/components/rialto/activity/requests-rows'
 import { DASH, StatusPill, SurfaceCell } from '@/components/rialto/activity/shared'
 import { Pill } from '@/components/rialto/primitives'
+import { SortTh, type SortValue, useTableSort } from '@/components/rialto/table-sort'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import dayjs from '@/lib/dayjs'
 import { fmtCost, fmtTokens } from '@/lib/sessions/format'
@@ -42,9 +43,31 @@ export interface ColumnDef {
   cellClass: string
   /** `t` is threaded through because the descriptors are module-level. */
   render: (row: Row, t: TFunction) => ReactNode
+  /**
+   * What the header orders on. Omitted by a column that is not worth
+   * reading down — that column keeps a plain `<th>`, so "sortable" is a
+   * property of the descriptor rather than a list the header maintains
+   * separately and forgets to update.
+   *
+   * It takes `t` for the same reason `render` does: a cell that shows a
+   * translated label has to sort by that label, or a Japanese UI orders
+   * its rows by the English spelling nobody can see.
+   */
+  sortValue?: (row: Row, t: TFunction) => SortValue
 }
 
 const tokens = (n: number): string => (n === 0 ? DASH : fmtTokens(n))
+
+// The renderers above print a dash for 0 — the log recorded no count,
+// which is not the same claim as "zero tokens" — so the sort has to call
+// it missing too. Left as a number it would open every ascending sort
+// with a block of dashes.
+const absentWhenZero = (n: number): SortValue => (n === 0 ? null : n)
+
+const instant = (iso: string): SortValue => {
+  const ms = Date.parse(iso)
+  return Number.isNaN(ms) ? null : ms
+}
 
 function ModelsCell({ row }: { row: Row }) {
   const { t } = useTranslation()
@@ -67,7 +90,11 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-20',
     align: 'left',
     cellClass: 'font-mono text-[11px] tabular-nums text-muted-foreground',
-    render: (row) => dayjs(row.log.createdAt).format('HH:mm:ss')
+    render: (row) => dayjs(row.log.createdAt).format('HH:mm:ss'),
+    // The cell abbreviates the arrival instant to a clock, but the column
+    // means the instant: over a 7d window, ordering the printed HH:mm:ss
+    // would interleave the days.
+    sortValue: (row) => instant(row.log.createdAt)
   },
   {
     id: 'status',
@@ -75,7 +102,8 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-16',
     align: 'left',
     cellClass: '',
-    render: (row) => <StatusPill status={row.log.status} />
+    render: (row) => <StatusPill status={row.log.status} />,
+    sortValue: (row) => row.log.status
   },
   {
     id: 'endpoint',
@@ -83,7 +111,10 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-40',
     align: 'left',
     cellClass: '',
-    render: (row) => <SurfaceCell path={row.surfacePath} />
+    render: (row) => <SurfaceCell path={row.surfacePath} />,
+    // Null is the surface the row never recorded, so those land at the
+    // bottom either way rather than sorting under their "untracked" label.
+    sortValue: (row) => row.surfacePath
   },
   {
     id: 'models',
@@ -91,7 +122,11 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: '',
     align: 'left',
     cellClass: '',
-    render: (row) => <ModelsCell row={row} />
+    render: (row) => <ModelsCell row={row} />,
+    // The cell holds two identifiers; this orders by the sent pair — the
+    // emphasized half, and the only way to group the log by the upstream
+    // that served it, since this screen has no model filter.
+    sortValue: (row) => `${row.log.provider},${row.log.model}`
   },
   {
     id: 'rule',
@@ -100,7 +135,8 @@ export const COLUMNS: readonly ColumnDef[] = [
     align: 'left',
     cellClass: 'text-[11px]',
     render: (row) =>
-      row.rule === null ? <span className='text-muted-foreground/50'>{DASH}</span> : <span>{row.rule}</span>
+      row.rule === null ? <span className='text-muted-foreground/50'>{DASH}</span> : <span>{row.rule}</span>,
+    sortValue: (row) => row.rule
   },
   {
     id: 'lane',
@@ -108,7 +144,8 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-20',
     align: 'left',
     cellClass: '',
-    render: (row, t) => <Pill tone='mute'>{t(LANE_KEYS[row.lane])}</Pill>
+    render: (row, t) => <Pill tone='mute'>{t(LANE_KEYS[row.lane])}</Pill>,
+    sortValue: (row, t) => t(LANE_KEYS[row.lane])
   },
   {
     id: 'token',
@@ -116,7 +153,8 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-40',
     align: 'left',
     cellClass: 'truncate text-[11px] text-muted-foreground',
-    render: (row, t) => (row.client === null ? t('activity.common.untracked') : row.client)
+    render: (row, t) => (row.client === null ? t('activity.common.untracked') : row.client),
+    sortValue: (row) => row.client
   },
   {
     id: 'input',
@@ -124,7 +162,8 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-20',
     align: 'right',
     cellClass: 'font-mono text-xs tabular-nums',
-    render: (row) => tokens(row.log.totalInputTokens)
+    render: (row) => tokens(row.log.totalInputTokens),
+    sortValue: (row) => absentWhenZero(row.log.totalInputTokens)
   },
   {
     id: 'output',
@@ -132,7 +171,8 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-20',
     align: 'right',
     cellClass: 'font-mono text-xs tabular-nums',
-    render: (row) => tokens(row.log.outputTokens)
+    render: (row) => tokens(row.log.outputTokens),
+    sortValue: (row) => absentWhenZero(row.log.outputTokens)
   },
   {
     id: 'ms',
@@ -140,7 +180,8 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-20',
     align: 'right',
     cellClass: 'font-mono text-xs tabular-nums text-muted-foreground',
-    render: (row) => (row.log.durationMs === 0 ? DASH : row.log.durationMs.toLocaleString())
+    render: (row) => (row.log.durationMs === 0 ? DASH : row.log.durationMs.toLocaleString()),
+    sortValue: (row) => absentWhenZero(row.log.durationMs)
   },
   {
     id: 'cost',
@@ -148,18 +189,28 @@ export const COLUMNS: readonly ColumnDef[] = [
     width: 'w-24',
     align: 'right',
     cellClass: 'font-mono text-xs tabular-nums',
-    render: (row) => fmtCost(row.log.totalCostUsd)
+    // A priced 0 prints as `$0` rather than as a dash, so unlike the token
+    // columns it stays a number here; only an unpriced row is missing.
+    render: (row) => fmtCost(row.log.totalCostUsd),
+    sortValue: (row) => row.log.totalCostUsd
   }
 ]
+
+const BY_ID: ReadonlyMap<ColumnId, ColumnDef> = new Map(COLUMNS.map((col) => [col.id, col]))
 
 // First and last columns carry the table's outer gutter, so their padding
 // is derived from position rather than baked into the descriptor — hiding
 // a column has to move the gutter with it.
+//
+// Only the horizontal gutter is positional. The header's bottom padding is a
+// property of the row, not of its end cells, and lives on the `<tr>`: giving
+// it to the edge cells alone lifted their labels by half that padding, so the
+// first and last headers floated above the six between them.
 const edgeClass = (index: number, count: number, cell: boolean): string => {
-  const pad = cell ? 'py-2.5' : 'pb-2'
-  if (index === 0) return `${pad} pl-6 pr-2`
-  if (index === count - 1) return `${pad} pl-2 pr-6`
-  return cell ? 'px-2' : 'px-2'
+  const pad = cell ? 'py-2.5 ' : ''
+  if (index === 0) return `${pad}pl-6 pr-2`
+  if (index === count - 1) return `${pad}pl-2 pr-6`
+  return 'px-2'
 }
 
 function RequestRow({ row, columns }: { row: Row; columns: readonly ColumnDef[] }) {
@@ -180,6 +231,21 @@ function RequestRow({ row, columns }: { row: Row; columns: readonly ColumnDef[] 
 
 export function RequestsTable({ rows, columns }: { rows: Row[]; columns: readonly ColumnDef[] }) {
   const { t } = useTranslation()
+  // Resolved against COLUMNS rather than the visible subset so that hiding
+  // the sorted column and showing it again restores the sort instead of
+  // dropping it.
+  const sortValue = useCallback(
+    (row: Row, key: ColumnId): SortValue => {
+      const col = BY_ID.get(key)
+      return col === undefined || col.sortValue === undefined ? null : col.sortValue(row, t)
+    },
+    [t]
+  )
+  // While the column is hidden the sort does not apply: this is the one table
+  // whose columns can go away, and rows left ordered by an off-screen column
+  // have no caret and no header to click to undo them.
+  const visibleKeys = useMemo(() => columns.map((col) => col.id), [columns])
+  const sort = useTableSort<Row, ColumnId>(rows, sortValue, visibleKeys)
   return (
     <table className='w-full table-fixed'>
       <colgroup>
@@ -188,23 +254,27 @@ export function RequestsTable({ rows, columns }: { rows: Row[]; columns: readonl
         ))}
       </colgroup>
       <thead>
-        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          {columns.map((col, i) => (
-            <th
-              key={col.id}
-              className={cn(
-                edgeClass(i, columns.length, false),
-                col.align === 'right' ? 'text-right' : 'text-left',
-                'font-medium'
-              )}
-            >
-              {t(col.labelKey)}
-            </th>
-          ))}
+        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
+          {columns.map((col, i) => {
+            const className = cn(
+              edgeClass(i, columns.length, false),
+              col.align === 'right' ? 'text-right' : 'text-left',
+              'font-medium'
+            )
+            return col.sortValue === undefined ? (
+              <th key={col.id} className={className}>
+                {t(col.labelKey)}
+              </th>
+            ) : (
+              <SortTh key={col.id} sortKey={col.id} sort={sort} className={className} align={col.align}>
+                {t(col.labelKey)}
+              </SortTh>
+            )
+          })}
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
+        {sort.sorted.map((row) => (
           <RequestRow key={row.log.id} row={row} columns={columns} />
         ))}
       </tbody>

@@ -120,12 +120,12 @@ export function RetentionTable({
         <col className='w-24' />
       </colgroup>
       <thead>
-        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-          <th className='pb-2 pl-6 pr-3 text-left font-medium'>{t('settings.logging.colStore')}</th>
+        <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
+          <th className='pl-6 pr-3 text-left font-medium'>{t('settings.logging.colStore')}</th>
           <th className='px-3 text-right font-medium'>{t('settings.logging.colRows')}</th>
           <th className='px-3 text-right font-medium'>{t('settings.logging.colSize')}</th>
           <th className='px-3 text-left font-medium'>{t('settings.logging.colPruneOlderThan')}</th>
-          <th className='pb-2 pl-3 pr-6' />
+          <th className='pl-3 pr-6' />
         </tr>
       </thead>
       <tbody>

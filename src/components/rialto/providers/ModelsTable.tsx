@@ -8,6 +8,7 @@
  */
 import { useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
+import { SortTh, type SortValue, useTableSort } from '@/components/rialto/table-sort'
 import { fmtCost } from '@/lib/sessions/format'
 import { cn } from '@/lib/utils'
 import { fmtContext, type ModelRow } from './derive'
@@ -42,23 +43,63 @@ function Toggle({ on, label, onClick }: { on: boolean; label: string; onClick: (
   )
 }
 
+type ModelSortKey =
+  | 'name'
+  | 'tier'
+  | 'contextWindow'
+  | 'inputPer1M'
+  | 'cachedInputPer1M'
+  | 'outputPer1M'
+  | 'test'
+  | 'enabled'
+
+// Sorting reads the row's own field for every column, so what the header
+// orders by is what the cell shows. `tier` and `test` are short enums
+// rendered as a pill / glyph; sorting them alphabetically groups like
+// with like, which is the whole point of clicking those two.
+const modelSortValue = (row: ModelRow, key: ModelSortKey): SortValue => row[key]
+
 const NUM_CELL = 'px-2 text-right font-mono text-xs tabular-nums'
 const HEAD_CELL = 'px-2 text-right font-medium'
 
-function Head({ withOverride }: { withOverride: boolean }) {
+function Head({
+  withOverride,
+  sort
+}: {
+  withOverride: boolean
+  sort: ReturnType<typeof useTableSort<ModelRow, ModelSortKey>>
+}) {
   const { t } = useTranslation()
   return (
     <thead>
-      <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70'>
-        <th className='pb-2 pl-6 pr-2 text-left font-medium'>{t('providers.models.colModel')}</th>
-        <th className='px-2 text-left font-medium'>{t('providers.models.colTier')}</th>
-        <th className={HEAD_CELL}>{t('providers.models.colContext')}</th>
-        <th className={HEAD_CELL}>{t('providers.models.colIn')}</th>
-        <th className={HEAD_CELL}>{t('providers.models.colCached')}</th>
-        <th className={HEAD_CELL}>{t('providers.models.colOut')}</th>
+      <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
+        <SortTh sortKey='name' sort={sort} className='pl-6 pr-2 text-left'>
+          {t('providers.models.colModel')}
+        </SortTh>
+        <SortTh sortKey='tier' sort={sort} className='px-2 text-left'>
+          {t('providers.models.colTier')}
+        </SortTh>
+        <SortTh sortKey='contextWindow' sort={sort} className={HEAD_CELL} align='right'>
+          {t('providers.models.colContext')}
+        </SortTh>
+        <SortTh sortKey='inputPer1M' sort={sort} className={HEAD_CELL} align='right'>
+          {t('providers.models.colIn')}
+        </SortTh>
+        <SortTh sortKey='cachedInputPer1M' sort={sort} className={HEAD_CELL} align='right'>
+          {t('providers.models.colCached')}
+        </SortTh>
+        <SortTh sortKey='outputPer1M' sort={sort} className={HEAD_CELL} align='right'>
+          {t('providers.models.colOut')}
+        </SortTh>
+        {/* The api-style override is a picker, not a value the operator
+            scans down a column, so it stays unsorted. */}
         {withOverride ? <th className='px-2 text-left font-medium'>{t('providers.models.colOverride')}</th> : null}
-        <th className='px-2 text-center font-medium'>{t('providers.models.colTest')}</th>
-        <th className='pb-2 pl-2 pr-6 text-right font-medium'>{t('providers.models.colOn')}</th>
+        <SortTh sortKey='test' sort={sort} className='px-2 text-center' align='center'>
+          {t('providers.models.colTest')}
+        </SortTh>
+        <SortTh sortKey='enabled' sort={sort} className='pl-2 pr-6 text-right' align='right'>
+          {t('providers.models.colOn')}
+        </SortTh>
       </tr>
     </thead>
   )
@@ -121,6 +162,9 @@ export function ModelsTable({
   onToggle: (model: string, next: boolean) => void
 }) {
   const { t } = useTranslation()
+  // Hooks run before the empty-state return: an early return above a hook
+  // changes the hook order between renders.
+  const sort = useTableSort<ModelRow, ModelSortKey>(rows, modelSortValue)
   if (rows.length === 0) {
     return <div className='px-6 pb-6 text-xs text-muted-foreground'>{t('providers.models.empty')}</div>
   }
@@ -137,9 +181,9 @@ export function ModelsTable({
         <col className={withOverride ? 'w-14' : 'w-16'} />
         <col className={withOverride ? 'w-16' : 'w-20'} />
       </colgroup>
-      <Head withOverride={withOverride} />
+      <Head withOverride={withOverride} sort={sort} />
       <tbody>
-        {rows.map((row) => (
+        {sort.sorted.map((row) => (
           <Row key={row.name} row={row} withOverride={withOverride} onToggle={onToggle} />
         ))}
       </tbody>

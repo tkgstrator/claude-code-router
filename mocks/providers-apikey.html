@@ -90,8 +90,8 @@ const models = `
   <table class="w-full table-fixed">
     <colgroup><col><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-24"><col class="w-14"><col class="w-16"></colgroup>
     <thead>
-      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70">
-        <th class="pb-2 pl-6 pr-2 text-left font-medium">Model</th>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
+        <th class="pl-6 pr-2 text-left font-medium">Model</th>
         <th class="px-2 text-left font-medium">Tier</th>
         <th class="px-2 text-right font-medium">Context</th>
         <th class="px-2 text-right font-medium">In /1M</th>
@@ -99,7 +99,7 @@ const models = `
         <th class="px-2 text-right font-medium">Out /1M</th>
         <th class="px-2 text-left font-medium">Override</th>
         <th class="px-2 text-center font-medium">Test</th>
-        <th class="pb-2 pl-2 pr-6 text-right font-medium">On</th>
+        <th class="pl-2 pr-6 text-right font-medium">On</th>
       </tr>
     </thead>
     <tbody>${MODELS.map(modelRow).join('')}</tbody>
