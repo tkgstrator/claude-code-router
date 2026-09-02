@@ -11,7 +11,7 @@
  *     and writes an encrypted row.
  *
  * Tokens are AES-256-GCM-encrypted with the key derived from
- * `CCR_ACCOUNT_ENCRYPTION_KEY` (hex / base64 / passphrase, in that
+ * `RIALTO_ACCOUNT_ENCRYPTION_KEY` (hex / base64 / passphrase, in that
  * preference order). Plain tokens never land on disk and never leave
  * memory after the upsert returns.
  *

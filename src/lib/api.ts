@@ -1,96 +1,33 @@
-import type { RouterConfig } from '@/schemas'
+import type {
+  AccessTokenWire,
+  HealthResponse,
+  IdentityResponse,
+  InboundSurfaceWire,
+  InboundType,
+  ModelRoutingResponse,
+  OverviewResponse,
+  RequestLogItem,
+  RouterPreferenceProfileWire,
+  RouterPreferencesApplyResponse,
+  RouterUtilizationResponse,
+  RoutingMode,
+  RoutingPresetItem,
+  RoutingSchedulerStateResponse,
+  SessionMessageItem,
+  SessionSummary,
+  SurfaceId
+} from '@/lib/api-types'
+import type { RouterConfig } from '@/schemas/domain/router'
 import type { Config } from '@/types'
 
-export interface RoutingPresetItem {
-  id: string
-  name: string
-  config: RouterConfig
-  createdAt: string
-  updatedAt: string
-}
-
-export interface RequestLogItem {
-  id: string
-  sessionId: string
-  provider: string
-  model: string
-  // What the client asked for pre-routing, and the routing lane it hit.
-  // Null on rows written before routing capture landed.
-  requestedModel: string | null
-  scenario: string | null
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  totalInputTokens: number
-  cacheHitPct: number
-  durationMs: number
-  status: number
-  createdAt: string
-  inputCostUsd: number | null
-  outputCostUsd: number | null
-  cacheReadCostUsd: number | null
-  totalCostUsd: number | null
-}
-
-export type InboundType = 'anthropic' | 'openai'
-
-export interface SessionSummary {
-  sessionId: string
-  // Wire format the session first came in on. Null on pre-migration
-  // sessions.
-  inboundType: InboundType | null
-  requestCount: number
-  providers: string[]
-  models: string[]
-  totalInputTokens: number
-  totalOutputTokens: number
-  totalCacheReadTokens: number
-  totalCacheWriteTokens: number
-  avgCacheHitPct: number
-  totalDurationMs: number
-  totalCostUsd: number | null
-  firstAt: string
-  lastAt: string
-  preview: string | null
-}
-
-// One archived chat turn. Content is Anthropic-shaped block arrays for
-// assistant rows, and either a string or a tool_result block array for
-// user rows (Claude Code's tool-result turns). Kept as `unknown` on the
-// wire — the renderer branches on shape at read time.
-export interface SessionMessageItem {
-  id: string
-  role: string
-  content: unknown
-  createdAt: string
-}
-
-// One actual upstream target a requested model was routed to.
-export interface ModelRoutingTarget {
-  provider: string
-  model: string
-  scenario: string | null
-  isSubagent: boolean
-  count: number
-}
-
-// All targets a single requested model fanned out to, with its total.
-// requestedModel is null for rows written before routing capture landed.
-export interface ModelRoutingRow {
-  requestedModel: string | null
-  total: number
-  targets: ModelRoutingTarget[]
-}
-
-export interface ModelRoutingResponse {
-  rows: ModelRoutingRow[]
-  total: number
-}
+// Every wire type lives in ./api-types and is re-exported here, so
+// `@/lib/api` stays the one import path for both the client and the
+// shapes it returns.
+export type * from '@/lib/api-types'
 
 // Browser-side API client. Fetches under `${baseUrl}<endpoint>` with the
 // envelope APIKEY (mirrored onto X-API-Key) attached automatically. The
-// temp key from `?tempApiKey=` lets the integrated `ccr ui` flow open the
+// temp key from `?tempApiKey=` lets the integrated `rialto ui` flow open the
 // UI pre-authenticated without persisting the long-lived key.
 class ApiClient {
   private baseUrl: string
@@ -130,12 +67,18 @@ class ApiClient {
     })
 
     if (response.status === 401) {
-      // 401 invalidates the stored key; the app listens for this event
-      // and routes back to the login screen (memory router — can't push
-      // from here directly).
+      // 401 invalidates the stored key. The event tells the shell to send
+      // the operator to the login screen; the throw is what stops every
+      // caller here.
+      //
+      // This used to `return new Promise(() => {})` — a promise that
+      // never settles — on the theory that navigation would unmount the
+      // caller anyway. It does not: a hanging promise means no `.catch`
+      // and no `.finally` ever runs, so every screen that fetched sat on
+      // its loading state forever with nothing on screen to explain why.
       localStorage.removeItem('apiKey')
       window.dispatchEvent(new CustomEvent('unauthorized'))
-      return new Promise(() => {}) as Promise<T>
+      throw new Error('Unauthorized')
     }
 
     if (!response.ok) {
@@ -191,7 +134,9 @@ class ApiClient {
   }
 
   async performUpdate(): Promise<{ success: boolean; message: string }> {
-    return this.post<{ success: boolean; message: string }>('/api/update/perform', {})
+    // Bare path: `baseUrl` is already '/api', so the '/api' prefix every
+    // other method omits would have produced /api/api/update/perform.
+    return this.post<{ success: boolean; message: string }>('/update/perform', {})
   }
 
   // Logs
@@ -362,110 +307,66 @@ class ApiClient {
     const qs = q.toString()
     return this.get<RouterUtilizationResponse>(`/router-utilization${qs ? `?${qs}` : ''}`)
   }
-}
 
-export interface RouterPreferenceEntryWire {
-  priority: number
-  target: string
-  enabled: boolean
-  // Optional per-entry override of the global escalation / demotion
-  // gates. Undefined = inherit the global constraint.
-  allowEscalation?: boolean
-  allowDemotion?: boolean
-}
+  // Overview screen. One call for the whole summary so its blocks all
+  // describe the same instant.
+  async getOverview(params?: { windowHours?: number }): Promise<OverviewResponse> {
+    const q = new URLSearchParams()
+    if (params?.windowHours != null) q.set('windowHours', String(params.windowHours))
+    const qs = q.toString()
+    return this.get<OverviewResponse>(`/overview${qs ? `?${qs}` : ''}`)
+  }
 
-export type PreferenceScenarioKey = 'default' | 'think' | 'longContext' | 'webSearch' | 'image'
-export type PreferenceKind = 'agent' | 'subagent'
+  // Inbound surfaces + their effective routing mode.
+  async getInboundSurfaces(): Promise<{ surfaces: InboundSurfaceWire[] }> {
+    return this.get<{ surfaces: InboundSurfaceWire[] }>('/inbound-surfaces')
+  }
 
-// Each scenario carries two independent ordered chains: `agent` for
-// main-agent traffic, `subagent` for requests carrying a
-// <CCR-SUBAGENT-MODEL> tag. Both are always present so the UI can
-// render an empty tab without a "missing" branch.
-export interface PreferenceEntriesByKindWire {
-  agent: RouterPreferenceEntryWire[]
-  subagent: RouterPreferenceEntryWire[]
-}
+  async updateInboundSurface(body: {
+    surface: SurfaceId
+    routingMode: RoutingMode
+    profileKey?: string | null
+  }): Promise<{ surfaces: InboundSurfaceWire[] }> {
+    return this.post<{ surfaces: InboundSurfaceWire[] }>('/inbound-surfaces', body)
+  }
 
-export type PreferenceEntriesByScenarioWire = Record<PreferenceScenarioKey, PreferenceEntriesByKindWire>
+  // Access tokens (Phase 3.5). Issue returns the plaintext once; there is
+  // no endpoint that can show it again.
+  async getAccessTokens(): Promise<{ tokens: AccessTokenWire[] }> {
+    return this.get<{ tokens: AccessTokenWire[] }>('/access-tokens')
+  }
 
-export interface RouterPreferenceProfileWire {
-  entriesByScenario: PreferenceEntriesByScenarioWire
-  constraints: Record<string, unknown> | null
-}
+  async issueAccessToken(body: {
+    name: string
+    surface?: SurfaceId | null
+    profileKey?: string | null
+    expiresAt?: string | null
+  }): Promise<{ token: AccessTokenWire; plaintext: string }> {
+    return this.post<{ token: AccessTokenWire; plaintext: string }>('/access-tokens', body)
+  }
 
-export interface RouterPreferencesApplyResponse {
-  success: boolean
-  warnings: string[]
-}
+  async revokeAccessToken(id: string): Promise<AccessTokenWire> {
+    return this.post<AccessTokenWire>(`/access-tokens/${encodeURIComponent(id)}/revoke`, {})
+  }
 
-export interface RoutingSchedulerWeightEntry {
-  target: string
-  weight: number
-  healthiness: number
-  remainingBudgetPct: number | null
-  earliestResetAt: string | null
-  reasons: string[]
-}
+  // Prefer revoke: deleting a token also deletes the answer to "whose
+  // requests were these" on every RequestLog row it authenticated.
+  async deleteAccessToken(id: string): Promise<{ deleted: boolean }> {
+    return this.deleteRequest<{ deleted: boolean }>(`/access-tokens/${encodeURIComponent(id)}`)
+  }
 
-export interface RoutingSchedulerAccountView {
-  subAccountId: string
-  providerName: string
-  kind: 'claude' | 'codex'
-  fiveHour: { used: number; limit: number; resetAt: string | null } | null
-  weekly: { used: number; limit: number; resetAt: string | null } | null
-  refreshedAt: string | null
-  stale: boolean
-}
+  // Identity for the shell footer. Verified upstream by adminAuth — a
+  // forged Cf-Access-* header never reaches the handler.
+  async getIdentity(): Promise<IdentityResponse> {
+    return this.get<IdentityResponse>('/identity')
+  }
 
-export interface RoutingSchedulerStateResponse {
-  tickAt: string | null
-  tickCount: number
-  consecutiveFailures: number
-  degraded: boolean
-  weights: RoutingSchedulerWeightEntry[]
-  accounts: RoutingSchedulerAccountView[]
-  soonestResetAt: string | null
-  recentChanges: Array<{ target: string; from: number; to: number; reason: string; tickAt: string }>
-}
-
-export interface RouterUtilizationPerScenarioRow {
-  scenario: string
-  total: number
-  ok: number
-  err429: number
-  errOther: number
-}
-
-export interface RouterUtilizationPerTargetRow {
-  requestedModel: string | null
-  sentTo: string
-  count: number
-}
-
-export interface RouterUtilizationPerAccountRow {
-  subAccountId: string
-  providerName: string
-  kind: 'claude' | 'codex'
-  currentBudgetPct: number | null
-  fiveHourResetAt: string | null
-  weeklyResetAt: string | null
-  stale: boolean
-}
-
-export interface RouterUtilizationSuggestion {
-  kind: 'primary_never_reached' | 'fallback_over_used' | 'exhausted_no_secondary'
-  target: string
-  detail: string
-  proposedDiff: Record<string, unknown>
-}
-
-export interface RouterUtilizationResponse {
-  windowHours: number
-  generatedAt: string
-  perScenario: RouterUtilizationPerScenarioRow[]
-  perTarget: RouterUtilizationPerTargetRow[]
-  perAccount: RouterUtilizationPerAccountRow[]
-  suggestions: RouterUtilizationSuggestion[]
+  // Liveness. Served outside the API-key gate (it is a probe endpoint),
+  // hence the absolute path rather than the /api base.
+  async getHealth(): Promise<HealthResponse> {
+    const res = await fetch('/health', { headers: { Accept: 'application/json' } })
+    return res.json()
+  }
 }
 
 export const api = new ApiClient()

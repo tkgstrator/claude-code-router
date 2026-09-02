@@ -31,6 +31,8 @@ biome-plugins
 .env
 .env.*
 !.env.example
+rialto-config
+# Pre-rename name of the same host directory.
 ccr-config
 **/*.log
 log.txt

@@ -2,8 +2,7 @@ import type { z } from '@hono/zod-openapi'
 import { VENDOR_DEFAULTS } from '@/shared'
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
-import type { ProviderTestResponseSchema } from '../schemas/provider.dto'
-import { isJsonObject } from './config/transformer'
+import type { ProviderTestResponseSchema } from '../schemas/api/providers'
 import { getSubscriptionsInfo } from './subscription-info-service'
 
 export type ProviderTestResult = z.infer<typeof ProviderTestResponseSchema>
@@ -39,7 +38,7 @@ export async function testProvider(name: string): Promise<ProviderTestResult> {
   if (!provider) {
     return { success: false, latencyMs: dayjs().diff(start), error: `provider "${name}" not found` }
   }
-  if (isJsonObject(provider.transformer) && provider.transformer.providerEnabled === false) {
+  if (!provider.enabled) {
     return { success: false, latencyMs: dayjs().diff(start), error: 'provider is disabled' }
   }
   if (provider.authMode === 'subscription') {

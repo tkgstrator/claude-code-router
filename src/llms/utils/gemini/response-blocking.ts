@@ -7,7 +7,12 @@
  */
 
 import type { Logger } from 'pino'
-import { type GeminiCandidate, type GeminiResponse, type GeminiResponsePart, GeminiResponseSchema } from '@/schemas'
+import {
+  type GeminiCandidate,
+  type GeminiResponse,
+  type GeminiResponsePart,
+  GeminiResponseSchema
+} from '@/schemas/wire/gemini/content'
 import { cloneResponse } from '../response-clone'
 import { nowSeconds, partsOf, toPipelineToolCalls, toUsage } from './response-shared'
 

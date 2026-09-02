@@ -1,5 +1,4 @@
-import type { ThinkLevel } from '@/schemas'
-
+import type { ThinkLevel } from '@/schemas/domain/unified'
 /**
  * Map a raw Anthropic-style `thinking_budget` token count onto the
  * coarse `ThinkLevel` bucket the pipeline understands.

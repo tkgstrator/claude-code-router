@@ -9,14 +9,13 @@
 import { getPrismaClient } from '../../db/client'
 import { AuthMode, type PrismaClient } from '../../generated/prisma/client'
 import { getSubscriptionsInfo } from '../subscription-info-service'
-import { providerEnabledFromTransformer } from './transformer'
 
 export async function getEnabledModels(
   prisma: PrismaClient = getPrismaClient()
 ): Promise<{ provider: string; model: string }[]> {
   const rows = await prisma.model.findMany({
     where: { enabled: true },
-    select: { name: true, provider: { select: { name: true, apiKey: true, authMode: true, transformer: true } } },
+    select: { name: true, provider: { select: { name: true, apiKey: true, authMode: true, enabled: true } } },
     orderBy: [{ provider: { name: 'asc' } }, { name: 'asc' }]
   })
   // Only providers that can actually authenticate are routable: an
@@ -34,7 +33,7 @@ export async function getEnabledModels(
   return rows
     .filter(
       (r) =>
-        providerEnabledFromTransformer(r.provider.transformer) &&
+        r.provider.enabled &&
         (r.provider.authMode === AuthMode.subscription
           ? Boolean(subPlan.get(r.provider.name))
           : r.provider.apiKey !== null && r.provider.apiKey.trim().length > 0)

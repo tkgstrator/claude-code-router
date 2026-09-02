@@ -4,8 +4,7 @@
  * exposed here so both halves of usage-service read/write the same map.
  */
 
-import type { ClaudeUsage, CodexUsage } from '../../schemas/usage.dto'
-
+import type { ClaudeUsage, CodexUsage } from '../../schemas/api/usage'
 export const TTL_MS = 5 * 60_000
 
 // Per-account cache keyed by subAccountId.

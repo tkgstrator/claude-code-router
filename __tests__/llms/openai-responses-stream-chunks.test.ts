@@ -23,9 +23,9 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { aggregateOpenAiChatSseToJson } from '../../src/llms/utils/sse-aggregate'
 import { convertChatCompletionToResponses } from '../../src/llms/transformers/openai/responses/inbound'
 import { handleStreamEvent } from '../../src/llms/transformers/openai/responses/stream-chunks'
+import { aggregateOpenAiChatSseToJson } from '../../src/llms/utils/sse-aggregate'
 
 function driveStream(events: unknown[]): Response {
   const chunks: string[] = []

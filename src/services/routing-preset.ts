@@ -7,8 +7,8 @@
 
 import { getPrismaClient } from '../db/client'
 import type { Prisma } from '../generated/prisma/client'
-import type { CreateRoutingPreset, RouterConfig, RoutingPreset, UpdateRoutingPreset } from '../schemas'
-import { RouterConfigSchema } from '../schemas'
+import type { CreateRoutingPreset, RoutingPreset, UpdateRoutingPreset } from '../schemas/api/routing-preset'
+import { type RouterConfig, RouterConfigSchema } from '../schemas/domain/router'
 
 // RouterConfig carries an `unknown` `custom` field; Prisma's InputJsonValue
 // rejects unknown. The value HAS already been validated by RouterConfigSchema

@@ -12,8 +12,8 @@
  *     updateSubAccountAccessToken.
  */
 
-import { createCipheriv, randomBytes } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { createCipheriv, randomBytes } from 'node:crypto'
 import {
   decryptString,
   getActiveSubAccountAuth,
@@ -52,11 +52,11 @@ mock.module('../../src/services/claude-profile-service', () => ({
 const TEST_KEY_HEX = 'ab'.repeat(32)
 
 const setTestKey = () => {
-  process.env.CCR_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
+  process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
 }
 
 const clearTestKey = () => {
-  delete process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+  delete process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
 }
 
 // Build a valid AES-256-GCM ciphertext in the iv.tag.body format that
@@ -155,15 +155,15 @@ describe.skipIf(!HAS_DB)('subscription-account-sync-service (DB)', () => {
     await teardownPrisma()
   })
 
-  const createSubProvider = async (kind: 'claude' | 'codex') => {
+  const createSubProvider = async (kind: 'claude' | 'codex', enabled = true) => {
     const { AuthMode } = await import('../../src/generated/prisma/client')
     const db = prisma()
     return db.provider.create({
       data: {
         name: kind === 'claude' ? 'claude-code-oauth' : 'codex-oauth',
-        apiBaseUrl:
-          kind === 'claude' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1',
-        authMode: AuthMode.subscription
+        apiBaseUrl: kind === 'claude' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1',
+        authMode: AuthMode.subscription,
+        enabled
       }
     })
   }
@@ -263,6 +263,69 @@ describe.skipIf(!HAS_DB)('subscription-account-sync-service (DB)', () => {
       const accounts = await db.subAccount.findMany()
       expect(accounts).toHaveLength(1)
       expect(decryptString(accounts[0].accessTokenEnc, key)).toBe('at-v2')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Provider.enabled — the flag Routing filters on
+  // -------------------------------------------------------------------------
+
+  describe('enabling the provider on its first account', () => {
+    // The add-provider wizard creates the row switched off, because the
+    // OAuth callback needs it to exist before a credential arrives. Its
+    // final Continue used to be the only thing that ever switched it back
+    // on, and OAuth opens in a second tab — so an operator who did not
+    // return to that step was left signed in but unroutable.
+    test('a provider created switched off is on once an account lands', async () => {
+      const provider = await createSubProvider('codex', false)
+      const db = prisma()
+
+      await recordCodexOAuthAccount({
+        accessToken: 'codex-at',
+        refreshToken: 'codex-rt',
+        idToken: makeCodexIdToken()
+      })
+
+      const after = await db.provider.findUnique({ where: { id: provider.id } })
+      expect(after?.enabled).toBe(true)
+    })
+
+    test('a deliberate off on a provider that already has an account survives re-auth', async () => {
+      // Once set up, the switch belongs to the operator: refreshing an
+      // expired credential must not undo their decision to park it.
+      const provider = await createSubProvider('codex')
+      const db = prisma()
+
+      await recordCodexOAuthAccount({
+        accessToken: 'at-v1',
+        refreshToken: 'rt-v1',
+        idToken: makeCodexIdToken()
+      })
+      await db.provider.update({ where: { id: provider.id }, data: { enabled: false } })
+
+      await recordCodexOAuthAccount({
+        accessToken: 'at-v2',
+        refreshToken: 'rt-v2',
+        idToken: makeCodexIdToken()
+      })
+
+      const after = await db.provider.findUnique({ where: { id: provider.id } })
+      expect(after?.enabled).toBe(false)
+    })
+
+    test('the claude path enables too', async () => {
+      const provider = await createSubProvider('claude', false)
+      const db = prisma()
+
+      await recordClaudeOAuthAccount({
+        accessToken: 'claude-at',
+        refreshToken: 'claude-rt',
+        expiresAt: Date.now() + 3600_000,
+        scopes: ['read']
+      })
+
+      const after = await db.provider.findUnique({ where: { id: provider.id } })
+      expect(after?.enabled).toBe(true)
     })
   })
 

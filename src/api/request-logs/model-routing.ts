@@ -1,6 +1,6 @@
 /**
  * Model-routing report: a cross-tab of what the client (Claude Code)
- * requested in body.model versus what CCR actually sent upstream.
+ * requested in body.model versus what Rialto actually sent upstream.
  *
  * Groups request_logs by (requestedModel, provider, model, scenario) and
  * folds the counts into one row per requested model, so the UI can show
@@ -12,7 +12,7 @@
 import { createRoute } from '@hono/zod-openapi'
 import { getPrismaClient } from '../../db/client'
 import dayjs from '../../lib/dayjs'
-import { ModelRoutingQuerySchema, ModelRoutingResponseSchema } from '../../schemas'
+import { ModelRoutingQuerySchema, ModelRoutingResponseSchema } from '../../schemas/api/request-log'
 import { requestLogsRoute } from './app'
 
 const getModelRoutingRoute = createRoute({

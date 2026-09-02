@@ -5,7 +5,7 @@
  * dropdown; without it the SDK errors before making any inference call.
  * We serve the same DB-backed enabled-model list `/api/models` returns,
  * reshaped into OpenAI's `{object:'list', data:[{id, object, created,
- * owned_by}]}` envelope. `id` is CCR's canonical "provider,model" form
+ * owned_by}]}` envelope. `id` is Rialto's canonical "provider,model" form
  * so a client can round-trip the string straight into
  * /v1/chat/completions' `model` field.
  *
@@ -22,7 +22,7 @@ export const v1ModelsRoute = new Hono()
 v1ModelsRoute.get('/v1/models', async (c) => {
   const models = await getEnabledModels()
   // OpenAI uses seconds-since-epoch for `created`; the value carries no
-  // real meaning here (there is no per-model creation time in CCR), so
+  // real meaning here (there is no per-model creation time in Rialto), so
   // stamp the response time uniformly. SDKs that render "last modified"
   // will see all models as freshly listed.
   const now = Math.floor(Date.now() / 1000)

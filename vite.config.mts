@@ -27,15 +27,22 @@ export default defineConfig({
     viteSingleFile(),
     devServer({
       entry: './src/index.ts',
-      // Hono owns /api/*, /v1/*, and the claude OAuth loopback callback
-      // /callback. Every other path (the SPA at /, Vite's /@... module
-      // shims, /src/..., favicons, static assets) goes through Vite. The
-      // callback must be served by the backend so the auto-exchange +
-      // sync runs server-side instead of bouncing through the SPA.
-      // Codex's callback hits a separate standalone listener on
-      // localhost:1455 (see services/codex-callback-listener.ts), so it
-      // doesn't go through Vite at all.
-      exclude: [/^(?!\/api\/|\/v1\/|\/callback(?:\?|$)).*$/]
+      // Hono owns /api/*, /v1/*, /health, and the claude OAuth loopback
+      // callback /callback. Every other path (the SPA at /, Vite's /@...
+      // module shims, /src/..., favicons, static assets) goes through
+      // Vite. The callback must be served by the backend so the
+      // auto-exchange + sync runs server-side instead of bouncing
+      // through the SPA. Codex's callback hits a separate standalone
+      // listener on localhost:1455 (see
+      // services/codex-callback-listener.ts), so it doesn't go through
+      // Vite at all.
+      //
+      // /health is mounted at the root rather than under /api because it
+      // is a probe endpoint outside the APIKEY gate. Without it listed
+      // here, dev served the SPA's HTML for it and every health read
+      // failed to parse — so the shell reported the server unreachable
+      // while talking to it perfectly well.
+      exclude: [/^(?!\/api\/|\/v1\/|\/health(?:\?|$)|\/callback(?:\?|$)).*$/]
     })
   ]
 })

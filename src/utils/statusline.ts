@@ -1,23 +1,12 @@
 import type { StatusLineConfig } from '@/types'
 
-// Stub kept for callers that still import this surface. Validation
-// was removed; the result type is preserved but the array is always
-// empty.
-export interface ValidationResult {
-  isValid: boolean
-  errors: string[]
-}
-
-export function validateStatusLineConfig(_config: unknown): ValidationResult {
-  return { isValid: true, errors: [] }
-}
-
-export function formatValidationError(
-  _error: unknown,
-  t: (key: string, options?: Record<string, unknown>) => string
-): string {
-  return t('statusline.validation.unknown_error')
-}
+// `validateStatusLineConfig` / `formatValidationError` / `ValidationResult`
+// lived here as stubs "kept for callers that still import this surface"
+// after validation was removed. There were no such callers — only
+// `createDefaultStatusLineConfig` and `COLOR_HEX_MAP` below are imported
+// anywhere. The stubs were also the sole reference to the locale key
+// `statusline.validation.unknown_error`, which no locale file declared,
+// so they made the key-parity check fail for a screen nothing rendered.
 
 // Color enum to hex value mapping
 export const COLOR_HEX_MAP: Record<string, string> = {

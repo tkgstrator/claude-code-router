@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { ConfigEnvelopeSchema } from '../../src/schemas'
+import { ConfigEnvelopeSchema } from '../../src/schemas/domain/config'
 
 const BASE = { APIKEY: 'test-key' } as const
 
@@ -81,15 +81,21 @@ describe('ConfigEnvelopeSchema — API_TIMEOUT_MS', () => {
   })
 })
 
+// APIKEY used to be required, and every install was handed one. It is
+// now an opt-in break-glass credential for /api/*: a browser on the
+// machine is exempt, remote admin goes through Cloudflare Access, and
+// /v1 takes issued tokens only. A config without one is the normal case.
 describe('ConfigEnvelopeSchema — APIKEY', () => {
-  test('requires non-empty APIKEY', () => {
-    const result = ConfigEnvelopeSchema.safeParse({ APIKEY: '' })
-    expect(result.success).toBe(false)
+  test('an absent APIKEY is valid and reads as empty', () => {
+    const result = ConfigEnvelopeSchema.safeParse({})
+    expect(result.success).toBe(true)
+    expect(result.data?.APIKEY).toBe('')
   })
 
-  test('rejects missing APIKEY', () => {
-    const result = ConfigEnvelopeSchema.safeParse({})
-    expect(result.success).toBe(false)
+  test('an empty APIKEY is valid — it means no break-glass credential', () => {
+    const result = ConfigEnvelopeSchema.safeParse({ APIKEY: '' })
+    expect(result.success).toBe(true)
+    expect(result.data?.APIKEY).toBe('')
   })
 
   test('accepts any non-empty APIKEY', () => {

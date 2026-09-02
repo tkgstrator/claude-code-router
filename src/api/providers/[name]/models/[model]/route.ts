@@ -3,7 +3,7 @@ import {
   UpdateModelBodySchema,
   UpdateModelErrorResponseSchema,
   UpdateModelSuccessResponseSchema
-} from '../../../../../schemas'
+} from '../../../../../schemas/api/models'
 import { setModelEnabled, setModelManualTier, setModelReasoningEffort } from '../../../../../services/config'
 import { ValidationErrorResponseSchema, validationErrorHook } from '../../../../zod-response'
 
@@ -58,6 +58,6 @@ providerModelRoute.openapi(updateModelRoute, async (c) => {
     }
     return c.json({ success: true as const }, 200)
   } catch (err) {
-    return c.json({ success: false as const, error: (err as Error).message }, 404)
+    return c.json({ success: false as const, error: err instanceof Error ? err.message : String(err) }, 404)
   }
 })

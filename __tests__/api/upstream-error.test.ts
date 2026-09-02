@@ -1,7 +1,7 @@
 /**
  * `forwardUpstreamError` — end-to-end Response-level assertions.
  *
- * The `via` provider tag and the `x-ccr-upstream-url` diagnostic header
+ * The `via` provider tag and the `x-rialto-upstream-url` diagnostic header
  * both round-trip an out-of-band signal from `sendToProvider` (where the
  * outbound URL and provider are known) up to the /v1 error path (where
  * the client-facing Response is built). Verify the wire-observable
@@ -11,14 +11,20 @@
 
 import { describe, expect, test } from 'bun:test'
 import { HTTPException } from 'hono/http-exception'
-import { UPSTREAM_URL_SYMBOL, stripUrlSecrets } from '../../src/llms/pipeline/provider-send'
 import { forwardUpstreamError, isInsufficientQuota, isRateLimited } from '../../src/api/v1/upstream-error'
+import { stripUrlSecrets, UPSTREAM_URL_SYMBOL } from '../../src/llms/pipeline/provider-send'
 
 // Reproduce the exception shape sendToProvider throws on upstream error:
 // the `Error from provider(...)` message wrap plus the symbol-keyed
 // URL. Local helper because the real send path pulls in the whole
 // pipeline; the exception's contract is what forwardUpstreamError reads.
-function makeUpstreamException(status: number, providerName: string, model: string, body: string, url?: string): HTTPException {
+function makeUpstreamException(
+  status: number,
+  providerName: string,
+  model: string,
+  body: string,
+  url?: string
+): HTTPException {
   const message = `Error from provider(${providerName},${model}: ${status}): ${body}`
   // biome-ignore plugin: HTTPException's status param is typed as a closed union of supported codes.
   const exc = new HTTPException(status as never, { message })
@@ -30,9 +36,11 @@ function makeUpstreamException(status: number, providerName: string, model: stri
 
 describe('stripUrlSecrets', () => {
   test('drops query params (Gemini ?key=<apiKey> leak)', () => {
-    expect(stripUrlSecrets('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=abc123')).toBe(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent'
-    )
+    expect(
+      stripUrlSecrets(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=abc123'
+      )
+    ).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent')
   })
 
   test('leaves host + path untouched when there is no query', () => {
@@ -53,7 +61,7 @@ describe('stripUrlSecrets', () => {
   })
 })
 
-describe('forwardUpstreamError — via + x-ccr-upstream-url headers', () => {
+describe('forwardUpstreamError — via + x-rialto-upstream-url headers', () => {
   test('emits both headers when the exception carries a URL', () => {
     const err = makeUpstreamException(
       401,
@@ -65,16 +73,16 @@ describe('forwardUpstreamError — via + x-ccr-upstream-url headers', () => {
     const res = forwardUpstreamError(err, 'openai', 'openai')
     expect(res).not.toBeNull()
     expect(res!.status).toBe(401)
-    expect(res!.headers.get('x-ccr-upstream')).toBe('openai')
-    expect(res!.headers.get('x-ccr-upstream-url')).toBe('https://api.openai.com/v1/chat/completions')
+    expect(res!.headers.get('x-rialto-upstream')).toBe('openai')
+    expect(res!.headers.get('x-rialto-upstream-url')).toBe('https://api.openai.com/v1/chat/completions')
   })
 
-  test('omits x-ccr-upstream-url when the exception did not attach one', () => {
+  test('omits x-rialto-upstream-url when the exception did not attach one', () => {
     const err = makeUpstreamException(500, 'openai', 'gpt-5-nano', 'oops')
     const res = forwardUpstreamError(err, 'openai', 'openai')
     expect(res).not.toBeNull()
-    expect(res!.headers.get('x-ccr-upstream')).toBe('openai')
-    expect(res!.headers.get('x-ccr-upstream-url')).toBeNull()
+    expect(res!.headers.get('x-rialto-upstream')).toBe('openai')
+    expect(res!.headers.get('x-rialto-upstream-url')).toBeNull()
   })
 
   test('returns null for non-HTTPException errors (caller falls back to 5xx envelope)', () => {

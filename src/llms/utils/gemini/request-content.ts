@@ -8,15 +8,14 @@
  */
 
 import { HTTPException } from 'hono/http-exception'
+import type { MessageContent, UnifiedMessage } from '@/schemas/domain/unified'
 import type {
   GeminiContent,
   GeminiFunctionCallPart,
   GeminiFunctionResponsePart,
   GeminiPart,
-  GeminiTextPart,
-  MessageContent,
-  UnifiedMessage
-} from '@/schemas'
+  GeminiTextPart
+} from '@/schemas/wire/gemini/content'
 
 const genRandomToolId = (): string => `tool_${Math.random().toString(36).substring(2, 15)}`
 

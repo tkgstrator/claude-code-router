@@ -1,0 +1,150 @@
+/**
+ * Parity matrix — the "failover / 429" row.
+ *
+ * **One implementation** serves all four surfaces here. Building the
+ * chain (`buildFailoverChain`), classifying a 429 (`isRateLimited` /
+ * `isInsufficientQuota`) and rotating accounts never look at the
+ * surface. The only thing that varies is the envelope the failure comes
+ * back in.
+ *
+ * So this row is backed not by "each surface works separately" but by
+ * **"no surface differs"**. The one place they could — a fallback is
+ * only resolved on a surface where routing is on — is covered by
+ * `__tests__/parity/routing-mode.test.ts`.
+ */
+
+import { describe, expect, test } from 'bun:test'
+import { HTTPException } from 'hono/http-exception'
+import pino from 'pino'
+import { buildFailoverChain } from '../../src/api/v1/candidate-chain'
+import { errorShapeForPath } from '../../src/api/v1/error-shape'
+import type { RoutePlan } from '../../src/api/v1/route-plan'
+import { forwardUpstreamError, isInsufficientQuota, isRateLimited } from '../../src/api/v1/upstream-error'
+import type { LlmsContext } from '../../src/llms'
+import { ConfigStore } from '../../src/llms/registry/config'
+import { ProviderRegistry } from '../../src/llms/registry/provider'
+import { TokenizerRegistry } from '../../src/llms/registry/tokenizer'
+import { TransformerRegistry } from '../../src/llms/registry/transformer'
+import { OpenAITransformer } from '../../src/llms/transformers/openai'
+
+const log = pino({ level: 'silent' })
+
+const SURFACE_PATHS: readonly string[] = [
+  '/v1/messages',
+  '/v1/chat/completions',
+  '/v1/responses',
+  '/v1beta/models/gemini-3-pro:generateContent'
+]
+
+const PROVIDERS = [
+  {
+    name: 'sub',
+    auth_mode: 'subscription' as const,
+    api_style: 'anthropic' as const,
+    api_key: 'sk-a',
+    api_base_url: 'https://api.anthropic.com/v1/messages',
+    models: ['fable', 'opus']
+  },
+  {
+    name: 'paid',
+    auth_mode: 'api_key' as const,
+    api_style: 'anthropic' as const,
+    api_key: 'sk-b',
+    api_base_url: 'https://api.anthropic.com/v1/messages',
+    models: ['opus']
+  }
+]
+
+function buildLlmsContext(): LlmsContext {
+  const transformers = new TransformerRegistry(log)
+  transformers.registerMany([new OpenAITransformer()])
+  const providers = new ProviderRegistry(transformers, log)
+  providers.registerFromConfig(PROVIDERS)
+  const config = new ConfigStore({ Providers: PROVIDERS, providers: PROVIDERS, Router: {} })
+  return { config, transformers, providers, tokenizers: new TokenizerRegistry(log), log }
+}
+
+const planFor = (path: string, fallbacks: readonly string[]): RoutePlan => ({
+  routedBody: { model: 'sub,fable' },
+  headers: {},
+  transformersByName: new Map(),
+  defaultTransformer: new OpenAITransformer(),
+  scenarioType: 'default',
+  primaryModel: 'sub,fable',
+  isSubagent: false,
+  fallbacks,
+  peerTargets: new Set<string>(),
+  path,
+  search: ''
+})
+
+const upstream429 = (rawBody: string): HTTPException =>
+  new HTTPException(429 as never, { message: `Error from provider(sub,fable: 429): ${rawBody}` })
+
+describe('building the chain does not depend on the surface', () => {
+  test('the same plan yields the same candidate list on all four', () => {
+    const ctx = buildLlmsContext()
+    const chains = SURFACE_PATHS.map((path) => buildFailoverChain(planFor(path, ['sub,opus']), ctx))
+    for (const chain of chains) expect(chain).toEqual(['sub,fable', 'sub,opus'])
+  })
+
+  test('the auth_mode gate is surface-independent too, stopping a slide from subscription onto metered billing', () => {
+    // A request whose primary is a subscription must not fall through to
+    // an api_key provider on every 429. That call is the same wherever
+    // the request came in.
+    const ctx = buildLlmsContext()
+    for (const path of SURFACE_PATHS) {
+      expect(buildFailoverChain(planFor(path, ['paid,opus']), ctx)).toEqual(['sub,fable'])
+    }
+  })
+
+  test('falling back to another model on the same provider is kept (fable → opus)', () => {
+    const ctx = buildLlmsContext()
+    expect(buildFailoverChain(planFor('/v1/messages', ['sub,opus', 'sub,fable']), ctx)).toEqual([
+      'sub,fable',
+      'sub,opus'
+    ])
+  })
+})
+
+describe('classifying a 429 does not depend on the surface', () => {
+  test('a 429 is a failover', () => {
+    expect(isRateLimited(upstream429('{"type":"error"}'))).toBe(true)
+  })
+
+  test('400 and 401 do not fail over, so a real problem is not hidden', () => {
+    expect(isRateLimited(new HTTPException(400 as never, { message: 'Error from provider(p,m: 400): x' }))).toBe(false)
+    expect(isRateLimited(new HTTPException(401 as never, { message: 'Error from provider(p,m: 401): x' }))).toBe(false)
+  })
+
+  test('insufficient_quota is a permanent limit and detaches the whole provider', () => {
+    const err = upstream429(JSON.stringify({ error: { type: 'insufficient_quota', message: 'quota' } }))
+    expect(isRateLimited(err)).toBe(true)
+    expect(isInsufficientQuota(err)).toBe(true)
+  })
+})
+
+describe('a 429 after the chain is exhausted comes back in the surface envelope', () => {
+  const RATE_LIMIT_BODY = JSON.stringify({ type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } })
+
+  test('each surface receives the 429 in a shape its own SDK can read', async () => {
+    const bodies = await Promise.all(
+      SURFACE_PATHS.map(async (path) => {
+        const forwarded = forwardUpstreamError(upstream429(RATE_LIMIT_BODY), errorShapeForPath(path), 'sub')
+        expect(forwarded?.status).toBe(429)
+        return await forwarded!.json()
+      })
+    )
+    expect(bodies[0]).toEqual({
+      type: 'error',
+      error: { type: 'rate_limit_error', message: '[via sub] slow down' }
+    })
+    expect(bodies[1]).toEqual({
+      error: { message: '[via sub] slow down', type: 'rate_limit_error', param: null, code: null }
+    })
+    expect(bodies[2]).toEqual(bodies[1])
+    expect(bodies[3]).toEqual({
+      error: { code: 429, message: '[via sub] slow down', status: 'RESOURCE_EXHAUSTED' }
+    })
+  })
+})

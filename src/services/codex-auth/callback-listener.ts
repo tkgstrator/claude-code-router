@@ -4,12 +4,12 @@
  * OpenAI's OAuth client `app_EMoamEEZ73f0CkXaXp7hrann` rejects any
  * loopback redirect_uri other than `http://localhost:1455/auth/callback`
  * (the `codex login` CLI's hard-coded target). We can't reuse the
- * main CCR port for it, so this module spins up a tiny standalone
+ * main Rialto port for it, so this module spins up a tiny standalone
  * node:http listener on 1455 whenever a codex flow is initiated;
  * the listener self-closes after an idle timeout.
  *
  * After the server-side token exchange + DB upsert finishes, the
- * listener 302-redirects the browser back to the CCR SPA at
+ * listener 302-redirects the browser back to the Rialto SPA at
  * `<resultBaseUrl>/oauth-result?status=...` so the user sees the same
  * React result page the claude flow lands on. The base URL is provided
  * by `ensureCodexCallbackListener({ resultBaseUrl })` on every initiate

@@ -6,13 +6,8 @@
  * `request-content.ts`, which builds `contents[]` from the message list).
  */
 
-import type {
-  GeminiGenerationConfig,
-  GeminiThinkingConfig,
-  GeminiToolConfig,
-  ToolChoiceFunctionObject,
-  UnifiedChatRequest
-} from '@/schemas'
+import type { ToolChoiceFunctionObject, UnifiedChatRequest } from '@/schemas/domain/unified'
+import type { GeminiGenerationConfig, GeminiThinkingConfig, GeminiToolConfig } from '@/schemas/wire/gemini/content'
 import { type GeminiFunctionDeclaration, type GeminiTool, tTool } from '../gemini-schema'
 
 export const isToolChoiceFunctionObject = (value: unknown): value is ToolChoiceFunctionObject => {

@@ -18,8 +18,8 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { ResponsesStreamEventSchema } from '../../src/schemas'
 import { ResponsesStreamSession } from '../../src/llms/transformers/openai/responses/response-stream'
+import { ResponsesStreamEventSchema } from '../../src/schemas/wire/openai/responses'
 
 function sse(lines: string[]): ReadableStreamDefaultReader<Uint8Array> {
   const encoder = new TextEncoder()

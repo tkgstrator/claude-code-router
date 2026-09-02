@@ -55,7 +55,7 @@ document.getElementById('root').innerHTML = `
         <div class="ml-auto">${btn('Restart', 'outline', 'ri-restart-line')}</div>
       </div>
 
-      ${field('Host', '0.0.0.0', 'Bind address. Set a bootstrap token before exposing beyond loopback.')}
+      ${field('Host', '0.0.0.0', 'Bind address. Put Cloudflare Access in front before exposing beyond loopback.')}
       ${field('Port', '3456', '')}
       ${field('Bootstrap token', '••••••••••••••••••••', 'Gates /api/* and /v1/*. Minted on first run. Manage per-client tokens under Access.')}
       ${field('Request timeout', '600000', 'Milliseconds. Applies to every upstream call.')}

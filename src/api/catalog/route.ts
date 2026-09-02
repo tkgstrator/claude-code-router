@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
-import { CatalogRefreshResponseSchema, CatalogResponseSchema } from '../../schemas'
+import { CatalogRefreshResponseSchema, CatalogResponseSchema } from '../../schemas/api/catalog'
 import { getCatalog, refreshCatalog } from '../../services/catalog-service'
 
 export const catalogRoute = new OpenAPIHono()

@@ -13,7 +13,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { ProviderTokenizerConfig } from '@/schemas'
+import type { ProviderTokenizerConfig } from '@/schemas/domain/tokenizer'
 import { type TokenizeRequest, Tokenizer } from './base'
 
 export type ApiTokenizerOptions = {

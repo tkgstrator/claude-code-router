@@ -7,9 +7,13 @@
  */
 
 import { describe, expect, test } from 'bun:test'
+import type { QuotaAwareConstraints } from '../../../src/schemas/domain/preference'
 import { computeWeights } from '../../../src/services/routing-scheduler/compute'
-import type { QuotaAwareConstraints } from '../../../src/schemas'
-import type { AccountQuotaState, ModelCandidateState, SchedulerInputState } from '../../../src/services/routing-scheduler/types'
+import type {
+  AccountQuotaState,
+  ModelCandidateState,
+  SchedulerInputState
+} from '../../../src/services/routing-scheduler/types'
 
 const DEFAULT_CONSTRAINTS: QuotaAwareConstraints = {
   allowEscalation: false,

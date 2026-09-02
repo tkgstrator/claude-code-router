@@ -1,26 +1,21 @@
 /**
- * SSE stream for new-log notifications. EventSource doesn't support
- * custom headers, so the API key is accepted as the `apikey` query
- * param in addition to the standard x-api-key header.
+ * SSE stream for new-log notifications.
+ *
+ * EventSource cannot set custom headers, which is why `adminAuth`
+ * accepts the credential as an `apikey` query parameter on this one
+ * path. Authentication happens there, not here.
  */
 
-import { createHash, timingSafeEqual } from 'node:crypto'
 import { requestLogsRoute } from './app'
 import { type RequestLogEvent, requestLogEmitter } from './events'
 
-const digest = (s: string) => createHash('sha256').update(s).digest()
-
+// Authentication is `adminAuth` on /api/*, which already permits the
+// `apikey` query parameter on exactly this path — EventSource cannot set
+// headers, which is why that exception exists. This handler used to
+// re-check the envelope key inline, and that copy knew nothing about the
+// local exemption or Cloudflare Access: on a machine where every other
+// /api call succeeded, live updates alone returned 401.
 requestLogsRoute.get('/api/request-logs/events', (c) => {
-  const expected = (process.env.APIKEY ?? '').trim()
-  const provided = (c.req.query('apikey') ?? c.req.header('x-api-key') ?? '').trim()
-  const ok = expected.length > 0 && provided.length > 0 && timingSafeEqual(digest(provided), digest(expected))
-  if (!ok) {
-    return c.json(
-      { type: 'error', error: { type: 'authentication_error', message: 'Invalid or missing API key' } },
-      401
-    )
-  }
-
   const stream = new ReadableStream({
     start(controller) {
       const send = (event: RequestLogEvent) => {

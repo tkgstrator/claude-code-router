@@ -6,7 +6,12 @@
  */
 
 import type { Logger } from 'pino'
-import type { MessageContent, ResponsesAPIOutputContent, ResponsesAPIOutputItem, ResponsesAPIPayload } from '@/schemas'
+import type { MessageContent } from '@/schemas/domain/unified'
+import type {
+  ResponsesAPIOutputContent,
+  ResponsesAPIOutputItem,
+  ResponsesAPIPayload
+} from '@/schemas/wire/openai/responses'
 import { firstDefined, newChatcmplId } from './helpers'
 
 export function convertResponseToChat(responseData: ResponsesAPIPayload, logger?: Logger): Record<string, unknown> {

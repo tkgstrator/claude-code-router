@@ -217,12 +217,7 @@ test('selectModel: thinking:{type:"disabled"} stays on the default lane (regress
     agent: { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus', think: 'anthropic,claude-think' }
   }
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
-  const out = selectModel(
-    makeReq({ model: 'claude-sonnet-4-5', thinking: { type: 'disabled' } }),
-    1000,
-    router,
-    config
-  )
+  const out = selectModel(makeReq({ model: 'claude-sonnet-4-5', thinking: { type: 'disabled' } }), 1000, router, config)
   expect(out.scenarioType).toBe('default')
   expect(out.model).toBe('anthropic,claude-sonnet')
 })
@@ -240,12 +235,7 @@ test('selectModel: thinking:{type:"adaptive"} routes to think (newer Claude Code
     agent: { default: 'anthropic,claude-sonnet', longContext: 'anthropic,claude-opus', think: 'anthropic,claude-think' }
   }
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
-  const out = selectModel(
-    makeReq({ model: 'claude-opus-4-7', thinking: { type: 'adaptive' } }),
-    1000,
-    router,
-    config
-  )
+  const out = selectModel(makeReq({ model: 'claude-opus-4-7', thinking: { type: 'adaptive' } }), 1000, router, config)
   expect(out.scenarioType).toBe('think')
   expect(out.model).toBe('anthropic,claude-think')
 })
@@ -354,7 +344,12 @@ test('selectModel: a rule matching a haiku glob overrides the default primary (w
 test('selectModel: heavy escalation no-ops when the agent longContext route is unset', () => {
   const router = { agent: { default: 'anthropic,claude-sonnet' } }
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
-  const out = selectModel(makeReq({ model: 'claude-opus-4-5', output_config: { effort: 'high' } }), 1000, router, config)
+  const out = selectModel(
+    makeReq({ model: 'claude-opus-4-5', output_config: { effort: 'high' } }),
+    1000,
+    router,
+    config
+  )
   expect(out).toEqual({ model: 'anthropic,claude-sonnet', scenarioType: 'default', isSubagent: false, fallbacks: [] })
 })
 
@@ -380,7 +375,9 @@ test('selectModel: `requestedTier` matches the family the request model tiers in
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
   expect(selectModel(makeReq({ model: 'claude-haiku-4-5' }), 1000, router, config).model).toBe('anthropic,claude-bg')
   expect(selectModel(makeReq({ model: 'claude-haiku-3-5' }), 1000, router, config).model).toBe('anthropic,claude-bg')
-  expect(selectModel(makeReq({ model: 'claude-sonnet-4-6' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
+  expect(selectModel(makeReq({ model: 'claude-sonnet-4-6' }), 1000, router, config).model).toBe(
+    'anthropic,claude-sonnet'
+  )
   expect(selectModel(makeReq({ model: 'claude-opus-4-7' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
 })
 
@@ -401,7 +398,9 @@ test('selectModel: `requestedTier` accepts multiple tiers (IN semantics)', () =>
     }
   }
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
-  expect(selectModel(makeReq({ model: 'claude-sonnet-4-6' }), 1000, router, config).model).toBe('anthropic,claude-heavy')
+  expect(selectModel(makeReq({ model: 'claude-sonnet-4-6' }), 1000, router, config).model).toBe(
+    'anthropic,claude-heavy'
+  )
   expect(selectModel(makeReq({ model: 'claude-opus-4-7' }), 1000, router, config).model).toBe('anthropic,claude-heavy')
   expect(selectModel(makeReq({ model: 'claude-fable-x' }), 1000, router, config).model).toBe('anthropic,claude-heavy')
   expect(selectModel(makeReq({ model: 'claude-haiku-4-5' }), 1000, router, config).model).toBe('anthropic,claude-haiku')
@@ -442,15 +441,15 @@ test('selectModel: `effort` predicate matches when output_config.effort is in th
     }
   }
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
-  expect(
-    selectModel(makeReq({ model: 'x', output_config: { effort: 'high' } }), 1000, router, config).model
-  ).toBe('anthropic,claude-opus')
-  expect(
-    selectModel(makeReq({ model: 'x', output_config: { effort: 'max' } }), 1000, router, config).model
-  ).toBe('anthropic,claude-opus')
-  expect(
-    selectModel(makeReq({ model: 'x', output_config: { effort: 'low' } }), 1000, router, config).model
-  ).toBe('anthropic,claude-sonnet')
+  expect(selectModel(makeReq({ model: 'x', output_config: { effort: 'high' } }), 1000, router, config).model).toBe(
+    'anthropic,claude-opus'
+  )
+  expect(selectModel(makeReq({ model: 'x', output_config: { effort: 'max' } }), 1000, router, config).model).toBe(
+    'anthropic,claude-opus'
+  )
+  expect(selectModel(makeReq({ model: 'x', output_config: { effort: 'low' } }), 1000, router, config).model).toBe(
+    'anthropic,claude-sonnet'
+  )
   // A request without any output_config.effort field never matches.
   expect(selectModel(makeReq({ model: 'x' }), 1000, router, config).model).toBe('anthropic,claude-sonnet')
 })
@@ -481,11 +480,21 @@ test('selectModel: `thinking: true` predicate matches only when body.thinking is
   // Regression: {type:'disabled'} is truthy as an object but the
   // predicate must read it as "thinking is off" (Claude Code sends
   // this shape on every non-Plan-Mode request).
-  const withDisabledThinking = selectModel(makeReq({ model: 'x', thinking: { type: 'disabled' } }), 1000, router, config)
+  const withDisabledThinking = selectModel(
+    makeReq({ model: 'x', thinking: { type: 'disabled' } }),
+    1000,
+    router,
+    config
+  )
   expect(withDisabledThinking.model).toBe('anthropic,claude-sonnet')
   // {type:'adaptive'} is what newer Claude Code (opus 4-7, sonnet 4-6)
   // sends — thinking-capable, must match the rule the same as 'enabled'.
-  const withAdaptiveThinking = selectModel(makeReq({ model: 'x', thinking: { type: 'adaptive' } }), 1000, router, config)
+  const withAdaptiveThinking = selectModel(
+    makeReq({ model: 'x', thinking: { type: 'adaptive' } }),
+    1000,
+    router,
+    config
+  )
   expect(withAdaptiveThinking.model).toBe('anthropic,claude-think')
 })
 
@@ -666,7 +675,7 @@ test('selectModel: rule cascade skips the scenario primary when the scenario has
 
 // ---- selectModel: subagent route (tag presence, not value) ---------
 
-test('selectModel: a <CCR-SUBAGENT-MODEL> tag selects the subagent route (value ignored, tag stripped)', () => {
+test('selectModel: a <RIALTO-SUBAGENT-MODEL> tag selects the subagent route (value ignored, tag stripped)', () => {
   // The tag PRESENCE picks the scenario's subagent primary; the tag VALUE
   // (anthropic,claude-fable) is NOT used to route. The tag is stripped so
   // the marker never leaks upstream.
@@ -679,7 +688,7 @@ test('selectModel: a <CCR-SUBAGENT-MODEL> tag selects the subagent route (value 
     model: 'claude-sonnet-4-5',
     system: [
       { type: 'text', text: 'You are a subagent.' },
-      { type: 'text', text: '<CCR-SUBAGENT-MODEL>anthropic,claude-fable</CCR-SUBAGENT-MODEL>' }
+      { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>anthropic,claude-fable</RIALTO-SUBAGENT-MODEL>' }
     ]
   })
   const out = selectModel(req, 1000, router, config)
@@ -703,14 +712,19 @@ test('selectModel: the subagent route classifies scenarios independently of the 
       output_config: { effort: 'high' },
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,
     router,
     config
   )
-  expect(out).toEqual({ model: 'anthropic,claude-sub-opus', scenarioType: 'longContext', isSubagent: true, fallbacks: [] })
+  expect(out).toEqual({
+    model: 'anthropic,claude-sub-opus',
+    scenarioType: 'longContext',
+    isSubagent: true,
+    fallbacks: []
+  })
 })
 
 // ---- selectModel: chosen route primary null → req.body.model -------
@@ -734,7 +748,7 @@ test('selectModel: falls back to the request model when the chosen subagent rout
       model: 'claude-sonnet-4-5',
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,
@@ -1003,14 +1017,14 @@ test('selectModel: an unclosed subagent tag still selects the subagent route (pr
     model: 'claude-sonnet-4-5',
     system: [
       { type: 'text', text: 'sys' },
-      { type: 'text', text: '<CCR-SUBAGENT-MODEL>anthropic,x' }
+      { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>anthropic,x' }
     ]
   })
   const out = selectModel(req, 1000, router, config)
   expect(out).toEqual({ model: 'anthropic,claude-sub', scenarioType: 'default', isSubagent: true, fallbacks: [] })
   // Unclosed tag is left untouched (only a well-formed tag is stripped).
   const system = req.body.system as { text: string }[]
-  expect(system[1].text).toBe('<CCR-SUBAGENT-MODEL>anthropic,x')
+  expect(system[1].text).toBe('<RIALTO-SUBAGENT-MODEL>anthropic,x')
 })
 
 test('selectModel: a tag outside the second system block is ignored (agent route)', () => {
@@ -1022,7 +1036,7 @@ test('selectModel: a tag outside the second system block is ignored (agent route
   const req = makeReq({
     model: 'claude-sonnet-4-5',
     system: [
-      { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' },
+      { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' },
       { type: 'text', text: 'sys' }
     ]
   })
@@ -1038,7 +1052,7 @@ test('selectModel: a single-block system cannot carry the tag (agent route)', ()
   const config = new ConfigStore({ Router: router, providers: [claudeProvider] })
   const req = makeReq({
     model: 'claude-sonnet-4-5',
-    system: [{ type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }]
+    system: [{ type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }]
   })
   const out = selectModel(req, 1000, router, config)
   expect(out).toEqual({ model: 'anthropic,claude-agent', scenarioType: 'default', isSubagent: false, fallbacks: [] })
@@ -1058,14 +1072,19 @@ test('selectModel: a subagent web_search request uses the subagent webSearch rou
       tools: [{ type: 'web_search_20250305' }],
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,
     router,
     config
   )
-  expect(out).toEqual({ model: 'anthropic,claude-sub-search', scenarioType: 'webSearch', isSubagent: true, fallbacks: [] })
+  expect(out).toEqual({
+    model: 'anthropic,claude-sub-search',
+    scenarioType: 'webSearch',
+    isSubagent: true,
+    fallbacks: []
+  })
 })
 
 test('selectModel: an unset subagent lane falls through even when the agent lane for that scenario is set', () => {
@@ -1083,7 +1102,7 @@ test('selectModel: an unset subagent lane falls through even when the agent lane
       model: 'claude-haiku-4-5',
       system: [
         { type: 'text', text: 'sys' },
-        { type: 'text', text: '<CCR-SUBAGENT-MODEL>x,y</CCR-SUBAGENT-MODEL>' }
+        { type: 'text', text: '<RIALTO-SUBAGENT-MODEL>x,y</RIALTO-SUBAGENT-MODEL>' }
       ]
     }),
     1000,

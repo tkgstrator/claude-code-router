@@ -6,8 +6,7 @@
  * chunk(s) mapping in `./stream-chunks.ts`).
  */
 
-import type { ResponsesStreamEvent } from '@/schemas'
-import { ResponsesStreamEventSchema } from '@/schemas'
+import { type ResponsesStreamEvent, ResponsesStreamEventSchema } from '@/schemas/wire/openai/responses'
 import { handleStreamEvent } from './stream-chunks'
 
 /** Does this `data:` payload look like a Responses-API event? */

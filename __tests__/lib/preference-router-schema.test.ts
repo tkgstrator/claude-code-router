@@ -4,7 +4,7 @@ import {
   QuotaAwareConstraintsSchema,
   RouterPreferenceEntrySchema,
   RouterPreferenceProfileSchema
-} from '../../src/schemas'
+} from '../../src/schemas/domain/preference'
 
 test('PreferenceConstraintsSchema fills every knob with a documented default', () => {
   const parsed = PreferenceConstraintsSchema.parse({})

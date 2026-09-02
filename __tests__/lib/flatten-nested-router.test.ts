@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { flattenNestedRouter, type Router } from '../../src/schemas'
+import { flattenNestedRouter, type Router } from '../../src/schemas/domain/router'
 
 // A nested wire Router where every one of the six flat maps × five
 // scenarios carries a DISTINGUISHABLE value, so a transposition

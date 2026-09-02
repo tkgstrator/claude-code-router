@@ -16,22 +16,19 @@
  * DB-gated: skipped when TEST_DATABASE_URL isn't wired up in the env.
  */
 
-import { createCipheriv, randomBytes } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
+import { createCipheriv, randomBytes } from 'node:crypto'
 import { oauthRoute } from '../../src/api/oauth/route'
-import {
-  ClaudeCredentialsFileSchema,
-  CodexCredentialsFileSchema
-} from '../../src/schemas/llm-oauth.dto'
+import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../src/schemas/wire/oauth'
 import { HAS_DB, resetDbTables, teardownPrisma } from '../db/helpers'
 
 const TEST_KEY_HEX = 'ab'.repeat(32)
 
 const setTestKey = () => {
-  process.env.CCR_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
+  process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
 }
 const clearTestKey = () => {
-  delete process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+  delete process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
 }
 
 // Match subscription-account-sync-service.test.ts's helper — encrypt a

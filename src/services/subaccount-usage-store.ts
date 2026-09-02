@@ -17,8 +17,7 @@
 import { getPrismaClient } from '../db/client'
 import type { PrismaClient } from '../generated/prisma/client'
 import dayjs from '../lib/dayjs'
-import type { ClaudeUsage, CodexUsage } from '../schemas/usage.dto'
-
+import type { ClaudeUsage, CodexUsage } from '../schemas/api/usage'
 // Window keys mirror the strings UsageSnapshot uses so the two tables
 // stay aligned at the metric layer.
 export const CLAUDE_METRICS = {

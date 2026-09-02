@@ -18,7 +18,7 @@ const CRON = '*/15 * * * *'
 // double-fire — this just avoids leaking extra Worker/connection
 // instances.
 declare global {
-  var __ccrAuthHealthJobStarted: boolean | undefined
+  var __rialtoAuthHealthJobStarted: boolean | undefined
 }
 
 let warnedOnce = false
@@ -39,13 +39,13 @@ const makeConnection = (url: string): IORedis =>
 // Redis is down the server still serves; the schedule registers once
 // Redis is reachable again.
 export async function startAuthHealthCheck(): Promise<void> {
-  if (globalThis.__ccrAuthHealthJobStarted) return
+  if (globalThis.__rialtoAuthHealthJobStarted) return
   const url = process.env.REDIS_URL
   if (!url || url.length === 0) {
     logger.warn('[auth-health-job] REDIS_URL is not set — skipping the auth-health job')
     return
   }
-  globalThis.__ccrAuthHealthJobStarted = true
+  globalThis.__rialtoAuthHealthJobStarted = true
 
   const queueConn = makeConnection(url)
   const queue = new Queue(QUEUE, { connection: queueConn })

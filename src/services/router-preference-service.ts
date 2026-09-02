@@ -29,7 +29,7 @@ import type {
   RouterPreferenceEntry,
   RouterPreferenceProfile,
   ScenarioKey
-} from '../schemas'
+} from '../schemas/domain'
 
 // Every scenario the wire shape carries. Kept as a static tuple so
 // adding a new ScenarioKey in Prisma requires touching this file too
@@ -86,14 +86,42 @@ const emptyEntriesByScenario = (): PreferenceEntriesByScenario => ({
   image: emptyByKind()
 })
 
-// Load the singleton profile with entries in priority order, grouped
-// by scenario then by kind. Returns an empty per-scenario map + null
-// constraints when the seed row hasn't been created yet.
+/**
+ * The profile every surface uses until it is pointed somewhere else.
+ *
+ * `RouterPreferenceProfile.key` was always intended to key more than one
+ * profile; it just had a single 'live' row. Per-surface routing gives it
+ * its purpose, so the literal lives here — the module that owns profiles
+ * — rather than being repeated at each call site.
+ */
+export const DEFAULT_PROFILE_KEY = 'live'
+
+/**
+ * Reserved profile key meaning "do not route this traffic at all".
+ *
+ * Routing mode is otherwise a property of the inbound surface, which
+ * makes it all-or-nothing: every client on /v1/messages is routed, or
+ * none is. A client that hand-picks its own `provider,model` — a script,
+ * a CI runner, a one-off — has no way to opt out without changing the
+ * mode for everybody sharing that endpoint.
+ *
+ * Pointing a surface or an access token at this key skips the selector
+ * for exactly that traffic, the same way a passthrough surface does.
+ * It is not a RouterPreferenceProfile row and never has entries; a chain
+ * would be meaningless for traffic that is not being routed.
+ */
+export const PASSTHROUGH_PROFILE_KEY = 'passthrough'
+
+// Load one profile with entries in priority order, grouped by scenario
+// then by kind. Returns an empty per-scenario map + null constraints
+// when the row hasn't been created yet — which is also what a surface
+// pointed at a profile nobody has configured should see.
 export async function loadRouterPreferences(
-  prisma: PrismaClient = getPrismaClient()
+  prisma: PrismaClient = getPrismaClient(),
+  profileKey: string = DEFAULT_PROFILE_KEY
 ): Promise<RouterPreferenceProfile> {
   const profile = await prisma.routerPreferenceProfile.findUnique({
-    where: { key: 'live' },
+    where: { key: profileKey },
     include: {
       entries: {
         orderBy: [{ scenario: 'asc' }, { kind: 'asc' }, { priority: 'asc' }],
@@ -125,9 +153,11 @@ export async function loadRouterPreferences(
 export async function loadPreferenceChain(
   scenario: ScenarioKey,
   kind: PreferenceKind,
-  prisma: PrismaClient = getPrismaClient()
+  prisma: PrismaClient = getPrismaClient(),
+  profileKey: string | undefined = DEFAULT_PROFILE_KEY
 ): Promise<{ entries: readonly RouterPreferenceEntry[]; constraints: Record<string, unknown> | null }> {
-  const profile = await loadRouterPreferences(prisma)
+  const key = profileKey === undefined ? DEFAULT_PROFILE_KEY : profileKey
+  const profile = await loadRouterPreferences(prisma, key)
   return { entries: profile.entriesByScenario[scenario][kind], constraints: profile.constraints }
 }
 
@@ -184,8 +214,18 @@ async function resolveEntries(
 // earlier UI session doesn't fail the whole apply.
 export async function applyRouterPreferences(
   input: RouterPreferenceProfile,
-  prisma: PrismaClient = getPrismaClient()
+  prisma: PrismaClient = getPrismaClient(),
+  profileKey: string = DEFAULT_PROFILE_KEY
 ): Promise<ApplyOutcome> {
+  // The reserved key means "skip the selector", so a chain stored under
+  // it could never run. Writing one would leave the operator with an
+  // editor whose contents are silently ignored.
+  if (profileKey === PASSTHROUGH_PROFILE_KEY) {
+    return {
+      success: false,
+      warnings: [`"${PASSTHROUGH_PROFILE_KEY}" is a reserved profile that skips routing; it cannot hold a chain.`]
+    }
+  }
   const warnings: string[] = []
   const resolvedPerChain = new Map<string, ResolvedInsert[]>()
   const chainKey = (scenario: ScenarioKey, kind: PreferenceKind): string => `${scenario}::${kind}`
@@ -202,9 +242,9 @@ export async function applyRouterPreferences(
 
   await prisma.$transaction(async (tx) => {
     const profile = await tx.routerPreferenceProfile.upsert({
-      where: { key: 'live' },
+      where: { key: profileKey },
       update: { constraints: constraintsWrite },
-      create: { key: 'live', constraints: constraintsWrite }
+      create: { key: profileKey, constraints: constraintsWrite }
     })
     // Total-order replacement across every (scenario, kind) chain in
     // one shot so callers can't observe a partial chain mid-write.
@@ -234,4 +274,50 @@ export async function applyRouterPreferences(
     logger.warn({ warnings }, '[router-preferences] apply completed with warnings')
   }
   return { success: true, warnings }
+}
+
+/**
+ * Every configured profile key, with how many entries each holds.
+ *
+ * The Routing screen offers these when pointing a surface at a profile.
+ * The default key is always present even with no row yet, because a
+ * surface may reference it before anyone has configured it.
+ */
+export interface PreferenceProfileSummary {
+  key: string
+  entryCount: number
+  updatedAt: string | null
+  /**
+   * `passthrough` is the reserved key, not a stored chain. Flagged so a
+   * picker can label and sort it without matching on the string.
+   */
+  kind: 'chain' | 'passthrough'
+}
+
+export async function listPreferenceProfiles(
+  prisma: PrismaClient = getPrismaClient()
+): Promise<PreferenceProfileSummary[]> {
+  const rows = await prisma.routerPreferenceProfile.findMany({
+    orderBy: { key: 'asc' },
+    include: { _count: { select: { entries: true } } }
+  })
+  const listed: PreferenceProfileSummary[] = rows
+    // Defensive: the reserved key is refused on write, but a row created
+    // before that guard existed must not shadow the real behaviour.
+    .filter((r) => r.key !== PASSTHROUGH_PROFILE_KEY)
+    .map((r) => ({
+      key: r.key,
+      entryCount: r._count.entries,
+      updatedAt: r.updatedAt.toISOString(),
+      kind: 'chain' as const
+    }))
+
+  const withDefault = listed.some((p) => p.key === DEFAULT_PROFILE_KEY)
+    ? listed
+    : [{ key: DEFAULT_PROFILE_KEY, entryCount: 0, updatedAt: null, kind: 'chain' as const }, ...listed]
+
+  return [
+    ...withDefault,
+    { key: PASSTHROUGH_PROFILE_KEY, entryCount: 0, updatedAt: null, kind: 'passthrough' as const }
+  ]
 }

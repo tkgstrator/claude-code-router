@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Capture live CCR responses for the provider integration tests into
+ * Capture live Rialto responses for the provider integration tests into
  * __tests__/providers/__fixtures__/ so the suite can replay them
  * offline without paying upstream LLM costs.
  *
@@ -8,9 +8,9 @@
  *   FORCE=1 bun run scripts/capture-fixtures.ts    # overwrite existing fixtures
  *   bun run scripts/capture-fixtures.ts -- openai  # only specs whose slug starts with "openai"
  *
- * Requires a running CCR server. Override the defaults with:
- *   CCR_TEST_URL=http://127.0.0.1:16173
- *   CCR_TEST_APIKEY=<api key>
+ * Requires a running Rialto server. Override the defaults with:
+ *   RIALTO_TEST_URL=http://127.0.0.1:16173
+ *   RIALTO_TEST_APIKEY=<api key>
  *
  * Fixture format (deterministic hash of method+url+body):
  *   __tests__/providers/__fixtures__/<slug>.<hash8>.json
@@ -29,8 +29,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const CCR_BASE = process.env.CCR_TEST_URL ?? "http://127.0.0.1:16173";
-const CCR_APIKEY = process.env.CCR_TEST_APIKEY ?? "test";
+const RIALTO_BASE = process.env.RIALTO_TEST_URL ?? "http://127.0.0.1:16173";
+const RIALTO_APIKEY = process.env.RIALTO_TEST_APIKEY ?? "test";
 const FIXTURES_DIR = join(
   import.meta.dir,
   "..",
@@ -100,10 +100,10 @@ async function capture(spec: RequestSpec): Promise<"recorded" | "skipped" | "fai
     method: spec.method,
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": CCR_APIKEY,
+      "x-api-key": RIALTO_APIKEY,
       "anthropic-version": "2023-06-01",
       // Force identity encoding — Bun fetch's streaming gzip decoder
-      // chokes on chunked-compressed SSE bodies (ZlibError) when CCR
+      // chokes on chunked-compressed SSE bodies (ZlibError) when Rialto
       // proxies upstream responses (e.g. claude-code via Cloudflare).
       "Accept-Encoding": "identity",
     },
@@ -165,8 +165,8 @@ async function capture(spec: RequestSpec): Promise<"recorded" | "skipped" | "fai
 // a live server.
 // ---------------------------------------------------------------------------
 
-const messagesUrl = `${CCR_BASE}/v1/messages`;
-const configUrl = `${CCR_BASE}/api/config`;
+const messagesUrl = `${RIALTO_BASE}/v1/messages`;
+const configUrl = `${RIALTO_BASE}/api/config`;
 
 const specs: RequestSpec[] = [];
 
@@ -286,7 +286,7 @@ function geminiBody(model: string, variant: string) {
 // derived from /api/config at runtime, so we enumerate the live
 // matrix here too and emit one smoke fixture per enabled model.
 async function loadSubscriptionMatrix(): Promise<{ name: string; models: string[] }[]> {
-  const res = await fetch(configUrl, { headers: { "x-api-key": CCR_APIKEY } });
+  const res = await fetch(configUrl, { headers: { "x-api-key": RIALTO_APIKEY } });
   if (!res.ok) {
     throw new Error(`GET /api/config -> HTTP ${res.status}`);
   }
@@ -342,7 +342,7 @@ for (const { name, models } of matrix) {
 //   cache-read        claude-code haiku-4-5 (same long system, second request — cache hit)
 //   redacted-thinking claude-code opus-4-7 (multi-turn with empty thinking block in history)
 //
-// Bodies are written in Anthropic wire shape — that's what CCR's /v1/messages
+// Bodies are written in Anthropic wire shape — that's what Rialto's /v1/messages
 // endpoint receives, regardless of upstream provider.
 // ---------------------------------------------------------------------------
 
@@ -634,7 +634,7 @@ async function fetchFullConfig(): Promise<Record<string, unknown> & {
   Providers?: { name: string; api_key: string | null }[];
 }> {
   const res = await fetch(configUrl, {
-    headers: { "x-api-key": CCR_APIKEY, "Accept-Encoding": "identity" },
+    headers: { "x-api-key": RIALTO_APIKEY, "Accept-Encoding": "identity" },
   });
   if (!res.ok) throw new Error(`GET /api/config -> HTTP ${res.status}`);
   return (await res.json()) as Record<string, unknown> & {
@@ -649,7 +649,7 @@ async function postProvidersUpdate(providers: { name: string; api_key: string | 
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": CCR_APIKEY,
+      "x-api-key": RIALTO_APIKEY,
       "Accept-Encoding": "identity",
     },
     body: JSON.stringify({ Providers: providers }),

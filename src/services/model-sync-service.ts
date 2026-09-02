@@ -18,14 +18,15 @@
  */
 
 import type { z } from '@hono/zod-openapi'
-import { isDeprecatedModel, LLM_PRICES_SEED, SUBSCRIPTION_PRESETS } from '@/shared/data'
+import { isDeprecatedModel, LLM_PRICES_SEED, OFFICIAL_VENDOR_PRICES, SUBSCRIPTION_PRESETS } from '@/shared/data'
 import { getPrismaClient } from '../db/client'
 import { AuthMode, type Prisma } from '../generated/prisma/client'
 import { logger } from '../logger'
-import type { ScrapedPriceEntry } from '../providers/base'
-import { getVendorProvider, isScrapedVendor } from '../providers/registry'
-import type { RefreshOutcomeSchema } from '../schemas/model.dto'
+import type { RefreshOutcomeSchema } from '../schemas/api/models'
+import type { ModelsCredential, ScrapedPriceEntry } from '../vendors/base'
+import { getVendorProvider, isScrapedVendor } from '../vendors/registry'
 import { modelApiStyleOverride } from './config'
+import { getActiveSubAccountAuth } from './subscription-account-sync/read'
 
 export type RefreshOutcome = z.infer<typeof RefreshOutcomeSchema>
 
@@ -46,26 +47,89 @@ const modelDataFromScrape = (entry: ScrapedPriceEntry) => ({
   contextWindow: entry.contextWindow
 })
 
-interface VendorCatalog {
-  scraped: ScrapedPriceEntry[]
-  scrapedById: Map<string, ScrapedPriceEntry>
+/**
+ * The two questions a vendor catalog answers, kept apart because they
+ * have different sources and different consequences.
+ *
+ * `listed` decides which Model rows exist. `priceById` only decides what
+ * a row that already exists costs. Conflating them is how merging the
+ * committed price table into a scraped vendor grew 43 api_key OpenAI
+ * models on a Codex subscription: the table is a price list, not a
+ * statement about what a provider serves.
+ */
+export interface VendorCatalog {
+  listed: ScrapedPriceEntry[]
+  priceById: Map<string, ScrapedPriceEntry>
 }
 
-const emptyCatalog: VendorCatalog = { scraped: [], scrapedById: new Map() }
+const emptyCatalog: VendorCatalog = { listed: [], priceById: new Map() }
+
+// The static price table as a catalog, for vendors Rialto has prices for
+// but no runtime scraper.
+//
+// This exists because filtering on `isScrapedVendor` alone threw prices
+// away. Google has no native scraper — its numbers come from a build-time
+// script committed into `src/shared/data/providers/google/prices.json` —
+// so it fell out of the filter and every Gemini row was created with a
+// null price, while Rialto held the published figure the whole time. The
+// live `/v1/models` list only names models; it never carries a price, so
+// nothing downstream filled the gap in.
+const staticCatalog = (vendor: string): VendorCatalog | undefined => {
+  const priced = OFFICIAL_VENDOR_PRICES[vendor]
+  if (priced === undefined) return undefined
+  const scraped: ScrapedPriceEntry[] = Object.entries(priced).map(([apiId, entry]) => ({
+    apiId,
+    inputPer1M: entry.inputPer1M,
+    outputPer1M: entry.outputPer1M,
+    cachedInputPer1M: entry.cachedInputPer1M === undefined ? null : entry.cachedInputPer1M,
+    contextWindow: entry.contextWindow === undefined ? null : entry.contextWindow,
+    legacy: entry.legacy === true
+  }))
+  return { listed: scraped, priceById: new Map(scraped.map((s) => [s.apiId, s])) }
+}
+
+/**
+ * Live scrape over the committed table, for prices only.
+ *
+ * The two sources were an either/or: a vendor with a scraper used the
+ * live result, one without used the table. That holds while a scrape
+ * covers the vendor's lineup and goes silently wrong the moment it does
+ * not. OpenAI's docs moved and its scrape fell to three models, so a
+ * refresh priced three rows and left fifteen null — while the published
+ * figures for all eighteen sat in `OFFICIAL_VENDOR_PRICES` the whole
+ * time. It is the Gemini bug from the other side: that one was "the
+ * table was never consulted", this one is "the table stopped being
+ * consulted the moment a scraper existed".
+ *
+ * The scrape wins wherever it answers, being the fresher source and the
+ * reason a refresh exists. The table only fills ids the scrape did not
+ * mention — and only in `priceById`, so a price list can never conjure a
+ * model the vendor did not list.
+ */
+export const withCommittedPrices = (live: ScrapedPriceEntry[], committed: VendorCatalog | undefined): VendorCatalog => {
+  const priceById = new Map(live.map((s) => [s.apiId, s]))
+  for (const entry of committed === undefined ? [] : committed.listed) {
+    if (!priceById.has(entry.apiId)) priceById.set(entry.apiId, entry)
+  }
+  return { listed: live, priceById }
+}
 
 // Fetch every vendor scrape once up front so multiple providers that
 // share a vendor (e.g. anthropic + claude-code) don't hit the docs site
-// twice per refresh. Only vendors with a native scraper are queried;
-// generic-fallback vendors return [] anyway.
+// twice per refresh.
 async function loadVendorCatalogs(providerNames: ReadonlySet<string>): Promise<Map<string, VendorCatalog>> {
-  const scrapedTargets = [...providerNames].filter((n) => isScrapedVendor(n))
   const out = new Map<string, VendorCatalog>()
   await Promise.all(
-    scrapedTargets.map(async (name) => {
-      const provider = getVendorProvider(name)
-      if (provider === undefined) return
-      const scraped = await provider.scrape()
-      out.set(name, { scraped, scrapedById: new Map(scraped.map((s) => [s.apiId, s])) })
+    [...providerNames].map(async (name) => {
+      const fallback = staticCatalog(name)
+      if (isScrapedVendor(name)) {
+        const provider = getVendorProvider(name)
+        if (provider === undefined) return
+        const scraped = await provider.scrape()
+        out.set(name, withCommittedPrices(scraped, fallback))
+        return
+      }
+      if (fallback !== undefined) out.set(name, fallback)
     })
   )
   return out
@@ -136,18 +200,23 @@ async function fetchLiveCatalog(p: ProviderRow): Promise<LiveFetchResult> {
   return { ids: [], error: got.error }
 }
 
-// Sync price/context/legacy on rows the scrape covers. Never touches
-// Model.enabled — that's the user's toggle.
+// Sync price/context/legacy on every row we hold a price for. Never
+// touches Model.enabled — that's the user's toggle.
+//
+// Driven from the rows that exist rather than from the price list, so a
+// price the vendor publishes for a model this provider does not serve
+// stays a lookup and never becomes an UPDATE against a missing row.
 async function applyScrapedPrices(
   p: ProviderRow,
   catalog: VendorCatalog,
   existing: ReadonlySet<string>
 ): Promise<void> {
   const prisma = getPrismaClient()
-  for (const scr of catalog.scraped) {
-    if (!existing.has(scr.apiId)) continue
+  for (const name of existing) {
+    const scr = catalog.priceById.get(name)
+    if (scr === undefined) continue
     await prisma.model.update({
-      where: { providerId_name: { providerId: p.id, name: scr.apiId } },
+      where: { providerId_name: { providerId: p.id, name } },
       data: modelDataFromScrape(scr)
     })
   }
@@ -174,16 +243,39 @@ async function syncDeprecationFlags(p: ProviderRow, allCurrentNames: string[]): 
 }
 
 // Ask the vendor to look up per-model contextWindow from its docs pages
-// for every id CCR knows about (DB rows ∪ freshly-added rows). Runs
+// for every id Rialto knows about (DB rows ∪ freshly-added rows). Runs
 // regardless of whether the pricing scrape or /v1/models returned
 // anything — subscription providers with an empty live catalog still
 // get their existing rows' context refreshed. Values the vendor returns
 // overwrite the current DB value; missing ids are left alone.
+/**
+ * What the catalog call can authenticate with.
+ *
+ * A subscription provider holds no api key, so this used to hand the
+ * vendor `undefined` and the default implementation returned early. That
+ * is why a signed-in Claude Code had a context window on four models and
+ * null on the other thirteen: Anthropic publishes the figure per model on
+ * `/v1/models` as `max_input_tokens`, and the only reason it went unread
+ * was that nothing offered a credential. The OAuth access token is the
+ * same one the request path already sends to that host.
+ */
+const modelsCredentialFor = async (p: ProviderRow): Promise<ModelsCredential | undefined> => {
+  if (p.authMode === AuthMode.subscription) {
+    const auth = await getActiveSubAccountAuth(p.name)
+    if (auth === null || auth.accessToken === null) return undefined
+    return { kind: 'subscription', accessToken: auth.accessToken }
+  }
+  if (p.apiKey === null || p.apiKey.trim() === '') return undefined
+  return { kind: 'api_key', key: p.apiKey }
+}
+
 async function refreshContextWindows(p: ProviderRow, ids: string[]): Promise<number> {
   if (ids.length === 0) return 0
   const provider = getVendorProvider(p.name)
   if (provider === undefined) return 0
-  const contexts = await provider.fetchContextWindows(ids)
+  // The credential is what lets the default implementation read the
+  // vendor's own catalog endpoint; scraping overrides ignore it.
+  const contexts = await provider.fetchContextWindows(ids, await modelsCredentialFor(p))
   if (contexts.size === 0) return 0
   const prisma = getPrismaClient()
   for (const [name, contextWindow] of contexts) {
@@ -201,14 +293,14 @@ async function refreshContextWindows(p: ProviderRow, ids: string[]): Promise<num
 async function refreshOneProvider(p: ProviderRow, catalog: VendorCatalog): Promise<RefreshOutcome> {
   const prisma = getPrismaClient()
   const live = await fetchLiveCatalog(p)
-  const desired = new Set<string>([...catalog.scraped.map((s) => s.apiId), ...live.ids])
+  const desired = new Set<string>([...catalog.listed.map((s) => s.apiId), ...live.ids])
   const existing = new Set(p.models.map((m) => m.name))
   const toAdd = [...desired].filter((id) => !existing.has(id))
   const defaults = subscriptionDefaultsById(p.name)
 
   if (toAdd.length > 0) {
     const rows: Prisma.ModelCreateManyInput[] = toAdd.map((name) =>
-      buildCreateRow(name, p, catalog.scrapedById.get(name), defaults)
+      buildCreateRow(name, p, catalog.priceById.get(name), defaults)
     )
     await prisma.model.createMany({ data: rows, skipDuplicates: true })
   }
@@ -226,7 +318,7 @@ async function refreshOneProvider(p: ProviderRow, catalog: VendorCatalog): Promi
   // provider that picked up new models via scrape (or refreshed the
   // contextWindow of existing ones) shouldn't be flagged just because
   // it has no api key.
-  const succeeded = toAdd.length > 0 || catalog.scraped.length > 0 || contextsUpdated > 0
+  const succeeded = toAdd.length > 0 || catalog.listed.length > 0 || contextsUpdated > 0
   if (!succeeded) {
     const errorMsg = live.error === undefined ? 'no upstream catalog available' : live.error
     return { provider: p.name, added: [], error: errorMsg }
@@ -234,11 +326,19 @@ async function refreshOneProvider(p: ProviderRow, catalog: VendorCatalog): Promi
   return { provider: p.name, added: toAdd, error: undefined }
 }
 
-// Which scrape bucket to consult for a given Provider. Subscription
+// Which price bucket to consult for a given Provider. Subscription
 // providers borrow their api_key sibling's vendor (claude-code →
-// anthropic, codex → openai) so they share the same scrape output.
+// anthropic, codex → openai) so they share the same output.
+//
+// A vendor Rialto holds committed prices for counts even without a
+// runtime scraper. Returning null for those was the second half of the
+// Gemini bug: `loadVendorCatalogs` could build a catalog from the static
+// table, but nothing ever asked for it, so every Gemini row kept the null
+// price it was created with. Both the load and the lookup have to agree
+// on which vendors have prices at all.
 const scrapeVendorFor = (providerName: string): string | null => {
   if (isScrapedVendor(providerName)) return providerName
+  if (OFFICIAL_VENDOR_PRICES[providerName] !== undefined) return providerName
   const preset = SUBSCRIPTION_PRESETS.find((p) => p.id === providerName)
   if (preset === undefined) return null
   const v = preset.vendor.toLowerCase()
@@ -263,7 +363,8 @@ export async function refreshModelsForAllProviders(): Promise<RefreshOutcome[]> 
       providerCount: providers.length,
       providerNames,
       scrapeVendors: [...scrapeVendors],
-      scrapedCounts: Object.fromEntries([...catalogs].map(([k, v]) => [k, v.scraped.length]))
+      listedCounts: Object.fromEntries([...catalogs].map(([k, v]) => [k, v.listed.length])),
+      pricedCounts: Object.fromEntries([...catalogs].map(([k, v]) => [k, v.priceById.size]))
     },
     'refresh-models: vendor catalogs loaded'
   )

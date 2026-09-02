@@ -6,13 +6,13 @@
  * Phase A is data pipeline only — nothing here computes a plan, the
  * route exists so operators can inspect what the solver will see.
  *
- * Auth: mounted BELOW the shared `apiKeyAuth` middleware in
+ * Auth: mounted BELOW the shared `adminAuth` middleware in
  * `src/index.ts`, same as `/api/router-utilization` and the rest of
  * the /api/* surface.
  */
 
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { SolverInputSchema } from '../../schemas'
+import { SolverInputSchema } from '../../schemas/domain/solver-input'
 import { collectSolverInput } from '../../services/solver/collect-input'
 
 export const solverInputRoute = new OpenAPIHono()

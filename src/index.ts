@@ -2,16 +2,21 @@ import 'dotenv/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { HTTPException } from 'hono/http-exception'
 import { ZodError } from 'zod'
+import { accessCheckRoute } from './api/access-check/route'
 import { accessLog } from './api/access-log'
-import { apiKeyAuth, openaiBearerAuth } from './api/api-key-auth'
+import { accessTokensRoute } from './api/access-tokens/route'
+import { adminAuth, inboundProxyAuth } from './api/api-key-auth'
 import { catalogRoute } from './api/catalog/route'
 import { configRoute } from './api/config/route'
 import { healthRoute } from './api/health/route'
+import { identityRoute } from './api/identity/route'
+import { inboundSurfacesRoute } from './api/inbound-surfaces/route'
 import { logsRoute } from './api/logs/route'
 import { modelsRoute } from './api/models/route'
 import { modelTestRoute } from './api/models/test/route'
 import { modelTestAllRoute } from './api/models/test-all/route'
 import { oauthRoute } from './api/oauth/route'
+import { overviewRoute } from './api/overview/route'
 import { providerModelRoute } from './api/providers/[name]/models/[model]/route'
 import { providerByNameRoute } from './api/providers/[name]/route'
 import { providersRoute } from './api/providers/route'
@@ -21,9 +26,11 @@ import { requestLogsRoute } from './api/request-logs/route'
 import { routerPreferencesRoute } from './api/router-preferences/route'
 import { routerUtilizationRoute } from './api/router-utilization/route'
 import { routingPresetsRoute } from './api/routing-presets/route'
+import { routingRulesTestRoute } from './api/routing-rules/test/route'
 import { routingSchedulerStateRoute } from './api/routing-scheduler-state/route'
 import { scrapePricesRoute } from './api/scrape-prices/[vendor]/route'
 import { solverInputRoute } from './api/solver-input/route'
+import { storageRoute } from './api/storage/route'
 import { subscriptionsRoute } from './api/subscriptions/route'
 import { transformersRoute } from './api/transformers/route'
 import { updateCheckRoute } from './api/update/check/route'
@@ -32,14 +39,19 @@ import { usageCostHistoryRoute } from './api/usage/cost/history/route'
 import { usageCostRoute } from './api/usage/cost/route'
 import { usageHistoryRoute } from './api/usage/history/route'
 import { usageRoute } from './api/usage/route'
+import { countTokensRoute } from './api/v1/count-tokens'
 import { v1ModelsRoute } from './api/v1/models-list'
 import { v1Route } from './api/v1/route'
+import { INBOUND_MOUNT_PREFIXES } from './llms/inbound/surfaces'
 import { logger, syncLoggerFromEnv } from './logger'
 import { startAuthHealthCheck } from './services/auth-health-job'
 import { initConfig, initDir } from './services/config/envelope'
+import { migrateHomeDir } from './services/config/migrate-home-dir'
+import { ensureInboundSurfaces } from './services/inbound-surface-service'
 import { startRoutingScheduler } from './services/routing-scheduler'
 import { reconcileActiveSubAccounts } from './services/subscription-account-sync-service'
 import { startUsageCapture } from './services/usage-job'
+import { HOME_DIR } from './shared/constants'
 import { APP_VERSION } from './version'
 
 // Hono root. Backend routes live under src/api/<path>/route.ts (one
@@ -58,17 +70,41 @@ import { APP_VERSION } from './version'
 // job of `prisma migrate deploy` + `prisma db seed`, which entrypoint.sh
 // runs before exec'ing this process (or `bun db:migrate` locally).
 
+// Carry a pre-rename ~/.claude-code-router over to ~/.rialto before
+// anything reads or creates the new home. This has to be the first
+// statement: the migration is idempotent by "the destination already
+// exists", so any earlier mkdir of ~/.rialto — initDir(), or the
+// logger's first file write — would make the copy a permanent no-op and
+// silently start the operator on an empty configuration.
+//
+// Skipped when RIALTO_HOME_DIR pins the home elsewhere: ~/.rialto is
+// then not the directory being read, so moving into it would only
+// litter the operator's home.
+if (process.env.RIALTO_HOME_DIR === undefined) {
+  await migrateHomeDir()
+}
 await initDir()
 const envelope = await initConfig()
 // Re-apply LOG_LEVEL to the already-initialised logger: the pino
 // instance is constructed at import time before initConfig() has
 // mirrored config.json's LOG_LEVEL onto process.env.
 syncLoggerFromEnv()
-logger.info({ APIKEY: process.env.APIKEY }, 'ccr APIKEY ready')
+// Whether a break-glass token is configured, never its value: log files
+// live on disk, are readable from the Logging screen, and outlive the
+// secret. Absent is the default and is not a problem — a browser on this
+// machine is exempt, and everything else authenticates through
+// Cloudflare Access or an issued token.
+logger.info(
+  { bootstrapToken: (process.env.APIKEY ?? '').length > 0 ? 'configured' : 'not set' },
+  'admin credential status'
+)
 // Self-heal subscription providers whose active account binding was
 // orphaned by older toggle code that nulled instead of promoting.
 // Idempotent: a no-op once every provider already has a valid active.
 await reconcileActiveSubAccounts()
+// Give every inbound surface an explicit stored routing mode, so no
+// read has to fall back to a per-surface default.
+await ensureInboundSurfaces()
 // Fire-and-forget: never block server boot on Redis. The job setup
 // is resilient and registers the BullMQ schedule once Redis is reachable;
 // it has its own per-process guard so HMR re-evaluation is a no-op.
@@ -95,26 +131,25 @@ const app = new OpenAPIHono()
 // loopback `http://localhost:<port>/callback` pattern. It is therefore
 // naturally outside this gate; CSRF protection lives on the single-use
 // `state` issued at POST /api/oauth/initiate/* (still gated).
-// Access log runs BEFORE apiKeyAuth so 401s from the auth gate are
+// Access log runs BEFORE the auth gates so 401s from them are
 // visible too — otherwise a wrong-key probe leaves no trace at all.
 // GET /health mounts BEFORE the auth middleware and BEFORE the SPA
 // catch-all so uptime probes hit a machine-readable JSON body without
 // carrying an APIKEY. Registered here (not inside the /api/* tree) so
-// the outer accessLog / apiKeyAuth don't gate it.
+// the outer accessLog / auth gates don't apply to it.
 app.route('/', healthRoute)
 
 app.use('/api/*', accessLog)
-app.use('/v1/*', accessLog)
-app.use('/api/*', apiKeyAuth)
-// OpenAI-compat inbound endpoints: reject `x-api-key` (the Anthropic
-// convention Claude Code sends) so operators aren't tempted to reuse the
-// same key across two auth conventions. Registered BEFORE the /v1/*
-// catch-all so it wins for these paths; the wildcard still covers
-// /v1/messages for Claude Code.
-app.use('/v1/chat/completions', openaiBearerAuth)
-app.use('/v1/responses', openaiBearerAuth)
-app.use('/v1/models', openaiBearerAuth)
-app.use('/v1/*', apiKeyAuth)
+app.use('/api/*', adminAuth)
+// Proxy front door. The prefixes and the credential convention behind
+// each path both come from the inbound-surface registry, so adding a
+// surface does not mean remembering to name its path here — which is
+// exactly the omission that used to leave a new surface either
+// unauthenticated or authenticated by the wrong convention.
+for (const prefix of INBOUND_MOUNT_PREFIXES) {
+  app.use(prefix, accessLog)
+  app.use(prefix, inboundProxyAuth)
+}
 
 app.onError((err, c) => {
   if (err instanceof ZodError) {
@@ -161,18 +196,28 @@ app.route('/', routerPreferencesRoute)
 app.route('/', routerUtilizationRoute)
 app.route('/', routingSchedulerStateRoute)
 app.route('/', solverInputRoute)
+app.route('/', overviewRoute)
+app.route('/', inboundSurfacesRoute)
+app.route('/', identityRoute)
+app.route('/', accessTokensRoute)
+app.route('/', accessCheckRoute)
+app.route('/', routingRulesTestRoute)
+app.route('/', storageRoute)
 app.route('/', oauthRoute)
 
 // OpenAI-compat GET /v1/models — mounted BEFORE v1Route so the wildcard
 // POST handler inside v1Route never has a chance to swallow it.
 app.route('/', v1ModelsRoute)
+// Anthropic POST /v1/messages/count_tokens — same ordering requirement:
+// v1Route's `/v1/*` fail-closed lane would answer 404 for it otherwise.
+app.route('/', countTokensRoute)
 // Native /v1/* LLM proxy — drives the llms pipeline without Fastify.
 app.route('/', v1Route)
 
 // OpenAPI spec endpoint — useful for tooling and the generated docs.
 app.doc('/api/openapi.json', {
   openapi: '3.1.0',
-  info: { title: 'CCR API', version: APP_VERSION }
+  info: { title: 'Rialto API', version: APP_VERSION }
 })
 
 // SPA + static fallback for production runs (Bun serving the built

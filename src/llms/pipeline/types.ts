@@ -8,7 +8,7 @@
  */
 
 import type { Logger } from 'pino'
-import type { MessageRecord, TransformerContext, UsageRecord } from '@/schemas'
+import type { MessageRecord, TransformerContext, UsageRecord } from '@/schemas/domain'
 import type { ResolvedProvider } from '../registry/provider'
 import type { Transformer } from '../transformers/base'
 

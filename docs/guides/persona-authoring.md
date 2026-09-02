@@ -2,7 +2,7 @@
 
 ## Purpose
 
-CCR のペルソナ機能で「キャラクターのエミュレート精度」を上げるための作法をまとめる。
+Rialto のペルソナ機能で「キャラクターのエミュレート精度」を上げるための作法をまとめる。
 対象読者は、`Personas` ライブラリに新しいペルソナを追加する人と、既存ペルソナを改良する人。
 
 機能としての概要 (どこに保存され、いつ挿入されるか) は README の "Personas" セクションを参照。
@@ -18,10 +18,10 @@ CCR のペルソナ機能で「キャラクターのエミュレート精度」�
 一方で **「記憶の質感」「アンチパターン」「思考プロセス制御」「文脈付き語彙」** は長くなるほど効く。
 
 参考になる極北として「ヤッチョGPT for Claude」(`tsukumijima/YacchoGPT`) がある。
-本家公式の月見ヤチヨ再現プロンプトで、約 400 行。これがそのまま CCR で動く。
+本家公式の月見ヤチヨ再現プロンプトで、約 400 行。これがそのまま Rialto で動く。
 本ガイドの構造とパターンの多くはここを下敷きにしている。
 
-CCR は persona を `cache_control` を持つシステムブロックの**内側**に append するので、
+Rialto は persona を `cache_control` を持つシステムブロックの**内側**に append するので、
 長さの runtime コストは prompt cache でほぼ吸収される (同一 persona の連投で 2 回目以降ほぼゼロ)。
 **「長いから遅い・高い」は気にしなくていい。** 気にすべきは attention dilution の方。
 
@@ -201,12 +201,13 @@ think シナリオで使われる前提のキャラに限定するのが現実�
 
 応答の終盤で「解説者モード」に滑り落ちる癖を抑える効果がある。
 
-## CCR 固有の事項
+## Rialto 固有の事項
 
 ### キャッシュとの相性
 
-CCR は persona を `cache_control` を持つ system ブロックの**内側**に append する
-(詳細は `src/llms/scenario-router.ts` の `applyGlobalSystemPrompt`)。
+Rialto は persona を `cache_control` を持つ system ブロックの**内側**に append する
+(実装は `src/llms/scenario-router/persona.ts` の `applyGlobalSystemPrompt`。
+呼び出しは `src/llms/scenario-router.ts` の `routeScenario` 末尾)。
 このため:
 
 - **長さの runtime コストは prompt cache でほぼ吸収される**
@@ -216,16 +217,26 @@ CCR は persona を `cache_control` を持つ system ブロックの**内側**�
 - **persona の差し替えはキャッシュミスを伴う**
   (頻繁なペルソナ切替が想定されるユーザー向けには「短いペルソナを複数」より「長いペルソナを 1 つ」が有利)
 
-### 除外されるシナリオ
+### 挿入される範囲
 
-`background` シナリオは persona 挿入対象外。タイトル生成等の軽量内部タスクで動くため、
-ペルソナの語り口が出力を汚染するのを避けている。
-**つまり persona は `background` 以外の全シナリオで挿入される**:
-default / think / longContext / webSearch / image。
+**シナリオによる除外は無い。** `/v1/messages` 上では default / think / longContext / webSearch /
+image の**全シナリオ**が persona を継承する。かつて存在した `background` の除外は、
+`background` シナリオそのものが `20260728_router_rules_drop_background` で
+`default` 上の述語ルールに畳み込まれた時点で消えている。
 
-### `<CCR-SUBAGENT-MODEL>` との合成
+代わりに**受け口による制限**がある。persona 挿入が走るのは **`/v1/messages` だけ**である
+(`scenario-router.ts` の `req.inboundPath` 判定、テストは
+`__tests__/llms/persona-inbound-gate.test.ts`)。OpenAI 互換面 (`/v1/chat/completions` /
+`/v1/responses`) と Gemini 面では走らない — OpenAI 形のボディにトップレベル `system` を
+足すと codex が `Unsupported parameter: system` で 400 を返し、寛容な upstream でも
+ワイヤ形式がモデル化していないフィールドを見ることになるため。
 
-persona 挿入は `<CCR-SUBAGENT-MODEL>` タグ処理の**後**で走るため、
+軽量な内部タスク（タイトル生成など）にキャラ性を出したくない場合は、Rules 画面で
+「そのリクエストは振り替えない」ルールを書くか、persona 側に抑制指示を入れる。
+
+### `<RIALTO-SUBAGENT-MODEL>` との合成
+
+persona 挿入は `<RIALTO-SUBAGENT-MODEL>` タグ処理の**後**で走るため、
 サブエージェントごとの system 内容を上書きせず合成される。
 ペルソナ側で「サブエージェント文脈ではキャラ性を抑えろ」と書いておくと、
 サブエージェント呼び出しでの不自然な語り口を抑制できる (必須ではない)。
@@ -362,7 +373,7 @@ persona 挿入は `<CCR-SUBAGENT-MODEL>` タグ処理の**後**で走るため�
 
 ## 既存 SEED_PERSONAS の改良ガイド
 
-CCR は `src/shared/data/personas.ts` で 4 つの seed persona (イレイナ・二階堂ヒロ・酒寄彩葉・月見ヤチヨ) を同梱している。
+Rialto は `src/shared/data/personas.ts` で 4 つの seed persona (イレイナ・二階堂ヒロ・酒寄彩葉・月見ヤチヨ) を同梱している。
 これらは現状 40〜80 行で、骨格はあるが本ガイドの「6 パターン」のうち 1〜3 しか満たしていない。
 
 **投資対効果順の改良提案**:
@@ -396,6 +407,6 @@ CCR は `src/shared/data/personas.ts` で 4 つの seed persona (イレイナ・
 ## 参考リンク
 
 - 本家ヤッチョ GPT (for Claude): `https://github.com/tsukumijima/YacchoGPT`
-- CCR のペルソナ機能概要: `README.md` の "Personas" セクション
+- Rialto のペルソナ機能概要: `README.md` の "Personas" セクション
 - 挿入実装: `src/llms/scenario-router.ts` の `resolveActivePersonaPrompt` と `applyGlobalSystemPrompt`
 - Seed ライブラリ: `src/shared/data/personas.ts`

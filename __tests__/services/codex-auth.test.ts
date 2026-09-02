@@ -17,7 +17,7 @@
  */
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { CodexCredentialsFileSchema } from '../../src/schemas/llm-oauth.dto'
+import { CodexCredentialsFileSchema } from '../../src/schemas/wire/oauth'
 import { codexAccessTokenExpiry, codexIdentityFrom, decodeJwtPayload } from '../../src/services/codex-auth/claims'
 import { codexTokenNeedsRefresh, ensureFreshCodexAccessToken } from '../../src/services/codex-auth/token'
 import { isRefreshInFlight, withRefreshLock } from '../../src/services/oauth/refresh-lock'
@@ -162,19 +162,19 @@ describe('codex-auth / codexTokenNeedsRefresh', () => {
   })
 
   test('falls back to the stored expiresAt for a token with no exp claim', () => {
-    expect(
-      codexTokenNeedsRefresh({ accessToken: 'opaque', expiresAt: new Date(Date.now() + 60 * 60 * 1000) })
-    ).toBe(false)
+    expect(codexTokenNeedsRefresh({ accessToken: 'opaque', expiresAt: new Date(Date.now() + 60 * 60 * 1000) })).toBe(
+      false
+    )
     expect(codexTokenNeedsRefresh({ accessToken: 'opaque', expiresAt: new Date(Date.now() + 60 * 1000) })).toBe(true)
   })
 
   test('falls back to lastSyncedAt when nothing states an expiry', () => {
-    expect(
-      codexTokenNeedsRefresh({ accessToken: 'opaque', lastSyncedAt: new Date(Date.now() - 60 * 60 * 1000) })
-    ).toBe(true)
-    expect(
-      codexTokenNeedsRefresh({ accessToken: 'opaque', lastSyncedAt: new Date(Date.now() - 60 * 1000) })
-    ).toBe(false)
+    expect(codexTokenNeedsRefresh({ accessToken: 'opaque', lastSyncedAt: new Date(Date.now() - 60 * 60 * 1000) })).toBe(
+      true
+    )
+    expect(codexTokenNeedsRefresh({ accessToken: 'opaque', lastSyncedAt: new Date(Date.now() - 60 * 1000) })).toBe(
+      false
+    )
   })
 
   test('false when no source states an expiry at all', () => {
@@ -210,7 +210,10 @@ describe('oauth / refresh-lock', () => {
       calls++
       return 'ok'
     }
-    await Promise.all([withRefreshLock(`k1-${crypto.randomUUID()}`, body), withRefreshLock(`k2-${crypto.randomUUID()}`, body)])
+    await Promise.all([
+      withRefreshLock(`k1-${crypto.randomUUID()}`, body),
+      withRefreshLock(`k2-${crypto.randomUUID()}`, body)
+    ])
     expect(calls).toBe(2)
   })
 
@@ -346,7 +349,7 @@ describe.skipIf(!HAS_DB)('codex-auth / ensureFreshCodexAccessToken persistence',
   const TEST_KEY_HEX = 'ab'.repeat(32)
 
   beforeEach(async () => {
-    process.env.CCR_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
+    process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY = TEST_KEY_HEX
     await resetDbTables()
   })
 
@@ -355,7 +358,7 @@ describe.skipIf(!HAS_DB)('codex-auth / ensureFreshCodexAccessToken persistence',
   })
 
   afterAll(async () => {
-    delete process.env.CCR_ACCOUNT_ENCRYPTION_KEY
+    delete process.env.RIALTO_ACCOUNT_ENCRYPTION_KEY
     await teardownPrisma()
   })
 
@@ -365,7 +368,11 @@ describe.skipIf(!HAS_DB)('codex-auth / ensureFreshCodexAccessToken persistence',
     const { recordCodexOAuthAccount } = await import('../../src/services/subscription-account-sync-service')
     const db = getPrismaClient()
     await db.provider.create({
-      data: { name: 'codex-oauth', apiBaseUrl: 'https://chatgpt.com/backend-api/codex', authMode: AuthMode.subscription }
+      data: {
+        name: 'codex-oauth',
+        apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+        authMode: AuthMode.subscription
+      }
     })
     await recordCodexOAuthAccount({ accessToken, refreshToken: 'rt-original', idToken: makeIdToken() })
     const row = await db.subAccount.findFirstOrThrow()

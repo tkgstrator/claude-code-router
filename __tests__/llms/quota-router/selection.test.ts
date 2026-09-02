@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import type { PreferenceConstraints, RouterPreferenceEntry } from '../../../src/schemas'
 import { selectByPreference } from '../../../src/llms/quota-router/selection'
+import type { PreferenceConstraints, RouterPreferenceEntry } from '../../../src/schemas/domain/preference'
 
 // Strict tier constraint: both directional gates OFF, so only same-tier
 // candidates match the requested tier. Replaces the pre-Phase 2h
@@ -21,7 +21,11 @@ const CONSTRAINTS_LOOSE: PreferenceConstraints = {
   allowDemotion: true
 }
 
-const entry = (priority: number, target: string, overrides: Partial<RouterPreferenceEntry> = {}): RouterPreferenceEntry => ({
+const entry = (
+  priority: number,
+  target: string,
+  overrides: Partial<RouterPreferenceEntry> = {}
+): RouterPreferenceEntry => ({
   priority,
   target,
   enabled: overrides.enabled ?? true,

@@ -15,8 +15,8 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '../../src/schemas'
 import { ClaudeCodeOauthTransformer } from '../../src/llms/transformers/anthropic'
+import type { RuntimeProvider, TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 
 // A minimal RuntimeProvider carrying an already-active subscription
 // account overlay — the same shape applySubscriptionAuth writes onto

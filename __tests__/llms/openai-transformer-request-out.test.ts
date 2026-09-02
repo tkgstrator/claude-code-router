@@ -14,8 +14,8 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas'
 import { OpenAITransformer } from '../../src/llms/transformers/openai'
+import type { TransformerContext, UnifiedChatRequest } from '../../src/schemas/domain'
 
 const t = new OpenAITransformer()
 const ctx = {} as TransformerContext
@@ -37,7 +37,10 @@ describe('OpenAITransformer.transformRequestOut — system absorption', () => {
     const out = (await t.transformRequestOut(
       {
         model: 'gpt-4.1',
-        system: [{ type: 'text', text: 'first' }, { type: 'text', text: 'second' }],
+        system: [
+          { type: 'text', text: 'first' },
+          { type: 'text', text: 'second' }
+        ],
         messages: []
       },
       ctx

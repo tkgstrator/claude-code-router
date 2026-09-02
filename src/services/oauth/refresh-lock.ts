@@ -14,9 +14,9 @@
  * calls for one account collapse onto the first in-flight promise, while
  * different accounts still refresh in parallel.
  *
- * Scope is this process only. A second CCR instance pointed at the same
+ * Scope is this process only. A second Rialto instance pointed at the same
  * database would still race; that needs a DB-level lock, and is out of
- * scope while CCR runs single-instance.
+ * scope while Rialto runs single-instance.
  */
 
 const refreshInFlight = new Map<string, Promise<string>>()

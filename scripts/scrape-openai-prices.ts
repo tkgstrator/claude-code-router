@@ -320,7 +320,7 @@ for (const id of Object.keys(prices).sort()) sorted[id] = prices[id]
 // page at /api/docs/models/<id> whose body shows e.g. "1,050,000
 // context window". Fetch it for EVERY id the pricing scrape produced,
 // including legacy rows: the legacy detail pages still publish the
-// figure (the pricing table just doesn't repeat it), and CCR's failover
+// figure (the pricing table just doesn't repeat it), and Rialto's failover
 // capability gate needs the value regardless of whether OpenAI still
 // promotes the model. Pages that 404 or omit the figure are skipped
 // (context is optional).

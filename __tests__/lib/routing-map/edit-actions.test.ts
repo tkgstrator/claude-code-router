@@ -9,7 +9,7 @@ import {
   removeRule,
   updateRule
 } from '../../../src/lib/routing-map/edit-actions'
-import type { RouterConfig } from '../../../src/schemas'
+import type { RouterConfig } from '../../../src/schemas/domain/router'
 
 // A fully-unset nested RouterConfig the tests mutate field by field. Each
 // scenario carries an agent + subagent route; the editor helpers edit the
@@ -137,7 +137,12 @@ test('removeRule drops the rule at the given index', () => {
   const a = { ...emptyRule(), name: 'a' }
   const b = { ...emptyRule(), name: 'b' }
   const c = { ...emptyRule(), name: 'c' }
-  const r0 = addRule(addRule(addRule(baseRouter(), 'default', 'agent', a), 'default', 'agent', b), 'default', 'agent', c)
+  const r0 = addRule(
+    addRule(addRule(baseRouter(), 'default', 'agent', a), 'default', 'agent', b),
+    'default',
+    'agent',
+    c
+  )
   const r1 = removeRule(r0, 'default', 'agent', 1)
   expect(r1.default.agent.rules.map((r) => r.name)).toEqual(['a', 'c'])
 })
@@ -146,7 +151,12 @@ test('moveRule reorders the stack and no-ops out of range', () => {
   const a = { ...emptyRule(), name: 'a' }
   const b = { ...emptyRule(), name: 'b' }
   const c = { ...emptyRule(), name: 'c' }
-  const r0 = addRule(addRule(addRule(baseRouter(), 'default', 'agent', a), 'default', 'agent', b), 'default', 'agent', c)
+  const r0 = addRule(
+    addRule(addRule(baseRouter(), 'default', 'agent', a), 'default', 'agent', b),
+    'default',
+    'agent',
+    c
+  )
   expect(moveRule(r0, 'default', 'agent', 0, 2).default.agent.rules.map((r) => r.name)).toEqual(['b', 'c', 'a'])
   expect(moveRule(r0, 'default', 'agent', 0, 5).default.agent.rules.map((r) => r.name)).toEqual(['a', 'b', 'c'])
 })

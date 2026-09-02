@@ -1,14 +1,23 @@
 /**
  * readConfigFile — JSON5 parsing and environment variable interpolation.
  * applyEnvelopeToEnv — scalar mirroring onto process.env.
+ *
+ * These assert what the DISK file produces, and readConfigFile overlays
+ * process.env on top of it before parsing. Any envelope scalar left on
+ * process.env by another test file therefore changes the answer — which
+ * is what made this suite pass alone and fail eight ways in a full run:
+ * a stray API_TIMEOUT_MS meant "absent from the file" came back as
+ * 30000. Every case here clears the envelope keys first, so the suite
+ * measures the file rather than whatever ran before it.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { SEED_PERSONAS } from '../../../src/shared/data'
-import { CONFIG_FILE } from '../../../src/shared/constants'
 import { applyEnvelopeToEnv, readConfigFile } from '../../../src/services/config/envelope'
+import { CONFIG_FILE } from '../../../src/shared/constants'
+import { SEED_PERSONAS } from '../../../src/shared/data'
+import { ENVELOPE_ENV_KEYS } from '../../../src/shared/db/types'
 
 async function writeConfig(content: string): Promise<void> {
   await fs.mkdir(path.dirname(CONFIG_FILE), { recursive: true })
@@ -23,9 +32,31 @@ async function deleteConfig(): Promise<void> {
   }
 }
 
+// Snapshot taken once, at import, before any case has run.
+const savedEnv = new Map(ENVELOPE_ENV_KEYS.map((key) => [key, process.env[key]]))
+
+function clearEnvelopeEnv(): void {
+  for (const key of ENVELOPE_ENV_KEYS) delete process.env[key]
+}
+
+function restoreEnvelopeEnv(): void {
+  for (const [key, value] of savedEnv) {
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+}
+
+async function resetEnvAndConfig(): Promise<void> {
+  clearEnvelopeEnv()
+  await deleteConfig()
+}
+
 describe('readConfigFile', () => {
-  beforeEach(deleteConfig)
-  afterEach(deleteConfig)
+  beforeEach(resetEnvAndConfig)
+  afterEach(async () => {
+    restoreEnvelopeEnv()
+    await deleteConfig()
+  })
 
   test('parses standard JSON', async () => {
     await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' }))
@@ -48,42 +79,44 @@ describe('readConfigFile', () => {
   })
 
   test('interpolates $VAR_NAME', async () => {
-    process.env.TEST_CCR_KEY = 'sk-real'
-    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$TEST_CCR_KEY' }))
+    process.env.TEST_RIALTO_KEY = 'sk-real'
+    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$TEST_RIALTO_KEY' }))
     const cfg = await readConfigFile()
     expect(cfg.APIKEY).toBe('sk-real')
-    delete process.env.TEST_CCR_KEY
+    delete process.env.TEST_RIALTO_KEY
   })
 
   test('interpolates ${VAR_NAME}', async () => {
-    process.env.TEST_CCR_HOST = '0.0.0.0'
-    await writeConfig(JSON.stringify({ HOST: '${TEST_CCR_HOST}', LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' }))
+    process.env.TEST_RIALTO_HOST = '0.0.0.0'
+    await writeConfig(
+      JSON.stringify({ HOST: '${TEST_RIALTO_HOST}', LOG: false, LOG_LEVEL: 'info', APIKEY: 'test-key' })
+    )
     const cfg = await readConfigFile()
     expect(cfg.HOST).toBe('0.0.0.0')
-    delete process.env.TEST_CCR_HOST
+    delete process.env.TEST_RIALTO_HOST
   })
 
   test('keeps literal when env var is unset', async () => {
-    delete process.env.UNSET_CCR_VAR
-    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$UNSET_CCR_VAR' }))
+    delete process.env.UNSET_RIALTO_VAR
+    await writeConfig(JSON.stringify({ LOG: false, LOG_LEVEL: 'info', APIKEY: '$UNSET_RIALTO_VAR' }))
     const cfg = await readConfigFile()
-    expect(cfg.APIKEY).toBe('$UNSET_CCR_VAR')
+    expect(cfg.APIKEY).toBe('$UNSET_RIALTO_VAR')
   })
 
   test('interpolates env vars inside nested objects and arrays', async () => {
-    process.env.TEST_CCR_BASE = 'https://api.example.com'
+    process.env.TEST_RIALTO_BASE = 'https://api.example.com'
     await writeConfig(
       JSON.stringify({
         LOG: false,
         LOG_LEVEL: 'info',
         APIKEY: 'test-key',
-        Providers: [{ name: 'test', api_base_url: '$TEST_CCR_BASE' }]
+        Providers: [{ name: 'test', api_base_url: '$TEST_RIALTO_BASE' }]
       })
     )
-    const cfg = await readConfigFile() as Record<string, unknown>
+    const cfg = (await readConfigFile()) as Record<string, unknown>
     const providers = cfg.Providers as { api_base_url: string }[]
     expect(providers[0].api_base_url).toBe('https://api.example.com')
-    delete process.env.TEST_CCR_BASE
+    delete process.env.TEST_RIALTO_BASE
   })
 
   test('returns default config when file does not exist', async () => {
@@ -95,8 +128,11 @@ describe('readConfigFile', () => {
 })
 
 describe('readConfigFile — API_TIMEOUT_MS handling', () => {
-  beforeEach(deleteConfig)
-  afterEach(deleteConfig)
+  beforeEach(resetEnvAndConfig)
+  afterEach(async () => {
+    restoreEnvelopeEnv()
+    await deleteConfig()
+  })
 
   test('string API_TIMEOUT_MS is coerced to number and config is not deleted', async () => {
     // Pre-fix configs written by the old UI stored API_TIMEOUT_MS as a string.
@@ -130,23 +166,24 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
     expect(cfg.APIKEY).toBe('key')
   })
 
-  test('negative API_TIMEOUT_MS fails validation and triggers default config creation', async () => {
-    await writeConfig(
-      JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: -1 })
-    )
+  // These two used to assert that a rejected config "is lost, but a new
+  // one is generated" — the behaviour that rotated an operator's
+  // bootstrap token because one field failed validation, locking out
+  // every configured client. The invalid field is still dropped; what
+  // must survive is the credential.
+  test('a negative API_TIMEOUT_MS is dropped without taking the token with it', async () => {
+    await writeConfig(JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: -1 }))
     const cfg = await readConfigFile()
-    // A default config is created; the original APIKEY is lost, but a new one is generated.
     expect(cfg.API_TIMEOUT_MS).toBeUndefined()
-    expect(typeof cfg.APIKEY).toBe('string')
-    expect(cfg.APIKEY).not.toBe('key')
+    expect(cfg.APIKEY).toBe('key')
   })
 
-  test('non-numeric string API_TIMEOUT_MS fails validation and triggers default config creation', async () => {
+  test('a non-numeric API_TIMEOUT_MS is dropped without taking the token with it', async () => {
     await writeConfig(
       JSON.stringify({ PORT: 3456, LOG: false, LOG_LEVEL: 'info', APIKEY: 'key', API_TIMEOUT_MS: 'fast' })
     )
     const cfg = await readConfigFile()
-    expect(cfg.APIKEY).not.toBe('key')
+    expect(cfg.APIKEY).toBe('key')
   })
 
   test('"600000" (old UI default value as string) does not destroy config', async () => {
@@ -170,8 +207,11 @@ describe('readConfigFile — API_TIMEOUT_MS handling', () => {
 })
 
 describe('readConfigFile — env overlay (12-factor)', () => {
-  beforeEach(deleteConfig)
-  afterEach(deleteConfig)
+  beforeEach(resetEnvAndConfig)
+  afterEach(async () => {
+    restoreEnvelopeEnv()
+    await deleteConfig()
+  })
 
   test('process.env value overrides the disk envelope APIKEY', async () => {
     process.env.APIKEY = 'from-env'
@@ -239,8 +279,11 @@ describe('readConfigFile — env overlay (12-factor)', () => {
 })
 
 describe('readConfigFile — envelope catchall accepts JSON with empty-string values', () => {
-  beforeEach(deleteConfig)
-  afterEach(deleteConfig)
+  beforeEach(resetEnvAndConfig)
+  afterEach(async () => {
+    restoreEnvelopeEnv()
+    await deleteConfig()
+  })
 
   test('config.json with Router.default.agent.rules[0].name = "" survives schema parse', async () => {
     // Regression: the disk envelope catchall used JsonPrimitiveSchema

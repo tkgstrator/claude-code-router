@@ -12,12 +12,13 @@
  * persona) is only touched on the Anthropic path.
  */
 
-import { describe, expect, test } from 'bun:test'
-import { routeScenario } from '../../src/llms/scenario-router'
-import type { RouterRequest } from '../../src/llms/scenario-router/types'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import pino from 'pino'
 import { ConfigStore } from '../../src/llms/registry/config'
 import { TokenizerRegistry } from '../../src/llms/registry/tokenizer'
-import pino from 'pino'
+import { routeScenario } from '../../src/llms/scenario-router'
+import type { RouterRequest } from '../../src/llms/scenario-router/types'
+import { __setSurfacesForTests } from '../../src/services/inbound-surface-service'
 
 const log = pino({ level: 'silent' })
 
@@ -41,9 +42,7 @@ async function runRouter(path: string | undefined, body: Record<string, unknown>
         models: ['claude-sonnet-5']
       }
     ],
-    Personas: [
-      { id: 'p1', name: 'brief', prompt: 'You are terse.' }
-    ],
+    Personas: [{ id: 'p1', name: 'brief', prompt: 'You are terse.' }],
     Router: {
       persona: 'p1',
       default: 'anthropic,claude-sonnet-5'
@@ -59,6 +58,13 @@ async function runRouter(path: string | undefined, body: Record<string, unknown>
   await routeScenario(req, { config, tokenizers })
   return req
 }
+
+// The router's behaviour depends on the surface's mode, so the tests
+// set it rather than inheriting whatever a fresh install seeds. These
+// cases describe the routed path.
+beforeEach(() => {
+  __setSurfacesForTests({ 'anthropic-messages': 'routed' })
+})
 
 describe('routeScenario — persona gate', () => {
   test('applies persona on /v1/messages (Anthropic inbound)', async () => {

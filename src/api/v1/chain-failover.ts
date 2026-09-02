@@ -36,7 +36,8 @@ import {
 } from '../../services/subaccount-usage-store'
 import { getSubAccountTokensForKind } from '../../services/subscription-account-sync-service'
 import { errorShapeForPath } from './error-shape'
-import { type ResolvedInvocation, type RoutePlan, resolveInvocationForModel } from './invocation'
+import { type ResolvedInvocation, resolveInvocationForModel } from './invocation'
+import type { RoutePlan } from './route-plan'
 import { forwardUpstreamError, isInsufficientQuota, isLongContextGate, isRateLimited } from './upstream-error'
 
 // Hard cap on account rotations within a single chain entry. Each rotate

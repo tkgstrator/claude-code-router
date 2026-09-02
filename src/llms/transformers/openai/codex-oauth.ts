@@ -14,14 +14,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { arch } from 'node:os'
-import {
-  type CodexRequestShape,
-  PackageJsonSchema,
-  type RuntimeProvider,
-  type TransformerContext,
-  type TransformerHookResult,
-  type UnifiedChatRequest
-} from '@/schemas'
+import type { RuntimeProvider, TransformerContext, TransformerHookResult, UnifiedChatRequest } from '@/schemas/domain'
+import { type CodexRequestShape, PackageJsonSchema } from '@/schemas/wire'
 import { ensureFreshCodexAccessToken } from '../../../services/codex-auth/token'
 import { cloneResponse } from '../../utils/response-clone'
 import { OAuthTransformer, type SubscriptionTokenState } from '../oauth-base'

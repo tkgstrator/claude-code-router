@@ -6,14 +6,14 @@
  * (`response-streaming.ts`).
  */
 
+import type { Annotation } from '@/schemas/domain/unified'
 import type {
-  Annotation,
   GeminiCandidate,
   GeminiResponse,
   GeminiResponsePart,
   PipelineChunkUsage,
   PipelineToolCall
-} from '@/schemas'
+} from '@/schemas/wire'
 
 // Re-exported so the gemini response converters keep their existing
 // `./response-shared` import path — the canonical implementation now
@@ -23,7 +23,7 @@ import type {
 // gemini caller in this PR.
 export { nowSeconds } from '../time'
 
-export const genRandomToolId = (prefix: 'tool' | 'ccr_tool' = 'tool'): string =>
+export const genRandomToolId = (prefix: 'tool' | 'rialto_tool' = 'tool'): string =>
   `${prefix}_${Math.random().toString(36).substring(2, 15)}`
 
 /** A zero-filled usage block used when the upstream omitted `usageMetadata`. */
@@ -108,7 +108,7 @@ const hasFunctionCall = (part: GeminiResponsePart): part is FunctionCallPart => 
 /** Build the pipeline tool-call list from non-thinking parts. */
 export function toPipelineToolCalls(
   parts: GeminiResponsePart[],
-  idPrefix: 'tool' | 'ccr_tool' = 'tool'
+  idPrefix: 'tool' | 'rialto_tool' = 'tool'
 ): PipelineToolCall[] {
   return parts.filter(hasFunctionCall).map(
     (part): PipelineToolCall => ({

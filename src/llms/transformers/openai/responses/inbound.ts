@@ -19,19 +19,17 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import type {
-  ChatCompletionResponse,
-  ChatCompletionResponseMessage,
-  ResponsesInboundFunctionCallItem,
-  ResponsesInboundFunctionCallOutputItem,
-  ResponsesInboundMessageItem,
-  UnifiedChatRequest
-} from '@/schemas'
+import type { UnifiedChatRequest } from '@/schemas/domain/unified'
 import {
+  type ChatCompletionResponse,
+  type ChatCompletionResponseMessage,
+  type ResponsesInboundFunctionCallItem,
   ResponsesInboundFunctionCallItemSchema,
+  type ResponsesInboundFunctionCallOutputItem,
   ResponsesInboundFunctionCallOutputItemSchema,
+  type ResponsesInboundMessageItem,
   ResponsesInboundMessageItemSchema
-} from '@/schemas'
+} from '@/schemas/wire'
 import { isObject } from '../../../utils/guards'
 import { flattenSystemToText } from '../../../utils/system-blocks'
 import { nowSeconds } from '../../../utils/time'

@@ -6,8 +6,7 @@
  * final `transformResponseIn` shaping pass.
  */
 
-import type { TransformerContext } from '@/schemas'
-import { viewPipelineBody } from '@/schemas'
+import { type TransformerContext, viewPipelineBody } from '@/schemas/domain/pipeline'
 import type { ResolvedProvider } from '../registry/provider'
 import type { Transformer } from '../transformers/base'
 import { lookupProviderModelBlock } from './request-chain'

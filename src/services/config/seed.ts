@@ -12,7 +12,6 @@ import {
   AuthMode,
   type Model as DbModel,
   type Provider as DbProvider,
-  Prisma,
   type PrismaClient
 } from '../../generated/prisma/client'
 import { apiStyleForVendor, modelApiStyleOverride } from './api-style'
@@ -58,7 +57,6 @@ export interface SeedRow {
   apiBaseUrl: string
   authMode: AuthMode
   apiStyle: ApiStyle
-  transformer: Prisma.InputJsonValue | typeof Prisma.DbNull
   models: string[]
   // Subset of `models` to seed as enabled=true. Only consulted for
   // subscription providers (a Pro/Max plan may not entitle the user to
@@ -109,8 +107,7 @@ export async function insertSeedProvider(tx: Tx, seed: SeedRow): Promise<void> {
       // '') so "no key" is represented consistently end to end.
       apiKey: null,
       authMode: seed.authMode,
-      apiStyle: seed.apiStyle,
-      transformer: seed.transformer
+      apiStyle: seed.apiStyle
     }
   })
   if (seed.models.length === 0) return
@@ -199,7 +196,6 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
     apiBaseUrl: seed.apiBaseUrl,
     authMode: AuthMode.api_key,
     apiStyle: apiStyleForVendor(seed.name),
-    transformer: seed.transformer ? seed.transformer : Prisma.DbNull,
     models: seed.models
   }))
   const subscriptionSeeds: SeedRow[] = SUBSCRIPTION_PRESETS.map((preset) => ({
@@ -207,7 +203,6 @@ export async function ensureSeedProviders(prisma: PrismaClient = getPrismaClient
     apiBaseUrl: preset.apiBaseUrl,
     authMode: AuthMode.subscription,
     apiStyle: apiStyleForVendor(preset.id),
-    transformer: Prisma.DbNull,
     // Seed every model the plan advertises (not just the defaults) so
     // the provider editor's toggle list — now driven off provider.models
     // — surfaces the full curated set even before the user runs

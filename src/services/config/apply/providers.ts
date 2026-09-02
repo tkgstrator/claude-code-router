@@ -4,11 +4,11 @@
  * Model row / enabled-flip reconciliation for each.
  */
 
-import type { Provider } from '@/schemas'
+import type { Provider } from '@/schemas/domain/provider'
 import { AuthMode, type Model as DbModel, type Provider as DbProvider } from '../../../generated/prisma/client'
 import { apiStyleForVendor } from '../api-style'
 import type { Tx } from '../apply'
-import { apiKeyForStorage, buildStoredTransformer } from './fields'
+import { apiKeyForStorage } from './fields'
 import { applyModelEnabledFlips, reconcileModelRows } from './model-rows'
 import { applySubscriptionAccountToggles } from './subscription-toggles'
 
@@ -66,7 +66,6 @@ export async function applyProviderRow(
   const prevEnabledByName = new Map<string, boolean>(
     prevProvider ? prevProvider.models.map((m) => [m.name, m.enabled]) : []
   )
-  const storedTransformer = buildStoredTransformer(inc)
   const apiKey = apiKeyForStorage(inc.api_key)
   // Provider request shape is derived from the vendor name (single source
   // of truth in apiStyleForVendor). Written on every upsert so newly-
@@ -81,7 +80,7 @@ export async function applyProviderRow(
       apiKey,
       authMode,
       apiStyle,
-      transformer: storedTransformer
+      enabled: inc.enabled !== false
     },
     create: {
       name: inc.name,
@@ -89,7 +88,7 @@ export async function applyProviderRow(
       apiKey,
       authMode,
       apiStyle,
-      transformer: storedTransformer
+      enabled: inc.enabled !== false
     },
     include: { models: true }
   })

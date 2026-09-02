@@ -17,8 +17,3 @@ export const disabledSet = (transformer: unknown): Set<string> => {
   if (!Array.isArray(raw)) return new Set()
   return new Set(raw.filter((v): v is string => typeof v === 'string'))
 }
-
-export const providerEnabledFromTransformer = (transformer: unknown): boolean => {
-  if (!isJsonObject(transformer)) return true
-  return transformer.providerEnabled !== false
-}

@@ -23,7 +23,7 @@ import {
   CodexRefreshResponseSchema,
   type CodexTokenExchangeResponse,
   CodexTokenExchangeResponseSchema
-} from '../../schemas/llm-oauth.dto'
+} from '../../schemas/wire/oauth'
 
 const CODEX_AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize'
 const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token'
@@ -34,10 +34,12 @@ const CODEX_SCOPES = ['openid', 'profile', 'email', 'offline_access', 'api.conne
 
 // `codex login` always binds its loopback server to /auth/callback —
 // the OAuth client only allows that path. The port is wildcarded so we
-// can reuse the CCR server's port instead of spinning a second listener.
+// can reuse the Rialto server's port instead of spinning a second listener.
 export const CODEX_CALLBACK_PATH = '/auth/callback'
 
-const DEBUG_OAUTH = process.env.CCR_DEBUG_OAUTH === '1'
+// RIALTO_DEBUG_OAUTH=1 logs the token exchange.
+// pre-rename name and still works.
+const DEBUG_OAUTH = process.env.RIALTO_DEBUG_OAUTH === '1'
 
 export const buildCodexAuthorizeUrl = (opts: { redirectUri: string; state: string; codeChallenge: string }): string => {
   // Param set captured verbatim from a fresh `codex login` run.

@@ -23,7 +23,7 @@ import { getPrismaClient } from '../../db/client'
 import { Prisma } from '../../generated/prisma/client'
 import dayjs from '../../lib/dayjs'
 import { logger } from '../../logger'
-import type { ClaudeUsage, CodexUsage } from '../../schemas/usage.dto'
+import type { ClaudeUsage, CodexUsage } from '../../schemas/api/usage'
 import { fetchUsageSnapshotWithAccountIds } from '../usage-service'
 
 export interface CollectorResult {
