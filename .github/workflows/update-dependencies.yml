@@ -24,8 +24,26 @@ jobs:
         with:
           bun-version: latest
 
+      # `bun update --latest` follows each package's `latest` dist-tag, not
+      # the semver range in package.json. That is the point of the job, and
+      # also how it broke: npm has had Prisma's `latest` pointing at an
+      # 8.0.0 release candidate, whose CLI no longer registers `generate`.
+      # The repo's `postinstall: prisma generate` then exited 2, the step
+      # failed, and every step after it was skipped — so this workflow has
+      # produced no dependency PR since 2026-08-31.
+      #
+      # Prisma is held back rather than the job weakened: 7 -> 8 is a major
+      # move that wants a deliberate migration, and silencing postinstall
+      # would only hide a missing client until a later job failed on it.
+      # Everything else still tracks `latest`.
       - name: Update dependencies
-        run: bun update --latest
+        run: |
+          held='["prisma","@prisma/client","@prisma/adapter-pg"]'
+          names=$(jq -r --argjson held "$held" '
+            (.dependencies // {}) + (.devDependencies // {})
+            | keys[] | select(IN($held[]) | not)
+          ' package.json)
+          bun update --latest $names
 
       - name: Detect changes
         id: changes
@@ -46,8 +64,12 @@ jobs:
           body: |
             ## Summary
 
-            Automated weekly dependency update via `bun update --latest`
-            across the monorepo workspace.
+            Automated weekly dependency update via `bun update --latest`.
+
+            Prisma (`prisma`, `@prisma/client`, `@prisma/adapter-pg`) is
+            held back — its `latest` dist-tag points at an 8.0.0 release
+            candidate whose CLI drops `generate`, which breaks
+            `postinstall`. Move it by hand when 8 is ready.
 
             ---
             *This PR was created automatically by the Update Dependencies workflow.*
