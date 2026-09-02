@@ -25,7 +25,7 @@ is not a dependency either; that code was absorbed into `src/llms/`.
 | `src/api/` | One `route.ts` per endpoint, Next.js-style directory naming (`providers/[name]/models/[model]/route.ts`) |
 | `src/llms/` | Transformers, request pipeline, `scenario-router`, `quota-router`, tokenizers, inbound-surface descriptors |
 | `src/services/` | config, OAuth, usage, routing-scheduler, access tokens, model tests |
-| `src/vendors/` | Per-vendor catalog + pricing adapters (`VendorProvider`): fetch a vendor's live model list, scrape its published prices. Read by `model-sync-service` / `catalog-service`, **never on the request path**. Named `vendors` and not `providers` because `src/llms/registry/provider.ts` is a different thing — see below |
+| `src/vendors/` | Per-vendor catalog + pricing adapters (`VendorProvider`): fetch a vendor's live model list, scrape its published prices, read per-model context windows. Read by `model-sync-service` / `catalog-service`, **never on the request path**. Named `vendors` and not `providers` because `src/llms/registry/provider.ts` is a different thing — see below |
 | `src/schemas/` | Zod, split into four layers — `primitives / wire / domain / api`. There is **no** global `@/schemas` barrel; import from the layer. `wire` / `domain` / `api` each expose one; `primitives` has no barrel because nothing composes the layer as a whole — import `primitives/record` and friends by name |
 | `src/components/rialto/` | The UI — five screens (Overview / Routing / Providers / Activity / Settings) |
 | `src/components/ui/` | shadcn components. Never edit (see Rules) |
@@ -60,8 +60,8 @@ bunx biome check --write .
 bunx knip              # dead-code inventory
 ```
 
-`bun test` and `bun run test` are **not** the same command. CI runs three gates:
-Build / Type Check / Test.
+`bun test` and `bun run test` are **not** the same command. CI runs five jobs:
+Commit Lint / Biome Check / Type Check / Test / Build (`.github/workflows/ci.yml`).
 
 UI mock workflow (see `.claude/skills/ui-mock-diff/SKILL.md`):
 
@@ -159,7 +159,7 @@ Transformers adapt Anthropic-format requests to each provider's wire format. Six
 
 `anthropic`, `openai`, `openai-responses`, `gemini`, `claude-code-oauth`, `codex-oauth`
 
-There is no plugin loader: the set is fixed at build time, and a provider's transformer chain is **derived**, not configured. `src/shared/transformer-chain.ts` maps `Provider.apiStyle` + `Provider.authMode` to the chain; `ProviderRegistry` resolves it to instances, and the Providers screen's read-only "Request shape" block displays it by calling **the same function**, so what is shown cannot drift from what runs. `Provider.transformer` no longer holds a `use` — a stale one from an older build is dropped on both the read and the write path. `GET /api/transformers` returns the live registry (name + endpoint).
+There is no plugin loader: the set is fixed at build time, and a provider's transformer chain is **derived**, not configured. `src/shared/transformer-chain.ts` maps `Provider.apiStyle` + `Provider.authMode` to the chain; `ProviderRegistry` resolves it to instances, and the Providers screen's read-only "Request shape" block displays it by calling **the same function**, so what is shown cannot drift from what runs. `Provider.transformer` is gone entirely — not emptied, dropped: no such column exists. What `/api/config` still calls `transformer` is a projection of `Model.enabled` (`{ _disabledModels: [...] }`) that the provider editor reads under the old name. `GET /api/transformers` returns the live registry (name + endpoint).
 
 A model whose `Model.apiStyle` disagrees with its provider's (codex-family models on the api_key OpenAI provider) gets its own conversion step appended after the provider chain.
 
@@ -208,8 +208,8 @@ The schema is well past the three tables the first PR shipped; the column commen
 
 | Table | Notes |
 |-------|-------|
-| `Provider` | unique `name`, `apiBaseUrl`, `apiKey`, `authMode`, `apiStyle`, optional `transformer` JSONB |
-| `Model` | FK to Provider with `onDelete: Cascade`, composite unique `(providerId, name)`, optional per-model `apiStyle` override |
+| `Provider` | unique `name`, `apiBaseUrl`, `apiKey`, `authMode`, `apiStyle`, `enabled`, `activeSubscriptionAccountId`. **There is no `transformer` column** — the chain is derived (see Transformer System) and the `transformer._disabledModels` the UI reads is synthesized from `Model.enabled` by `toWireTransformer` |
+| `Model` | FK to Provider with `onDelete: Cascade`, composite unique `(providerId, name)`, optional per-model `apiStyle` override. `enabled` is the per-model switch; `Provider.enabled` gates the whole provider above it |
 | `RouterSlot` | one row per `ScenarioKey` value — **five, not six** (`background` is gone) — with independent `agent` and `subagent` model references, each a nullable FK with `onDelete: Restrict` |
 | `SubAccount` / `SubAccountUsage` / `SubAccountQuota` | subscription accounts, their observed windows, and the exhaustion state the quota router reads |
 | `RouterPreferenceProfile` / `RouterPreferenceEntry` | the ordered chain the `quota-router` walks, per scenario and per `RouterPreferenceKind` lane |
@@ -374,12 +374,34 @@ theoretical.
 
 | | What it is |
 |---|---|
-| `Provider` (Prisma row) | An upstream Rialto can route to: base URL, key, auth mode, api style |
+| `Provider` (Prisma row) | An upstream Rialto can route to: base URL, key, auth mode, api style, and the `enabled` switch that decides whether Routing offers it at all |
 | `src/llms/registry/provider.ts` | The **runtime** registry. Resolves those rows into pipeline-ready objects with their transformer chain, on the request path |
 | `src/vendors/` | **Catalog and pricing** adapters, one per vendor. Fetch model lists and scrape prices for the Providers screen and the seed. Never touched while serving a request |
 
 (`src/shared/data/providers/<vendor>/prices.json` is a fourth use of the
 word, but it is static scraped output rather than code.)
+
+**Refreshing the catalog** is two buttons on the Providers screen: "Sync models"
+(`POST /api/refresh-models`) and "Refresh prices", which is `POST /api/catalog/refresh`
+followed by the same refresh. Both end in `refreshModelsForAllProviders`, and what it
+can recover comes from three sources that must not be conflated:
+
+- **Which models exist** — the vendor's live `/v1/models` (api_key providers with a
+  key; subscription providers have no live list) unioned with the vendor's scrape.
+  `VendorCatalog.listed`.
+- **Prices** — the live scrape *over* the committed `OFFICIAL_VENDOR_PRICES` table.
+  The scrape wins where it answers; the table fills ids it did not mention.
+  `VendorCatalog.priceById`, and **only** that field: merging the table into `listed`
+  once grew 43 api_key OpenAI models on a Codex subscription, because a price list is
+  not a statement about what a provider serves.
+- **Context windows** — the vendor's own catalog endpoint (`inputTokenLimit` on
+  Google, `max_input_tokens` on Anthropic), or a docs scrape where the endpoint omits
+  it (OpenAI). A subscription provider authenticates with its OAuth access token as a
+  **bearer with the oauth beta** — an `x-api-key` carrying that token is rejected, so
+  the scheme follows the credential rather than the vendor.
+
+Every write is "update what the vendor confirmed, leave the rest alone", so a thin
+scrape degrades coverage rather than nulling existing rows.
 
 
 There is no dependency graph to learn — this is one package. Two rules matter:
@@ -397,7 +419,11 @@ There is no dependency graph to learn — this is one package. Two rules matter:
 
 1. **Runtime / package manager**: bun. Use `bun` and `bunx`, never npm/npx.
 2. **Formatting and lint**: Biome (`biome.json`, plus local rules in `biome-plugins/`).
-   No `??`, no `let`, no type assertions, no `while`.
+   No `??`, no `let`, no type assertions, no `while`. `files.includes` covers
+   `src/**` **and `__tests__/**`** — tests were outside it for a long time, which is
+   why 22 of them were written in Japanese and a global-shadowing parameter went
+   unreported there while the same code in `src/` was an error. `src/components/ui`
+   and `src/generated` stay excluded.
 3. **TypeScript**: strict. Derive types with `z.infer` rather than hand-writing an
    interface beside a schema.
 4. **Code comments MUST be in English**, and should explain *why*, not *what* — the
