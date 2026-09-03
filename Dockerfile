@@ -62,7 +62,17 @@ COPY --from=builder /app/.codex-cli-version ./.codex-cli-version
 COPY entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 3456
+# The codex OAuth callback listener (src/services/codex-auth/callback-listener.ts).
+# OpenAI's client whitelists http://localhost:1455/auth/callback and nothing
+# else, so the port cannot be remapped inside the container — and a loopback
+# bind would be invisible to Docker's published-port proxy, which connects to
+# the container's external interface. Publish it as `127.0.0.1:1455:1455` to
+# keep it off the LAN while the browser on the Docker host can still reach it.
+# Deployments where the browser is elsewhere finish through the paste box in
+# Providers -> Connect instead; this port is not needed there.
+ENV CODEX_CALLBACK_HOST=0.0.0.0
+
+EXPOSE 3456 1455
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD bun -e "fetch('http://127.0.0.1:3456/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

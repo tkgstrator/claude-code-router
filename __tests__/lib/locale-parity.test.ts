@@ -65,6 +65,7 @@ const SHARED_VOCABULARY = new Set([
   'activity.requests.laneSubagent',
   'providers.connect.pillSubscription',
   'providers.connect.redirectPlaceholder',
+  'providers.connect.redirectPlaceholderCodex',
   'providers.rail.oauth',
   'routing.chain.modePassthroughLabel',
   'routing.chain.modeRoutedLabel',

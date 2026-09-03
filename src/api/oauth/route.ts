@@ -17,11 +17,15 @@
  *     SubAccount sync.
  *
  *   POST /api/oauth/manual-callback   (gated by APIKEY)
- *     For remote deployments where the browser cannot reach the loopback
- *     callback directly (e.g. Cloudflare Tunnel). The UI instructs the
- *     user to copy the redirect URL from the browser address bar and
- *     submit it here; the server extracts code+state and completes the
- *     exchange server-side.
+ *     For every deployment where the browser cannot reach the loopback
+ *     callback: a remote host, a tunnel, a container that does not
+ *     publish the port. The UI instructs the user to copy the redirect
+ *     URL out of the browser address bar and submit it here; the server
+ *     extracts code+state and completes the exchange server-side.
+ *     Handles BOTH providers. Codex needs it most — its redirect_uri is
+ *     pinned to localhost:1455, which resolves on the BROWSER's machine,
+ *     so any install the operator does not sit in front of has no other
+ *     way through.
  *
  *   POST /api/oauth/import-credentials   (gated by APIKEY)
  *     Accepts a raw credentials payload (or a parsed ~/.claude/.credentials.json
@@ -49,7 +53,7 @@ import { logger } from '../../logger'
 import { ClaudeCredentialsFileSchema, CodexCredentialsFileSchema } from '../../schemas/wire/oauth'
 import { buildClaudeAuthorizeUrl, CLAUDE_SCOPES, exchangeClaudeCode } from '../../services/claude-oauth-service'
 import { CODEX_CALLBACK_PORT, ensureCodexCallbackListener } from '../../services/codex-auth/callback-listener'
-import { buildCodexAuthorizeUrl, CODEX_CALLBACK_PATH } from '../../services/codex-auth/oauth'
+import { buildCodexAuthorizeUrl, CODEX_CALLBACK_PATH, exchangeCodexCode } from '../../services/codex-auth/oauth'
 import {
   consumePendingFlow,
   generatePkcePair,
@@ -83,13 +87,20 @@ oauthRoute.post('/api/oauth/initiate/:provider', async (c) => {
   let redirectUri: string
   if (provider === 'codex') {
     // OpenAI's OAuth client only allows http://localhost:1455/auth/callback —
-    // confirmed: any other loopback port returns unknown_error.
-    try {
-      await ensureCodexCallbackListener({ resultBaseUrl: rialtoBaseUrl })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'failed to bind codex callback listener on :1455'
-      return c.json({ success: false as const, error: message }, 500)
-    }
+    // confirmed: any other loopback port returns unknown_error. So the
+    // redirect_uri is fixed regardless of where this install runs.
+    //
+    // Binding the listener is best-effort, not a precondition. It can only
+    // ever catch the redirect when the browser and this process share a
+    // localhost — a workstation install, or a container that publishes 1455.
+    // Everywhere else (remote host, tunnel, unpublished container) the
+    // browser lands on a dead port with the code sitting in its address bar,
+    // and /api/oauth/manual-callback completes the same exchange from the
+    // pasted URL. Refusing to start the flow here used to take that fallback
+    // away too, which left codex unusable on every deployment but one.
+    await ensureCodexCallbackListener({ resultBaseUrl: rialtoBaseUrl }).catch((err: unknown) => {
+      logger.warn({ err, port: CODEX_CALLBACK_PORT }, '[oauth] codex loopback listener unavailable; paste-back only')
+    })
     redirectUri = `http://localhost:${CODEX_CALLBACK_PORT}${callbackPath}`
   } else {
     const isLoopback = initiateUrl.hostname === 'localhost' || initiateUrl.hostname === '127.0.0.1'
@@ -208,13 +219,32 @@ oauthRoute.post('/api/oauth/manual-callback', async (c) => {
   const pending = consumePendingFlow(state)
   if (!pending)
     return c.json({ success: false as const, error: 'Unknown or expired state. Start the flow again.' }, 400)
-  if (pending.provider !== 'claude')
+  if (!isSupportedProvider(pending.provider))
     return c.json(
-      { success: false as const, error: `State belongs to provider "${pending.provider}", not "claude".` },
+      { success: false as const, error: `State belongs to unsupported provider "${pending.provider}".` },
       400
     )
+  const flowProvider = pending.provider
 
   try {
+    // Codex reaches here far more often than claude does: its redirect_uri is
+    // pinned to http://localhost:1455/auth/callback, so anything but a
+    // browser on the server's own machine lands on a dead port. The exchange
+    // does not care — RFC 6749 only requires redirect_uri to match the
+    // authorize request byte-for-byte, never to be reachable from here.
+    if (flowProvider === 'codex') {
+      const tokens = await exchangeCodexCode({
+        code,
+        codeVerifier: pending.codeVerifier,
+        redirectUri: pending.redirectUri
+      })
+      await recordCodexOAuthAccount({
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        idToken: tokens.id_token
+      })
+      return c.json({ success: true as const })
+    }
     const tokens = await exchangeClaudeCode({
       code,
       codeVerifier: pending.codeVerifier,
@@ -229,7 +259,7 @@ oauthRoute.post('/api/oauth/manual-callback', async (c) => {
     })
     return c.json({ success: true as const })
   } catch (err) {
-    logger.error({ err, provider: 'claude' }, '[oauth] manual-callback failed')
+    logger.error({ err, provider: flowProvider }, '[oauth] manual-callback failed')
     const message = err instanceof Error ? err.message : 'Unknown error during token exchange.'
     return c.json({ success: false as const, error: message }, 500)
   }

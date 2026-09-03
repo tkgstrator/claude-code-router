@@ -25,20 +25,19 @@
     "chrome-devtools",
     "sequential-thinking"
   ],
+  "enabledPlugins": {
+    "devflow@qtmleap-plugins": true,
+    "frontend@qtmleap-plugins": true,
+    "backend@qtmleap-plugins": true,
+    "data@qtmleap-plugins": true
+  },
   "extraKnownMarketplaces": {
     "qtmleap-plugins": {
       "source": {
         "source": "github",
         "repo": "qtmleap/claude-plugins",
-        "ref": "v0.3.5"
+        "ref": "v0.6.0"
       }
     }
-  },
-  "enabledPlugins": {
-    "devflow@qtmleap-plugins": true,
-    "frontend@qtmleap-plugins": true,
-    "backend@qtmleap-plugins": true,
-    "data@qtmleap-plugins": true,
-    "cloudflare@qtmleap-plugins": true
   }
 }
