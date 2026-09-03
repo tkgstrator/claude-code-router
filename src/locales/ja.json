@@ -420,6 +420,8 @@
       "pasteRedirect": "リダイレクト URL を手動で貼り付ける",
       "redirectPlaceholder": "http://localhost:3456/callback?code=…&state=…",
       "pasteRedirectHint": "Rialto がトンネル越しで動いていて、ブラウザーからループバックに到達できない場合に使います。",
+      "redirectPlaceholderCodex": "http://localhost:1455/auth/callback?code=…&state=…",
+      "pasteRedirectHintCodex": "Codex のリダイレクト先は必ず localhost:1455、つまり「ブラウザーが動いているマシン」です。そのページが開けなかった場合は、アドレスバーの URL をそのままここに貼り付けてください。",
       "submit": "送信",
       "failureTitle": "前回の試行は失敗しました",
       "failureAgo": "{{ago}} 前",
