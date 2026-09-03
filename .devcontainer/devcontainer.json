@@ -17,7 +17,7 @@
   },
   "mounts": [
     "source=${env:HOME}/.aws,target=/home/vscode/.aws,type=bind,consistency=cached,readonly",
-    "source=${env:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    // "source=${env:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
     "source=${env:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly",
     "source=${env:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached",
     "source=${env:HOME}/.codex,target=/home/vscode/.codex,type=bind,consistency=cached",
