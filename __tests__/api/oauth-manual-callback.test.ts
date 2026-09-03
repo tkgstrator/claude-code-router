@@ -28,6 +28,7 @@ import { createServer, type Server } from 'node:http'
 import { oauthRoute } from '../../src/api/oauth/route'
 import { CODEX_CALLBACK_PORT } from '../../src/services/codex-auth/callback-listener'
 import { storePendingFlow } from '../../src/services/oauth-flow-service'
+import { HAS_DB } from '../db/helpers'
 
 const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token'
 const CLAUDE_TOKEN_URL = 'https://platform.claude.com/v1/oauth/token'
@@ -103,17 +104,15 @@ describe('POST /api/oauth/manual-callback', () => {
     stubToken(200, {
       access_token: jwt({ exp: 4102444800 }),
       refresh_token: 'rt_codex',
-      // No `https://api.openai.com/auth` block: nothing to key an account
-      // on, so the persist step bows out and this test needs no database.
       id_token: jwt({ iss: 'https://auth.openai.com' })
     })
 
-    const res = await post({
-      url: `${CODEX_REDIRECT_URI}?code=ac_pasted.value&scope=openid+profile&state=state-codex-ok`
-    })
+    await post({ url: `${CODEX_REDIRECT_URI}?code=ac_pasted.value&scope=openid+profile&state=state-codex-ok` })
 
-    expect(res.status).toBe(200)
-    expect(((await res.json()) as { success: boolean }).success).toBe(true)
+    // Assert the request that went upstream rather than the response: the
+    // write that follows resolves its Prisma client eagerly, so the status
+    // depends on whether a DB is wired up. The dispatch does not — see the
+    // DB-gated case below for the 200.
     expect(captured).toHaveLength(1)
     expect(captured[0].url).toBe(CODEX_TOKEN_URL)
     const sent = new URLSearchParams(captured[0].body)
@@ -160,6 +159,35 @@ describe('POST /api/oauth/manual-callback', () => {
     expect(res.status).toBe(400)
     expect(((await res.json()) as { error: string }).error).toContain('gemini')
     expect(captured).toHaveLength(0)
+  })
+})
+
+// The success status needs a reachable Prisma client: recordCodexOAuthAccount
+// declares `prisma: PrismaClient = getPrismaClient()`, and a default argument is
+// evaluated before the body decides it has nothing to persist. No tables are
+// read — the stubbed id_token carries no account claim, so the write bows out
+// immediately — only DATABASE_URL has to exist.
+describe.skipIf(!HAS_DB)('POST /api/oauth/manual-callback (DB)', () => {
+  beforeEach(() => {
+    captured.length = 0
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  test('codex: a completed exchange answers success', async () => {
+    seedFlow('state-codex-db', 'codex')
+    stubToken(200, {
+      access_token: jwt({ exp: 4102444800 }),
+      refresh_token: 'rt_codex',
+      id_token: jwt({ iss: 'https://auth.openai.com' })
+    })
+
+    const res = await post({ url: `${CODEX_REDIRECT_URI}?code=ac_pasted.value&state=state-codex-db` })
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { success: boolean }).success).toBe(true)
   })
 })
 
