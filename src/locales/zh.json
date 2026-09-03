@@ -317,6 +317,8 @@
       "title": "provider",
       "addProvider": "添加 provider",
       "refreshPrices": "刷新价格",
+      "refreshingPrices": "正在刷新价格…",
+      "pricesRefreshed": "价格已刷新",
       "summarySubtitle": "{{providers}} 个 provider · {{models}} 个模型已启用 · {{accounts}} 个订阅账号",
       "apiKeySubtitle": "{{label}} · API key · {{total}} 个模型中已启用 {{enabled}} 个",
       "emptyRail": "还没有配置任何 provider。请通过“添加 provider”来连接。",
@@ -335,6 +337,8 @@
     "detail": {
       "testAll": "全部测试",
       "syncModels": "同步模型",
+      "syncingModels": "正在同步模型…",
+      "modelsSynced": "模型已同步",
       "routable": "可路由",
       "toggleProvider": "切换 {{provider}}",
       "routableNeedsCredential": "需要可用的凭据才能接收流量"
@@ -400,6 +404,8 @@
       "stepOf": "第 {{step}} 步，共 3 步",
       "stepOfVendor": "第 {{step}} 步，共 3 步 · {{vendor}}",
       "finish": "完成",
+      "connected": "已连接 {{brand}}",
+      "apiKeySaved": "已保存 {{brand}} 的 API key",
       "pillSubscription": "subscription",
       "pillApiKey": "api key",
       "introSubscription": "使用你的 {{brand}} 订阅额度。Rialto 不会看到你的密码——它只交换 OAuth code，并且仅保存加密后的 token。",

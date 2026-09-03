@@ -317,6 +317,8 @@
       "title": "プロバイダー",
       "addProvider": "プロバイダーを追加",
       "refreshPrices": "価格を再取得",
+      "refreshingPrices": "価格を再取得しています…",
+      "pricesRefreshed": "価格を再取得しました",
       "summarySubtitle": "{{providers}} プロバイダー · {{models}} モデルが有効 · サブスクリプションアカウント {{accounts}} 件",
       "apiKeySubtitle": "{{label}} · API キー · {{total}} モデル中 {{enabled}} が有効",
       "emptyRail": "プロバイダーがまだ設定されていません。「プロバイダーを追加」から接続してください。",
@@ -335,6 +337,8 @@
     "detail": {
       "testAll": "すべてテスト",
       "syncModels": "モデルを同期",
+      "syncingModels": "モデルを同期しています…",
+      "modelsSynced": "モデルを同期しました",
       "routable": "振り分け対象",
       "toggleProvider": "{{provider}} の振り分け対象を切り替え",
       "routableNeedsCredential": "資格情報が無いため振り分け対象にできません"
@@ -400,6 +404,8 @@
       "stepOf": "ステップ {{step}} / 3",
       "stepOfVendor": "ステップ {{step}} / 3 · {{vendor}}",
       "finish": "完了",
+      "connected": "{{brand}} を接続しました",
+      "apiKeySaved": "{{brand}} の API キーを保存しました",
       "pillSubscription": "subscription",
       "pillApiKey": "api key",
       "introSubscription": "{{brand}} のサブスクリプション枠を利用します。Rialto がパスワードを見ることはありません。OAuth コードを交換し、暗号化したトークンだけを保存します。",

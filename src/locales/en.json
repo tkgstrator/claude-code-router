@@ -317,6 +317,8 @@
       "title": "Providers",
       "addProvider": "Add provider",
       "refreshPrices": "Refresh prices",
+      "refreshingPrices": "Refreshing prices…",
+      "pricesRefreshed": "Prices refreshed",
       "summarySubtitle": "{{providers}} providers · {{models}} models enabled · {{accounts}} subscription accounts",
       "apiKeySubtitle": "{{label}} · API key · {{enabled}} of {{total}} models enabled",
       "emptyRail": "No providers configured yet. Use Add provider to connect one.",
@@ -335,6 +337,8 @@
     "detail": {
       "testAll": "Test all",
       "syncModels": "Sync models",
+      "syncingModels": "Syncing models…",
+      "modelsSynced": "Models synced",
       "routable": "Routable",
       "toggleProvider": "Toggle {{provider}}",
       "routableNeedsCredential": "Needs a working credential before it can take traffic"
@@ -400,6 +404,8 @@
       "stepOf": "Step {{step}} of 3",
       "stepOfVendor": "Step {{step}} of 3 · {{vendor}}",
       "finish": "Finish",
+      "connected": "Connected {{brand}}",
+      "apiKeySaved": "Saved the {{brand}} API key",
       "pillSubscription": "subscription",
       "pillApiKey": "api key",
       "introSubscription": "Uses your {{brand}} subscription entitlement. Rialto never sees your password — it exchanges an OAuth code and stores only the encrypted tokens.",
