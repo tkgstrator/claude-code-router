@@ -31,8 +31,15 @@ const updateMock = mock(async () => {})
 
 // Replace the writeback module-side so OAuthTransformer.refreshIfNearExpiry's
 // import resolves to our spy. mock.module rewires the module graph for the
-// rest of the file.
+// rest of the PROCESS, not just this file — so the factory has to hand back the
+// whole barrel. Returning the one spy alone left every later test file that
+// imports another export of it failing with
+// `SyntaxError: Export named '...' not found`, on whatever file order bun
+// picked that run.
+const realSyncService = await import('../../../src/services/subscription-account-sync-service')
+
 mock.module('../../../src/services/subscription-account-sync-service', () => ({
+  ...realSyncService,
   updateSubAccountAccessToken: updateMock
 }))
 
