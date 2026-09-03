@@ -7,6 +7,7 @@
  * of fanning out to five endpoints and stitching them client-side.
  */
 
+import { z } from 'zod'
 import { getPrismaClient } from '../db/client'
 import dayjs from '../lib/dayjs'
 import { buildPriceMap, computeCosts, type PriceEntry } from './cost-service'
@@ -128,15 +129,46 @@ type WindowLog = {
   createdAt: Date
 }
 
-type MonthLog = {
+// The six spend periods: each tile plus the equally long period before
+// it, so the delta compares like with like.
+const SPEND_PERIODS = ['today', 'todayPrev', 'week', 'weekPrev', 'month', 'monthPrev'] as const
+
+/**
+ * One (provider, model) pair's token totals inside one spend period.
+ *
+ * Postgres folds the 60-day row set into these before it leaves the
+ * database. It used to arrive here as every RequestLog row written in
+ * two months — regardless of the requested window, so `?windowHours=1`
+ * cost exactly as much as `?windowHours=720` — and was then walked six
+ * times in JS, allocating a dayjs per row per pass. The aggregate is a
+ * few dozen rows whatever the traffic.
+ *
+ * Aggregating first is exact rather than approximate: `computeCosts` is
+ * linear in the four token counts for a fixed pair, and its null
+ * (unpriced) case depends only on the pair, so summing tokens and then
+ * pricing gives the same figure as pricing each row and summing.
+ */
+type SpendBucket = {
+  label: (typeof SPEND_PERIODS)[number]
   provider: string
   model: string
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
-  createdAt: Date
 }
+
+// Raw rows are unknown until parsed; the sums come back as double
+// precision so they land as JS numbers rather than BigInt.
+const SpendBucketSchema = z.object({
+  label: z.enum(SPEND_PERIODS),
+  provider: z.string().nonempty(),
+  model: z.string().nonempty(),
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  cacheReadTokens: z.number(),
+  cacheWriteTokens: z.number()
+})
 
 type QuotaRecord = Awaited<ReturnType<typeof loadQuotas>>[number]
 type WeightChange = { target: string; fromWeight: number; toWeight: number; reason: string; createdAt: Date }
@@ -180,20 +212,25 @@ function buildSurfaces(configs: ResolvedSurfaceLike[], windowLogs: WindowLog[]):
   })
 }
 
-/** Cost of the rows inside [from, to), or null when none are priced. */
-function costBetween(
-  logs: MonthLog[],
-  from: dayjs.Dayjs,
-  to: dayjs.Dayjs,
-  priceMap: Map<string, PriceEntry>
-): number | null {
-  return sumCost(
-    logs.filter((l) => {
-      const at = dayjs(l.createdAt)
-      return !at.isBefore(from) && at.isBefore(to)
-    }),
-    priceMap
-  )
+/**
+ * The six period boundaries, as [from, to) instants.
+ *
+ * Computed once here and handed to both the SQL aggregate and nothing
+ * else — the periods must not be derived twice, or a tile and its
+ * delta would end up measuring windows that do not line up.
+ */
+function spendWindows(now: dayjs.Dayjs): Array<{ label: (typeof SPEND_PERIODS)[number]; from: Date; to: Date }> {
+  const today = now.startOf('day')
+  const week = now.subtract(7, 'day')
+  const month = now.subtract(30, 'day')
+  return [
+    { label: 'today', from: today.toDate(), to: now.toDate() },
+    { label: 'todayPrev', from: today.subtract(1, 'day').toDate(), to: today.toDate() },
+    { label: 'week', from: week.toDate(), to: now.toDate() },
+    { label: 'weekPrev', from: week.subtract(7, 'day').toDate(), to: week.toDate() },
+    { label: 'month', from: month.toDate(), to: now.toDate() },
+    { label: 'monthPrev', from: month.subtract(30, 'day').toDate(), to: month.toDate() }
+  ]
 }
 
 // Ratio change from `previous` to `current`. A previous period of zero
@@ -204,20 +241,34 @@ function delta(current: number | null, previous: number | null): number | null {
   return (current - previous) / previous
 }
 
-function buildSpend(spendLogs: MonthLog[], priceMap: Map<string, PriceEntry>): SpendRow[] {
-  const now = dayjs()
-  // Each entry pairs a period with the equally long period before it, so
-  // the delta compares like with like.
-  const periods: Array<{ label: 'today' | 'week' | 'month'; days: number; from: dayjs.Dayjs }> = [
-    { label: 'today', days: 1, from: now.startOf('day') },
-    { label: 'week', days: 7, from: now.subtract(7, 'day') },
-    { label: 'month', days: 30, from: now.subtract(30, 'day') }
+function buildSpend(buckets: SpendBucket[], priceMap: Map<string, PriceEntry>): SpendRow[] {
+  const byLabel = new Map<string, SpendBucket[]>()
+  for (const bucket of buckets) {
+    const existing = byLabel.get(bucket.label)
+    if (existing === undefined) byLabel.set(bucket.label, [bucket])
+    else existing.push(bucket)
+  }
+  // A period Postgres returned no rows for is an empty list, which
+  // sumCost reports as null (nothing priced) — the same answer the
+  // row-by-row version gave for a period with no traffic.
+  const costOf = (label: (typeof SPEND_PERIODS)[number]): number | null => {
+    const rows = byLabel.get(label)
+    return sumCost(rows === undefined ? [] : rows, priceMap)
+  }
+
+  const periods: Array<{
+    label: 'today' | 'week' | 'month'
+    current: (typeof SPEND_PERIODS)[number]
+    previous: (typeof SPEND_PERIODS)[number]
+  }> = [
+    { label: 'today', current: 'today', previous: 'todayPrev' },
+    { label: 'week', current: 'week', previous: 'weekPrev' },
+    { label: 'month', current: 'month', previous: 'monthPrev' }
   ]
 
-  const rows: SpendRow[] = periods.map(({ label, days, from }) => {
-    const usd = costBetween(spendLogs, from, now, priceMap)
-    const previous = costBetween(spendLogs, from.subtract(days, 'day'), from, priceMap)
-    return { label, usd, deltaRatio: delta(usd, previous) }
+  const rows: SpendRow[] = periods.map(({ label, current, previous }) => {
+    const usd = costOf(current)
+    return { label, usd, deltaRatio: delta(usd, costOf(previous)) }
   })
 
   return [
@@ -323,14 +374,57 @@ function loadQuotas() {
   })
 }
 
+/**
+ * Sum the spend periods in Postgres instead of in this process.
+ *
+ * The six periods overlap (today is inside week is inside month), so a
+ * row belongs to several of them and a plain GROUP BY cannot express it.
+ * Joining against the period list fans each row out to the periods that
+ * contain it, and the `createdAt >= earliest` predicate still lets the
+ * index restrict the scan to the outermost period — one pass over 60
+ * days, rather than one query per period re-reading the nested ranges.
+ */
+async function loadSpendBuckets(
+  windows: Array<{ label: (typeof SPEND_PERIODS)[number]; from: Date; to: Date }>
+): Promise<SpendBucket[]> {
+  const earliest = windows.reduce((min, w) => (w.from < min ? w.from : min), windows[0].from)
+  const rows = await getPrismaClient().$queryRaw`
+    SELECT p.label AS label,
+           r.provider AS provider,
+           r.model AS model,
+           SUM(r."inputTokens")::double precision AS "inputTokens",
+           SUM(r."outputTokens")::double precision AS "outputTokens",
+           SUM(r."cacheReadTokens")::double precision AS "cacheReadTokens",
+           SUM(r."cacheWriteTokens")::double precision AS "cacheWriteTokens"
+    FROM "RequestLog" r
+    JOIN (VALUES
+            (${windows[0].label}, ${windows[0].from}::timestamptz, ${windows[0].to}::timestamptz),
+            (${windows[1].label}, ${windows[1].from}::timestamptz, ${windows[1].to}::timestamptz),
+            (${windows[2].label}, ${windows[2].from}::timestamptz, ${windows[2].to}::timestamptz),
+            (${windows[3].label}, ${windows[3].from}::timestamptz, ${windows[3].to}::timestamptz),
+            (${windows[4].label}, ${windows[4].from}::timestamptz, ${windows[4].to}::timestamptz),
+            (${windows[5].label}, ${windows[5].from}::timestamptz, ${windows[5].to}::timestamptz)
+         ) AS p(label, "from", "to")
+      ON r."createdAt" >= p."from" AND r."createdAt" < p."to"
+    WHERE r."createdAt" >= ${earliest}::timestamptz
+    GROUP BY p.label, r.provider, r.model
+  `
+  // A shape mismatch here means the query and the schema have drifted
+  // apart, which would otherwise surface as silently missing spend
+  // rather than a fault anyone can act on.
+  const parsed = z.array(SpendBucketSchema).safeParse(rows)
+  if (!parsed.success) throw new Error('spend aggregate did not match the expected shape')
+  return parsed.data
+}
+
 export async function getOverview(windowHours: number): Promise<OverviewResponse> {
   const prisma = getPrismaClient()
   const since = dayjs().subtract(windowHours, 'hour').toDate()
   // 60 days, not 30: every spend tile compares against the equally long
   // period before it, and the month tile's predecessor reaches back 60.
-  const spendWindowStart = dayjs().subtract(60, 'day').toDate()
+  const windows = spendWindows(dayjs())
 
-  const [surfaceConfigs, providerCount, enabledModelCount, windowLogs, spendLogs, quotas, weightChanges] =
+  const [surfaceConfigs, providerCount, enabledModelCount, windowLogs, spendBuckets, quotas, weightChanges] =
     await Promise.all([
       listSurfaces(),
       prisma.provider.count(),
@@ -353,23 +447,12 @@ export async function getOverview(windowHours: number): Promise<OverviewResponse
         },
         orderBy: { createdAt: 'desc' }
       }),
-      prisma.requestLog.findMany({
-        where: { createdAt: { gte: spendWindowStart } },
-        select: {
-          provider: true,
-          model: true,
-          inputTokens: true,
-          outputTokens: true,
-          cacheReadTokens: true,
-          cacheWriteTokens: true,
-          createdAt: true
-        }
-      }),
+      loadSpendBuckets(windows),
       loadQuotas(),
       prisma.routingWeightChange.findMany({ orderBy: { createdAt: 'desc' }, take: 6 })
     ])
 
-  const priceMap = await buildPriceMap(prisma, [...new Set(spendLogs.map((l) => priceKey(l.provider, l.model)))])
+  const priceMap = await buildPriceMap(prisma, [...new Set(spendBuckets.map((b) => priceKey(b.provider, b.model)))])
 
   return {
     windowHours,
@@ -377,7 +460,7 @@ export async function getOverview(windowHours: number): Promise<OverviewResponse
     providerCount,
     enabledModelCount,
     surfaces: buildSurfaces(surfaceConfigs, windowLogs),
-    spend: buildSpend(spendLogs, priceMap),
+    spend: buildSpend(spendBuckets, priceMap),
     quota: buildQuota(quotas),
     failover: buildFailover(quotas, weightChanges),
     recentSessions: buildRecentSessions(windowLogs, priceMap)

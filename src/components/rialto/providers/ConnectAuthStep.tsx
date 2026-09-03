@@ -100,29 +100,35 @@ function WaitingCard({
           <span className='text-xs font-medium'>{t('providers.connect.waitingTitle')}</span>
         </div>
         <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>{t('providers.connect.waitingBody')}</p>
-        {/* Only the claude flow accepts a pasted redirect: codex's OAuth
-            client whitelists a single loopback port, which the standalone
-            listener on :1455 already owns. */}
-        {kind === 'claude' ? (
-          <div className='mt-3 rounded-md bg-muted/50 px-3 py-2'>
-            <div className='text-[11px] text-muted-foreground'>{t('providers.connect.pasteRedirect')}</div>
-            <div className='mt-1.5 flex items-center gap-2'>
-              <input
-                value={manualUrl}
-                onChange={(e) => onManualUrlChange(e.target.value)}
-                placeholder={t('providers.connect.redirectPlaceholder')}
-                spellCheck={false}
-                className='h-8 flex-1 rounded-md border border-border bg-background px-3 font-mono text-[11px] text-muted-foreground outline-none focus:text-foreground'
-              />
-              <RButton variant='outline' onClick={onSubmitManual} disabled={busy || manualUrl.trim() === ''}>
-                {t('providers.connect.submit')}
-              </RButton>
-            </div>
-            <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>
-              {t('providers.connect.pasteRedirectHint')}
-            </p>
+        {/* Both flows accept a pasted redirect. Codex depends on it: its
+            OAuth client pins redirect_uri to localhost:1455, which resolves
+            on the BROWSER's machine — so on a remote or containerised
+            install the consent page always lands on a dead port with the
+            code stranded in the address bar, and this box is the only way
+            through. The exchange only needs redirect_uri to match what
+            authorize saw, never to be reachable. */}
+        <div className='mt-3 rounded-md bg-muted/50 px-3 py-2'>
+          <div className='text-[11px] text-muted-foreground'>{t('providers.connect.pasteRedirect')}</div>
+          <div className='mt-1.5 flex items-center gap-2'>
+            <input
+              value={manualUrl}
+              onChange={(e) => onManualUrlChange(e.target.value)}
+              placeholder={t(
+                kind === 'codex'
+                  ? 'providers.connect.redirectPlaceholderCodex'
+                  : 'providers.connect.redirectPlaceholder'
+              )}
+              spellCheck={false}
+              className='h-8 flex-1 rounded-md border border-border bg-background px-3 font-mono text-[11px] text-muted-foreground outline-none focus:text-foreground'
+            />
+            <RButton variant='outline' onClick={onSubmitManual} disabled={busy || manualUrl.trim() === ''}>
+              {t('providers.connect.submit')}
+            </RButton>
           </div>
-        ) : null}
+          <p className='mt-1.5 text-[11px] leading-relaxed text-muted-foreground'>
+            {t(kind === 'codex' ? 'providers.connect.pasteRedirectHintCodex' : 'providers.connect.pasteRedirectHint')}
+          </p>
+        </div>
       </div>
     </div>
   )

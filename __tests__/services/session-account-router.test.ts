@@ -40,12 +40,27 @@ type AccountUsageMap = Map<Metric, { percent: number; resetAt: Date | null }>
 let claudeAccounts: SubAccountTokenInfo[] = []
 let perAccountUsage: Map<string, AccountUsageMap> = new Map()
 
+// Capture the real namespace BEFORE replacing it. mock.module swaps the entry
+// for the whole `bun test` process, not just this file, so a factory that
+// returns only the function under test leaves every later test file importing
+// another export of the same barrel dying on
+// `SyntaxError: Export named '...' not found`. Which files that hits depends on
+// the order bun happens to run them in, which is why it reproduces in CI and
+// not always locally. Spreading the real module keeps the rest of the surface.
+// The import has to resolve out here — doing it inside the factory re-enters
+// the module being mocked and spins the runner.
+const realSyncService = await import('../../src/services/subscription-account-sync-service')
+
 mock.module('../../src/services/subscription-account-sync-service', () => ({
+  ...realSyncService,
   getSubAccountTokensForKind: async (kind: 'claude' | 'codex'): Promise<SubAccountTokenInfo[]> =>
     kind === 'claude' ? claudeAccounts : []
 }))
 
+const realUsageStore = await import('../../src/services/subaccount-usage-store')
+
 mock.module('../../src/services/subaccount-usage-store', () => ({
+  ...realUsageStore,
   CLAUDE_METRICS,
   CODEX_METRICS: { primary: 'codex.primary', secondary: 'codex.secondary' },
   getPerAccountUsage: async (subAccountIds: string[]): Promise<Map<string, AccountUsageMap>> => {
