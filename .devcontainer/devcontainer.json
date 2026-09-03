@@ -5,6 +5,19 @@
   "workspaceFolder": "/home/vscode/app",
   "shutdownAction": "stopCompose",
   "remoteUser": "vscode",
+  // The host browser has to reach two container ports. 16175 is the dev
+  // server. 1455 is the codex OAuth callback: OpenAI's client whitelists
+  // http://localhost:1455/auth/callback and nothing else, so
+  // src/services/codex-auth/callback-listener.ts binds that exact port inside
+  // the container — unforwarded, the consent redirect lands on the HOST's
+  // empty :1455 and the sign-in stalls with the code stranded in the URL bar.
+  "forwardPorts": [16175, 1455],
+  "portsAttributes": {
+    "16175": { "label": "Rialto dev server" },
+    // Bound on demand per sign-in and self-closed after 10 idle minutes, so it
+    // is absent most of the time — announcing that would only be noise.
+    "1455": { "label": "Codex OAuth callback", "onAutoForward": "silent" }
+  },
   "remoteEnv": {
     "CLOUDFLARE_API_TOKEN": "${localEnv:CLOUDFLARE_API_TOKEN}",
     "CLOUDFLARE_ACCOUNT_ID": "${localEnv:CLOUDFLARE_ACCOUNT_ID}",
@@ -17,7 +30,7 @@
   },
   "mounts": [
     "source=${env:HOME}/.aws,target=/home/vscode/.aws,type=bind,consistency=cached,readonly",
-    "source=${env:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    // "source=${env:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
     "source=${env:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly",
     "source=${env:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached",
     "source=${env:HOME}/.codex,target=/home/vscode/.codex,type=bind,consistency=cached",

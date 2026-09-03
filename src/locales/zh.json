@@ -420,6 +420,8 @@
       "pasteRedirect": "或手动粘贴重定向 URL",
       "redirectPlaceholder": "http://localhost:3456/callback?code=…&state=…",
       "pasteRedirectHint": "当 Rialto 运行在隧道之后、浏览器无法访问 loopback 时需要这样做。",
+      "redirectPlaceholderCodex": "http://localhost:1455/auth/callback?code=…&state=…",
+      "pasteRedirectHintCodex": "Codex 始终重定向到 localhost:1455，即你的浏览器所在的机器。如果该页面打不开，请把地址栏里的完整 URL 复制粘贴到这里。",
       "submit": "提交",
       "failureTitle": "上一次尝试失败",
       "failureAgo": "{{ago}}前",
