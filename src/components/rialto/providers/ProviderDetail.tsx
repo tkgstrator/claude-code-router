@@ -82,7 +82,7 @@ function DetailHeader({
   const enabled = provider.enabled !== false
   return (
     <div className='flex items-center gap-3 border-b border-border px-6 py-4'>
-      <div>
+      <div className='min-w-0'>
         <div className='flex items-center gap-2'>
           <h2 className='text-sm font-semibold'>{label}</h2>
           {subscription ? (
@@ -92,7 +92,9 @@ function DetailHeader({
           )}
           <Pill tone={stateTone}>{t(STATE_LABEL_KEYS[state])}</Pill>
         </div>
-        <p className='mt-0.5 font-mono text-[11px] text-muted-foreground'>{provider.api_base_url}</p>
+        <p className='mt-0.5 truncate font-mono text-[11px] text-muted-foreground' title={provider.api_base_url}>
+          {provider.api_base_url}
+        </p>
       </div>
       <div className='ml-auto flex items-center gap-2'>
         {/* The switch that Routing actually reads. It sits with the

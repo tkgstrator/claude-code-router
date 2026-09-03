@@ -36,7 +36,7 @@ export function CredentialsPanel({
 
   const dirty = draft !== stored
   return (
-    <div className='border-r border-border'>
+    <div className='min-w-0 border-r border-border'>
       <div className='px-6 pt-5 pb-2'>
         <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
           {t('providers.credentials.title')}
@@ -52,11 +52,11 @@ export function CredentialsPanel({
                 onChange={(e) => setDraft(e.target.value)}
                 spellCheck={false}
                 autoComplete='off'
-                className='h-8 flex-1 rounded-md border border-border bg-transparent px-3 font-mono text-xs outline-none focus:border-foreground/40'
+                className='h-8 w-full min-w-0 flex-1 rounded-md border border-border bg-transparent px-3 font-mono text-xs outline-none focus:border-foreground/40'
               />
             ) : (
-              <div className='flex h-8 flex-1 items-center rounded-md border border-border px-3 font-mono text-xs'>
-                {stored === '' ? t('providers.credentials.notSet') : maskKey(stored)}
+              <div className='flex h-8 min-w-0 flex-1 items-center rounded-md border border-border px-3 font-mono text-xs'>
+                <span className='truncate'>{stored === '' ? t('providers.credentials.notSet') : maskKey(stored)}</span>
               </div>
             )}
             <RButton
@@ -75,8 +75,12 @@ export function CredentialsPanel({
         </div>
         <div>
           <div className='mb-1 text-[11px] text-muted-foreground'>{t('providers.credentials.baseUrl')}</div>
-          <div className='flex h-8 items-center rounded-md border border-border px-3 font-mono text-xs'>
-            {provider.api_base_url}
+          {/* A long base URL must not wrap out of the h-8 box or widen the
+              column: clip it and keep the whole value on hover. */}
+          <div className='flex h-8 min-w-0 items-center rounded-md border border-border px-3 font-mono text-xs'>
+            <span className='truncate' title={provider.api_base_url}>
+              {provider.api_base_url}
+            </span>
           </div>
         </div>
         <p className='text-[11px] leading-relaxed text-muted-foreground'>
