@@ -22,6 +22,7 @@ import {
   toggleModel,
   toggleProvider
 } from './actions'
+import { BusyOverlay } from './BusyOverlay'
 import { disabledModelsOf, enabledCountOf, listedModelsOf, providerState } from './derive'
 import { ProviderDetail } from './ProviderDetail'
 import { ProviderRail, type RailProvider } from './ProviderRail'
@@ -67,6 +68,12 @@ export function ProvidersScreen() {
   const navigate = useNavigate()
   const { data, error, loading, reload } = useProvidersData()
   const [busy, setBusy] = useState(false)
+  // Label of the action currently running, or null when nothing needs a
+  // backdrop. Deliberately not derived from `busy`: `busy` gates every
+  // button, including the per-row writes that finish in milliseconds, and
+  // dimming the screen for those would flicker. Only the callers that
+  // pass a label get an overlay — see BusyOverlay for which and why.
+  const [pending, setPending] = useState<string | null>(null)
 
   // Every mutation is a write-then-reread: the server derives model rows,
   // prices and test status, so the response body is never the whole truth
@@ -79,15 +86,22 @@ export function ProvidersScreen() {
   // visible change on a install with no providers even when they succeed,
   // so silence cannot be read as success here.
   const run = useCallback(
-    async (work: () => Promise<void>) => {
+    async (work: () => Promise<void>, notice?: { pending: string; done: string }) => {
       setBusy(true)
+      if (notice !== undefined) setPending(notice.pending)
       try {
         await work()
         await reload()
+        // Only the narrated actions confirm themselves, for the reason
+        // given above: a scrape that changed nothing looks identical to
+        // one that never ran. The per-row writes are exempt because the
+        // row they changed is the confirmation.
+        if (notice !== undefined) toast.success(notice.done)
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : String(err))
       } finally {
         setBusy(false)
+        setPending(null)
       }
     },
     [reload]
@@ -118,7 +132,12 @@ export function ProvidersScreen() {
           <RButton
             variant='ghost'
             icon='ri-price-tag-3-line'
-            onClick={() => run(refreshPrices)}
+            onClick={() =>
+              run(refreshPrices, {
+                pending: t('providers.screen.refreshingPrices'),
+                done: t('providers.screen.pricesRefreshed')
+              })
+            }
             disabled={busy || loading}
           >
             {t('providers.screen.refreshPrices')}
@@ -134,7 +153,7 @@ export function ProvidersScreen() {
       ) : data === null ? (
         <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       ) : (
-        <div className='grid h-full grid-cols-[18rem_1fr]'>
+        <div className='relative grid h-full grid-cols-[18rem_1fr]'>
           <ProviderRail
             entries={rail}
             activeName={selected === undefined ? null : selected.provider.name}
@@ -162,7 +181,12 @@ export function ProvidersScreen() {
                 const enabled = listedModelsOf(selected.provider).filter((m) => !off.has(m))
                 run(() => testModels(selected.provider.name, enabled))
               }}
-              onSync={() => run(syncModels)}
+              onSync={() =>
+                run(syncModels, {
+                  pending: t('providers.detail.syncingModels'),
+                  done: t('providers.detail.modelsSynced')
+                })
+              }
               onRemove={() =>
                 run(async () => {
                   await removeProvider(selected.provider.name)
@@ -171,6 +195,7 @@ export function ProvidersScreen() {
               }
             />
           )}
+          {pending === null ? null : <BusyOverlay label={pending} />}
         </div>
       )}
     </Screen>

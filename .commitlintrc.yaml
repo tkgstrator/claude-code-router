@@ -10,6 +10,15 @@ rules:
     - 2
     - always
     - 128
+  # Same limit as the body. Left at the config-conventional default of 100,
+  # this rule fired on message text that the body limit above allows: every
+  # line after the first trailer counts as footer, so a squash commit whose
+  # body sits between 100 and 128 characters fails as soon as a later PR
+  # merges develop back in and the commit lands in its lint range.
+  footer-max-line-length:
+    - 2
+    - always
+    - 128
   type-enum:
     - 2
     - always

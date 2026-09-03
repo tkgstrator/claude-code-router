@@ -16,13 +16,23 @@
  * (so the most recent SPA origin always wins).
  *
  * Behaviour:
- *   - First `ensureCodexCallbackListener()` call binds 127.0.0.1:1455
- *     and resolves once `listen` succeeds.
+ *   - First `ensureCodexCallbackListener()` call binds
+ *     `CODEX_CALLBACK_HOST`:1455 and resolves once `listen` succeeds.
  *   - Subsequent calls reset the idle timer and update the result base
  *     URL.
  *   - EADDRINUSE on 1455 (e.g. the user is also running `codex login`
- *     in a shell) surfaces as a warning + rejects the initiate, with
- *     no fallback — the OAuth client doesn't allow any other port.
+ *     in a shell) surfaces as a warning; the initiate proceeds anyway
+ *     and the operator finishes through the manual-callback paste box.
+ *     There is no second port to fall back to — the OAuth client allows
+ *     exactly one.
+ *
+ * A deployment where the browser and the server are not the same machine
+ * (any remote install, and every containerised one that does not publish
+ * this port) can never receive this redirect: `localhost` in the consent
+ * page's redirect_uri means the BROWSER's machine. That case is served by
+ * POST /api/oauth/manual-callback, which runs the same exchange from a
+ * pasted URL — the redirect_uri only has to be byte-identical to the one
+ * authorize saw, not reachable.
  */
 
 import { createServer, type Server, type ServerResponse } from 'node:http'
@@ -32,7 +42,19 @@ import { recordCodexOAuthAccount } from '../subscription-account-sync-service'
 import { exchangeCodexCode } from './oauth'
 
 export const CODEX_CALLBACK_PORT = 1455
-export const CODEX_CALLBACK_HOST = '127.0.0.1'
+
+// Which interface the listener binds. Loopback by default: on a workstation
+// the browser and the server share it, and a callback that mints credentials
+// has no business being reachable from anywhere else. A container cannot use
+// loopback — Docker's published-port proxy connects to the container's
+// EXTERNAL interface, so a 127.0.0.1 bind stays invisible from the host even
+// with `-p 1455:1455`. The shipped image therefore sets
+// CODEX_CALLBACK_HOST=0.0.0.0 and compose.yaml publishes the port back onto
+// the host's own loopback (`127.0.0.1:1455:1455`), which keeps the listener
+// off the LAN.
+const configuredCallbackHost = process.env.CODEX_CALLBACK_HOST
+export const CODEX_CALLBACK_HOST =
+  configuredCallbackHost === undefined || configuredCallbackHost === '' ? '127.0.0.1' : configuredCallbackHost
 
 // 10 minutes — long enough to cover the slowest interactive sign-in
 // (SSO chain, MFA, etc.) without leaving the port grabbed forever

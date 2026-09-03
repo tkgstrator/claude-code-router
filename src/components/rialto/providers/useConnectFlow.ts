@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import dayjs from '@/lib/dayjs'
 import type { AuthFailure } from './ConnectAuthStep'
 import {
@@ -22,6 +23,7 @@ import {
 } from './connect-actions'
 import type { CatalogEntry } from './types'
 import type { ProvidersData } from './useProvidersData'
+import { vendorBrand } from './vendor-labels'
 
 const POLL_MS = 3_000
 
@@ -45,6 +47,10 @@ export function useConnectFlow(data: ProvidersData | null, reload: () => Promise
     data === null || selectedName === null ? undefined : data.providers.find((p) => p.name === selectedName)
   const subscription = data === null || selectedName === null ? undefined : data.subscriptions.get(selectedName)
   const oauthKind = entry === undefined ? null : oauthKindOf(entry)
+  // Brand name for the success notices. Falls back to the catalog name so
+  // a vendor this build has no label for still names itself rather than
+  // announcing an empty string.
+  const brand = entry !== undefined ? vendorBrand(entry.name, entry.vendor) : selectedName === null ? '' : selectedName
 
   // Re-read while an exchange is outstanding; the completing tab has no
   // channel back to this one.
@@ -63,8 +69,13 @@ export function useConnectFlow(data: ProvidersData | null, reload: () => Promise
     if (subscription.accounts.some((a) => !baseline.has(a.id))) {
       setPending(false)
       setStep(3)
+      // The exchange finished in a DIFFERENT tab, so this poll is the only
+      // moment this page can say it worked. The step bar advancing is easy
+      // to miss when the operator's eye is still on the tab that just
+      // closed — which is how a successful sign-in reads as a silent one.
+      toast.success(t('providers.connect.connected', { brand }))
     }
-  }, [pending, subscription, baseline])
+  }, [pending, subscription, baseline, brand, t])
 
   const guard = useCallback(
     async (work: () => Promise<void>) => {
@@ -108,23 +119,30 @@ export function useConnectFlow(data: ProvidersData | null, reload: () => Promise
       guard(async () => {
         await ensureProvider(entry)
         await importCredentials(oauthKind, file, t)
-        await reload()
+        // Closed BEFORE the reload lands, not after: the poll effect above
+        // announces any account it has not seen before, and reload()
+        // resolves its own state update first — leaving `pending` true
+        // across that render would toast the same success twice.
         setPending(false)
+        await reload()
         setStep(3)
+        toast.success(t('providers.connect.connected', { brand }))
       })
     },
-    [entry, oauthKind, guard, reload, t]
+    [entry, oauthKind, guard, reload, brand, t]
   )
 
   const submitManual = useCallback(() => {
     guard(async () => {
       await submitManualCallback(manualUrl, t)
-      await reload()
+      // Same ordering as importFile, for the same reason.
       setPending(false)
+      await reload()
       setManualUrl('')
       setStep(3)
+      toast.success(t('providers.connect.connected', { brand }))
     })
-  }, [manualUrl, guard, reload, t])
+  }, [manualUrl, guard, reload, brand, t])
 
   const saveApiKey = useCallback(() => {
     if (entry === undefined) return
@@ -132,8 +150,9 @@ export function useConnectFlow(data: ProvidersData | null, reload: () => Promise
       await saveNewApiKey(entry, apiKeyDraft)
       await reload()
       setStep(3)
+      toast.success(t('providers.connect.apiKeySaved', { brand }))
     })
-  }, [entry, apiKeyDraft, guard, reload])
+  }, [entry, apiKeyDraft, guard, reload, brand, t])
 
   // An error raised in this session outranks the stored one: it describes
   // the attempt the operator just made.

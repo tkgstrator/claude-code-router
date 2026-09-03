@@ -19,6 +19,18 @@ services:
       # The server listens on the envelope PORT (default 3456). Map it to
       # whatever host port you want.
       - "3456:3456"
+      # Codex OAuth callback. OpenAI's client whitelists exactly
+      # http://localhost:1455/auth/callback, so this one cannot be remapped:
+      # the consent page sends the browser to :1455 on the machine the
+      # BROWSER runs on. Publishing it makes the sign-in complete by itself
+      # when you browse from the Docker host, and binding to the host's own
+      # loopback keeps a credential-minting endpoint off the LAN.
+      #
+      # Drop this line if you reach Rialto from another machine or through a
+      # tunnel — the port cannot help there. Sign in via Providers ->
+      # Connect and paste the dead redirect URL into the box the wizard
+      # shows; the exchange runs server-side from the pasted code.
+      - "127.0.0.1:1455:1455"
     volumes:
       # Bind-mount the config envelope so config.json is
       # readable/editable on the host. Adjust the container path to the

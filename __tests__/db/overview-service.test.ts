@@ -158,6 +158,39 @@ describe.skipIf(!HAS_DB)('getOverview', () => {
     expect(out.recentSessions[0].turns).toBe(2)
   })
 
+  test('spend prices each period from the aggregate and compares against the one before it', async () => {
+    const prisma = getPrismaClient()
+    // Per-1M prices chosen so a row's cost is a whole number: each log
+    // carries 10 input and 5 output tokens, so a price of 1e6 per 1M
+    // makes one row cost exactly 15 USD.
+    const provider = await prisma.provider.create({
+      data: { name: 'acme', apiBaseUrl: 'https://acme.example.com' }
+    })
+    await prisma.model.create({
+      data: { providerId: provider.id, name: 'acme-1', inputPer1M: 1_000_000, outputPer1M: 1_000_000 }
+    })
+    await seedLogs('s1', [
+      { surface: 'anthropic-messages', durationMs: 100, status: 200, minutesAgo: 0 },
+      { surface: 'anthropic-messages', durationMs: 100, status: 200, minutesAgo: 0 },
+      // One clock-day back: before today's midnight, after the midnight
+      // before it, so it lands in today's comparison period and nowhere
+      // near the boundary whatever time the suite runs at.
+      { surface: 'anthropic-messages', durationMs: 100, status: 200, minutesAgo: 60 * 24 }
+    ])
+
+    const spend = (await getOverview(24)).spend
+    // Summing tokens per (provider, model) and pricing once must give
+    // the same figure as pricing every row and summing — the property
+    // that lets the 60-day window be aggregated in SQL.
+    expect(spend.find((s) => s.label === 'today')?.usd).toBeCloseTo(30, 6)
+    expect(spend.find((s) => s.label === 'month')?.usd).toBeCloseTo(45, 6)
+    // 30 today against 15 the day before.
+    expect(spend.find((s) => s.label === 'today')?.deltaRatio).toBeCloseTo(1, 6)
+    // Nothing precedes the 7- and 30-day windows here, so their deltas
+    // stay null rather than reading as an infinite rise.
+    expect(spend.find((s) => s.label === 'week')?.deltaRatio).toBeNull()
+  })
+
   test('spend reports no delta when the previous period had nothing to compare against', async () => {
     await seedLogs('s1', [{ surface: 'anthropic-messages', durationMs: 100, status: 200 }])
     const out = await getOverview(24)
