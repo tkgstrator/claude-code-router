@@ -353,15 +353,15 @@ export function RialtoShell() {
   const [mounted, setMounted] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   /**
-   * Sections the operator has explicitly opened or closed, by id.
+   * The sections standing open.
    *
-   * Not a list of open ones: the section you are in opens by default, and
-   * a list could only ever add to that — which made the chevron on the
-   * current section a dead control, since the default kept re-opening what
-   * the click had just removed. An explicit true/false is the only shape
-   * that lets a choice overrule a default.
+   * Nothing closes on its own. Arriving in a section opens it and it stays
+   * open after you leave, so walking Routing → Providers → Activity builds
+   * up the tree you have been working in rather than collapsing each one
+   * behind you. Only the chevron closes a section, and a closed one stays
+   * closed until you open it or navigate back into it.
    */
-  const [choice, setChoice] = useState<Readonly<Record<string, boolean>>>({})
+  const [open, setOpen] = useState<readonly string[]>([])
 
   useEffect(() => {
     setMounted(true)
@@ -397,27 +397,18 @@ export function RialtoShell() {
   const port = config?.PORT
   const themeLabel = mounted && resolvedTheme ? resolvedTheme : ''
 
-  // Open by default only where you are; an explicit choice wins over that.
-  const isOpen = useCallback(
-    (id: string) => {
-      const explicit = choice[id]
-      return explicit === undefined ? id === activeSection : explicit
-    },
-    [choice, activeSection]
+  const isOpen = useCallback((id: string) => open.includes(id), [open])
+  const toggle = useCallback(
+    (id: string) => setOpen((prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id])),
+    []
   )
-  const toggle = useCallback((id: string) => setChoice((prev) => ({ ...prev, [id]: !isOpen(id) })), [isOpen])
 
-  // Arriving in a section forgets an earlier choice about it, so a section
-  // you navigate INTO always opens. Without this, closing Settings once
-  // meant every later visit landed on a section whose own pages were
-  // hidden. Depending on `activeSection` alone keeps a collapse made while
-  // already inside the section — that one is about the section you are
-  // looking at, not about arriving.
+  // Arriving opens the section you arrived in, and leaving does not undo
+  // it. Landing on a section whose own pages are hidden is the one state
+  // worth ruling out; everything after that is the operator's call.
   useEffect(() => {
     if (activeSection === undefined) return
-    setChoice((prev) =>
-      activeSection in prev ? Object.fromEntries(Object.entries(prev).filter(([id]) => id !== activeSection)) : prev
-    )
+    setOpen((prev) => (prev.includes(activeSection) ? prev : [...prev, activeSection]))
   }, [activeSection])
 
   return (
