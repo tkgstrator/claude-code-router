@@ -53,8 +53,8 @@ import type { TokenizeRequest } from './tokenizers/base'
 // because applyUiConfig writes them via applyEnvelopeToEnv (a hot
 // reload without a server restart already updates process.env).
 const readRouterMode = (): 'scenario' | 'preference' | 'quota-aware' => {
-  const raw = process.env.ROUTER_MODE ?? 'scenario'
-  return raw === 'preference' || raw === 'quota-aware' ? raw : 'scenario'
+  const raw = process.env.ROUTER_MODE ?? 'quota-aware'
+  return raw === 'preference' || raw === 'scenario' ? raw : 'quota-aware'
 }
 const readRouterShadow = (): 'off' | 'preference' | 'quota-aware' => {
   const raw = process.env.ROUTER_SHADOW ?? 'off'

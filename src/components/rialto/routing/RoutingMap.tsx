@@ -282,6 +282,7 @@ export function RoutingMap() {
 
   return (
     <Screen
+      crumbs={[{ label: t('routing.common.tabMap') }]}
       subtitle={`${profileKey} · ${counts}`}
       actions={
         <>

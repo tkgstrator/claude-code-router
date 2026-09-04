@@ -59,17 +59,13 @@ interface NavEntry extends NavChild {
  */
 const NAV: readonly NavEntry[] = [
   { id: 'overview', labelKey: 'shell.navOverview', icon: 'ri-dashboard-3-line', href: '/overview', children: [] },
-  {
-    id: 'routing',
-    labelKey: 'shell.navRouting',
-    icon: 'ri-git-branch-line',
-    href: '/routing',
-    children: [
-      { id: 'chain', labelKey: 'routing.common.tabChain', icon: 'ri-list-ordered', href: '/routing' },
-      { id: 'map', labelKey: 'routing.common.tabMap', icon: 'ri-node-tree', href: '/routing/map' },
-      { id: 'rules', labelKey: 'routing.common.tabRules', icon: 'ri-filter-3-line', href: '/routing/rules' }
-    ]
-  },
+  // Routing has no children: the chain IS the screen. Map and Rules are
+  // the views around it — Map answers "which surfaces reach the router at
+  // all", Rules holds the exceptions that apply where a scenario's chain
+  // is empty — and both are reached from the chain's own header. Listing
+  // three siblings implied three equal ways to route, which stopped being
+  // true when the chain became the default selector.
+  { id: 'routing', labelKey: 'shell.navRouting', icon: 'ri-git-branch-line', href: '/routing', children: [] },
   { id: 'providers', labelKey: 'shell.navProviders', icon: 'ri-plug-line', href: '/providers', children: [] },
   {
     id: 'activity',

@@ -259,12 +259,13 @@ document.getElementById('root').innerHTML = `
 renderShell({
   active: 'routing',
   navMode: 'cloudflare',
-  sub: 'chain',
   crumbs: ['Chain'],
   subtitle: 'Per inbound surface · scenario · lane',
+  // The only doors to Map and Rules now that the sidebar lists Routing
+  // alone, so they name the destination rather than what you do there.
   actions:
-    btn('Live map', 'outline', 'ri-node-tree', 'routing-map.html') +
-    btn('Simulate', 'ghost', 'ri-play-line', 'routing-rules.html')
+    btn('Map', 'ghost', 'ri-node-tree', 'routing-map.html') +
+    btn('Rules', 'ghost', 'ri-filter-3-line', 'routing-rules.html')
 })
 </script>
 </body>
