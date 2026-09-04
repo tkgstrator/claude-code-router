@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, railItem, SETTINGS_RAIL, surfacePill } = window.Shell
+const { renderShell, pill, btn, surfacePill, navTo, sortTh } = window.Shell
 
 
 // Only the sha256 is stored; `prefix` is a separate column purely so a
@@ -33,8 +33,11 @@ const TOKENS = [
 
 const scopeTone = { proxy: 'info' }
 
+// The requests and last-used columns are decision support for Revoke; the
+// full picture behind them is Activity → Usage, which breaks spend down by
+// exactly these rows.
 const tokenRow = (t) => `
-  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50 ${t.revoked ? 'opacity-45' : ''}">
+  <tr ${navTo('activity-usage.html')} class="border-t border-border/60 transition-colors hover:bg-muted/50 ${t.revoked ? 'opacity-45' : ''}">
     <td class="py-2.5 pl-6 pr-3">
       <div class="flex items-center gap-2">
         <span class="text-xs font-medium">${t.name}</span>
@@ -44,7 +47,7 @@ const tokenRow = (t) => `
     </td>
     <td class="px-3">${pill(t.scope, scopeTone[t.scope])}</td>
     <td class="px-3">${t.surface ? surfacePill(t.surface) : '<span class="text-[11px] text-muted-foreground/50">all</span>'}</td>
-    <td class="px-3 font-mono text-[11px] text-muted-foreground">${t.profile ?? '—'}</td>
+    <td class="px-3 font-mono text-[11px] text-muted-foreground"><span ${navTo('routing.html')}>${t.profile ?? '—'}</span></td>
     <td class="px-3 text-right font-mono text-xs tabular-nums">${t.reqs}</td>
     <td class="px-3 text-right text-[11px] text-muted-foreground">${t.used}</td>
     <td class="px-3 text-right text-[11px] text-muted-foreground">${t.created}</td>
@@ -53,18 +56,40 @@ const tokenRow = (t) => `
     </td>
   </tr>`
 
+// One row of the issue form. `placeholder` is the empty-input state (the
+// operator has not typed a name yet); `select` is the impl's picker — a
+// bordered box with a chevron, monospace because every value in it is a
+// path or a profile key.
+const issueField = (label, hint, value, kind) => `
+  <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
+    <div>
+      <div class="text-xs font-medium">${label}</div>
+      <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">${hint}</div>
+    </div>
+    <div class="relative inline-flex w-full max-w-md">
+      <div class="flex h-8 w-full items-center rounded-md border border-border pl-3 pr-8 font-mono text-xs ${
+        kind === 'placeholder' ? 'text-muted-foreground/50' : ''
+      }">${value}</div>
+      ${
+        kind === 'select'
+          ? '<i class="ri-arrow-down-s-line pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"></i>'
+          : ''
+      }
+    </div>
+  </div>`
+
 const tokens = `
   <table class="w-full table-fixed">
     <colgroup><col><col class="w-20"><col class="w-40"><col class="w-24"><col class="w-20"><col class="w-20"><col class="w-24"><col class="w-12"></colgroup>
     <thead>
       <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
-        <th class="pl-6 pr-3 text-left font-medium">Token</th>
-        <th class="px-3 text-left font-medium">Scope</th>
-        <th class="px-3 text-left font-medium">Endpoint</th>
-        <th class="px-3 text-left font-medium">Profile</th>
-        <th class="px-3 text-right font-medium">Requests</th>
-        <th class="px-3 text-right font-medium">Last used</th>
-        <th class="px-3 text-right font-medium">Created</th>
+        ${sortTh('Token', 'pl-6 pr-3')}
+        ${sortTh('Scope', 'px-3')}
+        ${sortTh('Endpoint', 'px-3')}
+        ${sortTh('Profile', 'px-3')}
+        ${sortTh('Requests', 'px-3', 'right')}
+        ${sortTh('Last used', 'px-3', 'right', true, 'desc')}
+        ${sortTh('Created', 'px-3', 'right')}
         <th class="pl-3 pr-6"></th>
       </tr>
     </thead>
@@ -72,11 +97,7 @@ const tokens = `
   </table>`
 
 document.getElementById('root').innerHTML = `
-  <div class="grid h-full grid-cols-[13rem_1fr]">
-
-    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
-      ${SETTINGS_RAIL.map((r) => railItem(r, 'auth')).join('')}
-    </aside>
+  <div class="grid h-full grid-cols-1">
 
     <div class="min-w-0 overflow-y-auto">
 
@@ -162,7 +183,7 @@ document.getElementById('root').innerHTML = `
                 Guards this UI and <span class="font-mono">/api/*</span>. Browser logs in at the edge;
                 Rialto only validates the signed JWT.
               </div>
-              <div class="mt-1.5 font-mono text-[10px] text-muted-foreground">you → Access → Rialto</div>
+              <div class="mt-1.5 font-mono text-[11px] text-muted-foreground">you → Access → Rialto</div>
             </div>
             <div class="border-l-2 border-l-foreground/40 pl-3">
               <div class="text-xs font-medium">Access token</div>
@@ -170,7 +191,7 @@ document.getElementById('root').innerHTML = `
                 Guards <span class="font-mono">/v1/*</span>. CLI clients cannot do an interactive
                 Access login, so that path is a Bypass app and these tokens are its gate.
               </div>
-              <div class="mt-1.5 font-mono text-[10px] text-muted-foreground">Claude Code → Rialto</div>
+              <div class="mt-1.5 font-mono text-[11px] text-muted-foreground">Claude Code → Rialto</div>
             </div>
             <div class="border-l-2 border-l-border pl-3">
               <div class="text-xs font-medium">Provider API key</div>
@@ -179,7 +200,7 @@ document.getElementById('root').innerHTML = `
                 vendor. Lives on the provider in
                 <a href="providers-apikey.html" class="underline underline-offset-2">Providers</a>.
               </div>
-              <div class="mt-1.5 font-mono text-[10px] text-muted-foreground">Rialto → OpenAI</div>
+              <div class="mt-1.5 font-mono text-[11px] text-muted-foreground">Rialto → OpenAI</div>
             </div>
           </div>
         </div>
@@ -198,6 +219,26 @@ document.getElementById('root').innerHTML = `
           Scoping a token to an endpoint and a routing profile is how a client gets its own routing:
           the CI token below is pinned to <span class="font-mono">cost-first</span> without touching
           anyone else's chain.
+        </div>
+      </div>
+
+      <!-- The issue form, drawn open. It was missing entirely: the mock
+           jumped from the button to the issued panel, so the two fields
+           that are the whole reason per-client tokens exist — endpoint and
+           routing profile — were never shown as decisions. Both lists come
+           from the server (/api/inbound-surfaces, the profile list); none
+           of it is hardcoded. -->
+      <div class="border-t border-border">
+        ${issueField('Name', 'How this client is identified in the list and in Activity.', 'MacBook — Claude Code', 'placeholder')}
+        ${issueField('Endpoint', 'Restrict the token to one inbound surface. Unset lets it call all of them.', '/v1/messages', 'select')}
+        ${issueField('Routing profile', 'Route this client’s traffic through a named profile. Unset follows the endpoint’s own routing.', 'follow the endpoint', 'select')}
+        ${issueField('Expires', 'A bounded token limits the damage if it leaks. Revoke works either way.', '90 days', 'select')}
+        <div class="flex items-center gap-2 border-t border-border/60 px-6 py-4">
+          ${btn('Issue token', 'primary', 'ri-add-line')}
+          ${btn('Cancel', 'ghost', '')}
+          <span class="ml-3 text-[11px] text-muted-foreground">
+            The token is shown once, immediately after issuing, and never again.
+          </span>
         </div>
       </div>
 
@@ -246,9 +287,13 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'settings',
-  title: 'Access',
+  navMode: 'cloudflare',
+  sub: 'auth',
+  crumbs: ['Access'],
   subtitle: 'Cloudflare Access on /api · 4 proxy tokens on /v1',
-  actions: btn('Audit log', 'ghost', 'ri-history-line') + btn('Issue token', 'primary', 'ri-add-line')
+  actions:
+    btn('Audit log', 'ghost', 'ri-history-line', 'activity-logs.html') +
+    btn('Issue token', 'primary', 'ri-add-line')
 })
 </script>
 </body>

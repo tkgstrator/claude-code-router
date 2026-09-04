@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, railItem, SETTINGS_RAIL, tabs } = window.Shell
+const { renderShell, pill, btn, tabs, navTo } = window.Shell
 
 // Absorbs Presets + its six dialogs (Install / Market / Detail / Delete /
 // DynamicConfigForm / PresetListItem). The install form was a dialog inside
@@ -30,7 +30,7 @@ const presetRow = (p) => `
   }">
     <div class="flex items-center gap-2">
       <span class="text-xs font-medium">${p.name}</span>
-      <span class="ml-auto font-mono text-[10px] text-muted-foreground">v${p.version}</span>
+      <span class="ml-auto font-mono text-[11px] text-muted-foreground">v${p.version}</span>
     </div>
     <div class="mt-0.5 text-[11px] text-muted-foreground">
       ${p.author} · ${p.providers} providers · ${p.models} models
@@ -52,11 +52,7 @@ const input = (label, hint, value, secret) => `
   </div>`
 
 document.getElementById('root').innerHTML = `
-  <div class="grid h-full grid-cols-[13rem_17rem_1fr]">
-
-    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
-      ${SETTINGS_RAIL.map((r) => railItem(r, 'presets')).join('')}
-    </aside>
+  <div class="grid h-full grid-cols-[17rem_1fr]">
 
     <aside class="min-w-0 overflow-y-auto border-r border-border">
       <div class="flex items-center gap-1 border-b border-border px-3">
@@ -91,6 +87,7 @@ document.getElementById('root').innerHTML = `
           </p>
         </div>
         <div class="ml-auto flex gap-2">
+          ${btn('View in Routing', 'ghost', 'ri-git-branch-line', 'routing.html')}
           ${btn('Re-apply', 'outline', 'ri-refresh-line')}
           ${btn('Delete', 'ghost', 'ri-delete-bin-line')}
         </div>
@@ -104,21 +101,24 @@ document.getElementById('root').innerHTML = `
       </div>
 
       <div class="flex items-center gap-2 border-t border-border px-6 pt-5 pb-2">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Required inputs</h3>
+        <h3 class="text-sm font-semibold">Required inputs</h3>
         ${pill('1 missing', 'warn')}
       </div>
       ${input('OpenAI API key', 'Stored on this machine only. Never written into the preset.', 'sk-proj-••••7fA2', true)}
       ${input('Anthropic API key', 'Used by the longContext fallback.', '', true)}
 
       <div class="flex items-center gap-2 border-t border-border px-6 pt-5 pb-2">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What it changes</h3>
+        <h3 class="text-sm font-semibold">What it changes</h3>
         <span class="text-[11px] text-muted-foreground">diff against your current config</span>
       </div>
       <div class="space-y-1 px-6 pb-5 font-mono text-[11px]">
-        <div class="flex gap-2"><span class="w-4 text-emerald-600 dark:text-emerald-400">+</span><span>provider <span class="font-medium">openai</span></span></div>
-        <div class="flex gap-2"><span class="w-4 text-emerald-600 dark:text-emerald-400">+</span><span>provider <span class="font-medium">anthropic</span></span></div>
-        <div class="flex gap-2"><span class="w-4 text-amber-600 dark:text-amber-400">~</span><span>Router.default.agent <span class="text-muted-foreground">claude-code,claude-opus-4-8</span> → <span>openai,gpt-5.5</span></span></div>
-        <div class="flex gap-2"><span class="w-4 text-amber-600 dark:text-amber-400">~</span><span>Router.longContext.agent <span class="text-muted-foreground">(unset)</span> → <span>anthropic,claude-sonnet-4-6</span></span></div>
+        <!-- Every line of the diff names something with a screen of its
+             own; following one is how you check what a preset would
+             overwrite before you apply it. -->
+        <div ${navTo('providers-apikey.html')} class="flex gap-2"><span class="w-4 text-emerald-600 dark:text-emerald-400">+</span><span>provider <span class="font-medium">openai</span></span></div>
+        <div ${navTo('providers-apikey.html')} class="flex gap-2"><span class="w-4 text-emerald-600 dark:text-emerald-400">+</span><span>provider <span class="font-medium">anthropic</span></span></div>
+        <div ${navTo('routing.html')} class="flex gap-2"><span class="w-4 text-amber-600 dark:text-amber-400">~</span><span>Router.default.agent <span class="text-muted-foreground">claude-code,claude-opus-4-8</span> → <span>openai,gpt-5.5</span></span></div>
+        <div ${navTo('routing.html')} class="flex gap-2"><span class="w-4 text-amber-600 dark:text-amber-400">~</span><span>Router.longContext.agent <span class="text-muted-foreground">(unset)</span> → <span>anthropic,claude-sonnet-4-6</span></span></div>
         <div class="flex gap-2"><span class="w-4 text-muted-foreground/50">=</span><span class="text-muted-foreground">3 subscription providers untouched</span></div>
       </div>
 
@@ -141,7 +141,9 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'settings',
-  title: 'Presets',
+  navMode: 'cloudflare',
+  sub: 'presets',
+  crumbs: ['Presets'],
   subtitle: '3 installed · OpenAI production selected',
   actions: btn('Revert last apply', 'ghost', 'ri-arrow-go-back-line') + btn('Apply', 'primary', 'ri-check-line')
 })

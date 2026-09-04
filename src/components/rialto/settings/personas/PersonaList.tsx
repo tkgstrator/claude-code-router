@@ -63,7 +63,7 @@ export function PersonaList({
   return (
     <aside className='min-w-0 overflow-y-auto border-r border-border'>
       <div className='flex items-center gap-2 px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+        <h2 className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
           {t('settings.rail.personas')}
         </h2>
         <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{personas.length}</span>

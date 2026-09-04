@@ -13,50 +13,31 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, meter, btn } = window.Shell
+const { renderShell, pill, btn, providerRail, tierCell, effortCell, sortTh } = window.Shell
 
 // The api_key half of Providers. Differs from the subscription detail in
 // three ways that matter: a key field instead of accounts, real prices
 // instead of "—", and a much longer model list that needs filtering.
-const PROVIDERS = [
-  { id: 'claude-code', label: 'Claude Code', vendor: 'Anthropic', auth: 'subscription', plan: 'Max',    models: '6 / 7',  quota: 71, state: 'live',    active: false },
-  { id: 'codex',       label: 'Codex',       vendor: 'OpenAI',    auth: 'subscription', plan: 'Pro',    models: '1 / 4',  quota: 88, state: 'live',    active: false },
-  { id: 'gemini-cli',  label: 'Gemini CLI',  vendor: 'Google',    auth: 'subscription', plan: 'AI Pro', models: '3 / 5',  quota: 12, state: 'invalid', active: false },
-  { id: 'anthropic',   label: 'Anthropic',   vendor: 'Anthropic', auth: 'api_key', plan: null, models: '4 / 12', quota: null, state: 'live',    active: false },
-  { id: 'openai',      label: 'OpenAI',      vendor: 'OpenAI',    auth: 'api_key', plan: null, models: '5 / 18', quota: null, state: 'live',    active: true },
-  { id: 'google',      label: 'Google',      vendor: 'Google',    auth: 'api_key', plan: null, models: '4 / 9',  quota: null, state: 'live',    active: false },
-  { id: 'deepseek',    label: 'DeepSeek',    vendor: 'DeepSeek',  auth: 'api_key', plan: null, models: '0 / 3',  quota: null, state: 'unknown', active: false }
-]
-const stateTone = { live: 'ok', invalid: 'bad', unknown: 'mute' }
-
-const providerRow = (p) => `
-  <button class="block w-full border-l-2 px-4 py-3 text-left transition-colors ${
-    p.active ? 'border-l-foreground bg-muted/60' : 'border-l-transparent hover:border-l-border hover:bg-muted/50'
-  }">
-    <div class="flex items-center gap-2">
-      <span class="text-xs font-medium">${p.label}</span>
-      ${p.plan ? pill(p.plan, 'info') : ''}
-      <span class="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">${p.models}</span>
-    </div>
-    <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-      <span>${p.auth === 'subscription' ? 'OAuth' : 'API key'}</span>
-      <span class="opacity-40">·</span>
-      <span>${p.vendor}</span>
-      <span class="ml-auto">${pill(p.state, stateTone[p.state])}</span>
-    </div>
-    ${p.quota === null ? '' : `<div class="mt-2">${meter(p.quota)}</div>`}
-  </button>`
+//
+// Same rail as providers.html, from shell.js — the two screens are one
+// screen with two kinds of detail, and the rail is what says so.
 
 // Prices are per 1M tokens, each in its own right-aligned column.
+//
+// No name here contains a Claude family, so `tierOf` classifies none of
+// them: every tier below was typed by an operator, and the four left unset
+// are what an untouched api_key provider actually looks like. Those four
+// are invisible to Routing's tier-respect floor — that is the cost of the
+// column having been read-only.
 const MODELS = [
-  { name: 'gpt-5.5',        tier: 'opus',   ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
-  { name: 'gpt-5.4',        tier: 'sonnet', ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
-  { name: 'gpt-5.4-mini',   tier: 'haiku',  ctx: '400k', inp: '$0.250', cache: '$0.0250', out: '$2.00', style: '—',      test: 'ok',      on: true },
-  { name: 'gpt-5.3-codex',  tier: 'opus',   ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: 'responses', test: 'ok',     on: true },
-  { name: 'gpt-5.2',        tier: 'sonnet', ctx: '272k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
-  { name: 'gpt-4.1',        tier: 'sonnet', ctx: '1M',   inp: '$2.00', cache: '$0.500', out: '$8.00', style: '—',        test: 'unknown', on: false, legacy: true },
-  { name: 'gpt-4.1-mini',   tier: 'haiku',  ctx: '1M',   inp: '$0.400', cache: '$0.100', out: '$1.60', style: '—',       test: 'unknown', on: false, legacy: true },
-  { name: 'o3-deep-research', tier: 'opus', ctx: '200k', inp: '$10.0', cache: '$2.50',  out: '$40.0', style: 'responses', test: 'fail',   on: false }
+  { name: 'gpt-5.5',        tier: 'opus',   tierSource: 'manual', effort: null,   ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
+  { name: 'gpt-5.4',        tier: 'sonnet', tierSource: 'manual', effort: null,   ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
+  { name: 'gpt-5.4-mini',   tier: 'haiku',  tierSource: 'manual', effort: 'low',  ctx: '400k', inp: '$0.250', cache: '$0.0250', out: '$2.00', style: '—',      test: 'ok',      on: true },
+  { name: 'gpt-5.3-codex',  tier: 'opus',   tierSource: 'manual', effort: 'high', ctx: '400k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: 'responses', test: 'ok',     on: true },
+  { name: 'gpt-5.2',        tier: null,     tierSource: 'unset',  effort: null,   ctx: '272k', inp: '$1.25', cache: '$0.125', out: '$10.0', style: '—',        test: 'ok',      on: true },
+  { name: 'gpt-4.1',        tier: null,     tierSource: 'unset',  effort: null,   ctx: '1M',   inp: '$2.00', cache: '$0.500', out: '$8.00', style: '—',        test: 'unknown', on: false, legacy: true },
+  { name: 'gpt-4.1-mini',   tier: null,     tierSource: 'unset',  effort: null,   ctx: '1M',   inp: '$0.400', cache: '$0.100', out: '$1.60', style: '—',       test: 'unknown', on: false, legacy: true },
+  { name: 'o3-deep-research', tier: null,   tierSource: 'unset',  effort: 'high', ctx: '200k', inp: '$10.0', cache: '$2.50',  out: '$40.0', style: 'responses', test: 'fail',   on: false }
 ]
 const testIcon = {
   ok: '<i class="ri-check-line text-emerald-600 dark:text-emerald-400"></i>',
@@ -72,12 +53,13 @@ const modelRow = (m) => `
         ${m.legacy ? pill('legacy', 'mute') : ''}
       </div>
     </td>
-    <td class="px-2">${pill(m.tier, 'mute')}</td>
+    <td class="px-2">${tierCell(m.tier, m.tierSource)}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.ctx}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums">${m.inp}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.cache}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums">${m.out}</td>
     <td class="px-2 font-mono text-[11px] text-muted-foreground">${m.style}</td>
+    <td class="px-2">${effortCell(m.effort)}</td>
     <td class="px-2 text-center text-sm leading-none">${testIcon[m.test]}</td>
     <td class="py-2.5 pl-2 pr-6 text-right">
       <span class="inline-flex h-4 w-7 items-center rounded-full ${m.on ? 'bg-foreground' : 'bg-muted-foreground/30'} px-0.5 align-middle">
@@ -88,18 +70,19 @@ const modelRow = (m) => `
 
 const models = `
   <table class="w-full table-fixed">
-    <colgroup><col><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-24"><col class="w-14"><col class="w-16"></colgroup>
+    <colgroup><col><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-24"><col class="w-24"><col class="w-14"><col class="w-16"></colgroup>
     <thead>
       <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
-        <th class="pl-6 pr-2 text-left font-medium">Model</th>
-        <th class="px-2 text-left font-medium">Tier</th>
-        <th class="px-2 text-right font-medium">Context</th>
-        <th class="px-2 text-right font-medium">In /1M</th>
-        <th class="px-2 text-right font-medium">Cached</th>
-        <th class="px-2 text-right font-medium">Out /1M</th>
-        <th class="px-2 text-left font-medium">Override</th>
-        <th class="px-2 text-center font-medium">Test</th>
-        <th class="pl-2 pr-6 text-right font-medium">On</th>
+        ${sortTh('Model', 'pl-6 pr-2', 'left', true, 'desc')}
+        ${sortTh('Tier', 'px-2')}
+        ${sortTh('Context', 'px-2', 'right')}
+        ${sortTh('In /1M', 'px-2', 'right')}
+        ${sortTh('Cached', 'px-2', 'right')}
+        ${sortTh('Out /1M', 'px-2', 'right')}
+        <th class="px-2 text-left font-medium">Shape</th>
+        <th class="px-2 text-left font-medium">Effort</th>
+        ${sortTh('Test', 'px-2', 'center')}
+        ${sortTh('On', 'pl-2 pr-6', 'right')}
       </tr>
     </thead>
     <tbody>${MODELS.map(modelRow).join('')}</tbody>
@@ -109,17 +92,7 @@ document.getElementById('root').innerHTML = `
   <div class="grid h-full grid-cols-[18rem_1fr]">
 
     <aside class="min-w-0 overflow-y-auto border-r border-border">
-      <div class="flex items-center gap-2 px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Subscriptions</h2>
-        <span class="ml-auto font-mono text-[10px] text-muted-foreground">3</span>
-      </div>
-      ${PROVIDERS.filter((p) => p.auth === 'subscription').map(providerRow).join('')}
-      <div class="mt-2 flex items-center gap-2 border-t border-border px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">API keys</h2>
-        <span class="ml-auto font-mono text-[10px] text-muted-foreground">4</span>
-      </div>
-      ${PROVIDERS.filter((p) => p.auth === 'api_key').map(providerRow).join('')}
-      <div class="p-4">${btn('Add provider', 'outline', 'ri-add-line')}</div>
+      ${providerRail('openai')}
     </aside>
 
     <div class="min-w-0 overflow-y-auto">
@@ -142,7 +115,7 @@ document.getElementById('root').innerHTML = `
       <div class="grid grid-cols-2 border-b border-border">
         <div class="border-r border-border">
           <div class="px-6 pt-5 pb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Credentials</h3>
+            <h3 class="text-sm font-semibold">Credentials</h3>
           </div>
           <div class="space-y-3 px-6 pb-5">
             <div>
@@ -171,7 +144,7 @@ document.getElementById('root').innerHTML = `
 
         <div>
           <div class="px-6 pt-5 pb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Request shape</h3>
+            <h3 class="text-sm font-semibold">Request shape</h3>
           </div>
           <div class="px-6 pb-5">
             <div class="flex items-baseline gap-3 py-1.5">
@@ -188,14 +161,14 @@ document.getElementById('root').innerHTML = `
             </div>
             <p class="mt-3 text-[11px] leading-relaxed text-muted-foreground">
               Derived from the API style — not configurable. Codex-family models here override to
-              <span class="font-mono">openai_responses</span>; see the Override column.
+              <span class="font-mono">openai_responses</span>; see the Shape column.
             </p>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-3 px-6 pt-5 pb-3">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Models</h3>
+        <h3 class="text-sm font-semibold">Models</h3>
         <span class="text-[11px] text-muted-foreground">5 of 18 enabled</span>
         <div class="ml-auto flex items-center gap-2">
           <button class="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-muted/60">
@@ -208,6 +181,23 @@ document.getElementById('root').innerHTML = `
         </div>
       </div>
       ${models}
+      <div class="px-6 pt-4">
+        <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+          <i class="ri-information-line mr-1 align-[-1px]"></i>
+          Tier is per model. Rialto only infers it from a name that says a Claude family, and nothing
+          here does — every tier above was typed. A model left at <span class="font-mono">—</span> is
+          invisible to Routing's <span class="font-medium text-foreground">tier respect</span> floor:
+          "never fall below sonnet" cannot hold a line against a target whose tier is unknown, so the
+          chain will use it anyway.
+          <span class="mt-1.5 block">
+            <span class="font-medium text-foreground">Effort</span> is the same kind of override, for
+            OpenAI / Responses / Codex models only. A dash sends nothing and lets the vendor pick;
+            setting one injects <span class="font-mono">reasoning_effort</span> into every request.
+            Not every model accepts every value — a rejected one comes back as a request error, not a
+            validation message here.
+          </span>
+        </div>
+      </div>
       <div class="px-6 py-4">
         <button class="w-full rounded-md border border-dashed border-border py-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50">
           Show 10 more models
@@ -220,9 +210,12 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'providers',
-  title: 'Providers',
-  subtitle: 'OpenAI · API key · 5 of 18 models enabled',
-  actions: btn('Refresh prices', 'ghost', 'ri-price-tag-3-line') + btn('Add provider', 'primary', 'ri-add-line')
+  navMode: 'cloudflare',
+  crumbs: ['OpenAI'],
+  subtitle: 'API key · 5 of 18 models enabled',
+  actions:
+    btn('Refresh prices', 'ghost', 'ri-price-tag-3-line') +
+    btn('Add provider', 'primary', 'ri-add-line', 'providers-connect.html')
 })
 </script>
 </body>

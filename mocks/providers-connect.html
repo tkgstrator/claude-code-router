@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn } = window.Shell
+const { renderShell, pill, btn, navTo } = window.Shell
 
 // Absorbs ConnectChoiceDialog + ProviderConnectFlow + ImportCredentialsDialog
 // + ManualCallbackDialog + ManageProvidersDialog — four dialogs that chained
@@ -24,7 +24,7 @@ const step = (n, label, state) => {
   const tone = { done: 'bg-foreground text-background', active: 'bg-foreground text-background', todo: 'bg-muted text-muted-foreground' }[state]
   return `
     <div class="flex items-center gap-2">
-      <span class="flex size-5 items-center justify-center rounded-full text-[10px] font-medium ${tone}">
+      <span class="flex size-5 items-center justify-center rounded-full text-[11px] font-medium ${tone}">
         ${state === 'done' ? '<i class="ri-check-line text-xs"></i>' : n}
       </span>
       <span class="text-xs ${state === 'todo' ? 'text-muted-foreground' : 'font-medium'}">${label}</span>
@@ -44,8 +44,14 @@ const VENDORS = [
   { id: 'custom',      label: 'Custom',       hint: 'Any OpenAI / Anthropic / Gemini-shaped endpoint', kind: 'api_key', icon: 'ri-add-box-line', added: false }
 ]
 
+// A vendor already connected is not a step in this flow — it is a provider
+// with a detail screen, so the card goes there instead of restarting an
+// authentication the operator has already finished.
+const vendorHref = (v, selected) =>
+  v.added && !selected ? (v.kind === 'subscription' ? 'providers.html' : 'providers-apikey.html') : ''
+
 const vendorCard = (v, selected) => `
-  <button class="flex items-start gap-3 border-l-2 px-4 py-3 text-left transition-colors ${
+  <button ${vendorHref(v, selected) ? navTo(vendorHref(v, selected)) : ''} class="flex items-start gap-3 border-l-2 px-4 py-3 text-left transition-colors ${
     selected ? 'border-l-foreground bg-muted/60' : 'border-l-transparent hover:border-l-border hover:bg-muted/50'
   }">
     <i class="${v.icon} mt-0.5 text-base leading-none text-muted-foreground"></i>
@@ -66,14 +72,14 @@ document.getElementById('root').innerHTML = `
     ${step(2, 'Authenticate', 'active')}
     <i class="ri-arrow-right-s-line text-sm text-muted-foreground/50"></i>
     ${step(3, 'Choose models', 'todo')}
-    <div class="ml-auto">${btn('Cancel', 'ghost', '')}</div>
+    <div class="ml-auto">${btn('Cancel', 'ghost', '', 'providers.html')}</div>
   </div>
 
   <div class="grid h-full grid-cols-[22rem_1fr]">
 
     <aside class="min-w-0 overflow-y-auto border-r border-border">
       <div class="px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Vendor</h2>
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Vendor</h2>
       </div>
       ${VENDORS.map((v) => vendorCard(v, v.id === 'gemini-cli')).join('')}
     </aside>
@@ -93,7 +99,7 @@ document.getElementById('root').innerHTML = `
       <!-- Two ways in. Browser OAuth is the happy path; importing the CLI's
            existing credentials is the escape hatch for headless boxes. -->
       <div class="px-6 pt-5 pb-2">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">How to authenticate</h3>
+        <h3 class="text-sm font-semibold">How to authenticate</h3>
       </div>
       <div class="grid grid-cols-2 gap-3 px-6">
         <button class="rounded-md border-2 border-foreground/40 bg-muted/40 px-4 py-3 text-left">
@@ -164,9 +170,12 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'providers',
-  title: 'Add provider',
+  navMode: 'cloudflare',
+  crumbs: ['Add provider'],
   subtitle: 'Step 2 of 3 · Gemini CLI',
-  actions: btn('Back', 'ghost', 'ri-arrow-left-line') + btn('Continue', 'primary', 'ri-arrow-right-line')
+  actions:
+    btn('Back', 'ghost', 'ri-arrow-left-line', 'providers.html') +
+    btn('Continue', 'primary', 'ri-arrow-right-line', 'providers-connect-models.html')
 })
 </script>
 </body>

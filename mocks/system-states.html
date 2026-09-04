@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { pill } = window.Shell
+const { pill, navTo } = window.Shell
 
 // The full-page states that are easy to forget until one appears. Shown
 // side by side so the reviewer can compare their tone in one pass; each is
@@ -26,7 +26,7 @@ const { pill } = window.Shell
 const frame = (label, note, body) => `
   <div>
     <div class="mb-2 flex items-baseline gap-2">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">${label}</h2>
+      <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">${label}</h2>
       <span class="text-[11px] text-muted-foreground/70">${note}</span>
     </div>
     <div class="overflow-hidden rounded-lg border border-border">
@@ -48,7 +48,7 @@ const oauthOk = `
     <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
       Tokens stored encrypted. You can close this tab — the Providers screen has already updated.
     </p>
-    <button class="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
+    <button ${navTo('providers.html')} class="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
       Back to Rialto <i class="ri-arrow-right-line text-sm"></i>
     </button>
   </div>`
@@ -88,10 +88,10 @@ const oauthErr = `
       error=access_denied<br>state=8f21c4…
     </div>
     <div class="mt-4 flex justify-center gap-2">
-      <button class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+      <button ${navTo('providers-connect.html')} class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
         <i class="ri-refresh-line text-sm"></i> Try again
       </button>
-      <button class="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs hover:bg-muted/60">Back</button>
+      <button ${navTo('providers.html')} class="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs hover:bg-muted/60">Back</button>
     </div>
   </div>`
 
@@ -102,7 +102,7 @@ const notFound = `
     <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
       <span class="font-mono">/router-tiers</span> moved into Routing when the screens were merged.
     </p>
-    <button class="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
+    <button ${navTo('overview.html')} class="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
       <i class="ri-arrow-left-line text-sm"></i> Overview
     </button>
   </div>`
@@ -141,6 +141,46 @@ const backendDown = `
     <div class="mt-3 rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px]">docker compose up -d postgres</div>
   </div>`
 
+// Two transient states that were missing from the set entirely. They are
+// not full-page — there is a screen behind both — but they belong here for
+// the same reason as the rest: you only see them when something is already
+// going wrong or taking too long, which is exactly when the wording has to
+// be right and nobody is reviewing it.
+const busy = `
+  <div class="relative w-full">
+    <div class="space-y-2 opacity-40">
+      <div class="h-2.5 w-2/3 rounded bg-muted-foreground/30"></div>
+      <div class="h-2.5 w-1/2 rounded bg-muted-foreground/20"></div>
+      <div class="h-2.5 w-3/5 rounded bg-muted-foreground/20"></div>
+      <div class="h-2.5 w-1/3 rounded bg-muted-foreground/20"></div>
+    </div>
+    <div class="absolute inset-0 -m-4 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+      <div class="flex items-center gap-2 rounded-md border border-border bg-background px-4 py-3 shadow-sm">
+        <i class="ri-loader-4-line text-sm text-muted-foreground"></i>
+        <span class="text-xs font-medium">Syncing models from 7 providers…</span>
+      </div>
+    </div>
+  </div>`
+
+const failedSave = `
+  <div class="w-full max-w-sm">
+    <div class="flex items-start gap-2.5 rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg">
+      <i class="ri-close-circle-line mt-px text-base leading-none text-destructive"></i>
+      <div class="min-w-0 flex-1">
+        <div class="text-xs font-medium">Could not save the chain</div>
+        <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+          claude-code,claude-opus-4-8 is no longer enabled on its provider — remove it from the chain
+          or turn the model back on.
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+      The rule the whole toast channel is held to: name the thing that failed and the two ways out.
+      "Save failed" with a status code sends the operator to the logs for something the UI already
+      knew.
+    </p>
+  </div>`
+
 document.getElementById('root').innerHTML = `
 <div class="mx-auto min-h-screen max-w-5xl px-8 py-10">
   <div class="flex items-center gap-2.5">
@@ -148,10 +188,10 @@ document.getElementById('root').innerHTML = `
       <i class="ri-route-line text-base leading-none"></i>
     </div>
     <h1 class="text-base font-semibold tracking-tight">System states</h1>
-    <span class="ml-auto font-mono text-[11px] text-muted-foreground">5 states</span>
+    <span class="ml-auto font-mono text-[11px] text-muted-foreground">7 states</span>
   </div>
   <p class="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-    Full-page states that have no app shell. Grouped here for review; each is its own route or
+    Full-page states with no app shell, plus the two transient ones that have a screen behind them. Grouped here for review; each is its own route or
     boundary in the build. There is no sign-in state: Cloudflare Access authenticates at the edge,
     so the app never renders a login form.
   </p>
@@ -162,6 +202,8 @@ document.getElementById('root').innerHTML = `
     ${frame('Access rejected', '/api/* · 403', accessRejected)}
     ${frame('Not found', '*', notFound)}
     ${frame('API unreachable', 'error boundary', backendDown)}
+    ${frame('Catalog refresh', 'BusyOverlay · master-detail only', busy)}
+    ${frame('Failed save', 'toast · bottom-right', failedSave)}
   </div>
   <div class="h-10"></div>
 </div>`

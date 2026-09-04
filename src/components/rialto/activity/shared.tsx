@@ -6,52 +6,12 @@
  */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mono, Pill, SurfacePill, type TabItem, Tabs } from '@/components/rialto/primitives'
+import { Mono, Pill, SurfacePill } from '@/components/rialto/primitives'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { fmtCount } from '@/lib/rialto/format'
 import { cn } from '@/lib/utils'
 
 /** Rendered wherever a column has no value for this row. */
 export const DASH = '—'
-
-export type ActivityTabId = 'sessions' | 'requests' | 'logs'
-
-/**
- * The Activity tab strip. Counts stay absent until their number is known —
- * a `0` next to "Sessions" while the first fetch is in flight reads as a
- * fact rather than as a pending state.
- */
-export function ActivityTabs({
-  active,
-  sessionCount,
-  requestCount
-}: {
-  active: ActivityTabId
-  sessionCount?: number
-  requestCount?: number
-}) {
-  const { t } = useTranslation()
-  const items: TabItem[] = [
-    {
-      id: 'sessions',
-      label: t('activity.common.tabSessions'),
-      count: sessionCount === undefined ? undefined : fmtCount(sessionCount),
-      href: '/activity'
-    },
-    {
-      id: 'requests',
-      label: t('activity.common.tabRequests'),
-      count: requestCount === undefined ? undefined : fmtCount(requestCount),
-      href: '/activity/requests'
-    },
-    { id: 'logs', label: t('activity.common.tabLogs'), href: '/activity/logs' }
-  ]
-  return (
-    <div className='flex items-center gap-1 border-b border-border px-6'>
-      <Tabs items={items} active={active} />
-    </div>
-  )
-}
 
 export interface FilterOption<T extends string> {
   id: T

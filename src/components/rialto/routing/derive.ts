@@ -95,6 +95,26 @@ export function schedulerRuns(mode: string | undefined, shadow: string | undefin
   return mode === 'quota-aware' || shadow === 'quota-aware'
 }
 
+/** Which of the two selectors the request path actually runs. */
+export type RouterSelector = 'rules' | 'chain'
+
+/**
+ * Resolve `ROUTER_MODE` to the selector that decides a request.
+ *
+ * The envelope names three modes but the request path branches on one:
+ * `scenario-router.ts` overrides the scenario router's answer only when
+ * the mode is `quota-aware`, so `preference` behaves exactly like
+ * `scenario`. Folding it in here rather than giving it a third label is
+ * what keeps the switch honest — a control offering a value the runtime
+ * does not honour is worse than no control.
+ */
+export function activeSelector(mode: string | undefined): RouterSelector {
+  return mode === 'quota-aware' ? 'chain' : 'rules'
+}
+
+/** The `ROUTER_MODE` each selector writes back. Inverse of `activeSelector`. */
+export const MODE_FOR_SELECTOR = { rules: 'scenario', chain: 'quota-aware' } as const
+
 /**
  * The scheduler ran and had nothing to score.
  *

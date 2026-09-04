@@ -9,17 +9,21 @@ import { useTranslation } from 'react-i18next'
 import { Pill } from '@/components/rialto/primitives'
 import { buildModelRows, enabledCountOf, listedModelsOf } from './derive'
 import { ModelsTable } from './ModelsTable'
-import type { CatalogEntry, Provider } from './types'
+import type { CatalogEntry, Provider, ReasoningEffort, Tier } from './types'
 import { vendorLabel } from './vendor-labels'
 
 export function ConnectModelsStep({
   entry,
   provider,
-  onToggle
+  onToggle,
+  onTier,
+  onEffort
 }: {
   entry: CatalogEntry
   provider: Provider | undefined
   onToggle: (model: string, next: boolean) => void
+  onTier: (model: string, next: Tier | null) => void
+  onEffort: (model: string, next: ReasoningEffort | null) => void
 }) {
   const { t } = useTranslation()
   if (provider === undefined) {
@@ -48,9 +52,7 @@ export function ConnectModelsStep({
         </p>
       </div>
       <div className='flex items-center gap-3 px-6 pt-5 pb-3'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('providers.models.title')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('providers.models.title')}</h3>
         <span className='text-[11px] text-muted-foreground'>
           {t('providers.models.enabledCount', {
             enabled: enabledCountOf(provider),
@@ -58,7 +60,13 @@ export function ConnectModelsStep({
           })}
         </span>
       </div>
-      <ModelsTable rows={buildModelRows(provider, entry)} withOverride={isApiKey} onToggle={onToggle} />
+      <ModelsTable
+        rows={buildModelRows(provider, entry)}
+        withOverride={isApiKey}
+        onToggle={onToggle}
+        onTier={onTier}
+        onEffort={onEffort}
+      />
       <div className='h-6' />
     </div>
   )

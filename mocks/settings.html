@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, railItem, SETTINGS_RAIL } = window.Shell
+const { renderShell, pill, btn } = window.Shell
 
 // SettingsPage / Presets / Personas / StatusLine / Debug were five
 // entries in the nav. They are all "configure the installation", so
@@ -42,11 +42,7 @@ const field = (label, value, hint, kind = 'text') => `
   </div>`
 
 document.getElementById('root').innerHTML = `
-  <div class="grid h-full grid-cols-[13rem_1fr]">
-
-    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
-      ${SETTINGS_RAIL.map((r) => railItem(r, 'server')).join('')}
-    </aside>
+  <div class="grid h-full grid-cols-1">
 
     <div class="min-w-0 overflow-y-auto">
       <div class="flex items-center gap-3 px-6 pt-6 pb-3">
@@ -57,7 +53,7 @@ document.getElementById('root').innerHTML = `
 
       ${field('Host', '0.0.0.0', 'Bind address. Put Cloudflare Access in front before exposing beyond loopback.')}
       ${field('Port', '3456', '')}
-      ${field('Bootstrap token', '••••••••••••••••••••', 'Gates /api/* and /v1/*. Minted on first run. Manage per-client tokens under Access.')}
+      ${field('Bootstrap token', '••••••••••••••••••••', 'Gates /api/* and /v1/*. Minted on first run. Manage per-client tokens under <a href="settings-access.html" class="underline underline-offset-2">Access</a>.')}
       ${field('Request timeout', '600000', 'Milliseconds. Applies to every upstream call.')}
       ${field('Proxy URL', 'unset', 'Routes upstream traffic through an HTTPS proxy.')}
       ${field('Non-interactive', false, 'Skip prompts that expect a TTY.', 'toggle')}
@@ -105,7 +101,9 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'settings',
-  title: 'Settings',
+  navMode: 'cloudflare',
+  sub: 'server',
+  crumbs: ['Server'],
   subtitle: 'Rialto v3.0.0 · ~/.rialto',
   actions: btn('Discard', 'ghost', '') + btn('Save', 'primary', 'ri-check-line')
 })

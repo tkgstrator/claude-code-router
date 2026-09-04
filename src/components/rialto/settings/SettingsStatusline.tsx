@@ -116,7 +116,6 @@ function StatuslineEditor({ config }: { config: Config }) {
   return (
     <SettingsLayout
       active='statusline'
-      title={t('settings.rail.statusline')}
       subtitle={t('settings.statusline.subtitle', { count: modules.length })}
       // Opens straight into the module palette: the four panes are one
       // continuous editor, and a heading above them would offset only the
@@ -165,7 +164,7 @@ export function SettingsStatusline() {
   const { config } = useConfig()
   if (config === null) {
     return (
-      <SettingsLayout active='statusline' title={t('settings.rail.statusline')} showHeading={false}>
+      <SettingsLayout active='statusline' showHeading={false}>
         <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       </SettingsLayout>
     )

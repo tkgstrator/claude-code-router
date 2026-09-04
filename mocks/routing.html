@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, mono, meter, btn } = window.Shell
+const { renderShell, pill, mono, meter, btn, navTo, selectorBar } = window.Shell
 
 // ─── The fix for "every routing setting is messages-only" ─────────────
 // The old build hard-coded a router bypass for /v1/chat/completions and
@@ -29,10 +29,13 @@ const SURFACES = [
 ]
 const ACTIVE_SURFACE = 'messages'
 
+// The outermost axis has to be walkable, so picking a passthrough surface
+// lands on the passthrough half of this screen rather than doing nothing.
 const surfaceTab = (s) => {
   const on = s.id === ACTIVE_SURFACE
+  const href = s.mode === 'routed' ? 'routing.html' : 'routing-passthrough.html'
   return `
-    <button class="relative flex flex-col items-start gap-0.5 border-b-2 px-4 py-2.5 text-left transition-colors ${
+    <button ${navTo(href)} class="relative flex flex-col items-start gap-0.5 border-b-2 px-4 py-2.5 text-left transition-colors ${
       on ? 'border-b-foreground' : 'border-b-transparent hover:bg-muted/50'
     }">
       <span class="font-mono text-xs ${on ? 'text-foreground' : 'text-muted-foreground'}">${s.label}</span>
@@ -57,7 +60,7 @@ const scenarioTab = (s) => {
     <button class="flex items-center gap-2 border-b-2 px-3 py-2 text-xs transition-colors ${
       on ? 'border-b-foreground font-medium' : 'border-b-transparent text-muted-foreground hover:text-foreground'
     }">
-      ${s.label}<span class="font-mono text-[10px] tabular-nums text-muted-foreground">${s.count}</span>
+      ${s.label}<span class="font-mono text-[11px] tabular-nums text-muted-foreground">${s.count}</span>
     </button>`
 }
 
@@ -69,14 +72,24 @@ const CHAIN = [
   { n: 1, target: 'claude-code,claude-opus-4-8',  tier: 'opus',   weight: '0.60', quota: 71, health: '99.8%', state: 'throttled', on: true },
   { n: 2, target: 'claude-code,claude-fable-5',   tier: 'fable',  weight: '1.00', quota: 34, health: '99.9%', state: 'ready',     on: true },
   { n: 3, target: 'codex,gpt-5.5',                tier: 'opus',   weight: '0.00', quota: 88, health: '98.1%', state: 'exhausted', on: true },
-  { n: 4, target: 'gemini-cli,gemini-3.1-pro',    tier: 'opus',   weight: '1.00', quota: 12, health: '96.4%', state: 'ready',     on: true },
+  // Tier null on purpose: no Gemini name says a Claude family, so the
+  // router cannot classify it and nobody has set a manualTier in
+  // Providers. It is the row the tier-respect floor below cannot hold.
+  { n: 4, target: 'gemini-cli,gemini-3.1-pro',    tier: null,     weight: '1.00', quota: 12, health: '96.4%', state: 'ready',     on: true },
   { n: 5, target: 'claude-code,claude-sonnet-4-6',tier: 'sonnet', weight: '1.00', quota: 71, health: '99.9%', state: 'ready',     on: false }
 ]
 
 const stateTone = { ready: 'ok', throttled: 'warn', exhausted: 'bad' }
 
+// A chain entry names "provider,model", and the provider is where its
+// credentials, accounts and model list live. The mock set has one detail
+// screen per auth mode, so the vendor half of the pair picks which.
+const SUBSCRIPTION_PROVIDERS = ['claude-code', 'codex', 'gemini-cli']
+const providerHref = (t) =>
+  SUBSCRIPTION_PROVIDERS.includes(t.split(',')[0]) ? 'providers.html' : 'providers-apikey.html'
+
 const chainRow = (e) => `
-  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50 ${e.on ? '' : 'opacity-45'}">
+  <tr ${navTo(providerHref(e.target))} class="border-t border-border/60 transition-colors hover:bg-muted/50 ${e.on ? '' : 'opacity-45'}">
     <td class="py-2.5 pl-6 pr-2">
       <div class="flex items-center gap-2">
         <i class="ri-draggable text-base leading-none text-muted-foreground/50"></i>
@@ -84,7 +97,9 @@ const chainRow = (e) => `
       </div>
     </td>
     <td class="px-2 font-mono text-xs">${e.target}</td>
-    <td class="px-2">${pill(e.tier, 'mute')}</td>
+    <td class="px-2">${
+      e.tier === null ? '<span class="text-[11px] text-muted-foreground/50">—</span>' : pill(e.tier, 'mute')
+    }</td>
     <td class="px-2">${pill(e.state, stateTone[e.state])}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums">${e.weight}</td>
     <td class="px-2">
@@ -139,7 +154,7 @@ const RULES = [
 ]
 
 const rule = (r) => `
-  <div class="border-l-2 border-l-transparent px-4 py-3 transition-colors hover:border-l-border hover:bg-muted/50">
+  <div ${navTo('routing-rules.html')} class="border-l-2 border-l-transparent px-4 py-3 transition-colors hover:border-l-border hover:bg-muted/50">
     <div class="text-[11px] uppercase tracking-wider text-muted-foreground">when</div>
     <div class="mt-0.5 text-xs">${r.when}</div>
     <div class="mt-2 text-[11px] uppercase tracking-wider text-muted-foreground">then</div>
@@ -147,6 +162,8 @@ const rule = (r) => `
   </div>`
 
 document.getElementById('root').innerHTML = `
+  ${selectorBar('chain')}
+
   <!-- Surface selector: the outermost axis of the whole screen -->
   <div class="flex items-stretch gap-0 border-b border-border px-2">
     ${SURFACES.map(surfaceTab).join('')}
@@ -158,7 +175,7 @@ document.getElementById('root').innerHTML = `
       <span class="text-xs text-muted-foreground">Routing</span>
       <div class="flex rounded-md border border-border p-0.5">
         <button class="rounded bg-foreground px-2.5 py-1 text-[11px] font-medium text-background">Routed</button>
-        <button class="rounded px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground">Passthrough</button>
+        <button ${navTo('routing-passthrough.html')} class="rounded px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground">Passthrough</button>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -205,28 +222,32 @@ document.getElementById('root').innerHTML = `
 
     <aside class="min-w-0">
       <div class="px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Constraints</h2>
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Constraints</h2>
       </div>
-      ${constraint('Tier respect', 'sonnet', 'never fall below this tier')}
+      ${constraint(
+        'Tier respect',
+        'sonnet',
+        'never fall below this tier. A target whose tier is unknown is not held by it — set one in <a href="providers-apikey.html" class="underline underline-offset-2">Providers</a>.'
+      )}
       ${constraint('Healthiness floor', '95%', 'skip targets below this')}
       ${constraint('When exhausted', 'next', 'next / wait / error')}
       ${constraint('Cross-provider', 'on', 'allow different auth modes')}
 
       <div class="border-t border-border px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rules</h2>
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Rules</h2>
       </div>
       ${RULES.map(rule).join('')}
 
       <div class="border-t border-border px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Presets</h2>
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Presets</h2>
       </div>
       <div class="px-4 pb-6">
-        <div class="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
+        <div ${navTo('settings-presets.html')} class="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
           <i class="ri-bookmark-line text-sm text-muted-foreground"></i>
           <span>Cost-first</span>
           <span class="ml-auto text-[11px] text-muted-foreground">Apply</span>
         </div>
-        <div class="mt-2 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
+        <div ${navTo('settings-presets.html')} class="mt-2 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
           <i class="ri-bookmark-line text-sm text-muted-foreground"></i>
           <span>Max quality</span>
           <span class="ml-auto text-[11px] text-muted-foreground">Apply</span>
@@ -237,9 +258,13 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'routing',
-  title: 'Routing',
+  navMode: 'cloudflare',
+  sub: 'chain',
+  crumbs: ['Chain'],
   subtitle: 'Per inbound surface · scenario · lane',
-  actions: btn('Live map', 'outline', 'ri-node-tree') + btn('Simulate', 'ghost', 'ri-play-line')
+  actions:
+    btn('Live map', 'outline', 'ri-node-tree', 'routing-map.html') +
+    btn('Simulate', 'ghost', 'ri-play-line', 'routing-rules.html')
 })
 </script>
 </body>

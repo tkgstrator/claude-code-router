@@ -172,7 +172,6 @@ export function Overview() {
 
   return (
     <Screen
-      title={t('shell.navOverview')}
       subtitle={subtitle}
       actions={
         <>

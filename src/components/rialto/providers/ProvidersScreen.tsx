@@ -17,6 +17,8 @@ import {
   refreshPrices,
   removeProvider,
   saveApiKey,
+  setModelEffort,
+  setModelTier,
   syncModels,
   testModels,
   toggleModel,
@@ -125,7 +127,9 @@ export function ProvidersScreen() {
 
   return (
     <Screen
-      title={t('providers.screen.title')}
+      // The route can name the section but not which provider is open,
+      // so the leaf is the only crumb this screen passes.
+      crumbs={selected === undefined ? [] : [{ label: selected.label }]}
       subtitle={subtitle}
       actions={
         <>
@@ -174,6 +178,8 @@ export function ProvidersScreen() {
               now={data.now}
               busy={busy}
               onToggleModel={(model, next) => run(() => toggleModel(selected.provider, model, next))}
+              onModelTier={(model, next) => run(() => setModelTier(selected.provider, model, next))}
+              onModelEffort={(model, next) => run(() => setModelEffort(selected.provider, model, next))}
               onToggleProvider={(next) => run(() => toggleProvider(selected.provider, next))}
               onSaveKey={(key) => run(() => saveApiKey(selected.provider, key))}
               onTestAll={() => {

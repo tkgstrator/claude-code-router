@@ -12,6 +12,8 @@ import type { Provider } from '@/schemas/domain/provider'
 export type ApiStyle = 'openai_chat' | 'openai_responses' | 'anthropic' | 'gemini'
 export type AuthStatus = 'unknown' | 'live' | 'invalid'
 export type Tier = 'fable' | 'opus' | 'sonnet' | 'haiku'
+/** Mirrors the OpenAI ReasoningEffort enum the PATCH endpoint accepts. */
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 export type TestStatus = 'unknown' | 'ok' | 'fail'
 
 /** One SubAccount as GET /api/subscriptions reports it. */

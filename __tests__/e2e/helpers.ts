@@ -8,8 +8,8 @@
  * with the dev server stopped do not go red.
  *
  * The browser is playwright's bundled chromium. `launch` throws where
- * `bunx playwright install chromium` has not been run, so that is part of
- * the skip condition too.
+ * `bun run browser:install` has not been run, so that is part of the skip
+ * condition too.
  *
  * **Because the target is a live dev server, these can fail while someone
  * is editing.** Hitting it mid-HMR fails in the gap between rebuilds, not

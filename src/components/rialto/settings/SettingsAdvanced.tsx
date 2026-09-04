@@ -51,12 +51,7 @@ export function SettingsAdvanced() {
   const tab = requested === 'scratch' || requested === 'health' ? requested : 'config'
 
   return (
-    <SettingsLayout
-      active='advanced'
-      title={t('settings.rail.advanced')}
-      subtitle={t('settings.advanced.subtitle')}
-      showHeading={false}
-    >
+    <SettingsLayout active='advanced' subtitle={t('settings.advanced.subtitle')} showHeading={false}>
       <div className='flex items-center gap-1 border-b border-border px-6'>
         <Tabs
           items={TAB_KEYS.map((item) => ({ id: item.id, label: t(item.labelKey), href: item.href }))}

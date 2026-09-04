@@ -93,6 +93,28 @@ describeOrSkip('resolveQuotaAwareSelection (DB + snapshot)', () => {
     expect(out.retryAfterSec).toBeNull()
   })
 
+  test('a caller-supplied profile is used instead of re-reading the row', async () => {
+    // routeScenario has to read the profile BEFORE classification (the
+    // classifier needs to know which lanes the chain can serve), so it
+    // hands the loaded object back here rather than paying for a second
+    // Prisma read. The DB is deliberately left empty for this case: if
+    // the passed profile were ignored, the empty-chain shortcut would
+    // return no primary.
+    const out = await resolveQuotaAwareSelection({
+      requestedModel: 'claude-opus-5',
+      isSubagent: false,
+      scenario: 'think',
+      profile: {
+        entriesByScenario: {
+          ...emptyChains,
+          think: { agent: [{ priority: 1, target: 'claude-code,claude-opus-5', enabled: true }], subagent: [] }
+        },
+        constraints: null
+      }
+    })
+    expect(out.selection.primary).toBe('claude-code,claude-opus-5')
+  })
+
   test('a scenario without its own chain still passes through (empty-chain shortcut wins)', async () => {
     const prisma = getPrismaClient()
     const provider = await prisma.provider.create({

@@ -24,6 +24,7 @@ import { useEnabledTargets, usePreferences, useProfiles, useScheduler, useSurfac
 import { profileEntryCount, schedulerRuns, schedulerScoredNothing, weightIndex } from './derive'
 import { PassthroughPanel } from './PassthroughPanel'
 import { SurfaceTabs } from './RoutingTabs'
+import { SelectorBar } from './SelectorBar'
 import { Segmented, SurfaceModeBar } from './SurfaceModeBar'
 import type { EnabledTarget, Lane, PreferenceEntry, PreferenceProfile, ScenarioKey } from './types'
 import { SCENARIOS } from './types'
@@ -313,7 +314,6 @@ export function RoutingChain() {
 
   return (
     <Screen
-      title={t('routing.chain.title')}
       subtitle={surface === undefined ? undefined : subtitleFor(surface, t)}
       actions={
         <>
@@ -326,6 +326,7 @@ export function RoutingChain() {
         </>
       }
     >
+      <SelectorBar />
       {error === null ? null : <div className='px-6 py-6 text-xs text-destructive'>{error}</div>}
       {surface === undefined ? (
         <div className='px-6 py-6 text-xs text-muted-foreground'>

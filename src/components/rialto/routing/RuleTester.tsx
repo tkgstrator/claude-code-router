@@ -221,9 +221,7 @@ export function RuleTester({ rules }: { rules: readonly RouteRule[] }) {
   return (
     <div className='mt-6 border-t border-border px-6 py-5'>
       <div className='flex items-baseline gap-3'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('routing.rules.tester.title')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('routing.rules.tester.title')}</h3>
         <span className='text-[11px] text-muted-foreground'>{t('routing.rules.tester.subtitle')}</span>
       </div>
       <div className='mt-3 flex items-center gap-2'>

@@ -38,9 +38,7 @@ export function CredentialsPanel({
   return (
     <div className='min-w-0 border-r border-border'>
       <div className='px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('providers.credentials.title')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('providers.credentials.title')}</h3>
       </div>
       <div className='space-y-3 px-6 pb-5'>
         <div>

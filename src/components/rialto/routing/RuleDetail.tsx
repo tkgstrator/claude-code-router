@@ -16,7 +16,7 @@ import { RuleTester } from './RuleTester'
 import type { ScopedRule } from './rules'
 import type { EnabledTarget } from './types'
 
-const HEADING = 'text-xs font-semibold uppercase tracking-wider text-muted-foreground'
+const HEADING = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'
 const PICKER =
   'inline-flex h-8 items-center gap-2 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60'
 

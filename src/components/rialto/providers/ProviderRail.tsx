@@ -87,7 +87,7 @@ function RailGroup({
   return (
     <>
       <div className={className}>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>{title}</h2>
+        <h2 className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>{title}</h2>
         <span className='ml-auto font-mono text-[10px] text-muted-foreground'>{entries.length}</span>
       </div>
       {entries.map((entry) => (

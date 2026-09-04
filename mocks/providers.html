@@ -13,53 +13,31 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, meter, btn } = window.Shell
+const { renderShell, pill, meter, btn, navTo, providerRail, tierCell, sortTh, toast } = window.Shell
 
 // Providers / Subscriptions / Models / Transformers were four separate
 // screens. They are one thing — "where requests can go" — so they become
 // one master-detail screen: pick a provider on the left, configure its
 // models on the right.
-const PROVIDERS = [
-  { id: 'claude-code', label: 'Claude Code', vendor: 'Anthropic', auth: 'subscription', plan: 'Max', models: '6 / 7', quota: 71, state: 'live',    active: true },
-  { id: 'codex',       label: 'Codex',       vendor: 'OpenAI',    auth: 'subscription', plan: 'Pro', models: '1 / 4', quota: 88, state: 'live',    active: false },
-  { id: 'gemini-cli',  label: 'Gemini CLI',  vendor: 'Google',    auth: 'subscription', plan: 'AI Pro', models: '3 / 5', quota: 12, state: 'invalid', active: false },
-  { id: 'anthropic',   label: 'Anthropic',   vendor: 'Anthropic', auth: 'api_key', plan: null, models: '4 / 12', quota: null, state: 'live', active: false },
-  { id: 'openai',      label: 'OpenAI',      vendor: 'OpenAI',    auth: 'api_key', plan: null, models: '5 / 18', quota: null, state: 'live', active: false },
-  { id: 'google',      label: 'Google',      vendor: 'Google',    auth: 'api_key', plan: null, models: '4 / 9',  quota: null, state: 'live', active: false },
-  { id: 'deepseek',    label: 'DeepSeek',    vendor: 'DeepSeek',  auth: 'api_key', plan: null, models: '0 / 3',  quota: null, state: 'unknown', active: false }
-]
-
-const stateTone = { live: 'ok', invalid: 'bad', unknown: 'mute' }
-
-const providerRow = (p) => `
-  <button class="block w-full border-l-2 px-4 py-3 text-left transition-colors ${
-    p.active ? 'border-l-foreground bg-muted/60' : 'border-l-transparent hover:border-l-border hover:bg-muted/50'
-  }">
-    <div class="flex items-center gap-2">
-      <span class="text-xs font-medium">${p.label}</span>
-      ${p.plan ? pill(p.plan, 'info') : ''}
-      <span class="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">${p.models}</span>
-    </div>
-    <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-      <span>${p.auth === 'subscription' ? 'OAuth' : 'API key'}</span>
-      <span class="opacity-40">·</span>
-      <span>${p.vendor}</span>
-      <span class="ml-auto">${pill(p.state, stateTone[p.state])}</span>
-    </div>
-    ${p.quota === null ? '' : `<div class="mt-2">${meter(p.quota)}</div>`}
-  </button>`
+//
+// The rail itself lives in shell.js: it is the same list on both provider
+// detail mocks, and picking a row is how a reviewer crosses from the
+// subscription detail to the API-key one.
 
 // ─── Model table for the selected provider ────────────────────────────
 // Prices stay in separate columns (in / cached / out) — one packed
 // "$3/$0.30/$15" cell is unreadable and unsortable.
+// `tierSource` is the fact the old pill could not carry. Every name here
+// but one contains its family, so the router infers it; `claude-mythos-5`
+// does not, and only exists as a tier because someone set one.
 const MODELS = [
-  { name: 'claude-fable-5',    tier: 'fable',  ctx: '500k', inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
-  { name: 'claude-opus-4-8',   tier: 'opus',   ctx: '200k', inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
-  { name: 'claude-opus-4-7',   tier: 'opus',   ctx: '200k', inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
-  { name: 'claude-sonnet-5',   tier: 'sonnet', ctx: '1M',   inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
-  { name: 'claude-sonnet-4-6', tier: 'sonnet', ctx: '1M',   inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
-  { name: 'claude-haiku-4-5',  tier: 'haiku',  ctx: '200k', inp: '—', cache: '—', out: '—', test: 'fail',    on: true },
-  { name: 'claude-mythos-5',   tier: 'fable',  ctx: '500k', inp: '—', cache: '—', out: '—', test: 'unknown', on: false }
+  { name: 'claude-fable-5',    tier: 'fable',  tierSource: 'auto',   ctx: '500k', inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
+  { name: 'claude-opus-4-8',   tier: 'opus',   tierSource: 'auto',   ctx: '200k', inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
+  { name: 'claude-opus-4-7',   tier: 'opus',   tierSource: 'auto',   ctx: '200k', inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
+  { name: 'claude-sonnet-5',   tier: 'sonnet', tierSource: 'auto',   ctx: '1M',   inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
+  { name: 'claude-sonnet-4-6', tier: 'sonnet', tierSource: 'auto',   ctx: '1M',   inp: '—', cache: '—', out: '—', test: 'ok',      on: true },
+  { name: 'claude-haiku-4-5',  tier: 'haiku',  tierSource: 'auto',   ctx: '200k', inp: '—', cache: '—', out: '—', test: 'fail',    on: true },
+  { name: 'claude-mythos-5',   tier: 'fable',  tierSource: 'manual', ctx: '500k', inp: '—', cache: '—', out: '—', test: 'unknown', on: false }
 ]
 
 const testIcon = { ok: '<i class="ri-check-line text-emerald-600 dark:text-emerald-400"></i>', fail: '<i class="ri-close-line text-destructive"></i>', unknown: '<i class="ri-subtract-line text-muted-foreground/50"></i>' }
@@ -67,7 +45,7 @@ const testIcon = { ok: '<i class="ri-check-line text-emerald-600 dark:text-emera
 const modelRow = (m) => `
   <tr class="border-t border-border/60 transition-colors hover:bg-muted/50 ${m.on ? '' : 'opacity-45'}">
     <td class="py-2.5 pl-6 pr-2 font-mono text-xs">${m.name}</td>
-    <td class="px-2">${pill(m.tier, 'mute')}</td>
+    <td class="px-2">${tierCell(m.tier, m.tierSource)}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.ctx}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.inp}</td>
     <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.cache}</td>
@@ -85,14 +63,14 @@ const models = `
     <colgroup><col><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-20"><col class="w-16"><col class="w-20"></colgroup>
     <thead>
       <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
-        <th class="pl-6 pr-2 text-left font-medium">Model</th>
-        <th class="px-2 text-left font-medium">Tier</th>
-        <th class="px-2 text-right font-medium">Context</th>
-        <th class="px-2 text-right font-medium">In /1M</th>
-        <th class="px-2 text-right font-medium">Cached</th>
-        <th class="px-2 text-right font-medium">Out /1M</th>
-        <th class="px-2 text-center font-medium">Test</th>
-        <th class="pl-2 pr-6 text-right font-medium">On</th>
+        ${sortTh('Model', 'pl-6 pr-2')}
+        ${sortTh('Tier', 'px-2', 'left', true, 'desc')}
+        ${sortTh('Context', 'px-2', 'right')}
+        ${sortTh('In /1M', 'px-2', 'right')}
+        ${sortTh('Cached', 'px-2', 'right')}
+        ${sortTh('Out /1M', 'px-2', 'right')}
+        ${sortTh('Test', 'px-2', 'center')}
+        ${sortTh('On', 'pl-2 pr-6', 'right')}
       </tr>
     </thead>
     <tbody>${MODELS.map(modelRow).join('')}</tbody>
@@ -103,8 +81,9 @@ const ACCOUNTS = [
   { label: 'second@…',     plan: 'Pro', active: false, auth: 'live',    used: 22, resets: '3d 04h' }
 ]
 
+// An account's meters are a snapshot; the history behind them is Usage.
 const accountRow = (a) => `
-  <div class="border-l-2 ${a.active ? 'border-l-foreground' : 'border-l-transparent'} px-4 py-3 transition-colors hover:bg-muted/50">
+  <div ${navTo('activity-usage.html')} class="border-l-2 ${a.active ? 'border-l-foreground' : 'border-l-transparent'} px-4 py-3 transition-colors hover:bg-muted/50">
     <div class="flex items-center gap-2">
       <span class="text-xs font-medium">${a.label}</span>
       ${pill(a.plan, 'info')}
@@ -121,21 +100,7 @@ document.getElementById('root').innerHTML = `
   <div class="grid h-full grid-cols-[18rem_1fr]">
 
     <aside class="min-w-0 overflow-y-auto border-r border-border">
-      <div class="flex items-center gap-2 px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Subscriptions</h2>
-        <span class="ml-auto font-mono text-[10px] text-muted-foreground">3</span>
-      </div>
-      ${PROVIDERS.filter((p) => p.auth === 'subscription').map(providerRow).join('')}
-
-      <div class="mt-2 flex items-center gap-2 border-t border-border px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">API keys</h2>
-        <span class="ml-auto font-mono text-[10px] text-muted-foreground">4</span>
-      </div>
-      ${PROVIDERS.filter((p) => p.auth === 'api_key').map(providerRow).join('')}
-
-      <div class="p-4">
-        ${btn('Add provider', 'outline', 'ri-add-line')}
-      </div>
+      ${providerRail('claude-code')}
     </aside>
 
     <div class="min-w-0 overflow-y-auto">
@@ -157,7 +122,7 @@ document.getElementById('root').innerHTML = `
       <div class="grid grid-cols-2 border-b border-border">
         <div class="border-r border-border">
           <div class="px-6 pt-5 pb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Accounts</h3>
+            <h3 class="text-sm font-semibold">Accounts</h3>
           </div>
           <div class="px-2 pb-4">${ACCOUNTS.map(accountRow).join('')}</div>
         </div>
@@ -168,7 +133,7 @@ document.getElementById('root').innerHTML = `
              when a request misbehaves. -->
         <div>
           <div class="px-6 pt-5 pb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Request shape</h3>
+            <h3 class="text-sm font-semibold">Request shape</h3>
           </div>
           <div class="px-6 pb-4">
             <div class="flex items-baseline gap-3 border-l-2 border-l-transparent py-1.5 transition-colors hover:border-l-border">
@@ -196,7 +161,7 @@ document.getElementById('root').innerHTML = `
       </div>
 
       <div class="flex items-center gap-3 px-6 pt-5 pb-3">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Models</h3>
+        <h3 class="text-sm font-semibold">Models</h3>
         <span class="text-[11px] text-muted-foreground">6 of 7 enabled</span>
         <div class="ml-auto flex items-center gap-2">
           <div class="flex h-7 items-center gap-2 rounded-md border border-border px-2.5 text-xs text-muted-foreground">
@@ -205,6 +170,17 @@ document.getElementById('root').innerHTML = `
         </div>
       </div>
       ${models}
+      <div class="px-6 py-4">
+        <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+          <i class="ri-information-line mr-1 align-[-1px]"></i>
+          Tier is read from the model name when the name says a family —
+          <span class="font-mono">fable</span> / <span class="font-mono">opus</span> /
+          <span class="font-mono">sonnet</span> / <span class="font-mono">haiku</span>. Those cells are
+          plain. <span class="font-mono">claude-mythos-5</span> says none of them, so its tier was set
+          by hand and is shown solid. Click a tier to override or clear it; Routing's
+          <span class="font-medium text-foreground">tier respect</span> floor is what reads it.
+        </div>
+      </div>
       <div class="h-8"></div>
     </div>
 
@@ -212,9 +188,17 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'providers',
-  title: 'Providers',
+  navMode: 'cloudflare',
+  crumbs: ['Claude Code'],
   subtitle: '7 providers · 23 models enabled · 3 subscription accounts',
-  actions: btn('Refresh prices', 'ghost', 'ri-price-tag-3-line') + btn('Add provider', 'primary', 'ri-add-line')
+  actions:
+    btn('Refresh prices', 'ghost', 'ri-price-tag-3-line') +
+    btn('Add provider', 'primary', 'ri-add-line', 'providers-connect.html'),
+  // Drawn here because a catalog refresh is the app's longest action and
+  // the one whose result you cannot see on the screen that started it: the
+  // model counts in the rail move, and nothing else does. What the toast
+  // has to say is what changed, not that something finished.
+  toast: toast('Synced 23 models across 7 providers', 'ok', '4 added · 1 removed · prices from 3 vendors')
 })
 </script>
 </body>

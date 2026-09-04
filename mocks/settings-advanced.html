@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, railItem, SETTINGS_RAIL, tabs } = window.Shell
+const { renderShell, pill, btn, tabs } = window.Shell
 
 // Absorbs DebugPage + JsonEditor + the debug/ sub-components. Two things
 // live here: the raw config document, and a request scratchpad for
@@ -48,18 +48,14 @@ const line = (n, text) => `
   </div>`
 
 document.getElementById('root').innerHTML = `
-  <div class="grid h-full grid-cols-[13rem_1fr]">
-
-    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
-      ${SETTINGS_RAIL.map((r) => railItem(r, 'advanced')).join('')}
-    </aside>
+  <div class="grid h-full grid-cols-1">
 
     <div class="min-w-0 overflow-y-auto">
       <div class="flex items-center gap-1 border-b border-border px-6">
         ${tabs([
           { id: 'config', label: 'Config document' },
-          { id: 'scratch', label: 'Request scratchpad' },
-          { id: 'health', label: 'Health' }
+          { id: 'scratch', label: 'Request scratchpad', href: 'settings-advanced-scratchpad.html' },
+          { id: 'health', label: 'Health', href: 'settings-advanced-health.html' }
         ], 'config')}
       </div>
 
@@ -112,7 +108,9 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'settings',
-  title: 'Advanced',
+  navMode: 'cloudflare',
+  sub: 'advanced',
+  crumbs: ['Advanced'],
   subtitle: '~/.rialto/config.json · JSON5',
   actions: btn('Backups', 'ghost', 'ri-history-line') + btn('Save', 'primary', 'ri-check-line')
 })

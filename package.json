@@ -1,6 +1,6 @@
 {
   "name": "rialto",
-  "version": "2.73.0",
+  "version": "2.74.0",
   "description": "Use Claude Code without an Anthropics account and route it to another LLM provider",
   "scripts": {
     "dev": "vite --host --port 16175",
@@ -16,6 +16,7 @@
     "test:coverage": "bun test --coverage __tests__/lib __tests__/db __tests__/preset",
     "test:providers": "bun test __tests__/providers",
     "test:e2e": "bun test __tests__/e2e",
+    "browser:install": "playwright install chromium",
     "db:migrate:test": "TEST_DATABASE_URL=\"${TEST_DATABASE_URL:-postgres://postgres:password@postgres:5432/rialto_test}\" DATABASE_URL=\"$TEST_DATABASE_URL\" prisma migrate deploy",
     "scrape:openai-prices": "bun run scripts/scrape-openai-prices.ts",
     "scrape:anthropic-prices": "bun run scripts/scrape-anthropic-prices.ts",
