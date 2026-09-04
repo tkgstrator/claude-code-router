@@ -490,13 +490,12 @@ const SETTINGS_RAIL = [
  * is data rather than navigation). The registry exists so the three
  * sidebar proposals below can render the same tree without each one
  * re-declaring it.
+ *
+ * Routing is absent on purpose: the chain IS that screen now that it is
+ * the default selector, and Map and Rules are the views around it,
+ * reached from the chain's own header.
  */
 const SUBNAV = {
-  routing: [
-    { id: 'chain', label: 'Chain', icon: 'ri-list-ordered', href: 'routing.html' },
-    { id: 'map', label: 'Map', icon: 'ri-node-tree', href: 'routing-map.html' },
-    { id: 'rules', label: 'Rules', icon: 'ri-filter-3-line', href: 'routing-rules.html' }
-  ],
   activity: [
     { id: 'sessions', label: 'Sessions', icon: 'ri-chat-1-line', href: 'activity.html' },
     { id: 'requests', label: 'Requests', icon: 'ri-exchange-line', href: 'activity-requests.html' },
@@ -530,8 +529,8 @@ const EXPANDABLE = {
   flat: [],
   accordion: ['settings'],
   drilldown: [],
-  tree: ['routing', 'activity', 'settings'],
-  cloudflare: ['routing', 'activity', 'settings']
+  tree: ['activity', 'settings'],
+  cloudflare: ['activity', 'settings']
 }
 
 /**
@@ -642,17 +641,6 @@ const selectorBar = (active) => {
   </div>`
 }
 
-/** Routing: Chain / Map / Rules. */
-const routingTabs = (active) =>
-  tabs(
-    [
-      { id: 'chain', label: 'Chain', href: 'routing.html' },
-      { id: 'map', label: 'Map', href: 'routing-map.html' },
-      { id: 'rules', label: 'Rules', count: '4', href: 'routing-rules.html' }
-    ],
-    active
-  )
-
 /**
  * Providers master rail, shared by both detail mocks.
  *
@@ -714,7 +702,7 @@ const providerRail = (activeId) => `
   global.Shell = {
     renderShell, ROW, section, pill, mono, meter, btn,
     tabs, railItem, SETTINGS_RAIL,
-    navTo, activityTabs, routingTabs, selectorBar, providerRail, tierCell, effortCell, sortTh, toast,
+    navTo, activityTabs, selectorBar, providerRail, tierCell, effortCell, sortTh, toast,
     SURFACES, surfacePill, surfaceChip,
     toggleTheme, currentTheme
   }
