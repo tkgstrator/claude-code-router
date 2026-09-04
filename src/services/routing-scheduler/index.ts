@@ -61,9 +61,9 @@ const readIntervalMs = (): number => {
 }
 
 const readMode = (): 'scenario' | 'preference' | 'quota-aware' => {
-  const raw = process.env.ROUTER_MODE ?? 'scenario'
-  if (raw === 'preference' || raw === 'quota-aware') return raw
-  return 'scenario'
+  const raw = process.env.ROUTER_MODE ?? 'quota-aware'
+  if (raw === 'preference' || raw === 'scenario') return raw
+  return 'quota-aware'
 }
 
 const readShadow = (): 'off' | 'preference' | 'quota-aware' => {

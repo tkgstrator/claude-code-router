@@ -90,7 +90,7 @@ export const ConfigEnvelopeSchema = z
     //   'scenario'    — current RouterSlot-based router (default)
     //   'preference'  — gate-only preference selector (L4)
     //   'quota-aware' — scheduler-weighted preference selector (L3+L4)
-    ROUTER_MODE: z.enum(['scenario', 'preference', 'quota-aware']).default('scenario'),
+    ROUTER_MODE: z.enum(['scenario', 'preference', 'quota-aware']).default('quota-aware'),
     // Run a second selector in parallel and log its would-be decision
     // without affecting routing. 'off' disables shadowing.
     ROUTER_SHADOW: z.enum(['off', 'preference', 'quota-aware']).default('off'),

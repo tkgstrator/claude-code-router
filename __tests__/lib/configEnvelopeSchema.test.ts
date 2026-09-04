@@ -194,10 +194,15 @@ describe('ConfigEnvelopeSchema — Personas / ActivePersona (disk backing key)',
 })
 
 describe('ConfigEnvelopeSchema — quota-aware routing keys (Phase 2)', () => {
-  test('defaults ROUTER_MODE to scenario (zero behaviour change)', () => {
+  // The default moved to the chain once the scenario router was the
+  // deprecated half. It is not a behaviour change for an unconfigured
+  // install: with no preference entries the quota-aware selector returns
+  // no primary and `routeScenario` leaves the scenario router's answer in
+  // place — the chain only takes over once someone has configured one.
+  test('defaults ROUTER_MODE to quota-aware', () => {
     const result = ConfigEnvelopeSchema.safeParse({ ...BASE })
     expect(result.success).toBe(true)
-    expect(result.data?.ROUTER_MODE).toBe('scenario')
+    expect(result.data?.ROUTER_MODE).toBe('quota-aware')
   })
 
   test('defaults ROUTER_SHADOW to off', () => {

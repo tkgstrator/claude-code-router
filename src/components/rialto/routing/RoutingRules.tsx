@@ -162,6 +162,7 @@ export function RoutingRules() {
 
   return (
     <Screen
+      crumbs={[{ label: t('routing.common.tabRules') }]}
       subtitle={t(
         activeSelector(config?.ROUTER_MODE) === 'chain' ? 'routing.rules.subtitleChain' : 'routing.rules.subtitleRules',
         { n: rules.length }

@@ -315,13 +315,17 @@ export function RoutingChain() {
   return (
     <Screen
       subtitle={surface === undefined ? undefined : subtitleFor(surface, t)}
+      // These two are the only doors to Map and Rules now that the sidebar
+      // lists Routing alone, so they name their destination rather than
+      // what you do once you are there ("Live map", "Simulate"). The chain
+      // is the screen; those two are the surrounding views.
       actions={
         <>
-          <RButton variant='outline' icon='ri-node-tree' onClick={() => navigate('/routing/map')}>
-            {t('routing.chain.liveMap')}
+          <RButton variant='ghost' icon='ri-node-tree' onClick={() => navigate('/routing/map')}>
+            {t('routing.common.tabMap')}
           </RButton>
-          <RButton variant='ghost' icon='ri-play-line' onClick={() => navigate('/routing/rules')}>
-            {t('routing.common.simulate')}
+          <RButton variant='ghost' icon='ri-filter-3-line' onClick={() => navigate('/routing/rules')}>
+            {t('routing.common.tabRules')}
           </RButton>
         </>
       }

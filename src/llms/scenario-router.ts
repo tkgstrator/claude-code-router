@@ -53,8 +53,8 @@ import type { TokenizeRequest } from './tokenizers/base'
 // because applyUiConfig writes them via applyEnvelopeToEnv (a hot
 // reload without a server restart already updates process.env).
 const readRouterMode = (): 'scenario' | 'preference' | 'quota-aware' => {
-  const raw = process.env.ROUTER_MODE ?? 'scenario'
-  return raw === 'preference' || raw === 'quota-aware' ? raw : 'scenario'
+  const raw = process.env.ROUTER_MODE ?? 'quota-aware'
+  return raw === 'preference' || raw === 'scenario' ? raw : 'quota-aware'
 }
 const readRouterShadow = (): 'off' | 'preference' | 'quota-aware' => {
   const raw = process.env.ROUTER_SHADOW ?? 'off'
@@ -109,12 +109,25 @@ const applyPeerFallback = (
 const loadChainRouting = async (
   active: boolean,
   profileKey: string | undefined,
-  ctx: RouterContext
+  ctx: RouterContext,
+  log: RouterRequest['log']
 ): Promise<{ profile: RouterPreferenceProfile; routing: ChainRouting } | null> => {
   if (!active) return null
-  const profile = await loadRouterPreferences(undefined, profileKey)
   const providers = ctx.config.get<ConfigProvider[]>('providers', [])
-  return { profile, routing: chainRoutingOf(profile, providers) }
+  try {
+    const profile = await loadRouterPreferences(undefined, profileKey)
+    return { profile, routing: chainRoutingOf(profile, providers) }
+  } catch (err) {
+    // The chain lives in Postgres; the scenario classification does not.
+    // Letting this reach routeScenario's outer catch would cost the whole
+    // decision — lane, rules, per-project override — and answer every
+    // request with `Router.default` for as long as the database is away.
+    // A chain we cannot read is a chain that contributes nothing, which
+    // is exactly what `null` means here: fall through to the scenario
+    // router, the same answer this install gave before the chain existed.
+    log.warn({ err }, '[routing-quota-aware] could not load the preference chain — using the scenario router')
+    return null
+  }
 }
 
 export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas/domain/scenario'
@@ -195,7 +208,7 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // is configured to serve it, and under this mode the chain is that
     // something. Loading it once serves both — the selector takes the
     // same object back below.
-    const chain = await loadChainRouting(mode === 'quota-aware' && inRollout, profileKey, ctx)
+    const chain = await loadChainRouting(mode === 'quota-aware' && inRollout, profileKey, ctx, req.log)
 
     const scenarioResult = selectModel(req, tokenCount, router, ctx.config, chain?.routing)
 
