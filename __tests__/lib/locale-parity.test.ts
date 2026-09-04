@@ -63,6 +63,12 @@ const tags = (value: string): string[] =>
 const SHARED_VOCABULARY = new Set([
   'activity.requests.laneAgent',
   'activity.requests.laneSubagent',
+  // Codex names its own quota windows `primary` / `secondary`. The
+  // collector's metric keys (`codex.primary`) and Overview's quota rows
+  // print them verbatim, so a translated label here would disagree with
+  // every other place the same window is named.
+  'activity.usage.windowPrimary',
+  'activity.usage.windowSecondary',
   'providers.connect.pillSubscription',
   'providers.connect.redirectPlaceholder',
   'providers.connect.redirectPlaceholderCodex',

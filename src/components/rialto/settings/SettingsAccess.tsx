@@ -268,7 +268,6 @@ export function SettingsAccess() {
   return (
     <SettingsLayout
       active='access'
-      title={t('settings.rail.access')}
       subtitle={subtitle}
       headerBadge={
         configured ? (

@@ -29,14 +29,17 @@ import {
   QuotaAwareConstraintsSchema,
   type RequestedModelTier,
   type RouterPreferenceEntry,
+  type RouterPreferenceProfile,
   type ScenarioKey
 } from '@/schemas/domain'
 import { logger } from '../../logger'
-import { loadPreferenceChain } from '../../services/router-preference-service'
+import { DEFAULT_PROFILE_KEY, loadRouterPreferences } from '../../services/router-preference-service'
 import { getRoutingSnapshot } from '../../services/routing-scheduler'
 import { errorRateOf } from '../../services/routing-scheduler/model-health'
 import { getCachedUsagePct } from '../../services/usage-service'
+import type { ChainRouting } from '../scenario-router/model-selection'
 import { tierOf } from '../scenario-router/model-selection'
+import type { ConfigProvider } from '../scenario-router/types'
 import { type PreferenceSelection, selectByPreference } from './selection'
 
 // Look up the provider/model pair behind a preference target, then
@@ -123,6 +126,41 @@ const resolveAllowedTiers = (
   return undefined
 }
 
+// Model.contextWindow behind a "provider,model" target, read off the flat
+// runtime provider list. The same lookup `resolveDefaultAgentContextWindow`
+// does in llms/context.ts for the RouterSlot's default primary — the chain
+// needs its own because under the chain selector the model serving the
+// default lane is the chain's first enabled entry, not the slot's.
+const contextWindowOf = (providers: readonly ConfigProvider[], target: string): number | null => {
+  const comma = target.indexOf(',')
+  if (comma <= 0) return null
+  const provider = providers.find((p) => p.name === target.slice(0, comma))
+  const window = provider?.modelContextWindows?.[target.slice(comma + 1)]
+  return typeof window === 'number' && window > 0 ? window : null
+}
+
+/**
+ * Project a loaded profile into what the scenario classifier needs.
+ *
+ * The classifier runs before the selector and decides which lane the
+ * selector will then be asked for, so it has to know the chain's shape
+ * up front — which lanes carry an enabled entry, and how big the model
+ * on the default lane is. Built from an already-loaded profile so the
+ * request path reads the row once for both jobs.
+ *
+ * A lane with entries that are all soft-disabled does NOT count: the
+ * selector would skip every one of them and return no primary, and
+ * classifying into a lane that resolves to nothing is the exact failure
+ * the gate exists to prevent.
+ */
+export function chainRoutingOf(profile: RouterPreferenceProfile, providers: readonly ConfigProvider[]): ChainRouting {
+  const top = profile.entriesByScenario.default.agent.find((entry) => entry.enabled)
+  return {
+    hasLane: (kind, scenario) => profile.entriesByScenario[scenario][kind].some((entry) => entry.enabled),
+    defaultAgentContextWindow: top === undefined ? null : contextWindowOf(providers, top.target)
+  }
+}
+
 export interface QuotaAwareSelectionInput {
   requestedModel: string | undefined
   isSubagent: boolean
@@ -137,6 +175,11 @@ export interface QuotaAwareSelectionInput {
   // through lets the selector's context-window gate skip candidates
   // that can't physically hold the request. Undefined = don't gate.
   requestTokenCount?: number
+  // The profile the caller already loaded, when it had to read it before
+  // classification (see `chainRoutingOf`). Reusing it keeps the request
+  // path at one Prisma read; omitted, this loads `profileKey` itself,
+  // which is what the shadow path does.
+  profile?: RouterPreferenceProfile
 }
 
 export interface QuotaAwareSelection {
@@ -150,8 +193,14 @@ export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput
   // are ordered independently in the DB, so the same scenario can
   // route very differently based on the caller lane.
   const kind = input.isSubagent ? 'subagent' : 'agent'
-  const chain = await loadPreferenceChain(input.scenario, kind, undefined, input.profileKey)
-  const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(chain.constraints ?? {})
+  const profile =
+    input.profile !== undefined
+      ? input.profile
+      : await loadRouterPreferences(undefined, input.profileKey === undefined ? DEFAULT_PROFILE_KEY : input.profileKey)
+  const entries = profile.entriesByScenario[input.scenario][kind]
+  const constraintsParsed = QuotaAwareConstraintsSchema.safeParse(
+    profile.constraints === null ? {} : profile.constraints
+  )
   const constraints: QuotaAwareConstraints = constraintsParsed.success
     ? constraintsParsed.data
     : QuotaAwareConstraintsSchema.parse({})
@@ -162,7 +211,7 @@ export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput
   // real chains whose candidates are all currently gated, not for the
   // "nothing to route" case. Without this, a fresh install with
   // ROUTER_MODE=quota-aware but no chain entries 429s every request.
-  if (chain.entries.length === 0) {
+  if (entries.length === 0) {
     return { selection: { primary: null, fallbacks: [], matched: false, skipped: [] }, retryAfterSec: null }
   }
   const l4Constraints: PreferenceConstraints = constraints
@@ -170,11 +219,9 @@ export async function resolveQuotaAwareSelection(input: QuotaAwareSelectionInput
   // Pace-based widening only applies to agent calls — subagent tag
   // routing has its own filter (subagentTiers) that operators use to
   // pin the sub-lane, and blurring it silently would surprise them.
-  const allowedTiersOverride = input.isSubagent
-    ? undefined
-    : resolveAllowedTiers(requestedTier, chain.entries, l4Constraints)
+  const allowedTiersOverride = input.isSubagent ? undefined : resolveAllowedTiers(requestedTier, entries, l4Constraints)
   const selection = selectByPreference({
-    entries: chain.entries,
+    entries,
     constraints: l4Constraints,
     requestedTier,
     isSubagent: input.isSubagent,

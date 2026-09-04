@@ -47,9 +47,7 @@ export function LinePreview({
   return (
     <div className='border-b border-border px-6 py-5'>
       <div className='flex items-center gap-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('settings.statusline.preview')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('settings.statusline.preview')}</h3>
         <Pill tone='ok'>{t('settings.statusline.live')}</Pill>
       </div>
       <div className='mt-3 rounded-md border border-border bg-[#0d0d0d] px-4 py-3'>

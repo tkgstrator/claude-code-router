@@ -137,9 +137,7 @@ export function RequiredInputs({
   return (
     <>
       <div className='flex items-center gap-2 border-t border-border px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('settings.presets.requiredInputs')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('settings.presets.requiredInputs')}</h3>
         {missingCount === 0 ? (
           <Pill tone='ok'>{t('settings.presets.complete')}</Pill>
         ) : (

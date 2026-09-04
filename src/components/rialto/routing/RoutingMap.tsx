@@ -20,8 +20,8 @@ import { applyPresetToLive } from '@/lib/routing-map/apply-to-live'
 import { usePreferences, useProfiles, useScheduler, useSurfaces } from './data'
 import { profileEntryCount, profileTargets, STATE_LABEL_KEYS, weightIndex } from './derive'
 import { MapCanvas } from './MapCanvas'
-import { RoutingViewTabs } from './RoutingTabs'
 import { allRules } from './rules'
+import { SelectorBar } from './SelectorBar'
 import type { ProfileSummary } from './types'
 import { SCENARIOS } from './types'
 
@@ -237,7 +237,7 @@ export function RoutingMap() {
   const { profile } = usePreferences(surfaces.length === 0 ? null : profileKey)
   const weights = useMemo(() => weightIndex(scheduler), [scheduler])
   const targets = useMemo(() => profileTargets(profile.entriesByScenario), [profile])
-  const ruleCount = config === null ? 0 : allRules(config.Router).length
+  const _ruleCount = config === null ? 0 : allRules(config.Router).length
   const counts = t('routing.map.counts', {
     surfaces: surfaces.length,
     scenarios: SCENARIOS.length,
@@ -282,7 +282,6 @@ export function RoutingMap() {
 
   return (
     <Screen
-      title={t('routing.map.title')}
       subtitle={`${profileKey} · ${counts}`}
       actions={
         <>
@@ -293,7 +292,7 @@ export function RoutingMap() {
         </>
       }
     >
-      <RoutingViewTabs active='map' ruleCount={ruleCount} />
+      <SelectorBar />
 
       <div className='flex items-center gap-3 border-b border-border px-6 py-3'>
         <ProfileButton current={profileKey} profiles={profiles} onSelect={setChosenProfile} />

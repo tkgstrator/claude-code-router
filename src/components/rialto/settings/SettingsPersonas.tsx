@@ -113,7 +113,6 @@ function PersonasEditor({ config }: { config: Config }) {
   return (
     <SettingsLayout
       active='personas'
-      title={t('settings.rail.personas')}
       subtitle={t('settings.personas.subtitle', {
         count: drafts.length,
         active: t(activeCount === 0 ? 'settings.personas.noneActive' : 'settings.personas.oneActive')
@@ -165,7 +164,7 @@ export function SettingsPersonas() {
   const { config } = useConfig()
   if (config === null) {
     return (
-      <SettingsLayout active='personas' title={t('settings.rail.personas')} showHeading={false}>
+      <SettingsLayout active='personas' showHeading={false}>
         <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       </SettingsLayout>
     )

@@ -65,9 +65,7 @@ export function PassthroughPanel({
       {/* Own the gap: this heading is the first thing under the mode bar,
           so it cannot lean on a preceding block for spacing. */}
       <div className='flex items-center gap-3 px-6 pt-6 pb-3'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('routing.chain.reachableTargets')}
-        </h2>
+        <h2 className='text-sm font-semibold'>{t('routing.chain.reachableTargets')}</h2>
         <span className='text-[11px] text-muted-foreground'>
           <Trans i18nKey='routing.chain.reachableHint' components={{ mono: <span className='font-mono' /> }} />
         </span>

@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { pill } = window.Shell
+const { pill, navTo } = window.Shell
 
 // Replaces SetupDialog. First run is the one moment the operator has no
 // mental model yet, so it states what Rialto is before asking for anything.
@@ -53,13 +53,13 @@ const stepBlock = (s) => `
                 ['Codex', 'ri-terminal-line', 'ChatGPT plan'],
                 ['Gemini CLI', 'ri-gemini-line', 'AI Pro / Ultra']
               ].map(([l, i, h]) => `
-                <button class="rounded-md border border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/50">
+                <button ${navTo('providers-connect.html')} class="rounded-md border border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/50">
                   <i class="${i} text-sm text-muted-foreground"></i>
                   <div class="mt-1 text-[11px] font-medium">${l}</div>
-                  <div class="text-[10px] text-muted-foreground">${h}</div>
+                  <div class="text-[11px] text-muted-foreground">${h}</div>
                 </button>`).join('')}
             </div>
-            <button class="mt-2 text-[11px] text-muted-foreground underline-offset-2 hover:underline">Use an API key instead</button>`
+            <button ${navTo('providers-connect.html')} class="mt-2 text-[11px] text-muted-foreground underline-offset-2 hover:underline">Use an API key instead</button>`
           : ''
       }
       ${
@@ -84,7 +84,7 @@ document.getElementById('root').innerHTML = `
           <i class="ri-route-line text-base leading-none"></i>
         </div>
         <span class="text-base font-semibold tracking-tight">Rialto</span>
-        <span class="ml-auto font-mono text-[10px] text-muted-foreground">v3.0.0</span>
+        <span class="ml-auto font-mono text-[11px] text-muted-foreground">v3.0.0</span>
       </div>
       <p class="mt-4 text-xs leading-relaxed text-muted-foreground">
         Rialto sits between your coding clients and the model vendors. Clients speak whichever wire
@@ -101,8 +101,8 @@ document.getElementById('root').innerHTML = `
       <span class="text-[11px] text-muted-foreground">
         The token above is shown once — Rialto stores only a hash of it.
       </span>
-      <button class="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:underline">Skip setup</button>
-      <button class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+      <button ${navTo('overview.html')} class="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:underline">Skip setup</button>
+      <button ${navTo('providers-connect.html')} class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
         Continue <i class="ri-arrow-right-line text-sm"></i>
       </button>
     </div>

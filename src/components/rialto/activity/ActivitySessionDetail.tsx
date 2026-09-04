@@ -147,7 +147,7 @@ function SummaryPane({
   return (
     <>
       <div className='px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+        <h2 className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
           {t('activity.session.summary')}
         </h2>
       </div>
@@ -184,7 +184,7 @@ function TracePane({ calls }: { calls: ActivityRequestLog[] }) {
   return (
     <>
       <div className='border-t border-border px-4 pt-5 pb-2'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+        <h2 className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
           {t('activity.session.routingTrace')}
         </h2>
       </div>
@@ -295,7 +295,8 @@ export function ActivitySessionDetail() {
 
   return (
     <Screen
-      title={t('activity.session.title')}
+      // Activity / Sessions / <id> — the third level the tree cannot name.
+      crumbs={[{ label: sessionId }]}
       subtitle={subtitle}
       actions={
         <>

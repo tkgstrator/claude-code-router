@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Advanced · Health</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn, tabs } = window.Shell
+
+// The Advanced screen's second tab. It had a tab in the mock and nothing
+// behind it, while the implementation ships a whole panel.
+//
+// The probe is `GET /health` at the ROOT, not under /api: uptime checks
+// must not need the bootstrap token. That also puts it outside the Vite
+// dev server's default passthrough, which is why it is listed explicitly
+// in the exclude list — without that entry the SPA shell answers and every
+// check reads unreachable.
+//
+// `skip` is a first-class result, not a failure. A check for something the
+// install has not configured (no Cloudflare Access, no proxy) must not
+// turn the page red, or the one badge that matters stops meaning anything.
+const CHECKS = [
+  { id: 'database',    state: 'ok',   detail: 'postgres · 14 migrations applied · 3ms' },
+  { id: 'redis',       state: 'ok',   detail: 'usage capture + auth-health queue · 1ms' },
+  { id: 'config',      state: 'ok',   detail: '~/.rialto/config.json parsed, 0 unknown keys' },
+  { id: 'providers',   state: 'ok',   detail: '7 registered · 6 authenticated' },
+  { id: 'access_jwks', state: 'skip', detail: 'ACCESS_TEAM_DOMAIN and ACCESS_AUD are unset' },
+  { id: 'scheduler',   state: 'fail', detail: 'last tick 41m ago — expected every 60s' }
+]
+
+const TONES = { ok: 'ok', fail: 'bad', skip: 'mute' }
+
+const checkRow = (c) => `
+  <div class="flex items-baseline gap-3 border-t border-border/60 px-6 py-2.5 transition-colors hover:bg-muted/50">
+    <span class="w-32 shrink-0 font-mono text-xs">${c.id}</span>
+    <span class="shrink-0">${pill(c.state, TONES[c.state])}</span>
+    <span class="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">${c.detail}</span>
+  </div>`
+
+const kv = (k, v) => `
+  <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
+    <div class="text-xs font-medium">${k}</div>
+    <div class="font-mono text-xs">${v}</div>
+  </div>`
+
+document.getElementById('root').innerHTML = `
+  <div class="min-w-0">
+    <div class="flex items-center gap-1 border-b border-border px-6">
+      ${tabs([
+        { id: 'config', label: 'Config document', href: 'settings-advanced.html' },
+        { id: 'scratch', label: 'Request scratchpad', href: 'settings-advanced-scratchpad.html' },
+        { id: 'health', label: 'Health' }
+      ], 'health')}
+    </div>
+
+    <div class="flex items-center gap-3 border-b border-border px-6 py-3">
+      <span class="font-mono text-[11px] text-muted-foreground">GET /health</span>
+      ${pill('degraded', 'warn')}
+      <span class="text-[11px] text-muted-foreground">5 of 6 checks passing</span>
+      <div class="ml-auto flex gap-2">
+        ${btn('Raw JSON', 'ghost', 'ri-code-line')}
+        ${btn('Re-check', 'outline', 'ri-refresh-line')}
+      </div>
+    </div>
+
+    ${kv('Version', 'v3.0.0')}
+    ${kv('Uptime', '4d 06h 12m')}
+
+    <div class="flex items-baseline gap-3 border-t border-border px-6 pt-6 pb-3">
+      <h2 class="text-sm font-semibold">Checks</h2>
+      <span class="text-xs text-muted-foreground/70">unedited, in the order the probe returns them</span>
+    </div>
+    ${CHECKS.map(checkRow).join('')}
+
+    <div class="px-6 py-4">
+      <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+        <i class="ri-information-line mr-1 align-[-1px]"></i>
+        <span class="font-mono">skip</span> is not a failure — it is a check for something this
+        install has not configured, and colouring it red would cost the one badge that has to mean
+        something. The <span class="font-mono">scheduler</span> row is the shape that matters here:
+        the proxy keeps serving with a stale set of weights, so nothing 500s and nothing tells you,
+        which is exactly why this panel exists.
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 border-t border-border px-6 pt-5 pb-3">
+      <h2 class="text-sm font-semibold">Danger zone</h2>
+    </div>
+    ${[
+      ['Reset routing', 'Clears every chain, rule and profile back to the seeded defaults. Providers and accounts are kept.'],
+      ['Re-seed model catalog', 'Drops scraped models and prices, then re-runs the seed. Enabled flags are lost.'],
+      ['Purge captured data', 'Deletes every session, message and request log. Usage history and cost totals go with it.']
+    ].map(([label, hint]) => `
+      <div class="grid grid-cols-[1fr_auto] items-center gap-6 border-t border-border/60 px-6 py-4">
+        <div>
+          <div class="text-xs font-medium">${label}</div>
+          <div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">${hint}</div>
+        </div>
+        <button class="inline-flex h-8 items-center rounded-md border border-destructive/40 px-3 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10">
+          ${label.split(' ')[0]}
+        </button>
+      </div>`).join('')}
+    <div class="h-10"></div>
+  </div>`
+
+renderShell({
+  active: 'settings',
+  navMode: 'cloudflare',
+  sub: 'advanced',
+  crumbs: ['Advanced'],
+  subtitle: 'GET /health · degraded',
+  actions: btn('Backups', 'ghost', 'ri-history-line') + btn('Save', 'primary', 'ri-check-line')
+})
+</script>
+</body>
+</html>

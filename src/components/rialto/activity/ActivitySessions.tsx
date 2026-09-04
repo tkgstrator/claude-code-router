@@ -32,7 +32,7 @@ import {
   rangeSpec,
   upsertSession
 } from '@/components/rialto/activity/sessions-derive'
-import { ActivityTabs, FilterSelect, ScreenMessage, StatTile } from '@/components/rialto/activity/shared'
+import { FilterSelect, ScreenMessage, StatTile } from '@/components/rialto/activity/shared'
 import { useSurfaces } from '@/components/rialto/activity/use-surfaces'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
@@ -82,7 +82,7 @@ export function ActivitySessions() {
   const [logs, setLogs] = useState<ActivityRequestLog[]>([])
   const [totals, setTotals] = useState<WindowTotals | null>(null)
   const [totalSessions, setTotalSessions] = useState<number | undefined>(undefined)
-  const [totalRequests, setTotalRequests] = useState<number | undefined>(undefined)
+  const [_totalRequests, setTotalRequests] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
   // Frozen per load so every "last seen" label on the page is measured
   // from the instant the data describes.
@@ -196,7 +196,6 @@ export function ActivitySessions() {
 
   return (
     <Screen
-      title={t('activity.sessions.title')}
       subtitle={subtitle}
       actions={
         <>
@@ -215,8 +214,6 @@ export function ActivitySessions() {
         </>
       }
     >
-      <ActivityTabs active='sessions' sessionCount={totalSessions} requestCount={totalRequests} />
-
       <div className='flex flex-wrap items-center gap-2 border-b border-border px-6 py-3'>
         <FilterSelect
           label={t('activity.sessions.filterSurface')}

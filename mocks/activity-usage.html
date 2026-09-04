@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Activity · Usage</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn, mono, meter, surfacePill, navTo } = window.Shell
+
+// Usage is the fourth Activity tab because that is where the pre-Rialto
+// /usage screen was folded (NotFound's MERGED_INTO already says so) and
+// the answer it gives is a time series, which the other three tabs are
+// not shaped to hold.
+//
+// The split against Overview is deliberate and load-bearing: Overview
+// answers "what is it right now" with the 5h/7d meters. This screen
+// answers the two questions that need history or a breakdown — how the
+// windows got here, and whose traffic did it.
+const filter = (label, value) => `
+  <button class="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs transition-colors hover:bg-muted/60">
+    <span class="text-muted-foreground">${label}</span>
+    <span>${value}</span>
+    <i class="ri-arrow-down-s-line text-sm text-muted-foreground"></i>
+  </button>`
+
+// ─── Subscription windows, right now ──────────────────────────────────
+// Grouped by account rather than flattened, because "41%" means nothing
+// without knowing which subscription is 41% spent. The per-model weekly
+// rows are the ones Overview's quota array drops on the floor — they are
+// the reason this section exists rather than linking to Overview.
+const ACCOUNTS = [
+  {
+    name: 'Yuki Minakami', vendor: 'Claude Max 20x', tone: 'ok',
+    windows: [
+      { label: '5-hour',        scope: '',       pct: 3,  resets: '4h 02m' },
+      { label: '7-day',         scope: '',       pct: 41, resets: '1d 14h' },
+      { label: '7-day · model', scope: 'Fable',  pct: 11, resets: '1d 14h' },
+      { label: '7-day · model', scope: 'Opus',   pct: 64, resets: '1d 14h' }
+    ]
+  },
+  {
+    name: 'ops@example.com', vendor: 'Codex Pro', tone: 'warn',
+    windows: [
+      { label: 'primary',   scope: '', pct: 88, resets: '46m' },
+      { label: 'secondary', scope: '', pct: 22, resets: '2d 06h' }
+    ]
+  }
+]
+
+const windowRow = (w) => `
+  <div ${navTo('providers.html')} class="flex items-center gap-3 border-t border-border/60 px-6 py-2.5 transition-colors hover:bg-muted/50">
+    <span class="w-24 shrink-0 truncate text-xs">${w.label}</span>
+    <span class="w-12 shrink-0">${w.scope ? mono(w.scope) : ''}</span>
+    <div class="min-w-0 flex-1">${meter(w.pct)}</div>
+    <span class="w-10 shrink-0 text-right font-mono text-xs tabular-nums">${w.pct}%</span>
+    <span class="w-20 shrink-0 text-right text-[11px] text-muted-foreground">${w.resets}</span>
+  </div>`
+
+const accountBlock = (a) => `
+  <div class="min-w-0">
+    <div class="flex items-baseline gap-2 px-6 pb-1">
+      <span class="text-xs font-medium">${a.name}</span>
+      ${pill(a.vendor, a.tone)}
+      <span class="ml-auto text-[11px] text-muted-foreground/70">resets in</span>
+    </div>
+    ${a.windows.map(windowRow).join('')}
+  </div>`
+
+// ─── Utilization over time ────────────────────────────────────────────
+// One measure (percent of a window) on one axis, three series — the only
+// shape a second y-axis would ever be argued for, and the argument is
+// wrong. Series colours are validated against both surfaces:
+//   light #2563eb / #d97706 / #7c3aed   on #ffffff
+//   dark  #3b82f6 / #d97706 / #8b5cf6   on #0a0a0a
+// (worst adjacent CVD ΔE 32.3 light / 30.2 dark, every check PASS).
+// Identity never rests on colour alone: each line is direct-labelled at
+// its right end and repeated in the legend.
+const SERIES = [
+  {
+    id: '5h', label: '5-hour', stroke: 'text-blue-600 dark:text-blue-500',
+    dot: 'bg-blue-600 dark:bg-blue-500',
+    points: [4, 12, 31, 22, 8, 3, 17, 44, 61, 38, 12, 5, 9, 28, 55, 71, 49, 21, 6, 14, 33, 47, 26, 11, 5, 19, 40, 3]
+  },
+  {
+    id: '7d', label: '7-day', stroke: 'text-amber-600 dark:text-amber-600',
+    dot: 'bg-amber-600',
+    points: [2, 5, 9, 12, 14, 15, 18, 23, 27, 29, 31, 32, 33, 35, 38, 42, 45, 47, 48, 49, 51, 54, 56, 57, 58, 39, 40, 41]
+  },
+  {
+    id: 'fable', label: '7-day · Fable', stroke: 'text-violet-600 dark:text-violet-500',
+    dot: 'bg-violet-600 dark:bg-violet-500',
+    points: [0, 1, 2, 3, 3, 3, 4, 6, 7, 8, 8, 9, 9, 10, 11, 13, 14, 15, 15, 16, 17, 18, 19, 19, 20, 9, 10, 11]
+  }
+]
+
+const DAYS = ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'now']
+
+// Plot geometry in viewBox units. The SVG scales to the container; strokes
+// are pinned with vector-effect so a wide viewport does not fatten them.
+const W = 1080, H = 200, PAD_L = 34, PAD_R = 96, PAD_T = 12, PAD_B = 24
+const px = (i, n) => PAD_L + (i / (n - 1)) * (W - PAD_L - PAD_R)
+const py = (v) => PAD_T + (1 - v / 100) * (H - PAD_T - PAD_B)
+
+const gridline = (v) => `
+  <line x1="${PAD_L}" y1="${py(v)}" x2="${W - PAD_R}" y2="${py(v)}"
+        class="stroke-border" stroke-width="1" vector-effect="non-scaling-stroke"/>
+  <text x="${PAD_L - 8}" y="${py(v) + 3}" text-anchor="end"
+        class="fill-muted-foreground text-[9px]">${v}%</text>`
+
+const dayLabel = (d, i) => `
+  <text x="${px(i * 4, 28)}" y="${H - 8}" text-anchor="middle"
+        class="fill-muted-foreground text-[9px]">${d}</text>`
+
+const line = (s) => {
+  const d = s.points.map((p, i) => `${px(i, s.points.length)},${py(p)}`).join(' ')
+  const last = s.points[s.points.length - 1]
+  return `
+    <polyline points="${d}" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linejoin="round" stroke-linecap="round"
+              class="${s.stroke}" vector-effect="non-scaling-stroke"/>
+    <circle cx="${px(s.points.length - 1, s.points.length)}" cy="${py(last)}" r="3"
+            class="fill-current ${s.stroke}"/>
+    <text x="${px(s.points.length - 1, s.points.length) + 8}" y="${py(last) + 3}"
+          class="fill-foreground text-[10px]">${s.label} ${last}%</text>`
+}
+
+// Crosshair + readout, drawn at one sample so the static mock carries the
+// hover contract the implementation has to honour rather than leaving it
+// to be discovered later.
+const CROSS_I = 15
+const crosshair = `
+  <line x1="${px(CROSS_I, 28)}" y1="${PAD_T}" x2="${px(CROSS_I, 28)}" y2="${H - PAD_B}"
+        class="stroke-border" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+  ${SERIES.map((s) => `<circle cx="${px(CROSS_I, 28)}" cy="${py(s.points[CROSS_I])}" r="3.5"
+        class="fill-current ${s.stroke}" stroke="var(--background)" stroke-width="2"/>`).join('')}`
+
+const tooltip = `
+  <div class="pointer-events-none absolute left-[46%] top-6 w-44 rounded-md border border-border bg-background px-3 py-2 shadow-sm">
+    <div class="text-[11px] text-muted-foreground">Sun 18:00</div>
+    ${SERIES.map((s) => `
+      <div class="mt-1 flex items-center gap-2">
+        <span class="h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}"></span>
+        <span class="text-[11px]">${s.label}</span>
+        <span class="ml-auto font-mono text-[11px] tabular-nums">${s.points[CROSS_I]}%</span>
+      </div>`).join('')}
+  </div>`
+
+const legend = `
+  <div class="flex items-center gap-4 px-6 pb-3">
+    ${SERIES.map((s) => `
+      <span class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span class="h-1.5 w-4 rounded-full ${s.dot}"></span>${s.label}
+      </span>`).join('')}
+    <span class="ml-auto text-[11px] text-muted-foreground/70">sampled every 5 min · captured off real traffic</span>
+  </div>`
+
+const chart = `
+  ${legend}
+  <div class="relative px-6 pb-5">
+    <svg viewBox="0 0 ${W} ${H}" class="w-full" style="height:200px">
+      ${[0, 25, 50, 75, 100].map(gridline).join('')}
+      ${DAYS.map(dayLabel).join('')}
+      ${crosshair}
+      ${SERIES.map(line).join('')}
+    </svg>
+    ${tooltip}
+  </div>`
+
+// ─── By access token ──────────────────────────────────────────────────
+// The same numbers Settings → Access shows beside each credential, which
+// is where an operator asking "what is this costing me" does not think to
+// look. There they are decision support for Revoke; here they are the
+// answer to the question the screen is named after.
+const TOKENS = [
+  { name: 'MacBook — Claude Code', prefix: 'rialto_a91f…', surface: '/v1/messages',          reqs: '12.4k', cost: '$41.2', share: 64, used: '2m ago' },
+  { name: 'CI — nightly evals',    prefix: 'rialto_0d18…', surface: '/v1/chat/completions',  reqs: '3.10k', cost: '$18.6', share: 29, used: '6h ago' },
+  { name: 'MacBook — Codex',       prefix: 'rialto_7c02…', surface: '/v1/responses',         reqs: '2.71k', cost: '—',     share: 0,  used: '19m ago' },
+  { name: 'Gemini CLI',            prefix: 'rialto_be44…', surface: '/v1beta/models/*',      reqs: '486',   cost: '$4.51', share: 7,  used: '1h ago' }
+]
+
+const tokenRow = (t) => `
+  <tr ${navTo('activity-requests.html')} class="border-t border-border/60 transition-colors hover:bg-muted/50">
+    <td class="py-2.5 pl-6 pr-3">
+      <div class="text-xs font-medium">${t.name}</div>
+      <div class="font-mono text-[11px] text-muted-foreground">${t.prefix}</div>
+    </td>
+    <td class="px-3">${surfacePill(t.surface)}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${t.reqs}</td>
+    <td class="px-3 text-right font-mono text-xs tabular-nums">${t.cost}</td>
+    <td class="px-3">
+      <div class="flex items-center gap-2">
+        ${meter(t.share, 'mute')}
+        <span class="w-8 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">${t.share}%</span>
+      </div>
+    </td>
+    <td class="py-2.5 pl-3 pr-6 text-right text-[11px] text-muted-foreground">${t.used}</td>
+  </tr>`
+
+const tokenTable = `
+  <table class="w-full table-fixed">
+    <colgroup><col><col class="w-40"><col class="w-24"><col class="w-24"><col class="w-40"><col class="w-28"></colgroup>
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
+        <th class="pl-6 pr-3 text-left font-medium">Token</th>
+        <th class="px-3 text-left font-medium">Endpoint</th>
+        <th class="px-3 text-right font-medium">Requests</th>
+        <th class="px-3 text-right font-medium">Cost 30d</th>
+        <th class="px-3 text-left font-medium">Share of spend</th>
+        <th class="whitespace-nowrap pl-3 pr-6 text-right font-medium">Last used</th>
+      </tr>
+    </thead>
+    <tbody>${TOKENS.map(tokenRow).join('')}</tbody>
+  </table>`
+
+// ─── Page ─────────────────────────────────────────────────────────────
+const sectionHead = (title, meta, action = '') => `
+  <div class="flex items-baseline gap-3 border-t border-border px-6 pt-6 pb-3">
+    <h2 class="text-sm font-semibold">${title}</h2>
+    <span class="text-xs text-muted-foreground/70">${meta}</span>
+    ${action ? `<div class="ml-auto">${action}</div>` : ''}
+  </div>`
+
+document.getElementById('root').innerHTML = `
+
+  <div class="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3">
+    ${filter('Range', '7 days')}
+    <p class="ml-auto max-w-md text-right text-[11px] leading-snug text-muted-foreground">
+      Overview shows where the windows stand now. This is how they got there, and whose traffic did it.
+    </p>
+  </div>
+
+  ${sectionHead('Subscription windows', 'live, from each vendor’s usage API')}
+  <div class="grid grid-cols-2 gap-x-px pb-2">
+    ${ACCOUNTS.map(accountBlock).join('')}
+  </div>
+
+  ${sectionHead('Utilization', 'last 7 days', btn('Export CSV', 'ghost', 'ri-download-line'))}
+  ${chart}
+
+  ${sectionHead('By access token', 'last 30 days', btn('Manage tokens', 'ghost', 'ri-key-2-line', 'settings-access.html'))}
+  ${tokenTable}
+  <div class="h-10"></div>`
+
+renderShell({
+  active: 'activity',
+  navMode: 'cloudflare',
+  sub: 'usage',
+  crumbs: ['Usage'],
+  subtitle: '2 subscription accounts · last 7 days',
+  actions: btn('Refresh', 'outline', 'ri-refresh-line')
+})
+</script>
+</body>
+</html>

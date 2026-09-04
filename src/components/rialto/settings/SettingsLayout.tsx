@@ -1,49 +1,33 @@
 /**
- * Settings frame: the section rail plus the pane its sections render into.
+ * Settings frame: the pane its sections render into.
  *
  * SettingsPage / Presets / Personas / StatusLine / Debug were five
  * separate top-level nav entries. They all answer "configure this
- * installation", so they collapse into one screen with a rail — which
- * also means the rail markup lives here once instead of being repeated
- * by each section.
+ * installation", so they collapse into one screen.
+ *
+ * The 13rem section rail that used to sit here is gone: it was a second
+ * vertical menu beside the sidebar's, so Settings spent 27rem on
+ * navigation before the first field. The sections live in the sidebar
+ * tree now, and the pane gets the width back. `active` stays because the
+ * heading is still drawn from it.
  */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { type RailEntry, RailItem } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
 
-/**
- * The rail, with labels still to be resolved. `RailEntry.label` is prose,
- * so the table holds keys and `settingsRail` turns them into entries —
- * a module-level constant would be built once, before i18n has a language.
- */
-const SETTINGS_RAIL_KEYS: readonly { id: string; labelKey: string; icon: string; href: string }[] = [
-  { id: 'server', labelKey: 'settings.rail.server', icon: 'ri-server-line', href: '/settings' },
-  { id: 'access', labelKey: 'settings.rail.access', icon: 'ri-key-2-line', href: '/settings/access' },
-  { id: 'logging', labelKey: 'settings.rail.logging', icon: 'ri-file-list-2-line', href: '/settings/logging' },
-  { id: 'personas', labelKey: 'settings.rail.personas', icon: 'ri-user-voice-line', href: '/settings/personas' },
-  {
-    id: 'statusline',
-    labelKey: 'settings.rail.statusline',
-    icon: 'ri-layout-bottom-line',
-    href: '/settings/statusline'
-  },
-  { id: 'presets', labelKey: 'settings.rail.presets', icon: 'ri-archive-drawer-line', href: '/settings/presets' },
-  { id: 'advanced', labelKey: 'settings.rail.advanced', icon: 'ri-terminal-box-line', href: '/settings/advanced' }
-]
-
-export function settingsRail(t: (key: string) => string): RailEntry[] {
-  return SETTINGS_RAIL_KEYS.map((entry) => ({
-    id: entry.id,
-    label: t(entry.labelKey),
-    icon: entry.icon,
-    href: entry.href
-  }))
+/** Section headings, keyed the same way the sidebar names them. */
+const SECTION_LABEL_KEYS: Readonly<Record<string, string>> = {
+  server: 'settings.rail.server',
+  access: 'settings.rail.access',
+  logging: 'settings.rail.logging',
+  personas: 'settings.rail.personas',
+  statusline: 'settings.rail.statusline',
+  presets: 'settings.rail.presets',
+  advanced: 'settings.rail.advanced'
 }
 
 export function SettingsLayout({
   active,
-  title,
   subtitle,
   actions,
   headerNote,
@@ -53,7 +37,6 @@ export function SettingsLayout({
   children
 }: {
   active: string
-  title: ReactNode
   subtitle?: ReactNode
   /** Actions for the app-level title bar. */
   actions?: ReactNode
@@ -72,27 +55,19 @@ export function SettingsLayout({
   children: ReactNode
 }) {
   const { t } = useTranslation()
-  const rail = settingsRail(t)
-  const section = rail.find((r) => r.id === active)
+  const labelKey = SECTION_LABEL_KEYS[active]
   return (
-    <Screen title={title} subtitle={subtitle} actions={actions}>
-      <div className='grid h-full grid-cols-[13rem_1fr]'>
-        <aside className='min-w-0 overflow-y-auto border-r border-border py-3'>
-          {rail.map((item) => (
-            <RailItem key={item.id} item={item} active={active} />
-          ))}
-        </aside>
-        <div className='min-w-0 overflow-y-auto'>
-          {showHeading ? (
-            <div className='flex items-center gap-3 px-6 pt-6 pb-3'>
-              <h2 className='text-sm font-semibold'>{section === undefined ? '' : section.label}</h2>
-              {headerBadge}
-              {headerNote ? <span className='text-[11px] text-muted-foreground'>{headerNote}</span> : null}
-              {headerActions ? <div className='ml-auto'>{headerActions}</div> : null}
-            </div>
-          ) : null}
-          {children}
-        </div>
+    <Screen subtitle={subtitle} actions={actions}>
+      <div className='min-w-0'>
+        {showHeading ? (
+          <div className='flex items-center gap-3 px-6 pt-6 pb-3'>
+            <h2 className='text-sm font-semibold'>{labelKey === undefined ? '' : t(labelKey)}</h2>
+            {headerBadge}
+            {headerNote ? <span className='text-[11px] text-muted-foreground'>{headerNote}</span> : null}
+            {headerActions ? <div className='ml-auto'>{headerActions}</div> : null}
+          </div>
+        ) : null}
+        {children}
       </div>
     </Screen>
   )

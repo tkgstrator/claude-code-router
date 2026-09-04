@@ -90,9 +90,7 @@ export function ModuleProperties({
   return (
     <>
       <div className='flex items-center gap-2 px-6 pt-5 pb-3'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('settings.statusline.moduleTitle', { module: meta.label })}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('settings.statusline.moduleTitle', { module: meta.label })}</h3>
         <Pill tone='info'>{t('settings.statusline.selected')}</Pill>
       </div>
 

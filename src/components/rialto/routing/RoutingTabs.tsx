@@ -7,7 +7,6 @@
  * sub-view strip the Map and Rules screens carry.
  */
 import { useTranslation } from 'react-i18next'
-import { Tabs } from '@/components/rialto/primitives'
 import type { InboundSurfaceWire, SurfaceId } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -49,22 +48,6 @@ export function SurfaceTabs({
           </button>
         )
       })}
-    </div>
-  )
-}
-
-export function RoutingViewTabs({ active, ruleCount }: { active: 'chain' | 'map' | 'rules'; ruleCount: number }) {
-  const { t } = useTranslation()
-  return (
-    <div className='flex items-center gap-1 border-b border-border px-6'>
-      <Tabs
-        items={[
-          { id: 'chain', label: t('routing.common.tabChain'), href: '/routing' },
-          { id: 'map', label: t('routing.common.tabMap'), href: '/routing/map' },
-          { id: 'rules', label: t('routing.common.tabRules'), count: ruleCount, href: '/routing/rules' }
-        ]}
-        active={active}
-      />
     </div>
   )
 }

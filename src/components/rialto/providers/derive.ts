@@ -7,7 +7,7 @@
  */
 import type { CatalogEntry, CatalogModel } from '@/schemas/api/catalog'
 import { transformerChain } from '@/shared/transformer-chain'
-import type { ApiStyle, Provider, SubscriptionWire, TestStatus, Tier, TransformerWire } from './types'
+import type { ApiStyle, Provider, ReasoningEffort, SubscriptionWire, TestStatus, Tier, TransformerWire } from './types'
 
 export type ProviderState = 'off' | 'live' | 'invalid' | 'unknown'
 
@@ -46,6 +46,19 @@ function inferTier(model: string): Tier | null {
   if (lower.includes('sonnet')) return 'sonnet'
   if (lower.includes('haiku')) return 'haiku'
   return null
+}
+
+/** Manual override, name inference, or neither. */
+export function tierSourceOf(p: Provider, model: string): TierSource {
+  const manual = p.modelManualTiers === undefined ? undefined : p.modelManualTiers[model]
+  if (manual !== undefined) return 'manual'
+  return inferTier(model) === null ? 'unset' : 'auto'
+}
+
+/** Per-model reasoning effort, or null when the vendor default stands. */
+export function effortOf(p: Provider, model: string): ReasoningEffort | null {
+  const set = p.modelReasoningEfforts === undefined ? undefined : p.modelReasoningEfforts[model]
+  return set === undefined ? null : set
 }
 
 export function tierOf(p: Provider, model: string): Tier | null {
@@ -222,9 +235,20 @@ export function fmtContext(n: number | undefined): string {
   return String(n)
 }
 
+export type TierSource = 'manual' | 'auto' | 'unset'
+
 export interface ModelRow {
   name: string
   tier: Tier | null
+  /**
+   * Where the tier came from. The pill could not say, and the difference
+   * decides whether Routing's tier floor can hold this target at all:
+   * inference only recognises the four Claude families, so a gpt-* or
+   * gemini-* model has no tier until an operator sets one.
+   */
+  tierSource: TierSource
+  /** Model.reasoningEffort. Null means "send nothing, let the vendor pick". */
+  effort: ReasoningEffort | null
   contextWindow: number | undefined
   inputPer1M: number | null
   cachedInputPer1M: number | null
@@ -257,6 +281,8 @@ export function buildModelRows(p: Provider, catalogEntry: CatalogEntry | undefin
     return {
       name,
       tier: tierOf(p, name),
+      tierSource: tierSourceOf(p, name),
+      effort: effortOf(p, name),
       contextWindow: ctx[name],
       inputPer1M: price === undefined ? null : price.inputPer1M,
       cachedInputPer1M: fromCatalog === undefined ? null : fromCatalog.cachedInputPer1M,

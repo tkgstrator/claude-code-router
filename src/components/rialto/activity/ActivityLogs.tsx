@@ -14,7 +14,7 @@ import { LogBody } from '@/components/rialto/activity/LogBody'
 import { FileRail, GroupRail } from '@/components/rialto/activity/LogRails'
 import { groupByRequest, type LogLine, parseLogLines } from '@/components/rialto/activity/log-lines'
 import { chipFor, groupKey, type LevelChip } from '@/components/rialto/activity/log-view'
-import { ActivityTabs, ScreenMessage } from '@/components/rialto/activity/shared'
+import { ScreenMessage } from '@/components/rialto/activity/shared'
 import { useActivityCounts } from '@/components/rialto/activity/use-activity-counts'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
@@ -124,7 +124,7 @@ export function ActivityLogs() {
   const { t } = useTranslation()
   const { files, file, setFile, rawLines, error, loadLines } = useLogFiles()
   const [follow, setFollow] = useState(false)
-  const counts = useActivityCounts()
+  const _counts = useActivityCounts()
 
   useEffect(() => {
     if (!follow) return
@@ -141,7 +141,6 @@ export function ActivityLogs() {
 
   return (
     <Screen
-      title={t('activity.logs.title')}
       subtitle={
         file === null ? undefined : t('activity.logs.subtitle', { file: file.name, size: formatFileSize(file.size) })
       }
@@ -162,7 +161,6 @@ export function ActivityLogs() {
         </>
       }
     >
-      <ActivityTabs active='logs' sessionCount={counts.sessions} requestCount={counts.requests} />
       {error !== null ? (
         <ScreenMessage tone='bad'>{error}</ScreenMessage>
       ) : file === null ? (

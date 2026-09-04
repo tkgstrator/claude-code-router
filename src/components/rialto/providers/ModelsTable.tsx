@@ -11,8 +11,8 @@ import { Pill, Toggle } from '@/components/rialto/primitives'
 import { SortTh, type SortValue, useTableSort } from '@/components/rialto/table-sort'
 import { fmtCost } from '@/lib/sessions/format'
 import { cn } from '@/lib/utils'
-import { fmtContext, type ModelRow } from './derive'
-import type { TestStatus } from './types'
+import { fmtContext, type ModelRow, type TierSource } from './derive'
+import type { ReasoningEffort, TestStatus, Tier } from './types'
 
 const TEST_ICON: Record<TestStatus, string> = {
   ok: 'ri-check-line text-emerald-600 dark:text-emerald-400',
@@ -22,6 +22,64 @@ const TEST_ICON: Record<TestStatus, string> = {
 
 function TestIcon({ status }: { status: TestStatus }) {
   return <i className={TEST_ICON[status]} />
+}
+
+/** The three states an override cell can be in, and what each says. */
+const CELL_TONE: Record<TierSource, string> = {
+  // Someone chose this.
+  manual: 'bg-muted text-foreground',
+  // Inferred from the name; true until the name changes.
+  auto: 'text-muted-foreground',
+  // Neither — the router cannot classify this model at all.
+  unset: 'text-muted-foreground/50'
+}
+
+/**
+ * An inline override picker: the value, a chevron, and a native select
+ * over the top.
+ *
+ * Native rather than a popover because the list is four to eight fixed
+ * options in a dense table row — a keyboard user should get the platform
+ * control, and a row that opens a floating panel per cell is a table that
+ * cannot be scanned. The select is transparent and absolutely positioned
+ * so the cell keeps the mock's compact treatment.
+ */
+function OverrideCell({
+  value,
+  tone,
+  label,
+  options,
+  onChange
+}: {
+  value: string
+  tone: TierSource
+  label: string
+  options: readonly { value: string; label: string }[]
+  onChange: (next: string) => void
+}) {
+  return (
+    <span
+      className={cn(
+        'relative inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors hover:bg-muted/60',
+        CELL_TONE[tone]
+      )}
+    >
+      {value}
+      <i className='ri-arrow-down-s-line text-xs opacity-60' />
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className='absolute inset-0 cursor-pointer opacity-0'
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </span>
+  )
 }
 
 type ModelSortKey =
@@ -72,9 +130,10 @@ function Head({
         <SortTh sortKey='outputPer1M' sort={sort} className={HEAD_CELL} align='right'>
           {t('providers.models.colOut')}
         </SortTh>
-        {/* The api-style override is a picker, not a value the operator
-            scans down a column, so it stays unsorted. */}
-        {withOverride ? <th className='px-2 text-left font-medium'>{t('providers.models.colOverride')}</th> : null}
+        {/* The two override pickers are controls, not values the operator
+            scans down a column, so they stay unsorted. */}
+        {withOverride ? <th className='px-2 text-left font-medium'>{t('providers.models.colShape')}</th> : null}
+        {withOverride ? <th className='px-2 text-left font-medium'>{t('providers.models.colEffort')}</th> : null}
         <SortTh sortKey='test' sort={sort} className='px-2 text-center' align='center'>
           {t('providers.models.colTest')}
         </SortTh>
@@ -86,14 +145,34 @@ function Head({
   )
 }
 
+const DASH = '—'
+const TIERS: readonly Tier[] = ['fable', 'opus', 'sonnet', 'haiku']
+const EFFORTS: readonly ReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+// Narrowing by lookup rather than by assertion: the select hands back a
+// string, and the only strings that mean anything are the ones in these
+// tables. Anything else — including the dash — clears the override.
+const toTier = (value: string): Tier | null => {
+  const found = TIERS.find((tier) => tier === value)
+  return found === undefined ? null : found
+}
+const toEffort = (value: string): ReasoningEffort | null => {
+  const found = EFFORTS.find((effort) => effort === value)
+  return found === undefined ? null : found
+}
+
 function Row({
   row,
   withOverride,
-  onToggle
+  onToggle,
+  onTier,
+  onEffort
 }: {
   row: ModelRow
   withOverride: boolean
   onToggle: (model: string, next: boolean) => void
+  onTier: (model: string, next: Tier | null) => void
+  onEffort: (model: string, next: ReasoningEffort | null) => void
 }) {
   const { t } = useTranslation()
   // Subscription models carry no per-token price, so their money columns
@@ -109,14 +188,39 @@ function Row({
           {row.legacy ? <Pill tone='mute'>{t('providers.models.legacy')}</Pill> : null}
         </div>
       </td>
-      <td className='px-2'>{row.tier === null ? null : <Pill tone='mute'>{row.tier}</Pill>}</td>
+      <td className='px-2'>
+        <OverrideCell
+          value={row.tier === null ? DASH : row.tier}
+          tone={row.tierSource}
+          label={t('providers.models.setTier', { model: row.name })}
+          options={[
+            { value: DASH, label: t('providers.models.tierAuto') },
+            ...TIERS.map((tier) => ({ value: tier, label: tier }))
+          ]}
+          onChange={(next) => onTier(row.name, toTier(next))}
+        />
+      </td>
       <td className={cn(NUM_CELL, 'text-muted-foreground')}>{fmtContext(row.contextWindow)}</td>
       <td className={cn(NUM_CELL, priceTone)}>{fmtCost(row.inputPer1M)}</td>
       <td className={cn(NUM_CELL, 'text-muted-foreground')}>{fmtCost(row.cachedInputPer1M)}</td>
       <td className={cn(NUM_CELL, priceTone)}>{fmtCost(row.outputPer1M)}</td>
       {withOverride ? (
         <td className='px-2 font-mono text-[11px] text-muted-foreground'>
-          {row.apiStyleOverride === null ? '—' : row.apiStyleOverride}
+          {row.apiStyleOverride === null ? DASH : row.apiStyleOverride}
+        </td>
+      ) : null}
+      {withOverride ? (
+        <td className='px-2'>
+          <OverrideCell
+            value={row.effort === null ? DASH : row.effort}
+            tone={row.effort === null ? 'unset' : 'manual'}
+            label={t('providers.models.setEffort', { model: row.name })}
+            options={[
+              { value: DASH, label: t('providers.models.effortDefault') },
+              ...EFFORTS.map((effort) => ({ value: effort, label: effort }))
+            ]}
+            onChange={(next) => onEffort(row.name, toEffort(next))}
+          />
         </td>
       ) : null}
       <td className='px-2 text-center text-sm leading-none'>
@@ -136,11 +240,15 @@ function Row({
 export function ModelsTable({
   rows,
   withOverride,
-  onToggle
+  onToggle,
+  onTier,
+  onEffort
 }: {
   rows: ModelRow[]
   withOverride: boolean
   onToggle: (model: string, next: boolean) => void
+  onTier: (model: string, next: Tier | null) => void
+  onEffort: (model: string, next: ReasoningEffort | null) => void
 }) {
   const { t } = useTranslation()
   // Hooks run before the empty-state return: an early return above a hook
@@ -159,13 +267,21 @@ export function ModelsTable({
         <col className='w-20' />
         <col className='w-20' />
         {withOverride ? <col className='w-24' /> : null}
+        {withOverride ? <col className='w-24' /> : null}
         <col className={withOverride ? 'w-14' : 'w-16'} />
         <col className={withOverride ? 'w-16' : 'w-20'} />
       </colgroup>
       <Head withOverride={withOverride} sort={sort} />
       <tbody>
         {sort.sorted.map((row) => (
-          <Row key={row.name} row={row} withOverride={withOverride} onToggle={onToggle} />
+          <Row
+            key={row.name}
+            row={row}
+            withOverride={withOverride}
+            onToggle={onToggle}
+            onTier={onTier}
+            onEffort={onEffort}
+          />
         ))}
       </tbody>
     </table>

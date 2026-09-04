@@ -54,6 +54,8 @@ bun run test:e2e       # browser tests against the ALREADY-RUNNING dev server
                        # (__tests__/e2e). Skips itself when :16175 is not
                        # answering or playwright has no chromium, so it is
                        # safe in `bun test` and in CI. Never starts a server.
+bun run browser:install # playwright's chromium, for test:e2e and mocks:shoot.
+                       # Not a postinstall — both skip cleanly without it.
 
 bunx tsc --noEmit      # type check
 bunx biome check --write .

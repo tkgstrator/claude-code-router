@@ -134,6 +134,15 @@ export interface AccessTokenWire {
   profileKey: string | null
   lastUsedAt: string | null
   requestCount: number
+  /**
+   * USD this token's traffic cost over the server's trailing spend
+   * window (30 days), not over its lifetime — `requestCount` is a
+   * counter that outlives log retention and this is priced from the
+   * logs, so the two are deliberately different spans. Null when
+   * nothing priced: no traffic in the window, capture off, or a
+   * subscription model with no per-token price.
+   */
+  costUsd: number | null
   expiresAt: string | null
   revokedAt: string | null
   createdAt: string

@@ -163,7 +163,6 @@ function PresetsBrowser({ config }: { config: Config }) {
   return (
     <SettingsLayout
       active='presets'
-      title={t('settings.rail.presets')}
       subtitle={subtitle}
       // The library column opens on its own tab strip, exactly the case
       // the frame hides its heading for.
@@ -228,7 +227,7 @@ export function SettingsPresets() {
   const { config } = useConfig()
   if (config === null) {
     return (
-      <SettingsLayout active='presets' title={t('settings.rail.presets')} showHeading={false}>
+      <SettingsLayout active='presets' showHeading={false}>
         <div className='px-6 py-6 text-xs text-muted-foreground'>{t('common.loading')}</div>
       </SettingsLayout>
     )

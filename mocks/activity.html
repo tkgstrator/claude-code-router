@@ -13,24 +13,12 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, surfacePill } = window.Shell
+const { renderShell, pill, btn, surfacePill, navTo, sortTh } = window.Shell
 
 // Sessions / Usage / ApiCost / LogViewer were four screens answering the
-// same question at different zoom levels. One screen, three tabs, one
-// shared filter bar.
-const TABS = [
-  { id: 'sessions', label: 'Sessions', count: '128' },
-  { id: 'requests', label: 'Requests', count: '18.7k' },
-  { id: 'logs',     label: 'Logs',     count: '' }
-]
-const ACTIVE_TAB = 'sessions'
-
-const tab = (t) => {
-  const on = t.id === ACTIVE_TAB
-  return `<button class="flex items-center gap-2 border-b-2 px-3 py-2 text-xs transition-colors ${
-    on ? 'border-b-foreground font-medium' : 'border-b-transparent text-muted-foreground hover:text-foreground'
-  }">${t.label}${t.count ? `<span class="font-mono text-[10px] tabular-nums text-muted-foreground">${t.count}</span>` : ''}</button>`
-}
+// same question at different zoom levels. One screen, four tabs, one
+// shared filter bar. The strip itself comes from shell.js so every
+// Activity screen offers the same four destinations.
 
 const filter = (label, value) => `
   <button class="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs transition-colors hover:bg-muted/60">
@@ -58,7 +46,7 @@ const SESSIONS = [
 ]
 
 const sessionRow = (s) => `
-  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50">
+  <tr ${navTo('activity-session.html')} class="border-t border-border/60 transition-colors hover:bg-muted/50">
     <td class="py-3 pl-6 pr-3">
       <div class="truncate text-xs font-medium">${s.title}</div>
       <div class="font-mono text-[11px] text-muted-foreground">${s.id}</div>
@@ -79,32 +67,29 @@ const table = `
     <colgroup><col><col class="w-40"><col class="w-36"><col class="w-16"><col class="w-20"><col class="w-20"><col class="w-16"><col class="w-24"><col class="w-20"><col class="w-16"></colgroup>
     <thead>
       <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
-        <th class="pl-6 pr-3 text-left font-medium">Session</th>
-        <th class="px-3 text-left font-medium">Endpoint</th>
-        <th class="px-3 text-left font-medium">Model</th>
-        <th class="px-3 text-right font-medium">Turns</th>
-        <th class="px-3 text-right font-medium">Input</th>
-        <th class="px-3 text-right font-medium">Output</th>
-        <th class="px-3 text-right font-medium">Cache</th>
-        <th class="px-3 text-right font-medium">Cost</th>
+        ${sortTh('Session', 'pl-6 pr-3')}
+        ${sortTh('Endpoint', 'px-3')}
+        ${sortTh('Model', 'px-3')}
+        ${sortTh('Turns', 'px-3', 'right')}
+        ${sortTh('Input', 'px-3', 'right')}
+        ${sortTh('Output', 'px-3', 'right')}
+        ${sortTh('Cache', 'px-3', 'right')}
+        ${sortTh('Cost', 'px-3', 'right')}
         <th class="px-3 text-left font-medium">Trend</th>
-        <th class="pl-3 pr-6 text-right font-medium">Last</th>
+        ${sortTh('Last', 'pl-3 pr-6', 'right', true, 'desc')}
       </tr>
     </thead>
     <tbody>${SESSIONS.map(sessionRow).join('')}</tbody>
   </table>`
 
-const stat = (label, value, sub) => `
-  <div class="border-l-2 border-l-border px-4 py-3 transition-colors hover:border-l-foreground/30 hover:bg-muted/50">
+const stat = (label, value, sub, href) => `
+  <div ${navTo(href)} class="border-l-2 border-l-border px-4 py-3 transition-colors hover:border-l-foreground/30 hover:bg-muted/50">
     <div class="text-[11px] uppercase tracking-wider text-muted-foreground">${label}</div>
     <div class="mt-1 font-mono text-lg tabular-nums">${value}</div>
     <div class="text-[11px] text-muted-foreground">${sub}</div>
   </div>`
 
 document.getElementById('root').innerHTML = `
-  <div class="flex items-center gap-1 border-b border-border px-6">
-    ${TABS.map(tab).join('')}
-  </div>
 
   <div class="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3">
     ${filter('Surface', 'All')}
@@ -120,10 +105,10 @@ document.getElementById('root').innerHTML = `
   </div>
 
   <div class="grid grid-cols-4 gap-px border-b border-border px-6 py-4">
-    ${stat('Requests', '18,742', 'last 7 days')}
-    ${stat('Tokens', '41.2M', 'in + out')}
-    ${stat('Cost', '$31.7', 'API-key providers only')}
-    ${stat('Cache hit', '73.4%', 'weighted by input tokens')}
+    ${stat('Requests', '18,742', 'last 7 days', 'activity-requests.html')}
+    ${stat('Tokens', '41.2M', 'in + out', 'activity-usage.html')}
+    ${stat('Cost', '$31.7', 'API-key providers only', 'activity-usage.html')}
+    ${stat('Cache hit', '73.4%', 'weighted by input tokens', 'activity-usage.html')}
   </div>
 
   ${table}
@@ -131,9 +116,13 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'activity',
-  title: 'Activity',
+  navMode: 'cloudflare',
+  sub: 'sessions',
+  crumbs: ['Sessions'],
   subtitle: '128 sessions · 18.7k requests · last 7 days',
-  actions: btn('Live tail', 'outline', 'ri-broadcast-line') + btn('Archive', 'ghost', 'ri-archive-line')
+  actions:
+    btn('Live tail', 'outline', 'ri-broadcast-line', 'activity-requests.html') +
+    btn('Archive', 'ghost', 'ri-archive-line')
 })
 </script>
 </body>

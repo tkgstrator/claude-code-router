@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, tabs } = window.Shell
+const { renderShell, pill, btn, navTo, selectorBar } = window.Shell
 
 // Absorbs RoutingLibrary + RoutingLiveEditor + RoutingPresetEditor into
 // one canvas with a preset switcher. The graph stays @xyflow/react in the
@@ -45,11 +45,18 @@ const TARGET_NODES = [
   { y: 390, label: 'claude-code,claude-haiku-4-5',  state: 'ready' }
 ]
 
+const SUBSCRIPTION_PROVIDERS = ['claude-code', 'codex', 'gemini-cli']
+const providerHref = (t) =>
+  SUBSCRIPTION_PROVIDERS.includes(t.split(',')[0]) ? 'providers.html' : 'providers-apikey.html'
+
 const stroke = { ready: 'stroke-emerald-500', throttled: 'stroke-amber-500', exhausted: 'stroke-destructive' }
 const dot = { ready: 'fill-emerald-500', throttled: 'fill-amber-500', exhausted: 'fill-destructive' }
 
-const node = (x, y, w, label, sub, accent) => `
-  <g>
+// Nodes take a destination like every other row in the mocks — the graph
+// is a map of the config, so a node should reach the screen that edits the
+// thing it stands for. `data-nav` works on SVG elements unchanged.
+const node = (x, y, w, label, sub, accent, href = '') => `
+  <g ${href ? navTo(href) : ''}>
     <rect x="${x}" y="${y}" width="${w}" height="40" rx="6"
           class="fill-background stroke-border" stroke-width="1"/>
     ${accent ? `<rect x="${x}" y="${y}" width="2.5" height="40" rx="1.25" class="${accent}"/>` : ''}
@@ -87,22 +94,21 @@ const canvas = `
   <text x="710" y="30" class="fill-muted-foreground" font-size="9.5" letter-spacing="1.2" font-family="var(--font-sans)">TARGET</text>
 
   ${SURFACE_NODES.map((s) =>
-    node(60, s.y, 198, s.label, s.mode, s.mode === 'routed' ? 'fill-emerald-500' : 'fill-muted-foreground/40')
+    node(
+      60, s.y, 198, s.label, s.mode,
+      s.mode === 'routed' ? 'fill-emerald-500' : 'fill-muted-foreground/40',
+      s.mode === 'routed' ? 'routing.html' : 'routing-passthrough.html'
+    )
   ).join('')}
-  ${SCENARIO_NODES.map((s) => node(340, s.y, 160, s.label, `${s.n} targets`, 'fill-foreground/30')).join('')}
+  ${SCENARIO_NODES.map((s) => node(340, s.y, 160, s.label, `${s.n} targets`, 'fill-foreground/30', 'routing.html')).join('')}
   ${TARGET_NODES.map((t) => `
-    ${node(700, t.y, 320, t.label, t.state, '')}
+    ${node(700, t.y, 320, t.label, t.state, '', providerHref(t.label))}
     <circle cx="1006" cy="${t.y + 20}" r="3.5" class="${dot[t.state]}"/>`).join('')}
 </svg>`
 
 document.getElementById('root').innerHTML = `
-  <div class="flex items-center gap-1 border-b border-border px-6">
-    ${tabs([
-      { id: 'chain', label: 'Chain', href: 'routing.html' },
-      { id: 'map', label: 'Map' },
-      { id: 'rules', label: 'Rules', count: '3', href: 'routing-rules.html' }
-    ], 'map')}
-  </div>
+  ${selectorBar('chain')}
+
 
   <div class="flex items-center gap-3 border-b border-border px-6 py-3">
     <button class="inline-flex h-7 items-center gap-2 rounded-md border border-border px-2.5 text-xs hover:bg-muted/60">
@@ -112,7 +118,7 @@ document.getElementById('root').innerHTML = `
     ${pill('unsaved changes', 'warn')}
     <span class="text-[11px] text-muted-foreground">4 surfaces · 5 scenarios · 6 targets</span>
     <div class="ml-auto flex gap-2">
-      ${btn('Save as preset', 'outline', 'ri-bookmark-line')}
+      ${btn('Save as preset', 'outline', 'ri-bookmark-line', 'settings-presets.html')}
       ${btn('Save', 'primary', 'ri-check-line')}
     </div>
   </div>
@@ -144,9 +150,13 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'routing',
-  title: 'Routing map',
+  navMode: 'cloudflare',
+  sub: 'map',
+  crumbs: ['Map'],
   subtitle: 'live · 4 surfaces · 5 scenarios · 6 targets',
-  actions: btn('Presets', 'outline', 'ri-archive-drawer-line') + btn('Simulate', 'ghost', 'ri-play-line')
+  actions:
+    btn('Presets', 'outline', 'ri-archive-drawer-line', 'settings-presets.html') +
+    btn('Simulate', 'ghost', 'ri-play-line', 'routing-rules.html')
 })
 </script>
 </body>

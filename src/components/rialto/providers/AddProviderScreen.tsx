@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { RButton } from '@/components/rialto/primitives'
 import { Screen } from '@/components/rialto/Screen'
-import { toggleModel } from './actions'
+import { setModelEffort, setModelTier, toggleModel } from './actions'
 import { ConnectAuthStep } from './ConnectAuthStep'
 import { ConnectModelsStep } from './ConnectModelsStep'
 import { ConnectStepBar } from './ConnectStepBar'
@@ -49,6 +49,14 @@ function ConnectPane({ flow, now, reload }: { flow: ConnectFlow; now: number; re
         onToggle={(model, next) => {
           if (provider === undefined) return
           toggleModel(provider, model, next).then(reload).catch(fail)
+        }}
+        onTier={(model, next) => {
+          if (provider === undefined) return
+          setModelTier(provider, model, next).then(reload).catch(fail)
+        }}
+        onEffort={(model, next) => {
+          if (provider === undefined) return
+          setModelEffort(provider, model, next).then(reload).catch(fail)
         }}
       />
     )
@@ -122,7 +130,7 @@ export function AddProviderScreen() {
 
   return (
     <Screen
-      title={t('providers.screen.addProvider')}
+      crumbs={[{ label: t('providers.connect.title') }]}
       subtitle={subtitle}
       actions={
         <>

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Add provider · Choose models</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn, navTo, tierCell, sortTh } = window.Shell
+
+// Step 3 of the add-provider flow, which the mock set never drew — it
+// stopped at step 2 and mocks.json carried the gap as a known diff.
+//
+// The step reuses the provider detail screen's model table rather than
+// inventing a second treatment: it is the same decision (what may this
+// provider serve), made once before the provider takes traffic instead of
+// after. Nothing here is a new control — which is the point.
+
+const step = (n, label, state) => {
+  const tone = { done: 'bg-foreground text-background', active: 'bg-foreground text-background', todo: 'bg-muted text-muted-foreground' }[state]
+  return `
+    <div class="flex items-center gap-2">
+      <span class="flex size-5 items-center justify-center rounded-full text-[11px] font-medium ${tone}">
+        ${state === 'done' ? '<i class="ri-check-line text-xs"></i>' : n}
+      </span>
+      <span class="text-xs ${state === 'todo' ? 'text-muted-foreground' : 'font-medium'}">${label}</span>
+    </div>`
+}
+
+const VENDORS = [
+  { id: 'claude-code', label: 'Claude Code',  hint: 'Pro / Max via Claude CLI OAuth', kind: 'subscription', icon: 'ri-sparkling-line', added: true },
+  { id: 'codex',       label: 'Codex',        hint: 'ChatGPT plan via Codex CLI OAuth', kind: 'subscription', icon: 'ri-terminal-line', added: true },
+  { id: 'gemini-cli',  label: 'Gemini CLI',   hint: 'AI Pro / Ultra via Gemini CLI OAuth', kind: 'subscription', icon: 'ri-gemini-line', added: true },
+  { id: 'anthropic',   label: 'Anthropic',    hint: 'Pay-as-you-go API key', kind: 'api_key', icon: 'ri-key-2-line', added: true },
+  { id: 'openai',      label: 'OpenAI',       hint: 'Pay-as-you-go API key', kind: 'api_key', icon: 'ri-key-2-line', added: true },
+  { id: 'google',      label: 'Google AI',    hint: 'AI Studio API key', kind: 'api_key', icon: 'ri-key-2-line', added: true },
+  { id: 'deepseek',    label: 'DeepSeek',     hint: 'Pay-as-you-go API key', kind: 'api_key', icon: 'ri-key-2-line', added: true },
+  { id: 'groq',        label: 'Groq',         hint: 'OpenAI-compatible', kind: 'api_key', icon: 'ri-flashlight-line', added: false },
+  { id: 'openrouter',  label: 'OpenRouter',   hint: 'OpenAI-compatible aggregator', kind: 'api_key', icon: 'ri-shuffle-line', added: false },
+  { id: 'custom',      label: 'Custom',       hint: 'Any OpenAI / Anthropic / Gemini-shaped endpoint', kind: 'api_key', icon: 'ri-add-box-line', added: false }
+]
+
+const vendorCard = (v, selected) => `
+  <button class="flex items-start gap-3 border-l-2 px-4 py-3 text-left transition-colors ${
+    selected ? 'border-l-foreground bg-muted/60' : 'border-l-transparent hover:border-l-border hover:bg-muted/50'
+  }">
+    <i class="${v.icon} mt-0.5 text-base leading-none text-muted-foreground"></i>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium">${v.label}</span>
+        ${v.kind === 'subscription' ? pill('OAuth', 'info') : pill('API key', 'mute')}
+        ${v.added ? '<span class="ml-auto text-[11px] text-muted-foreground">added</span>' : ''}
+      </div>
+      <div class="mt-0.5 text-[11px] text-muted-foreground">${v.hint}</div>
+    </div>
+  </button>`
+
+// Straight off the vendor's catalog, seconds after the token landed. No
+// Gemini name says a Claude family, so every tier is unset — the operator
+// classifies them here or Routing's tier floor cannot see them later.
+const MODELS = [
+  { name: 'gemini-3.1-pro',            ctx: '2M',   test: 'ok',      on: true },
+  { name: 'gemini-3.1-flash',          ctx: '1M',   test: 'ok',      on: true },
+  { name: 'gemini-3.0-pro',            ctx: '1M',   test: 'ok',      on: true },
+  { name: 'gemini-2.5-flash',          ctx: '1M',   test: 'unknown', on: false },
+  { name: 'gemini-2.5-flash-thinking', ctx: '1M',   test: 'unknown', on: false }
+]
+
+const testIcon = {
+  ok: '<i class="ri-check-line text-emerald-600 dark:text-emerald-400"></i>',
+  fail: '<i class="ri-close-line text-destructive"></i>',
+  unknown: '<i class="ri-subtract-line text-muted-foreground/50"></i>'
+}
+
+const modelRow = (m) => `
+  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50 ${m.on ? '' : 'opacity-45'}">
+    <td class="py-2.5 pl-6 pr-2 font-mono text-xs">${m.name}</td>
+    <td class="px-2">${tierCell(null, 'unset')}</td>
+    <td class="px-2 text-right font-mono text-xs tabular-nums text-muted-foreground">${m.ctx}</td>
+    <td class="px-2 text-center text-sm leading-none">${testIcon[m.test]}</td>
+    <td class="py-2.5 pl-2 pr-6 text-right">
+      <span class="inline-flex h-4 w-7 items-center rounded-full ${m.on ? 'bg-foreground' : 'bg-muted-foreground/30'} px-0.5 align-middle">
+        <span class="size-3 rounded-full bg-background ${m.on ? 'translate-x-3' : ''}"></span>
+      </span>
+    </td>
+  </tr>`
+
+const models = `
+  <table class="w-full table-fixed">
+    <colgroup><col><col class="w-24"><col class="w-24"><col class="w-16"><col class="w-16"></colgroup>
+    <thead>
+      <tr class="text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2">
+        ${sortTh('Model', 'pl-6 pr-2', 'left', true, 'desc')}
+        ${sortTh('Tier', 'px-2')}
+        ${sortTh('Context', 'px-2', 'right')}
+        ${sortTh('Test', 'px-2', 'center')}
+        ${sortTh('On', 'pl-2 pr-6', 'right')}
+      </tr>
+    </thead>
+    <tbody>${MODELS.map(modelRow).join('')}</tbody>
+  </table>`
+
+document.getElementById('root').innerHTML = `
+  <div class="flex items-center gap-6 border-b border-border px-6 py-3">
+    ${step(1, 'Pick a vendor', 'done')}
+    <i class="ri-arrow-right-s-line text-sm text-muted-foreground/50"></i>
+    ${step(2, 'Authenticate', 'done')}
+    <i class="ri-arrow-right-s-line text-sm text-muted-foreground/50"></i>
+    ${step(3, 'Choose models', 'active')}
+    <div class="ml-auto">${btn('Cancel', 'ghost', '', 'providers.html')}</div>
+  </div>
+
+  <div class="grid h-full grid-cols-[22rem_1fr]">
+
+    <aside class="min-w-0 overflow-y-auto border-r border-border">
+      <div class="px-4 pt-5 pb-2">
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Vendor</h2>
+      </div>
+      ${VENDORS.map((v) => vendorCard(v, v.id === 'gemini-cli')).join('')}
+    </aside>
+
+    <div class="min-w-0 overflow-y-auto">
+      <div class="border-b border-border px-6 py-4">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm font-semibold">Gemini CLI</h2>
+          ${pill('subscription', 'info')}
+          ${pill('connected', 'ok')}
+        </div>
+        <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          Tokens stored encrypted for <span class="font-mono">ops@example.com</span>. The catalog
+          below came back with the token — nothing has taken traffic yet.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3 px-6 pt-5 pb-3">
+        <h3 class="text-sm font-semibold">Models</h3>
+        <span class="text-[11px] text-muted-foreground">3 of 5 enabled</span>
+        <div class="ml-auto flex items-center gap-2">
+          ${btn('Enable all', 'ghost', 'ri-checkbox-multiple-line')}
+          ${btn('Test all', 'outline', 'ri-pulse-line')}
+        </div>
+      </div>
+      ${models}
+
+      <div class="px-6 py-4">
+        <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+          <i class="ri-information-line mr-1 align-[-1px]"></i>
+          A model registered here is <span class="font-medium text-foreground">not</span> routable
+          until it is on: <span class="font-mono">Model.enabled</span> defaults to false so a catalog
+          refresh can never quietly widen what a provider serves. Tiers are all
+          <span class="font-mono">—</span> because no Gemini name says a Claude family — set them
+          here or Routing's tier floor cannot see these targets.
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 border-t border-border px-6 py-4">
+        <span class="text-[11px] text-muted-foreground">
+          You can change any of this later on the provider's screen.
+        </span>
+        <div class="ml-auto flex gap-2">
+          ${btn('Back', 'ghost', 'ri-arrow-left-line', 'providers-connect.html')}
+          ${btn('Finish', 'primary', 'ri-check-line', 'providers.html')}
+        </div>
+      </div>
+      <div class="h-6"></div>
+    </div>
+
+  </div>`
+
+renderShell({
+  active: 'providers',
+  navMode: 'cloudflare',
+  crumbs: ['Add provider'],
+  subtitle: 'Step 3 of 3 · Gemini CLI',
+  actions:
+    btn('Back', 'ghost', 'ri-arrow-left-line', 'providers-connect.html') +
+    btn('Finish', 'primary', 'ri-check-line', 'providers.html')
+})
+</script>
+</body>
+</html>
