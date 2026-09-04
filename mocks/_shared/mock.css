@@ -179,3 +179,12 @@
     scrollbar-color: oklch(0.708 0 0) oklch(0.269 0 0);
   }
 }
+
+/*
+ * Mock-only. `data-nav` marks an element that navigates to another mock
+ * (shell.js wires the click); nothing in the app has this attribute, and
+ * a cursor is not captured by a screenshot, so this cannot move a diff.
+ */
+[data-nav] {
+  cursor: pointer;
+}

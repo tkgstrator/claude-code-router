@@ -178,6 +178,17 @@ export function AccessTokensSection({ surfaces }: { surfaces: InboundSurfaceWire
                   strong: <span className='font-medium text-foreground' />
                 }}
               />
+              {/* Second paragraph rather than a second banner: the Cost
+                  column reads as broken on a subscription-only install
+                  (every row a dash) unless something says why, and one
+                  more box above the table would cost more attention than
+                  the answer is worth. */}
+              <p className='mt-2'>
+                <Trans
+                  i18nKey='settings.access.costNote'
+                  components={{ strong: <span className='font-medium text-foreground' /> }}
+                />
+              </p>
             </div>
           </div>
           <TokenTable

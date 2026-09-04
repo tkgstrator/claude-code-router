@@ -512,7 +512,7 @@ flowchart TD
 
 **ステージ 2 — シナリオ分類** (`classifyScenario`、この優先順)
 
-1. **longContext（サイズ）** — `tokenCount > effectiveLongContextThreshold(router)`。
+1. **longContext（サイズ）** — `tokenCount > effectiveLongContextThreshold(router, chain)`。
 2. **webSearch** — `body.tools[]` に `type` が `web_search` で始まるものがある。
 3. **think** — `body.thinking.type` が `'enabled'` / `'adaptive'`。`'disabled'` は**除外**する
    （Claude Code は Plan Mode 以外の全リクエストに `disabled` を送るので、真偽値で見ると
@@ -521,9 +521,24 @@ flowchart TD
    無くて `body.model` が opus ティア → `longContext` レーン。`low`/`medium` はティア昇格を明示的に抑制。
 5. それ以外 → `default`。
 
-いずれの分岐も、**そのレーンに primary が設定されていなければ成立しない**。未設定のレーンは
-素通りして `default` に落ちる。旧 haiku→background 分岐はここには無い —
-`20260728_router_rules_drop_background` により `default` シナリオ上の述語ルールになった。
+いずれの分岐も、**そのレーンを担う設定が無ければ成立しない**（`scenarioConfigured`）。担い手は
+2 つあり、どちらか片方で足りる:
+
+- RouterSlot の primary（Rules セレクタ側の設定）
+- 優先チェーンの当該レーンに **enabled なエントリが 1 件以上**あること
+  （Chain セレクタが走るリクエストのみ。`routeScenario` が `chainRoutingOf` で射影して
+  `selectModel` に渡す）
+
+チェーン側を数えるのは Chain セレクタが実際に走るときだけで、Rules セレクタのときは
+`chain` が `undefined` なので RouterSlot だけを見る従来どおりの判定になる。Rules モードで
+チェーンのレーンを数えてしまうと、そのレーンには誰も応答できず `req.body.model` へ落ちるため。
+
+どちらの担い手も無いレーンは素通りして `default` に落ちる。旧 haiku→background 分岐はここには
+無い — `20260728_router_rules_drop_background` により `default` シナリオ上の述語ルールになった。
+
+> この 2 本立てになる前は RouterSlot だけを見ていたため、**チェーンだけを設定して RouterSlot を
+> 空にしたインストールは全リクエストが `default` に分類され**、think / longContext / webSearch の
+> チェーンが一度も参照されなかった。
 
 **ステージ 3 — 振り先解決** (`resolveTarget`)
 シナリオのルールスタックを先に歩き、述語が最初にマッチしたルールの `target` が primary になる
@@ -536,8 +551,11 @@ flowchart TD
 `effectiveLongContextThreshold`:
 
 1. `Router.longContextThreshold` が正の数なら、それ。
-2. なければ `defaultAgentContextWindow × 0.7`（`LONG_CONTEXT_AUTO_RATIO`。応答と Rialto の
-   ラッパ分のヘッドルームを 30 % 残す）。
+2. なければ default エージェントレーンを担うモデルの `contextWindow × 0.7`
+   （`LONG_CONTEXT_AUTO_RATIO`。応答と Rialto のラッパ分のヘッドルームを 30 % 残す）。
+   Chain セレクタが走るリクエストでは**チェーンの先頭 enabled エントリ**の window が優先され
+   （`chainRoutingOf` が解決）、それが無ければ RouterSlot の default primary 由来の
+   `defaultAgentContextWindow`。
 3. どちらも解決できないときだけ `DEFAULT_LONG_CONTEXT_THRESHOLD = 128_000`。
 
 **60_000 は現在の既定値ではない。**

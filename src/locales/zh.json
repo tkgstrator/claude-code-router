@@ -16,6 +16,7 @@
       "all": "全部",
       "tabSessions": "会话",
       "tabRequests": "请求",
+      "tabUsage": "用量",
       "tabLogs": "日志",
       "untracked": "—"
     },
@@ -129,6 +130,34 @@
       "copy": "复制",
       "raw": "原始",
       "note": "按请求 ID 分组，因此一次故障转移读起来是一个完整的故事，而不是两段互相穿插的片段。429 和随后成功的重试属于同一组。"
+    },
+    "usage": {
+      "title": "用量",
+      "subtitle": "用量 · {{accounts}} 个订阅账号 · 最近 {{days}} 天",
+      "explainer": "Overview 显示窗口当前的位置。这里显示它是如何走到那里的，以及是谁的流量造成的。",
+      "refresh": "刷新",
+      "refreshed": "已重新获取用量。",
+      "resetsIn": "重置于",
+      "windowsTitle": "订阅窗口",
+      "windowsMeta": "实时，来自各厂商的 usage API",
+      "windowFiveHour": "5 小时",
+      "windowSevenDay": "7 天",
+      "windowSevenDayScoped": "7 天 · 按模型",
+      "windowPrimary": "primary",
+      "windowSecondary": "secondary",
+      "chartTitle": "消耗率",
+      "chartMeta": "最近 {{days}} 天",
+      "chartNote": "每 5 分钟采样 · 基于真实流量记录",
+      "tokensTitle": "按访问令牌",
+      "tokensMeta": "最近 30 天",
+      "colShare": "费用占比",
+      "noAccounts": "没有已连接的订阅账号，因此没有可报告的窗口。",
+      "noHistory": "尚未记录任何消耗率。有流量时采集器会写入采样。",
+      "noTokens": "尚未签发访问令牌，因此无法将流量归属到任何一方。",
+      "range": "范围",
+      "rangeDays": "{{n}} 天",
+      "exportCsv": "导出 CSV",
+      "manageTokens": "管理令牌"
     }
   },
   "routing": {
@@ -154,7 +183,11 @@
       "stateThrottled": "受限",
       "stateExhausted": "已耗尽",
       "stateUnknown": "未知",
-      "targetCount": "{{n}} 个 target"
+      "targetCount": "{{n}} 个 target",
+      "selector": "选择器",
+      "selectorSwitched": "已将选择器切换为“{{selector}}”。",
+      "selectorRulesHint": "由规则和场景路由图决定。该模式下链路完全不会被评估。",
+      "selectorChainHint": "由链路决定。只有在该场景的链路为空时，规则才会生效。"
     },
     "chain": {
       "title": "路由",
@@ -214,7 +247,7 @@
       "noSurfaces": "尚未配置任何入口。",
       "liveMap": "实时路由图",
       "passthroughNote": "把该入口切换为 <mono>Routed</mono>，即可让 {{client}} 获得与 Claude Code 相同的配额感知故障转移。调用方仍然照常发送自己的模型名，只是它会作为规则匹配用的 <mono>requestedModel</mono>，而不再直接当作最终 target。",
-      "schedulerIdle": "路由调度器仅在 quota-aware 模式下运行，因此下方每个目标的状态都显示为 <mono>unknown</mono>。要显示实时状态，既需要在 Settings 中将 <mono>ROUTER_MODE</mono> 设为 <mono>quota-aware</mono>，也需要有可供调度器评分的优先级链。",
+      "schedulerIdle": "<mono>规则</mono> 选择器正在生效，因此该链路不会被评估，下方每个目标的状态也始终显示为 <mono>unknown</mono>。将上方的选择器切换为 <mono>链路</mono> 后由它决定，状态会在调度器下一个 tick 填充。",
       "schedulerNoChain": "路由调度器正在运行，但没有可评分的优先级链，因此下方每个目标的状态都显示为 <mono>unknown</mono>。请在该端点的路由配置中添加条目以查看实时状态。"
     },
     "map": {
@@ -239,7 +272,8 @@
     },
     "rules": {
       "title": "路由规则",
-      "subtitle": "{{n}} 条规则 · 在链路之前评估",
+      "subtitleRules": "{{n}} 条规则 · 当前由它决定",
+      "subtitleChain": "{{n}} 条规则 · 仅在链路为空处生效",
       "addRule": "添加规则",
       "discard": "放弃",
       "unsaved": "未保存",
@@ -247,7 +281,7 @@
       "empty": "还没有规则。",
       "selectOne": "选择一条规则进行编辑。",
       "firstMatchWins": "以第一条匹配为准",
-      "explainer": "自上而下针对请求评估，在优先链路之前执行。命中的规则会直接替换 target，故障转移仍由链路负责。",
+      "explainer": "自上而下针对请求评估，首条命中的规则直接替换 target，并自带故障转移链。当 <mono>链路</mono> 选择器生效时，若该场景的链路有条目，则改由链路决定，规则选中的 target 会被丢弃 —— 两者不会叠加。",
       "matchesEveryRequest": "匹配所有请求",
       "noRewrite": "不重写",
       "callerModelNoRewrite": "沿用调用方的模型，不重写",
@@ -369,7 +403,7 @@
       "endpoint": "端点",
       "derived": "由 API 风格推导得出，不可配置。",
       "derivedWithOverrides": "由 API 风格推导得出，不可配置。按模型的覆盖设置见下方的模型行。",
-      "overrideNote": "这里有部分模型覆盖为 <mono>{{styles}}</mono>；请参见“覆盖”列。"
+      "overrideNote": "这里有部分模型覆盖为 <mono>{{styles}}</mono>；请参见“形状”列。"
     },
     "models": {
       "title": "模型",
@@ -381,7 +415,12 @@
       "colIn": "输入 /1M",
       "colCached": "缓存",
       "colOut": "输出 /1M",
-      "colOverride": "覆盖",
+      "colShape": "形状",
+      "colEffort": "推理强度",
+      "setTier": "{{model}} 的 tier",
+      "setEffort": "{{model}} 的推理强度",
+      "tierAuto": "自动（从名称推断）",
+      "effortDefault": "厂商默认",
       "colTest": "测试",
       "colOn": "启用",
       "legacy": "旧版",
@@ -395,6 +434,7 @@
       "showMore": "再显示 {{n}} 个模型"
     },
     "connect": {
+      "title": "添加 provider",
       "vendor": "厂商",
       "added": "已添加",
       "pickVendor": "在左侧选择一个厂商开始。",
@@ -699,6 +739,7 @@
       "colEndpoint": "端点",
       "colProfile": "配置档",
       "colRequests": "请求数",
+      "colCost": "费用 30天",
       "colLastUsed": "最近使用",
       "colExpires": "过期时间",
       "tokenActive": "有效",
@@ -709,7 +750,8 @@
       "lastUsedAgo": "{{ago}}前",
       "revoke": "吊销",
       "delete": "删除",
-      "tokenCopiedShort": "已复制"
+      "tokenCopiedShort": "已复制",
+      "costNote": "<strong>费用</strong>列按最近 30 天保留的请求日志计价 —— 它是速率，而不是旁边计数器那样的累计值。短横线表示无法计价：窗口内没有流量、请求记录已关闭，或是没有按请求单价的订阅制模型。"
     },
     "personas": {
       "subtitle": "{{count}} 个人格 · {{active}}",
@@ -821,6 +863,11 @@
     "navProviders": "provider",
     "navActivity": "活动",
     "navSettings": "设置",
+    "search": "搜索",
+    "searchPlaceholder": "搜索…",
+    "searchEmpty": "没有匹配项。",
+    "expandSection": "展开 {{section}}",
+    "collapseSection": "折叠 {{section}}",
     "theme": "主题",
     "serving": "运行中",
     "degraded": "部分异常",

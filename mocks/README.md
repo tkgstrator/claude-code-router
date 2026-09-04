@@ -81,6 +81,7 @@ node_modules/remixicon/
 | `providers.html` | Subscription | Providers / Subscriptions / ModelsDashboard / Transformers / catalog |
 | `providers-apikey.html` | API key | EditProviderDialog / ApiKeyModelsSection |
 | `providers-connect.html` | Add provider | ConnectChoiceDialog / ProviderConnectFlow / ImportCredentialsDialog / ManualCallbackDialog / ManageProvidersDialog |
+| `providers-connect-models.html` | Add provider 3/3 | ConnectModelsStep |
 
 ### Activity
 
@@ -88,6 +89,7 @@ node_modules/remixicon/
 |---|---|---|
 | `activity.html` | Sessions | Sessions / Usage / ApiCost |
 | `activity-requests.html` | Requests | RequestHistoryDrawer / usage/ModelRoutingSection |
+| `activity-usage.html` | Usage | Usage / ApiCost の時系列部分 |
 | `activity-session.html` | Session detail | SessionDetail |
 | `activity-logs.html` | Logs | LogViewer / LogFileList / Breadcrumbs / RequestGroupList / LogEditor |
 
@@ -102,6 +104,33 @@ node_modules/remixicon/
 | `settings-statusline.html` | Status line | StatusLineConfigDialog + 6コンポーネント |
 | `settings-presets.html` | Presets | Presets + 6ダイアログ |
 | `settings-advanced.html` | Advanced | DebugPage / JsonEditor |
+| `settings-advanced-health.html` | Advanced — Health | HealthPanel |
+| `settings-advanced-scratchpad.html` | Advanced — Scratchpad | ScratchpadPanel |
+
+### Navigation（提案・未採用）
+
+「サイドバー + セクションレール」で**縦メニューが二重**になっている問題への4案。
+`shell.js` の `navMode` を切り替えているだけで、中身は既存画面と同じもの。比較用なので
+`mocks.json` の `route` は `null`。
+
+> **D を全画面に採用済み**。Settings の13remレールと、Routing / Activity のタブ列は
+> 撤去され、サブビューはサイドバーのツリーに入った。`navMode: 'cloudflare'` と
+> `sub` を渡すだけで、シェルの形はどの画面でも同じ。A / B / C のモックは
+> 比較用に残してある（採用案が固まったら消してよい）。
+
+| ファイル | 案 | サイドバー | 何が変わるか |
+|---|---|---|---|
+| `nav-accordion.html` | A | アクティブなセクションが中で開く | Settings のレールが消える。Routing / Activity のタブは残す |
+| `nav-drilldown.html` | B | セクションの項目に差し替わる | 本文が最も広い。他4セクションは画面から消える |
+| `nav-tree.html` | C | Aを全セクションに適用 | タブ列も無くなり、ナビはサイドバー1本になる |
+| `nav-cloudflare.html` | D | Cloudflare ダッシュボードの形 | C + 上部の検索 + 複数グループ同時展開。幅16rem |
+
+A / B / D は同じ画面（Settings › Server）で描いてあるので直接比較できる。C だけ
+Activity › Requests なのは、Settings 画面では A と絵が同じになるため。
+
+サイドバーの実装は `shell.js` の `navMode` 1つ（`flat` / `accordion` / `drilldown` / `tree` /
+`cloudflare`）。サブビューの定義は `SUBNAV` に1箇所だけあるので、採用案が決まれば
+既存画面は `navMode` を渡すだけで移行できる。
 
 ### System（アプリシェル無し）
 
@@ -139,6 +168,49 @@ scripts/
 `shell.js` が ES module ではなく classic script なのは、`file://` の Chrome が
 origin `null` からの module import をCORSで弾くため。すべて `window.Shell` にぶら下げている。
 
+## 文字の段
+
+サイズは**3段だけ**で、それぞれ仕事が1つ:
+
+| | 用途 |
+|---|---|
+| **14px** (`text-sm`) | アプリのクローム（サイドバー・パンくず）と、**本文のセクション見出し**（通常表記・semibold） |
+| **12px** (`text-xs`) | 本文（表のセル・フィールドラベル・値・ボタン） |
+| **11px** (`text-[11px]`) | **固定ペイン/レールの札**と**表の列見出し**（小文字キャップス）、および二次テキスト・mono のメタ |
+
+見出しが2種類あるのは**格が違う**からで、書式で見分ける:
+
+- **本文のセクション** = スクロールする中身の一区切り → 14px 通常表記
+  （`Inbound surfaces` `Models` `Credentials` `Required inputs` `Checks`）
+- **固定ペイン/レールの札** = いつもそこにある列の名前 → 11px 大文字
+  （`ADD MODULE` `LINE` `FILES` `VENDOR` `SUMMARY` `CONSTRAINTS` `SUBSCRIPTIONS`）
+
+札を本文より小さくするのは、読むのが最初の1回だけの道標だから。表の列見出しと同じ family に
+なるので、キャップスを見たら「位置を示すもの」と読める。
+
+9-10px はチャート内部のラベル3箇所のみ（プロットを詰まらせない別の都合がある）。
+
+## 導線
+
+IAのレビューは「画面がどう見えるか」だけでは足りず、**画面から画面へどう辿り着くか**を
+実際に歩けないと判断できない。そのため、他の画面を指している要素はすべて遷移する:
+
+- テーブルの行（セッション → セッション詳細、リクエスト → そのログ、チェーン行 → プロバイダ）
+- 統計タイル・カード・グラフのノード
+- ヘッダーのアクションで他画面を名指しするもの（Live map / Add provider / Manage tokens / Open in Activity …）
+
+仕組みは `data-nav="<file>.html"` 属性1つと `shell.js` の委譲リスナー。`<a>` で包まないのは、
+いちばん遷移させたい要素が包めないため — `<tr>` は `<a>` を持てないし、行の中に自前のトグルや
+`⋯` ボタンを抱えている行も多い。そういう内側のコントロールを押したときは、行の遷移は起きない。
+
+`data-nav` は**モック専用**の属性で、Reactの実装側には存在しない。カーソル形状は
+`mock.css` の 1ルールだけで、スクリーンショットには写らない — つまりこの仕組みは
+`mocks:diff` の数字を1ピクセルも動かさない。
+
+グループ内のタブ（Activity の4本、Routing の3本）と Providers のレールは `shell.js` に
+1箇所だけ定義がある。画面ごとにインラインで持っていたときは、Usage タブが1画面にしか
+無いといった食い違いが起きていた。
+
 ## 実装フェーズでの使い方
 
 `mocks.json` の `route` を `null` から実際のReactルートに変えてから:
@@ -152,7 +224,8 @@ bun run mocks:diff      # ピクセル差分 + report.json
 
 ## 制約
 
-- データはすべてダミー。ボタン・フォームは動かない
-- **画面間の遷移は動く** — サイドバー、設定レール、タブのリンクは実際に張ってある。テーマ切り替えも動く
+- データはすべてダミー。フォームと編集操作は動かない
+- **画面間の遷移は動く** — サイドバー、設定レール、タブに加えて、**行・タイル・カード・ヘッダーの
+  アクションも実際に遷移する**。テーマ切り替えも動く
 - レスポンシブは未検討。1440×900 固定で設計している
 - i18n未適用（英語ハードコード）。キー再編は実装フェーズで行う

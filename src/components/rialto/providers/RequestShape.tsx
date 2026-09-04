@@ -31,9 +31,7 @@ function Frame({ pad, children }: { pad: string; children: ReactNode }) {
   return (
     <div>
       <div className='px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('providers.shape.title')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('providers.shape.title')}</h3>
       </div>
       <div className={pad}>{children}</div>
     </div>

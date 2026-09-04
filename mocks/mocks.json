@@ -30,7 +30,7 @@
       "mock": "routing-passthrough.html",
       "route": "/routing?surface=openai-responses",
       "group": "Routing",
-      "note": "The passthrough half — today's hardcoded behaviour for chat/completions and responses, made visible and reversible."
+      "note": "The passthrough half \u2014 today's hardcoded behaviour for chat/completions and responses, made visible and reversible."
     },
     {
       "name": "routing-map",
@@ -58,7 +58,7 @@
       "mock": "providers-apikey.html",
       "route": "/providers/openai",
       "group": "Providers",
-      "note": "API-key provider detail — key field, real prices, per-model apiStyle override."
+      "note": "API-key provider detail \u2014 key field, real prices, per-model apiStyle override."
     },
     {
       "name": "providers-connect",
@@ -66,6 +66,14 @@
       "route": "/providers/connect",
       "group": "Providers",
       "note": "Add-provider flow. Absorbs ConnectChoiceDialog + ProviderConnectFlow + ImportCredentialsDialog + ManualCallbackDialog. KNOWN DIFF ~15% dark: the mock draws step 2 of three, mid-authentication; the route opens on step 1. Capture limitation, not an implementation gap."
+    },
+    {
+      "name": "providers-connect-models",
+      "mock": "providers-connect-models.html",
+      "route": null,
+      "group": "Providers",
+      "note": "Step 3 of the add-provider flow (ConnectModelsStep), which the mock set stopped short of. Route is null because the step is a state of /providers/connect rather than its own path, so a capture would land on step 1.",
+      "$comment": "Reuses the provider detail model table on purpose: same decision, made before the provider takes traffic."
     },
     {
       "name": "activity",
@@ -79,14 +87,21 @@
       "mock": "activity-requests.html",
       "route": "/activity/requests",
       "group": "Activity",
-      "note": "Per-request log with Requested → Sent, matched rule and token attribution."
+      "note": "Per-request log with Requested \u2192 Sent, matched rule and token attribution."
+    },
+    {
+      "name": "activity-usage",
+      "mock": "activity-usage.html",
+      "route": "/activity/usage",
+      "group": "Activity",
+      "note": "Usage tab. Subscription windows including the per-model weekly ones Overview drops, utilization over time, and per-token spend \u2014 previously visible only inside Settings -> Access. Reads /api/usage and /api/usage/history, neither of which had a UI reader before this. KNOWN DIFF ~5% light / ~6% dark: the mock draws two subscription accounts (six windows); a one-account install renders three, and the missing rows shift every section below them. Data, not design \u2014 the section order, heads and column layout line up."
     },
     {
       "name": "activity-session",
       "mock": "activity-session.html",
       "route": null,
       "group": "Activity",
-      "note": "Session detail with the routing trace."
+      "note": "Session detail with the routing trace. Route stays null because /activity/sessions/:sessionId needs a real captured session id, which differs per install — a hardcoded one would shoot the not-found state."
     },
     {
       "name": "activity-logs",
@@ -107,7 +122,7 @@
       "mock": "settings-access.html",
       "route": "/settings/access",
       "group": "Settings",
-      "note": "Access tokens (Phase 3.5). KNOWN DIFF ~12%: the mock depicts an install with Cloudflare Access configured (signed-in email, populated policy rows); an install without it correctly renders the other state, including an exposure warning the mock is never in a position to show. State, not design — trimming copy does not move it."
+      "note": "Access tokens (Phase 3.5). KNOWN DIFF ~12%: the mock depicts an install with Cloudflare Access configured (signed-in email, populated policy rows); an install without it correctly renders the other state, including an exposure warning the mock is never in a position to show. State, not design \u2014 trimming copy does not move it."
     },
     {
       "name": "settings-logging",
@@ -121,7 +136,7 @@
       "mock": "settings-personas.html",
       "route": "/settings/personas",
       "group": "Settings",
-      "note": "Absorbs Personas + PersonaView + PersonaEdit — three routes for one object."
+      "note": "Absorbs Personas + PersonaView + PersonaEdit \u2014 three routes for one object."
     },
     {
       "name": "settings-statusline",
@@ -143,6 +158,48 @@
       "route": "/settings/advanced",
       "group": "Settings",
       "note": "Absorbs DebugPage + JsonEditor. Config document + danger zone."
+    },
+    {
+      "name": "settings-advanced-health",
+      "mock": "settings-advanced-health.html",
+      "route": "/settings/advanced?tab=health",
+      "group": "Settings",
+      "note": "The Advanced screen's Health tab (GET /health, at the root so uptime checks need no token). The mock had the tab and nothing behind it. `skip` is a first-class result, not a failure."
+    },
+    {
+      "name": "settings-advanced-scratchpad",
+      "mock": "settings-advanced-scratchpad.html",
+      "route": "/settings/advanced?tab=scratch",
+      "group": "Settings",
+      "note": "The Advanced screen's third tab. Draws the honest not-yet-available state the implementation ships, so an empty pane cannot be mistaken for a bug."
+    },
+    {
+      "name": "nav-accordion",
+      "mock": "nav-accordion.html",
+      "route": null,
+      "group": "Navigation",
+      "note": "Proposal A for the two-vertical-menus problem: the active section expands in the sidebar and Settings loses its 13rem rail; Routing and Activity keep their tab strips. Drawn on Settings -> Server so A and B can be compared on the same screen. Mock-only until one proposal is picked."
+    },
+    {
+      "name": "nav-drilldown",
+      "mock": "nav-drilldown.html",
+      "route": null,
+      "group": "Navigation",
+      "note": "Proposal B: the sidebar is replaced by the section's own items, with one row back up. Same screen as A. The trade to judge is that the other four sections leave the screen."
+    },
+    {
+      "name": "nav-tree",
+      "mock": "nav-tree.html",
+      "route": null,
+      "group": "Navigation",
+      "note": "Proposal C: A applied everywhere, so the tab strips move into the sidebar too. Drawn on Activity -> Requests because that is the only place C differs from A; on a Settings screen the two are the same picture."
+    },
+    {
+      "name": "nav-cloudflare",
+      "mock": "nav-cloudflare.html",
+      "route": null,
+      "group": "Navigation",
+      "note": "Proposal D: C plus the two things that carry Cloudflare's own deep sidebar - a search field above the tree, and several groups open at once instead of only the current one. Sidebar 16rem. Drawn on Settings -> Server so it lines up with A and B."
     },
     {
       "name": "setup",

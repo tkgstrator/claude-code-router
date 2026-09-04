@@ -11,6 +11,31 @@ import { api } from '@/lib/api'
 import { setModelDisabled } from '@/lib/providers/provider-edits'
 import type { ModelTestResponse, Provider } from './types'
 
+/**
+ * Set or clear the per-model tier override the quota-aware selector reads
+ * as `manualTier ?? tierOf(name)`. Null falls back to name inference.
+ */
+export async function setModelTier(
+  provider: Provider,
+  model: string,
+  tier: 'fable' | 'opus' | 'sonnet' | 'haiku' | null
+): Promise<void> {
+  await api.setModelTier(provider.name, model, tier)
+}
+
+/**
+ * Set or clear the per-model reasoning effort. Null sends nothing and
+ * leaves the vendor default in place, which is not the same as writing
+ * that default into every request.
+ */
+export async function setModelEffort(
+  provider: Provider,
+  model: string,
+  effort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
+): Promise<void> {
+  await api.setModelReasoningEffort(provider.name, model, effort)
+}
+
 /** Flip one model on or off. `_disabledModels` is the wire view of Model.enabled. */
 export async function toggleModel(provider: Provider, model: string, next: boolean): Promise<void> {
   await api.post('/providers', setModelDisabled(provider, model, !next))

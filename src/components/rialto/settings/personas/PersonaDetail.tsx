@@ -152,18 +152,14 @@ export function PersonaDetail({
       <div className='grid grid-cols-2'>
         <div className='border-r border-border'>
           <div className='flex items-center gap-2 px-6 pt-4 pb-2'>
-            <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-              {t('settings.personas.prompt')}
-            </h3>
+            <h3 className='text-sm font-semibold'>{t('settings.personas.prompt')}</h3>
             <span className='ml-auto text-[11px] text-muted-foreground'>{t('settings.personas.markdown')}</span>
           </div>
           <PromptEditor value={persona.prompt} onChange={onEditPrompt} />
         </div>
         <div>
           <div className='flex items-center gap-2 px-6 pt-4 pb-2'>
-            <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-              {t('settings.personas.preview')}
-            </h3>
+            <h3 className='text-sm font-semibold'>{t('settings.personas.preview')}</h3>
             <span className='ml-auto text-[11px] text-muted-foreground'>{t('settings.personas.asSent')}</span>
           </div>
           <PersonaPreview name={persona.name} prompt={persona.prompt} />

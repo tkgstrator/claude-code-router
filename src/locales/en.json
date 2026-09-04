@@ -16,6 +16,7 @@
       "all": "All",
       "tabSessions": "Sessions",
       "tabRequests": "Requests",
+      "tabUsage": "Usage",
       "tabLogs": "Logs",
       "untracked": "—"
     },
@@ -129,6 +130,34 @@
       "copy": "Copy",
       "raw": "Raw",
       "note": "Grouped by request id, so a failover reads as one story instead of two interleaved ones. The 429 and the retry that succeeded are the same group."
+    },
+    "usage": {
+      "title": "Usage",
+      "subtitle": "Usage · {{accounts}} subscription accounts · last {{days}} days",
+      "explainer": "Overview shows where the windows stand now. This is how they got there, and whose traffic did it.",
+      "refresh": "Refresh",
+      "refreshed": "Usage reloaded.",
+      "resetsIn": "resets in",
+      "windowsTitle": "Subscription windows",
+      "windowsMeta": "live, from each vendor’s usage API",
+      "windowFiveHour": "5-hour",
+      "windowSevenDay": "7-day",
+      "windowSevenDayScoped": "7-day · model",
+      "windowPrimary": "primary",
+      "windowSecondary": "secondary",
+      "chartTitle": "Utilization",
+      "chartMeta": "last {{days}} days",
+      "chartNote": "sampled every 5 min · captured off real traffic",
+      "tokensTitle": "By access token",
+      "tokensMeta": "last 30 days",
+      "colShare": "Share of spend",
+      "noAccounts": "No subscription accounts are connected, so there are no windows to report.",
+      "noHistory": "No utilization has been captured yet. The collector writes a sample as traffic flows.",
+      "noTokens": "No access tokens have been issued, so no traffic can be attributed.",
+      "range": "Range",
+      "rangeDays": "{{n}} days",
+      "exportCsv": "Export CSV",
+      "manageTokens": "Manage tokens"
     }
   },
   "routing": {
@@ -154,7 +183,11 @@
       "stateThrottled": "throttled",
       "stateExhausted": "exhausted",
       "stateUnknown": "unknown",
-      "targetCount": "{{n}} targets"
+      "targetCount": "{{n}} targets",
+      "selector": "Selector",
+      "selectorSwitched": "Selector switched to {{selector}}.",
+      "selectorRulesHint": "Rules and the scenario map decide. The chain is not evaluated at all in this mode.",
+      "selectorChainHint": "The chain decides. A rule applies only where its scenario's chain is empty."
     },
     "chain": {
       "title": "Routing",
@@ -214,7 +247,7 @@
       "noSurfaces": "No inbound surfaces are configured.",
       "liveMap": "Live map",
       "passthroughNote": "Switch this surface to <mono>Routed</mono> to give {{client}} the same quota-aware failover Claude Code gets. Callers keep sending their own model string — it becomes the <mono>requestedModel</mono> that rules match on, rather than the final target.",
-      "schedulerIdle": "The routing scheduler only runs in quota-aware mode, so every target below reads <mono>unknown</mono>. Live states need both <mono>ROUTER_MODE</mono> set to <mono>quota-aware</mono> in Settings and a preference chain for the scheduler to score.",
+      "schedulerIdle": "The <mono>Rules</mono> selector is active, so this chain is not evaluated and every target below reads <mono>unknown</mono>. Switch the selector above to <mono>Chain</mono> to let it decide; the states fill in on the scheduler’s next tick.",
       "schedulerNoChain": "The routing scheduler is running but has no preference chain to score, so every target below reads <mono>unknown</mono>. Add entries to this surface’s routing profile to see live states."
     },
     "map": {
@@ -239,7 +272,8 @@
     },
     "rules": {
       "title": "Routing rules",
-      "subtitle": "{{n}} rules · evaluated before the chain",
+      "subtitleRules": "{{n}} rules · deciding now",
+      "subtitleChain": "{{n}} rules · used only where the chain is empty",
       "addRule": "Add rule",
       "discard": "Discard",
       "unsaved": "unsaved",
@@ -247,7 +281,7 @@
       "empty": "No rules yet.",
       "selectOne": "Select a rule to edit it.",
       "firstMatchWins": "first match wins",
-      "explainer": "Evaluated top to bottom against the request, before the preference chain. A rule that matches replaces the target outright; the chain still supplies failover.",
+      "explainer": "Evaluated top to bottom against the request; the first match replaces the target outright and brings its own failover chain. With the <mono>Chain</mono> selector active a scenario whose chain has entries decides instead, and the rule’s target is dropped — the two never combine.",
       "matchesEveryRequest": "matches every request",
       "noRewrite": "no rewrite",
       "callerModelNoRewrite": "caller's model, no rewrite",
@@ -369,7 +403,7 @@
       "endpoint": "Endpoint",
       "derived": "Derived from the API style — not configurable.",
       "derivedWithOverrides": "Derived from the API style — not configurable. Per-model overrides live in the model row below.",
-      "overrideNote": "Some models here override to <mono>{{styles}}</mono>; see the Override column."
+      "overrideNote": "Some models here override to <mono>{{styles}}</mono>; see the Shape column."
     },
     "models": {
       "title": "Models",
@@ -381,7 +415,12 @@
       "colIn": "In /1M",
       "colCached": "Cached",
       "colOut": "Out /1M",
-      "colOverride": "Override",
+      "colShape": "Shape",
+      "colEffort": "Effort",
+      "setTier": "Tier for {{model}}",
+      "setEffort": "Reasoning effort for {{model}}",
+      "tierAuto": "auto (from the name)",
+      "effortDefault": "vendor default",
       "colTest": "Test",
       "colOn": "On",
       "legacy": "legacy",
@@ -395,6 +434,7 @@
       "showMore": "Show {{n}} more models"
     },
     "connect": {
+      "title": "Add provider",
       "vendor": "Vendor",
       "added": "added",
       "pickVendor": "Pick a vendor on the left to start.",
@@ -699,6 +739,7 @@
       "colEndpoint": "Endpoint",
       "colProfile": "Profile",
       "colRequests": "Requests",
+      "colCost": "Cost 30d",
       "colLastUsed": "Last used",
       "colExpires": "Expires",
       "tokenActive": "active",
@@ -709,7 +750,8 @@
       "lastUsedAgo": "{{ago}} ago",
       "revoke": "Revoke",
       "delete": "Delete",
-      "tokenCopiedShort": "Copied"
+      "tokenCopiedShort": "Copied",
+      "costNote": "The <strong>Cost</strong> column prices the last 30 days of retained request logs — a rate, not the lifetime total the counter beside it shows. A dash means nothing priced: no traffic in the window, capture off, or a subscription model, which has no per-request price."
     },
     "personas": {
       "subtitle": "{{count}} personas · {{active}}",
@@ -821,6 +863,11 @@
     "navProviders": "Providers",
     "navActivity": "Activity",
     "navSettings": "Settings",
+    "search": "Search",
+    "searchPlaceholder": "Search…",
+    "searchEmpty": "Nothing matches.",
+    "expandSection": "Expand {{section}}",
+    "collapseSection": "Collapse {{section}}",
     "theme": "Theme",
     "serving": "Serving",
     "degraded": "Degraded",

@@ -1,10 +1,16 @@
 /**
  * Right rail of the Chain view: the selector's global constraints, the
- * rules that run before the chain, and the saved routing snapshots.
+ * rules for this lane, and the saved routing snapshots.
  *
  * All three are context for the chain rather than part of it, which is why
  * they sit beside the table instead of above it — the operator reads them
  * while reordering, not before.
+ *
+ * The rules are listed as the alternative, not as a stage that composes
+ * with the chain: only one selector runs per request (see `SelectorBar`),
+ * and with the chain selected a lane whose chain has entries discards
+ * whatever a rule picked. They are worth showing here because they are
+ * what decides the lanes this chain leaves empty.
  */
 import type { TFunction } from 'i18next'
 import { useCallback, useEffect, useState } from 'react'
@@ -16,7 +22,7 @@ import type { RouteRule } from '@/schemas/domain/router'
 import { summarizePredicate, summarizeTarget } from './rules'
 
 const ROW = 'border-l-2 border-l-transparent px-4 py-3 transition-colors hover:border-l-border hover:bg-muted/50'
-const HEADING = 'text-xs font-semibold uppercase tracking-wider text-muted-foreground'
+const HEADING = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'
 
 const readBool = (raw: Record<string, unknown> | null, key: string, fallback: boolean): boolean => {
   const value = raw === null ? undefined : raw[key]

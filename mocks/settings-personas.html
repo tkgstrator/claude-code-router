@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, railItem, SETTINGS_RAIL, SURFACES, surfaceChip } = window.Shell
+const { renderShell, pill, btn, SURFACES, surfaceChip } = window.Shell
 
 // Absorbs Personas + PersonaView + PersonaEdit — three routes for one
 // object. List on the left, editor on the right, no navigation between
@@ -54,16 +54,12 @@ Repository
 - Never edit src/components/ui/* — shadcn owns those files.`
 
 document.getElementById('root').innerHTML = `
-  <div class="grid h-full grid-cols-[13rem_17rem_1fr]">
-
-    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
-      ${SETTINGS_RAIL.map((r) => railItem(r, 'personas')).join('')}
-    </aside>
+  <div class="grid h-full grid-cols-[17rem_1fr]">
 
     <aside class="min-w-0 overflow-y-auto border-r border-border">
       <div class="flex items-center gap-2 px-4 pt-5 pb-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Personas</h2>
-        <span class="ml-auto font-mono text-[10px] text-muted-foreground">4</span>
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Personas</h2>
+        <span class="ml-auto font-mono text-[11px] text-muted-foreground">4</span>
       </div>
       ${PERSONAS.map(personaRow).join('')}
       <div class="p-4">${btn('New persona', 'outline', 'ri-add-line')}</div>
@@ -101,28 +97,28 @@ document.getElementById('root').innerHTML = `
       <div class="grid grid-cols-2">
         <div class="border-r border-border">
           <div class="flex items-center gap-2 px-6 pt-4 pb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Prompt</h3>
+            <h3 class="text-sm font-semibold">Prompt</h3>
             <span class="ml-auto text-[11px] text-muted-foreground">Markdown</span>
           </div>
           <pre class="px-6 pb-6 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">${PROMPT}</pre>
         </div>
         <div>
           <div class="flex items-center gap-2 px-6 pt-4 pb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Preview</h3>
+            <h3 class="text-sm font-semibold">Preview</h3>
             <span class="ml-auto text-[11px] text-muted-foreground">as sent</span>
           </div>
           <div class="px-6 pb-6">
             <div class="rounded-md border border-border">
               <div class="border-b border-border px-3 py-1.5">
-                <span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">system</span>
+                <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">system</span>
               </div>
               <div class="space-y-2 px-3 py-2.5 text-[11px] leading-relaxed">
                 <div class="rounded bg-muted/60 px-2 py-1.5">
-                  <span class="font-mono text-[10px] text-muted-foreground">persona: yachiyo</span>
+                  <span class="font-mono text-[11px] text-muted-foreground">persona: yachiyo</span>
                   <p class="mt-1">You are Yachiyo, the operator's pair for this repository. Voice — direct…</p>
                 </div>
                 <div class="rounded border border-dashed border-border px-2 py-1.5 text-muted-foreground">
-                  <span class="font-mono text-[10px]">client system prompt</span>
+                  <span class="font-mono text-[11px]">client system prompt</span>
                   <p class="mt-1">…whatever Claude Code sends, appended unchanged.</p>
                 </div>
               </div>
@@ -141,7 +137,9 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'settings',
-  title: 'Personas',
+  navMode: 'cloudflare',
+  sub: 'personas',
+  crumbs: ['Personas'],
   subtitle: '4 personas · 3 enabled',
   actions: btn('Discard', 'ghost', '') + btn('Save', 'primary', 'ri-check-line')
 })

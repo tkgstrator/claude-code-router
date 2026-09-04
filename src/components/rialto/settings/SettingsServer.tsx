@@ -264,7 +264,6 @@ export function SettingsServer() {
   return (
     <SettingsLayout
       active='server'
-      title={t('settings.common.title')}
       subtitle={t('settings.server.subtitle', { version: APP_VERSION })}
       headerNote={t('settings.server.headerNote')}
       headerActions={

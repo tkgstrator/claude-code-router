@@ -25,6 +25,10 @@ const TokenSchema = z
     profileKey: z.string().nonempty().nullable(),
     lastUsedAt: z.string().nonempty().nullable(),
     requestCount: z.number().int().nonnegative(),
+    // Spend over the service's trailing window (SPEND_WINDOW_DAYS), not
+    // over the token's life — see the service. Null when none of this
+    // token's traffic could be priced.
+    costUsd: z.number().nullable(),
     expiresAt: z.string().nonempty().nullable(),
     revokedAt: z.string().nonempty().nullable(),
     createdAt: z.string().nonempty()

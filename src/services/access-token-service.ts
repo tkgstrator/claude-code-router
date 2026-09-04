@@ -18,6 +18,8 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { LRUCache } from 'lru-cache'
 import { getPrismaClient } from '../db/client'
+import dayjs from '../lib/dayjs'
+import { buildPriceMap, computeCosts, type PriceEntry } from './cost-service'
 
 export interface AccessTokenRow {
   id: string
@@ -27,10 +29,31 @@ export interface AccessTokenRow {
   profileKey: string | null
   lastUsedAt: string | null
   requestCount: number
+  // USD spent by this token's traffic over SPEND_WINDOW_DAYS, priced
+  // from the retained RequestLog rows. Null when nothing of this
+  // token's traffic could be priced — no rows in the window, request
+  // capture switched off, or no scraped price for the models it hit
+  // (which is every subscription-auth model). Deliberately NOT a
+  // lifetime figure: `requestCount` is a counter that survives log
+  // retention and this is not, so pairing them would invite reading a
+  // pruned window as a cheaper client.
+  costUsd: number | null
   expiresAt: string | null
   revokedAt: string | null
   createdAt: string
 }
+
+/**
+ * How far back the per-token spend figure looks.
+ *
+ * Bounded rather than lifetime for two reasons: RequestLog is pruned on
+ * a retention schedule, so "lifetime" would silently mean "however much
+ * history happens to be left"; and a fixed window is the only way two
+ * tokens issued months apart compare on the same terms. The query rides
+ * the existing `@@index([createdAt])` — there is no index on
+ * accessTokenId, and this keeps one from being needed.
+ */
+export const SPEND_WINDOW_DAYS = 30
 
 export interface IssuedToken {
   token: AccessTokenRow
@@ -60,18 +83,21 @@ export interface ResolvedToken {
   profileKey: string | null
 }
 
-const toWire = (row: {
-  id: string
-  name: string
-  prefix: string
-  surface: string | null
-  profileKey: string | null
-  lastUsedAt: Date | null
-  requestCount: number
-  expiresAt: Date | null
-  revokedAt: Date | null
-  createdAt: Date
-}): AccessTokenRow => ({
+const toWire = (
+  row: {
+    id: string
+    name: string
+    prefix: string
+    surface: string | null
+    profileKey: string | null
+    lastUsedAt: Date | null
+    requestCount: number
+    expiresAt: Date | null
+    revokedAt: Date | null
+    createdAt: Date
+  },
+  costUsd: number | null = null
+): AccessTokenRow => ({
   id: row.id,
   name: row.name,
   prefix: row.prefix,
@@ -79,14 +105,88 @@ const toWire = (row: {
   profileKey: row.profileKey,
   lastUsedAt: row.lastUsedAt === null ? null : row.lastUsedAt.toISOString(),
   requestCount: row.requestCount,
+  costUsd,
   expiresAt: row.expiresAt === null ? null : row.expiresAt.toISOString(),
   revokedAt: row.revokedAt === null ? null : row.revokedAt.toISOString(),
   createdAt: row.createdAt.toISOString()
 })
 
+/**
+ * One aggregated (token, provider, model) row's worth of usage.
+ *
+ * Grouped in Postgres before pricing rather than priced per request:
+ * `computeCosts` is linear in the token counts, so summing the counts
+ * first and pricing once is exact, not an approximation — the same
+ * reasoning `overview-service` documents for its spend window.
+ */
+export interface TokenSpendGroup {
+  accessTokenId: string | null
+  provider: string
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}
+
+/**
+ * Total USD per access token, or null for a token whose traffic could
+ * not be priced at all.
+ *
+ * Null and 0 are different answers and both happen: a subscription
+ * provider has no per-token price, so its groups price to null and the
+ * column shows "unpriced" rather than "free". A token that priced some
+ * of its models and not others reports the part that priced — an
+ * under-count, but the alternative is discarding a real number.
+ */
+export function sumSpendByToken(
+  groups: readonly TokenSpendGroup[],
+  priceMap: Map<string, PriceEntry>
+): Map<string, number> {
+  const totals = new Map<string, number>()
+  for (const group of groups) {
+    if (group.accessTokenId === null) continue
+    const cost = computeCosts(group, priceMap).totalCostUsd
+    if (cost === null) continue
+    const running = totals.get(group.accessTokenId)
+    totals.set(group.accessTokenId, running === undefined ? cost : running + cost)
+  }
+  return totals
+}
+
+// Per-token spend over the trailing window. Two queries regardless of
+// how many tokens exist: one grouped scan of the window, one price
+// lookup for the distinct models it touched.
+async function spendByToken(): Promise<Map<string, number>> {
+  const since = dayjs().subtract(SPEND_WINDOW_DAYS, 'day').toDate()
+  const groups = await getPrismaClient().requestLog.groupBy({
+    by: ['accessTokenId', 'provider', 'model'],
+    where: { accessTokenId: { not: null }, createdAt: { gte: since } },
+    _sum: { inputTokens: true, outputTokens: true, cacheReadTokens: true, cacheWriteTokens: true }
+  })
+  if (groups.length === 0) return new Map()
+  const rows: TokenSpendGroup[] = groups.map((g) => ({
+    accessTokenId: g.accessTokenId,
+    provider: g.provider,
+    model: g.model,
+    inputTokens: g._sum.inputTokens === null ? 0 : g._sum.inputTokens,
+    outputTokens: g._sum.outputTokens === null ? 0 : g._sum.outputTokens,
+    cacheReadTokens: g._sum.cacheReadTokens === null ? 0 : g._sum.cacheReadTokens,
+    cacheWriteTokens: g._sum.cacheWriteTokens === null ? 0 : g._sum.cacheWriteTokens
+  }))
+  const priceMap = await buildPriceMap(getPrismaClient(), [...new Set(rows.map((r) => `${r.provider}||${r.model}`))])
+  return sumSpendByToken(rows, priceMap)
+}
+
 export async function listAccessTokens(): Promise<AccessTokenRow[]> {
-  const rows = await getPrismaClient().accessToken.findMany({ orderBy: { createdAt: 'desc' } })
-  return rows.map(toWire)
+  const [rows, spend] = await Promise.all([
+    getPrismaClient().accessToken.findMany({ orderBy: { createdAt: 'desc' } }),
+    spendByToken()
+  ])
+  return rows.map((row) => {
+    const cost = spend.get(row.id)
+    return toWire(row, cost === undefined ? null : cost)
+  })
 }
 
 export interface IssueInput {

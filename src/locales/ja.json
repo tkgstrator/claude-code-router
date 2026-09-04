@@ -16,6 +16,7 @@
       "all": "すべて",
       "tabSessions": "セッション",
       "tabRequests": "リクエスト",
+      "tabUsage": "使用量",
       "tabLogs": "ログ",
       "untracked": "—"
     },
@@ -129,6 +130,34 @@
       "copy": "コピー",
       "raw": "生ログ",
       "note": "リクエスト ID でグループ化しているため、フェイルオーバーが 2 つの断片ではなく 1 つの流れとして読めます。429 とその後に成功したリトライは同じグループに入ります。"
+    },
+    "usage": {
+      "title": "使用量",
+      "subtitle": "使用量 · サブスクリプション {{accounts}} 件 · 直近 {{days}} 日",
+      "explainer": "Overview は今どこにいるかを示します。ここはそこに至る推移と、誰のトラフィックがそうしたかです。",
+      "refresh": "再取得",
+      "refreshed": "使用量を再取得しました。",
+      "resetsIn": "リセットまで",
+      "windowsTitle": "サブスクリプションのウィンドウ",
+      "windowsMeta": "各ベンダーの usage API から直接取得",
+      "windowFiveHour": "5時間",
+      "windowSevenDay": "7日",
+      "windowSevenDayScoped": "7日 · モデル別",
+      "windowPrimary": "primary",
+      "windowSecondary": "secondary",
+      "chartTitle": "消費率",
+      "chartMeta": "直近 {{days}} 日",
+      "chartNote": "5分ごとにサンプリング · 実トラフィックから記録",
+      "tokensTitle": "アクセストークン別",
+      "tokensMeta": "直近 30 日",
+      "colShare": "費用シェア",
+      "noAccounts": "接続されたサブスクリプションアカウントが無いため、表示するウィンドウがありません。",
+      "noHistory": "まだ消費率が記録されていません。トラフィックが流れるとコレクタがサンプルを書き込みます。",
+      "noTokens": "アクセストークンが発行されていないため、トラフィックを誰にも紐づけられません。",
+      "range": "期間",
+      "rangeDays": "{{n}} 日",
+      "exportCsv": "CSV 出力",
+      "manageTokens": "トークン管理"
     }
   },
   "routing": {
@@ -154,7 +183,11 @@
       "stateThrottled": "抑制中",
       "stateExhausted": "上限到達",
       "stateUnknown": "不明",
-      "targetCount": "ターゲット {{n}} 件"
+      "targetCount": "ターゲット {{n}} 件",
+      "selector": "セレクタ",
+      "selectorSwitched": "セレクタを「{{selector}}」に切り替えました。",
+      "selectorRulesHint": "ルールとシナリオマップが決めます。このモードではチェーンは一切評価されません。",
+      "selectorChainHint": "チェーンが決めます。ルールが効くのは、そのシナリオのチェーンが空のときだけです。"
     },
     "chain": {
       "title": "ルーティング",
@@ -214,7 +247,7 @@
       "noSurfaces": "受信サーフェスが設定されていません。",
       "liveMap": "ライブマップ",
       "passthroughNote": "このサーフェスを <mono>Routed</mono> に切り替えると、Claude Code と同じクォータ考慮のフェイルオーバーを {{client}} にも適用できます。呼び出し元は今までどおり自分のモデル名を送れます。それが最終ターゲットではなく、ルールの照合対象となる <mono>requestedModel</mono> として扱われるようになります。",
-      "schedulerIdle": "ルーティングスケジューラは quota-aware モードでのみ動くため、以下の State はすべて <mono>unknown</mono> になります。実際の状態を出すには、Settings で <mono>ROUTER_MODE</mono> を <mono>quota-aware</mono> にすることと、採点対象となる優先チェーンの両方が必要です。",
+      "schedulerIdle": "<mono>ルール</mono> セレクタが有効なため、このチェーンは評価されず、以下の State もすべて <mono>unknown</mono> のままです。上のセレクタを <mono>チェーン</mono> に切り替えるとこのチェーンが決めるようになり、State はスケジューラの次のティックで埋まります。",
       "schedulerNoChain": "ルーティングスケジューラは動いていますが、採点する優先チェーンがないため、以下の State はすべて <mono>unknown</mono> になります。実際の状態を出すには、この面のルーティングプロファイルにエントリを追加してください。"
     },
     "map": {
@@ -239,7 +272,8 @@
     },
     "rules": {
       "title": "ルーティングルール",
-      "subtitle": "{{n}} 件のルール · チェーンより前に評価",
+      "subtitleRules": "ルール {{n}} 件 · 現在これが決定します",
+      "subtitleChain": "ルール {{n}} 件 · チェーンが空のところだけ有効",
       "addRule": "ルールを追加",
       "discard": "破棄",
       "unsaved": "未保存",
@@ -247,7 +281,7 @@
       "empty": "ルールはまだありません。",
       "selectOne": "編集するルールを選択してください。",
       "firstMatchWins": "最初に一致したものが採用されます",
-      "explainer": "リクエストに対して上から順に、優先チェーンより前に評価されます。一致したルールはターゲットを丸ごと置き換えますが、フェイルオーバーは引き続きチェーンが担います。",
+      "explainer": "リクエストに対して上から順に評価し、最初に一致したルールがターゲットを丸ごと置き換え、フェイルオーバーの連鎖も自前で持ちます。<mono>チェーン</mono> セレクタが有効な場合、そのシナリオのチェーンにエントリがあればチェーンが決め、ルールのターゲットは破棄されます — 両方が合成されることはありません。",
       "matchesEveryRequest": "すべてのリクエストに一致",
       "noRewrite": "書き換えなし",
       "callerModelNoRewrite": "呼び出し元のモデルのまま、書き換えなし",
@@ -369,7 +403,7 @@
       "endpoint": "エンドポイント",
       "derived": "API スタイルから導出される値で、設定はできません。",
       "derivedWithOverrides": "API スタイルから導出される値で、設定はできません。モデル単位の上書きは下のモデル行にあります。",
-      "overrideNote": "一部のモデルは <mono>{{styles}}</mono> に上書きしています。Override 列を参照してください。"
+      "overrideNote": "一部のモデルは <mono>{{styles}}</mono> に上書きしています。形状 列を参照してください。"
     },
     "models": {
       "title": "モデル",
@@ -381,7 +415,12 @@
       "colIn": "入力 /1M",
       "colCached": "キャッシュ",
       "colOut": "出力 /1M",
-      "colOverride": "上書き",
+      "colShape": "形状",
+      "colEffort": "推論量",
+      "setTier": "{{model}} の tier",
+      "setEffort": "{{model}} の推論量",
+      "tierAuto": "自動（名前から推論）",
+      "effortDefault": "ベンダー既定",
       "colTest": "テスト",
       "colOn": "有効",
       "legacy": "旧世代",
@@ -395,6 +434,7 @@
       "showMore": "さらに {{n}} 件のモデルを表示"
     },
     "connect": {
+      "title": "プロバイダーを追加",
       "vendor": "ベンダー",
       "added": "追加済み",
       "pickVendor": "左のベンダーを選んで開始してください。",
@@ -699,6 +739,7 @@
       "colEndpoint": "エンドポイント",
       "colProfile": "プロファイル",
       "colRequests": "リクエスト",
+      "colCost": "費用 30日",
       "colLastUsed": "最終使用",
       "colExpires": "有効期限",
       "tokenActive": "有効",
@@ -709,7 +750,8 @@
       "lastUsedAgo": "{{ago}} 前",
       "revoke": "失効",
       "delete": "削除",
-      "tokenCopiedShort": "コピー済み"
+      "tokenCopiedShort": "コピー済み",
+      "costNote": "<strong>費用</strong>の列は、直近 30 日分の残っているリクエストログから算出しています。隣のリクエスト数が通算なのに対し、こちらはレートです。ダッシュは値段が付かなかったことを意味します（期間内にトラフィックが無い / リクエスト記録が off / リクエスト単価を持たないサブスクリプションのモデル）。"
     },
     "personas": {
       "subtitle": "ペルソナ {{count}} 件 · {{active}}",
@@ -821,6 +863,11 @@
     "navProviders": "プロバイダー",
     "navActivity": "アクティビティ",
     "navSettings": "設定",
+    "search": "検索",
+    "searchPlaceholder": "検索…",
+    "searchEmpty": "一致するものがありません。",
+    "expandSection": "{{section}} を開く",
+    "collapseSection": "{{section}} を閉じる",
     "theme": "テーマ",
     "serving": "稼働中",
     "degraded": "一部異常",

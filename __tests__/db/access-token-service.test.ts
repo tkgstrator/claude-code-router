@@ -15,9 +15,65 @@ import {
   issueAccessToken,
   listAccessTokens,
   resolveAccessToken,
-  revokeAccessToken
+  revokeAccessToken,
+  SPEND_WINDOW_DAYS,
+  sumSpendByToken,
+  type TokenSpendGroup
 } from '../../src/services/access-token-service'
+import type { PriceEntry } from '../../src/services/cost-service'
 import { HAS_DB, resetDbTables, teardownPrisma } from './helpers'
+
+/**
+ * Per-token spend arithmetic.
+ *
+ * Kept outside the DB block because the part that can quietly mislead is
+ * arithmetic, not storage: an unpriced model must not read as a free
+ * one, and a token that hit several models must total them rather than
+ * report the last one.
+ */
+describe('sumSpendByToken', () => {
+  const priced: PriceEntry = { inputPer1M: 3, outputPer1M: 15, cachedInputPer1M: 0.3 }
+  const priceMap = new Map<string, PriceEntry>([['anthropic||claude-sonnet', priced]])
+
+  const group = (over: Partial<TokenSpendGroup>): TokenSpendGroup => ({
+    accessTokenId: 'tok1',
+    provider: 'anthropic',
+    model: 'claude-sonnet',
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    ...over
+  })
+
+  test('sums every group belonging to one token', () => {
+    const totals = sumSpendByToken([group({ inputTokens: 1_000_000 }), group({ outputTokens: 1_000_000 })], priceMap)
+    // 1M input at $3 + 1M output at $15.
+    expect(totals.get('tok1')).toBeCloseTo(18, 6)
+  })
+
+  test('keeps two tokens apart', () => {
+    const totals = sumSpendByToken(
+      [group({ inputTokens: 1_000_000 }), group({ accessTokenId: 'tok2', inputTokens: 2_000_000 })],
+      priceMap
+    )
+    expect(totals.get('tok1')).toBeCloseTo(3, 6)
+    expect(totals.get('tok2')).toBeCloseTo(6, 6)
+  })
+
+  test('an unpriced model leaves the token absent rather than reporting $0', () => {
+    // Subscription providers have no per-request price. Reporting zero
+    // would say the traffic was free; absent renders as a dash, which
+    // says the question was not answered.
+    const totals = sumSpendByToken([group({ model: 'claude-opus-5', inputTokens: 1_000_000 })], priceMap)
+    expect(totals.has('tok1')).toBe(false)
+  })
+
+  test('traffic with no token attached is not attributed to anyone', () => {
+    const totals = sumSpendByToken([group({ accessTokenId: null, inputTokens: 1_000_000 })], priceMap)
+    expect(totals.size).toBe(0)
+  })
+})
 
 describe.skipIf(!HAS_DB)('access-token-service', () => {
   beforeEach(async () => {
@@ -27,6 +83,45 @@ describe.skipIf(!HAS_DB)('access-token-service', () => {
   })
 
   afterAll(teardownPrisma)
+
+  test('listAccessTokens prices only the traffic inside the spend window', async () => {
+    const { token } = await issueAccessToken({ name: 'ci' })
+    const prisma = getPrismaClient()
+    const provider = await prisma.provider.create({
+      data: { name: 'anthropic', apiBaseUrl: 'https://api.anthropic.com', authMode: 'api_key', apiStyle: 'anthropic' }
+    })
+    await prisma.model.create({
+      data: { providerId: provider.id, name: 'claude-sonnet', enabled: true, inputPer1M: 3, outputPer1M: 15 }
+    })
+    const session = await prisma.session.create({ data: { id: 'sess-spend' } })
+    const log = (createdAt: Date, inputTokens: number) => ({
+      sessionId: session.id,
+      accessTokenId: token.id,
+      provider: 'anthropic',
+      model: 'claude-sonnet',
+      inputTokens,
+      outputTokens: 0,
+      createdAt
+    })
+    const dayMs = 24 * 60 * 60 * 1000
+    await prisma.requestLog.createMany({
+      data: [
+        log(new Date(Date.now() - dayMs), 1_000_000),
+        // Older than the window: pricing it would make the column a
+        // lifetime total, which the header does not claim.
+        log(new Date(Date.now() - (SPEND_WINDOW_DAYS + 2) * dayMs), 5_000_000)
+      ]
+    })
+
+    const [listed] = await listAccessTokens()
+    expect(listed.costUsd).toBeCloseTo(3, 6)
+  })
+
+  test('a token with no priced traffic reports null, not zero', async () => {
+    await issueAccessToken({ name: 'unused' })
+    const [listed] = await listAccessTokens()
+    expect(listed.costUsd).toBeNull()
+  })
 
   test('the plaintext is returned once and never stored', async () => {
     const { token, plaintext } = await issueAccessToken({ name: 'ci' })

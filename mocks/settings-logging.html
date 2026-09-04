@@ -13,7 +13,7 @@
 <body>
 <div id="root"></div>
 <script>
-const { renderShell, pill, btn, railItem, SETTINGS_RAIL } = window.Shell
+const { renderShell, pill, btn, navTo } = window.Shell
 
 const field = (label, value, hint, kind = 'text') => `
   <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
@@ -39,15 +39,18 @@ const field = (label, value, hint, kind = 'text') => `
 
 // Retention is the part worth surfacing: RequestLog and Message grow
 // without bound today and nothing in the UI says how big they are.
+// Each store is what one Activity view reads, so the row leads there —
+// "how big is this and how long do I keep it" and "what is in it" are the
+// same question asked from two ends.
 const STORES = [
-  { name: 'RequestLog',    rows: '1.24M',  size: '412 MB', keep: '90 days' },
-  { name: 'Message',       rows: '318k',   size: '1.8 GB', keep: '30 days' },
-  { name: 'UsageSnapshot', rows: '82.1k',  size: '9.4 MB', keep: '14 days' },
-  { name: 'Log files',     rows: '—',      size: '186 MB', keep: '7 files' }
+  { name: 'RequestLog',    rows: '1.24M',  size: '412 MB', keep: '90 days', view: 'activity-requests.html' },
+  { name: 'Message',       rows: '318k',   size: '1.8 GB', keep: '30 days', view: 'activity.html' },
+  { name: 'UsageSnapshot', rows: '82.1k',  size: '9.4 MB', keep: '14 days', view: 'activity-usage.html' },
+  { name: 'Log files',     rows: '—',      size: '186 MB', keep: '7 files', view: 'activity-logs.html' }
 ]
 
 const storeRow = (s) => `
-  <tr class="border-t border-border/60 transition-colors hover:bg-muted/50">
+  <tr ${navTo(s.view)} class="border-t border-border/60 transition-colors hover:bg-muted/50">
     <td class="py-2.5 pl-6 pr-3 font-mono text-xs">${s.name}</td>
     <td class="px-3 text-right font-mono text-xs tabular-nums text-muted-foreground">${s.rows}</td>
     <td class="px-3 text-right font-mono text-xs tabular-nums">${s.size}</td>
@@ -62,17 +65,13 @@ const storeRow = (s) => `
   </tr>`
 
 document.getElementById('root').innerHTML = `
-  <div class="grid h-full grid-cols-[13rem_1fr]">
-
-    <aside class="min-w-0 overflow-y-auto border-r border-border py-3">
-      ${SETTINGS_RAIL.map((r) => railItem(r, 'logging')).join('')}
-    </aside>
+  <div class="grid h-full grid-cols-1">
 
     <div class="min-w-0 overflow-y-auto">
       <div class="flex items-center gap-3 px-6 pt-6 pb-3">
         <h2 class="text-sm font-semibold">Server log</h2>
         <span class="text-[11px] text-muted-foreground">pino → ~/.rialto/logs/</span>
-        <div class="ml-auto">${btn('Open in Activity', 'outline', 'ri-external-link-line')}</div>
+        <div class="ml-auto">${btn('Open in Activity', 'outline', 'ri-external-link-line', 'activity-logs.html')}</div>
       </div>
       ${field('Write to file', true, 'Off keeps logging to stdout only.', 'toggle')}
       ${field('Level', 'info', 'fatal · error · warn · info · debug · trace', 'select')}
@@ -129,7 +128,9 @@ document.getElementById('root').innerHTML = `
 
 renderShell({
   active: 'settings',
-  title: 'Logging',
+  navMode: 'cloudflare',
+  sub: 'logging',
+  crumbs: ['Logging'],
   subtitle: 'level info · 2.4 GB captured',
   actions: btn('Discard', 'ghost', '') + btn('Save', 'primary', 'ri-check-line')
 })

@@ -7,6 +7,7 @@
  * to lib/api.ts, which the Rialto migration keeps frozen.
  */
 import { api, type RequestLogItem } from '@/lib/api'
+import type { UsageHistorySample, UsageWire } from './usage-derive'
 
 export interface ActivityRequestLog extends RequestLogItem {
   /** Routing lane. Null on rows written before subagent capture landed. */
@@ -57,6 +58,23 @@ export interface UsageCostResponse {
  */
 export function fetchUsageCost(days: number): Promise<UsageCostResponse> {
   return api.get<UsageCostResponse>(`/usage/cost?days=${days}`)
+}
+
+/**
+ * Live subscription utilization, straight from each vendor's usage API.
+ *
+ * Overview reads the same numbers through `/api/overview`, which flattens
+ * them to the account-wide 5h/7d pair. This endpoint keeps the per-model
+ * weekly windows, which is why the Usage tab calls it directly rather
+ * than reusing the overview payload.
+ */
+export function fetchUsage(): Promise<UsageWire> {
+  return api.get<UsageWire>('/usage')
+}
+
+/** Captured utilization over the requested window. Server caps `days` at 30. */
+export function fetchUsageHistory(days: number): Promise<{ samples: UsageHistorySample[] }> {
+  return api.get<{ samples: UsageHistorySample[] }>(`/usage/history?days=${days}`)
 }
 
 export interface WindowTotals {

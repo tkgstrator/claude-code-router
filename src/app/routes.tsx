@@ -4,6 +4,7 @@ import { ActivityLogs } from '@/components/rialto/activity/ActivityLogs'
 import { ActivityRequests } from '@/components/rialto/activity/ActivityRequests'
 import { ActivitySessionDetail } from '@/components/rialto/activity/ActivitySessionDetail'
 import { ActivitySessions } from '@/components/rialto/activity/ActivitySessions'
+import { ActivityUsage } from '@/components/rialto/activity/ActivityUsage'
 import { Overview } from '@/components/rialto/Overview'
 import { AddProviderScreen } from '@/components/rialto/providers/AddProviderScreen'
 import { ProvidersScreen } from '@/components/rialto/providers/ProvidersScreen'
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
           { path: '/activity', element: <ActivitySessions /> },
           { path: '/activity/requests', element: <ActivityRequests /> },
           { path: '/activity/sessions/:sessionId', element: <ActivitySessionDetail /> },
+          { path: '/activity/usage', element: <ActivityUsage /> },
           { path: '/activity/logs', element: <ActivityLogs /> },
           { path: '/settings', element: <SettingsServer /> },
           { path: '/settings/access', element: <SettingsAccess /> },

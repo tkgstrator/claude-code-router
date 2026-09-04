@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rialto — Nav proposal D (Cloudflare-style)</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/index.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/geist-mono/index.css">
+<link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css">
+<link rel="stylesheet" href="_shared/mock.build.css">
+<script src="_shared/shell.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { renderShell, pill, btn } = window.Shell
+
+// ─── Proposal D: the Cloudflare dashboard shape ───────────────────────
+// C with the two things that make Cloudflare's own sidebar survive being
+// that deep:
+//
+//   1. a search field above the tree — once every sub-view is a row in one
+//      menu, typing beats hunting, and it is why their sidebar can hold
+//      thirty entries without feeling like thirty entries
+//   2. several groups open at once. C opens only the section you are in;
+//      here Activity stays open while you work in Settings, which is what
+//      the dashboard does and what makes the tree feel like a map rather
+//      than a machine that closes doors behind you
+//
+// Drawn on Settings › Server so it lines up with A and B. The sidebar is
+// 16rem rather than 14rem — a two-level tree needs the extra room, and it
+// is still narrower than today's 14rem + 13rem.
+//
+// Deliberately NOT borrowed: the dark top bar with the account switcher.
+// Cloudflare needs it because an account holds many zones; Rialto is one
+// installation, and the header row here already carries the breadcrumb and
+// the screen's actions. Their small-caps group labels are out for the same
+// reason — five sections do not need dividing into families.
+
+const field = (label, value, hint, kind = 'text') => `
+  <div class="grid grid-cols-[14rem_1fr] items-start gap-6 border-t border-border/60 px-6 py-4">
+    <div>
+      <div class="text-xs font-medium">${label}</div>
+      ${hint ? `<div class="mt-0.5 text-[11px] leading-snug text-muted-foreground">${hint}</div>` : ''}
+    </div>
+    <div>
+      ${
+        kind === 'toggle'
+          ? `<span class="inline-flex h-5 w-9 items-center rounded-full ${value ? 'bg-foreground' : 'bg-muted-foreground/30'} px-0.5 align-middle">
+               <span class="size-4 rounded-full bg-background ${value ? 'translate-x-4' : ''}"></span>
+             </span>`
+          : kind === 'select'
+            ? `<button class="inline-flex h-8 min-w-40 items-center gap-2 rounded-md border border-border px-3 text-xs transition-colors hover:bg-muted/60">
+                 <span class="font-mono">${value}</span>
+                 <i class="ri-arrow-down-s-line ml-auto text-sm text-muted-foreground"></i>
+               </button>`
+            : `<div class="flex h-8 max-w-md items-center rounded-md border border-border px-3 font-mono text-xs">${value}</div>`
+      }
+    </div>
+  </div>`
+
+document.getElementById('root').innerHTML = `
+  <div class="min-w-0">
+    <div class="flex items-center gap-3 px-6 pt-6 pb-3">
+      <h2 class="text-sm font-semibold">Server</h2>
+      <span class="text-[11px] text-muted-foreground">Boot-time values. A change needs a restart.</span>
+      <div class="ml-auto">${btn('Restart', 'outline', 'ri-restart-line')}</div>
+    </div>
+
+    ${field('Host', '0.0.0.0', 'Bind address. Put Cloudflare Access in front before exposing beyond loopback.')}
+    ${field('Port', '3456', '')}
+    ${field('Bootstrap token', '••••••••••••••••••••', 'Gates /api/* and /v1/*. Minted on first run. Manage per-client tokens under <a href="settings-access.html" class="underline underline-offset-2">Access</a>.')}
+    ${field('Request timeout', '600000', 'Milliseconds. Applies to every upstream call.')}
+    ${field('Proxy URL', 'unset', 'Routes upstream traffic through an HTTPS proxy.')}
+    ${field('Non-interactive', false, 'Skip prompts that expect a TTY.', 'toggle')}
+
+    <div class="flex items-center gap-3 border-t border-border px-6 pt-6 pb-3">
+      <h2 class="text-sm font-semibold">Data</h2>
+    </div>
+    ${field('Home directory', '~/.rialto', 'Config envelope, plugins, tokenizer cache.')}
+    ${field('Database', 'postgres://…/rialto', 'Providers, models, routing, sessions, usage.')}
+    ${field('Redis', 'redis://…:6379', 'Usage capture + auth-health job queue.')}
+
+    <div class="border-t border-border px-6 py-5">
+      <div class="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+        <div class="flex items-center gap-2">
+          <i class="ri-alert-line text-sm text-amber-600 dark:text-amber-400"></i>
+          <span class="text-xs font-medium">Migrated from ~/.claude-code-router</span>
+          ${pill('one-time', 'warn')}
+        </div>
+        <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          Your config was copied to <span class="font-mono">~/.rialto</span> on first boot of v3.0.0.
+          The old directory was left in place — delete it once you are satisfied nothing regressed.
+        </p>
+      </div>
+    </div>
+
+    <div class="border-t border-border px-6 py-5">
+      <div class="rounded-md border border-dashed border-border px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+        <i class="ri-compasses-2-line mr-1 align-[-1px]"></i>
+        <span class="font-medium text-foreground">Proposal D — Cloudflare-style.</span>
+        One tree, a search field over it, and more than one group open at a time: Activity is still
+        expanded while you are in Settings. Sidebar 16rem, and the tab strips are gone the same way
+        they are in C — the whole app navigates from this one column. What to judge: whether the
+        sidebar still reads at a glance with 16 rows in it, and whether search earns its slot at the
+        top. Compare with
+        <a href="nav-accordion.html" class="underline underline-offset-2">A</a>,
+        <a href="nav-drilldown.html" class="underline underline-offset-2">B</a>,
+        <a href="nav-tree.html" class="underline underline-offset-2">C</a>, or
+        <a href="settings.html" class="underline underline-offset-2">what ships today</a>.
+      </div>
+    </div>
+    <div class="h-10"></div>
+  </div>`
+
+renderShell({
+  active: 'settings',
+  navMode: 'cloudflare',
+  sub: 'server',
+  alsoOpen: ['activity'],
+  crumbs: ['Server'],
+  subtitle: 'Rialto v3.0.0 · ~/.rialto',
+  actions: btn('Discard', 'ghost', '') + btn('Save', 'primary', 'ri-check-line')
+})
+</script>
+</body>
+</html>

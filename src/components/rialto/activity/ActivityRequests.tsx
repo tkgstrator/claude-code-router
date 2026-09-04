@@ -19,7 +19,7 @@ import {
   type Row,
   statusOptions
 } from '@/components/rialto/activity/requests-rows'
-import { ActivityTabs, FilterSelect, NoteBox, ScreenMessage, StatTile } from '@/components/rialto/activity/shared'
+import { FilterSelect, NoteBox, ScreenMessage, StatTile } from '@/components/rialto/activity/shared'
 import { useActivityCounts } from '@/components/rialto/activity/use-activity-counts'
 import { useSurfaces } from '@/components/rialto/activity/use-surfaces'
 import { RButton } from '@/components/rialto/primitives'
@@ -103,7 +103,7 @@ export function ActivityRequests() {
   })
   const throttle = useRef<ReturnType<typeof setTimeout> | null>(null)
   const surfaces = useSurfaces()
-  const tabCounts = useActivityCounts()
+  const _tabCounts = useActivityCounts()
 
   const load = useCallback(() => {
     fetchRequestLogs(PAGE_SIZE)
@@ -193,7 +193,6 @@ export function ActivityRequests() {
 
   return (
     <Screen
-      title={t('activity.requests.title')}
       subtitle={subtitle}
       actions={
         <>
@@ -204,12 +203,6 @@ export function ActivityRequests() {
         </>
       }
     >
-      <ActivityTabs
-        active='requests'
-        sessionCount={tabCounts.sessions}
-        requestCount={page === null ? tabCounts.requests : page.total}
-      />
-
       <div className='flex flex-wrap items-center gap-2 border-b border-border px-6 py-3'>
         <FilterSelect
           label={t('activity.requests.filterSurface')}

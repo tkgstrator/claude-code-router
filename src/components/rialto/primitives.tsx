@@ -32,7 +32,7 @@ export function Section({
   return (
     <section className={cn('border-t border-border first:border-t-0', className)}>
       <div className='flex items-baseline gap-3 px-6 pt-6 pb-3'>
-        <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>{title}</h2>
+        <h2 className='text-sm font-semibold'>{title}</h2>
         {meta ? <span className='text-xs text-muted-foreground/70'>{meta}</span> : null}
       </div>
       {children}
@@ -68,10 +68,14 @@ export function Mono({ children, className }: { children: ReactNode; className?:
   return <span className={cn('font-mono text-[11px] text-muted-foreground', className)}>{children}</span>
 }
 
-const METER_BARS: Record<'ok' | 'warn' | 'bad', string> = {
+// `mute` is not a status: it is for meters that show a proportion rather
+// than a budget (share of spend), where green/amber/red would assert a
+// threshold nobody set.
+const METER_BARS: Record<'ok' | 'warn' | 'bad' | 'mute', string> = {
   ok: 'bg-emerald-500',
   warn: 'bg-amber-500',
-  bad: 'bg-destructive'
+  bad: 'bg-destructive',
+  mute: 'bg-muted-foreground/40'
 }
 
 const autoMeterTone = (pct: number): 'ok' | 'warn' | 'bad' => {
@@ -81,7 +85,7 @@ const autoMeterTone = (pct: number): 'ok' | 'warn' | 'bad' => {
 }
 
 /** Horizontal utilization meter. pct 0-100. */
-export function Meter({ pct, tone = 'auto' }: { pct: number; tone?: 'auto' | 'ok' | 'warn' | 'bad' }) {
+export function Meter({ pct, tone = 'auto' }: { pct: number; tone?: 'auto' | 'ok' | 'warn' | 'bad' | 'mute' }) {
   const resolved = tone === 'auto' ? autoMeterTone(pct) : tone
   return (
     <div className='h-1 w-full overflow-hidden rounded-full bg-muted'>
@@ -176,30 +180,6 @@ export function Tabs({ items, active }: { items: TabItem[]; active: string }) {
 }
 
 /** Left rail item (Settings sections, Providers list). */
-export interface RailEntry {
-  id: string
-  label: string
-  icon: string
-  href: string
-}
-
-export function RailItem({ item, active }: { item: RailEntry; active: string }) {
-  const on = item.id === active
-  return (
-    <Link
-      to={item.href}
-      className={cn(
-        'flex items-center gap-2.5 border-l-2 px-4 py-2 text-xs transition-colors',
-        on
-          ? 'border-l-foreground bg-muted/60 font-medium'
-          : 'border-l-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-      )}
-    >
-      <i className={cn(item.icon, 'text-sm leading-none opacity-80')} />
-      {item.label}
-    </Link>
-  )
-}
 
 /**
  * Surface label for a table cell. Monospace so paths align down a column.

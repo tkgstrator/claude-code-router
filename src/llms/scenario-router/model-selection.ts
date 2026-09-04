@@ -51,10 +51,19 @@ const LONG_CONTEXT_AUTO_RATIO = 0.7
 // unresolved (no default primary, no scraped contextWindow), fall back
 // to the historical DEFAULT_LONG_CONTEXT_THRESHOLD so the classifier
 // never sees a NaN / 0.
-export function effectiveLongContextThreshold(router: RouterConfig | undefined): number {
+export function effectiveLongContextThreshold(
+  router: RouterConfig | undefined,
+  chainDefaultAgentContextWindow?: number | null
+): number {
   const manual = router?.longContextThreshold
   if (typeof manual === 'number' && manual > 0) return manual
-  const window = router?.defaultAgentContextWindow
+  // The chain's window wins over the slot's when present. It is only
+  // passed when the chain is what routes, and the auto-threshold has to
+  // track the model that will actually serve the default lane —
+  // otherwise a chain-only install silently drops to the 128k fallback
+  // no matter how large its own default model is.
+  const chained = typeof chainDefaultAgentContextWindow === 'number' && chainDefaultAgentContextWindow > 0
+  const window = chained ? chainDefaultAgentContextWindow : router?.defaultAgentContextWindow
   if (typeof window === 'number' && window > 0) return Math.floor(window * LONG_CONTEXT_AUTO_RATIO)
   return DEFAULT_LONG_CONTEXT_THRESHOLD
 }
@@ -63,13 +72,44 @@ export function effectiveLongContextThreshold(router: RouterConfig | undefined):
 // main-agent traffic, `subagent` when a <RIALTO-SUBAGENT-MODEL> tag is present.
 export type RouteKind = 'agent' | 'subagent'
 
+/**
+ * What the preference chain can serve, as far as classification cares.
+ *
+ * `classifyScenario` refuses to land on a scenario nothing is configured
+ * for, and "configured" used to mean exactly one thing: a RouterSlot
+ * primary. That is the rules editor's half of the screen, and under the
+ * chain selector it is not what routes — so an install that configured
+ * only the chain classified every request as `default` and never reached
+ * its own think / longContext / webSearch chains. Callers on the chain
+ * path pass this so a non-empty lane counts as configuration too.
+ *
+ * Absent (the rules path) restores the RouterSlot-only gate exactly: in
+ * that mode a chain lane really is unroutable, and classifying into one
+ * would drop the request onto the caller's own model.
+ */
+export interface ChainRouting {
+  /** True when the chain holds at least one enabled entry for this lane. */
+  hasLane: (kind: RouteKind, scenario: ScenarioType) => boolean
+  /**
+   * Context window of the chain's top enabled default/agent target, or
+   * null when unknown. Feeds `effectiveLongContextThreshold` for the same
+   * reason the slot's primary does — it is the model that serves the
+   * default lane.
+   */
+  defaultAgentContextWindow: number | null
+}
+
 export function selectModel(
   req: RouterRequest,
   tokenCount: number,
   router: RouterConfig | undefined,
   // Kept for call-site compatibility; model selection no longer resolves
   // by the request's bare model name, so the provider registry isn't read.
-  _config: ConfigStore
+  _config: ConfigStore,
+  // Present only when the preference chain is the live selector for this
+  // request. Absent keeps the pre-chain behaviour, which is what the
+  // rules path needs.
+  chain?: ChainRouting
 ): { model: string; scenarioType: ScenarioType; isSubagent: boolean; fallbacks: string[] } {
   // Stage 1 — caller kind. A <RIALTO-SUBAGENT-MODEL> tag's PRESENCE selects
   // the subagent route; its value is ignored. The tag is stripped in place
@@ -79,7 +119,7 @@ export function selectModel(
   const kind: RouteKind = isSubagent ? 'subagent' : 'agent'
 
   // Stage 2 — scenario classification from the request signals.
-  const scenario = classifyScenario(req, tokenCount, router, kind)
+  const scenario = classifyScenario(req, tokenCount, router, kind, chain)
 
   // Stage 3 — walk the scenario's rule stack first (first-match wins).
   // A matched rule overrides the catch-all primary AND supplies its own
@@ -158,21 +198,37 @@ function resolveTarget(
   return { primary: scenarioPrimary, fallbacks: catchAllFallbacks }
 }
 
-// Classify the request into a scenario. A scenario only wins when the
-// chosen route has a primary configured for it — an unconfigured lane
-// falls through so a heavy/haiku/etc. request without a matching route
-// lands on `default` (matching the pre-refactor behaviour).
+// Whether anything is configured to serve (kind, scenario). A RouterSlot
+// primary is one answer; under the chain selector a non-empty lane is the
+// other. Either is enough — the gate exists only to keep the classifier
+// off a scenario that would route nowhere, and which of the two editors
+// filled it in is not the classifier's business.
+function scenarioConfigured(
+  router: RouterConfig | undefined,
+  kind: RouteKind,
+  scenario: ScenarioType,
+  chain: ChainRouting | undefined
+): boolean {
+  if (primaryFor(router, kind, scenario) !== undefined) return true
+  return chain !== undefined && chain.hasLane(kind, scenario)
+}
+
+// Classify the request into a scenario. A scenario only wins when
+// something is configured to serve it — an unconfigured lane falls
+// through so a heavy/haiku/etc. request without a matching route lands
+// on `default` (matching the pre-refactor behaviour).
 function classifyScenario(
   req: RouterRequest,
   tokenCount: number,
   router: RouterConfig | undefined,
-  kind: RouteKind
+  kind: RouteKind,
+  chain: ChainRouting | undefined
 ): ScenarioType {
-  const threshold = effectiveLongContextThreshold(router)
+  const threshold = effectiveLongContextThreshold(router, chain?.defaultAgentContextWindow)
   const signals = signalsOf(req)
 
   // Long context by size — token count exceeds threshold.
-  if (tokenCount > threshold && primaryFor(router, kind, 'longContext') !== undefined) {
+  if (tokenCount > threshold && scenarioConfigured(router, kind, 'longContext', chain)) {
     req.log.info(`Using long context model due to token count: ${tokenCount}, threshold: ${threshold}`)
     return 'longContext'
   }
@@ -185,7 +241,7 @@ function classifyScenario(
   // Web search tools — higher priority than `thinking`. body.tools may
   // carry vendor-specific shapes (Anthropic's `{ type: 'web_search_*' }`
   // block) that TokenizeTool doesn't model.
-  if (primaryFor(router, kind, 'webSearch') !== undefined && signals.webSearch) {
+  if (scenarioConfigured(router, kind, 'webSearch', chain) && signals.webSearch) {
     return 'webSearch'
   }
 
@@ -195,7 +251,7 @@ function classifyScenario(
   // boolean check on `req.body.thinking` alone silently routes cheap
   // default traffic through the expensive `think` slot (Opus in most
   // configs). isThinkingEnabled excludes 'disabled' specifically.
-  if (signals.thinking && primaryFor(router, kind, 'think') !== undefined) {
+  if (signals.thinking && scenarioConfigured(router, kind, 'think', chain)) {
     req.log.info({ thinking: req.body.thinking }, 'Using think model')
     return 'think'
   }
@@ -203,7 +259,7 @@ function classifyScenario(
   // Effort/tier escalation — high effort or an opus-tier requested model
   // routes into the longContext (Opus) lane even when the request is
   // short enough to skip the size-based branch above.
-  if (primaryFor(router, kind, 'longContext') !== undefined && isHeavyRequest(req.body, signals)) {
+  if (scenarioConfigured(router, kind, 'longContext', chain) && isHeavyRequest(req.body, signals)) {
     req.log.info({ model: req.body.model }, 'Using long context model due to heavy effort/tier signal')
     return 'longContext'
   }

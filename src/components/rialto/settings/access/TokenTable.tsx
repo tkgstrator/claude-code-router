@@ -17,6 +17,7 @@ import { SortTh, type SortValue, useTableSort } from '@/components/rialto/table-
 import type { InboundSurfaceWire } from '@/lib/api'
 import { fmtAgo, fmtCount } from '@/lib/rialto/format'
 import { type AccessTokenWire, sortTokens, type TokenState, tokenState } from '@/lib/rialto/settings/access-tokens'
+import { fmtCost } from '@/lib/sessions/format'
 
 const STATE_PILL: Record<TokenState, { tone: 'ok' | 'warn' | 'bad'; labelKey: string }> = {
   active: { tone: 'ok', labelKey: 'settings.access.tokenActive' },
@@ -36,7 +37,23 @@ interface TokenRow {
   surfacePath: string | undefined
 }
 
-type TokenSortKey = 'name' | 'surface' | 'profile' | 'requests' | 'lastUsed' | 'expires'
+/**
+ * Row actions are buttons, not bare text.
+ *
+ * They used to be an 11px link with no box, which read as a caption
+ * rather than a control and sat on its own text baseline — a different
+ * height from every other cell in the row. A fixed 28px box inside a
+ * flex cell takes the height off the line box entirely, so the control
+ * lines up with the row whatever the cell beside it renders.
+ *
+ * Destructive styling is on hover only: both actions are destructive, and
+ * painting two of them red in every row makes the table look like an
+ * error state rather than a list of working credentials.
+ */
+const ROW_ACTION =
+  'inline-flex h-7 items-center rounded-md border border-border px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50'
+
+type TokenSortKey = 'name' | 'surface' | 'profile' | 'requests' | 'cost' | 'lastUsed' | 'expires'
 
 /**
  * Each column sorts on the value behind its own cell. The two date
@@ -52,6 +69,9 @@ const tokenSortValue = (row: TokenRow, key: TokenSortKey): SortValue => {
   if (key === 'surface') return row.surfacePath
   if (key === 'profile') return row.token.profileKey
   if (key === 'requests') return row.token.requestCount
+  // Unpriced traffic is a null, not a zero — it sorts last in both
+  // directions rather than claiming the token was free.
+  if (key === 'cost') return row.token.costUsd
   if (key === 'lastUsed') return row.token.lastUsedAt === null ? null : Date.parse(row.token.lastUsedAt)
   // A null expiry is "never", which is not a missing value — it is the
   // furthest-out one there is. Passing null would park the permanent
@@ -97,6 +117,7 @@ function Row({
         {token.profileKey === null ? '—' : token.profileKey}
       </td>
       <td className='px-3 text-right font-mono text-xs tabular-nums'>{fmtCount(token.requestCount)}</td>
+      <td className='px-3 text-right font-mono text-xs tabular-nums'>{fmtCost(token.costUsd)}</td>
       <td className='px-3 text-right text-[11px] text-muted-foreground'>
         {token.lastUsedAt === null
           ? t('settings.access.never')
@@ -105,26 +126,18 @@ function Row({
       <td className='px-3 text-right text-[11px] text-muted-foreground'>
         {token.expiresAt === null ? t('settings.access.never') : token.expiresAt.slice(0, 10)}
       </td>
-      <td className='py-2.5 pl-3 pr-6 text-right'>
-        {state === 'revoked' ? (
-          <button
-            type='button'
-            onClick={onDelete}
-            disabled={busy}
-            className='text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50'
-          >
-            {t('settings.access.delete')}
-          </button>
-        ) : (
-          <button
-            type='button'
-            onClick={onRevoke}
-            disabled={busy}
-            className='text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50'
-          >
-            {t('settings.access.revoke')}
-          </button>
-        )}
+      <td className='py-2.5 pl-3 pr-6'>
+        <div className='flex justify-end'>
+          {state === 'revoked' ? (
+            <button type='button' onClick={onDelete} disabled={busy} className={ROW_ACTION}>
+              {t('settings.access.delete')}
+            </button>
+          ) : (
+            <button type='button' onClick={onRevoke} disabled={busy} className={ROW_ACTION}>
+              {t('settings.access.revoke')}
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   )
@@ -181,9 +194,14 @@ export function TokenTable({
         <col className='w-40' />
         <col className='w-24' />
         <col className='w-20' />
+        {/* Wide enough that "Cost 30d" stays on one line — a header that
+            wraps makes the whole row two lines tall next to tables whose
+            headers are one. */}
+        <col className='w-28' />
+        <col className='w-28' />
         <col className='w-24' />
-        <col className='w-24' />
-        <col className='w-20' />
+        {/* Wide enough for the action button's box rather than its text. */}
+        <col className='w-28' />
       </colgroup>
       <thead>
         <tr className='text-[11px] uppercase tracking-wider text-muted-foreground/70 [&>th]:pb-2'>
@@ -199,7 +217,10 @@ export function TokenTable({
           <SortTh sortKey='requests' sort={sort} className='px-3 text-right' align='right'>
             {t('settings.access.colRequests')}
           </SortTh>
-          <SortTh sortKey='lastUsed' sort={sort} className='px-3 text-right' align='right'>
+          <SortTh sortKey='cost' sort={sort} className='whitespace-nowrap px-3 text-right' align='right'>
+            {t('settings.access.colCost')}
+          </SortTh>
+          <SortTh sortKey='lastUsed' sort={sort} className='whitespace-nowrap px-3 text-right' align='right'>
             {t('settings.access.colLastUsed')}
           </SortTh>
           <SortTh sortKey='expires' sort={sort} className='px-3 text-right' align='right'>

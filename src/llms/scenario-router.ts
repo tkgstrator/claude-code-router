@@ -25,13 +25,15 @@
  * per-session/per-project Router override lookup.
  */
 
+import type { RouterPreferenceProfile } from '@/schemas/domain'
 import type { FlatRouter } from '@/schemas/domain/router'
 import { isRoutedPath, resolveSurfaceForPath } from '../services/inbound-surface-service'
-import { PASSTHROUGH_PROFILE_KEY } from '../services/router-preference-service'
+import { loadRouterPreferences, PASSTHROUGH_PROFILE_KEY } from '../services/router-preference-service'
 import { isSessionInRollout } from '../services/routing-scheduler/rollout'
 import { getRoutingSnapshot } from '../services/routing-scheduler/state'
-import { logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
+import { chainRoutingOf, logShadowDivergence, resolveQuotaAwareSelection } from './quota-router/runtime'
 import { applyProactiveFailover } from './scenario-router/failover'
+import type { ChainRouting } from './scenario-router/model-selection'
 import { selectModel } from './scenario-router/model-selection'
 import { expandChainWithPeers, type HealthinessLookup } from './scenario-router/peer-fallback'
 import { applyGlobalSystemPrompt, resolveActivePersonaPrompt } from './scenario-router/persona'
@@ -96,10 +98,29 @@ const applyPeerFallback = (
   return { primary, fallbacks: expanded.chain.slice(1), peerTargets: expanded.peerTargets }
 }
 
+// Load the preference chain when it is what routes this request, and
+// project it into the shape the classifier reads. Null when the chain is
+// not the live selector: the rules path has to keep the RouterSlot-only
+// gate, because a chain lane it cannot serve would send the request to
+// the caller's own model instead of the default primary.
+//
+// Split out of routeScenario for the same reason applyPeerFallback is —
+// that function is already over the biome cognitive-complexity budget.
+const loadChainRouting = async (
+  active: boolean,
+  profileKey: string | undefined,
+  ctx: RouterContext
+): Promise<{ profile: RouterPreferenceProfile; routing: ChainRouting } | null> => {
+  if (!active) return null
+  const profile = await loadRouterPreferences(undefined, profileKey)
+  const providers = ctx.config.get<ConfigProvider[]>('providers', [])
+  return { profile, routing: chainRoutingOf(profile, providers) }
+}
+
 export type { ScenarioRouterConfig as RouterConfig, ScenarioType } from '@/schemas/domain/scenario'
 export type { SubscriptionKindProvider } from './scenario-router/failover'
 export { applyProactiveFailover, candidateUsable, subscriptionKindOf } from './scenario-router/failover'
-export type { EffortLevel, ModelTier } from './scenario-router/model-selection'
+export type { ChainRouting, EffortLevel, ModelTier } from './scenario-router/model-selection'
 export { isHeavyRequest, selectModel } from './scenario-router/model-selection'
 export type { RouterContext, RouterRequest, RouterRequestBody } from './scenario-router/types'
 
@@ -150,33 +171,45 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // when no per-project file applies.
     const router: RouterConfig | undefined = project !== undefined ? project : globalRouter
 
-    const scenarioResult = selectModel(req, tokenCount, router, ctx.config)
     const mode = readRouterMode()
     const shadow = readRouterShadow()
     const inRollout = isSessionInRollout(req.sessionId ?? null, readRolloutPct())
+
+    // Which preference profile this request routes through. The token
+    // that authenticated the call wins when it names one — that is what
+    // makes per-client routing possible — otherwise the inbound
+    // surface's profile applies, which is the default for everyone.
+    // Resolved before `selectModel` because the classifier below needs
+    // the chain, and the chain is a property of the profile.
+    const surface = await resolveSurfaceForPath(req.inboundPath)
+    const surfaceProfile = surface === undefined ? undefined : surface.profileKey
+    const profileKey = req.profileKeyOverride !== undefined ? req.profileKeyOverride : surfaceProfile
 
     // Quota-aware primary path: only when the mode is set AND the
     // session falls into the rollout bucket. Outside the bucket
     // (or when preferences resolve to nothing) we fall back to the
     // scenario router's output so behaviour degrades gracefully.
-    // Which preference profile this request routes through. The token
-    // that authenticated the call wins when it names one — that is what
-    // makes per-client routing possible — otherwise the inbound
-    // surface's profile applies, which is the default for everyone.
-    const surface = await resolveSurfaceForPath(req.inboundPath)
-    const surfaceProfile = surface === undefined ? undefined : surface.profileKey
-    const profileKey = req.profileKeyOverride !== undefined ? req.profileKeyOverride : surfaceProfile
+    //
+    // The profile is loaded here rather than inside the selector because
+    // classification needs it first: a scenario only wins when something
+    // is configured to serve it, and under this mode the chain is that
+    // something. Loading it once serves both — the selector takes the
+    // same object back below.
+    const chain = await loadChainRouting(mode === 'quota-aware' && inRollout, profileKey, ctx)
+
+    const scenarioResult = selectModel(req, tokenCount, router, ctx.config, chain?.routing)
 
     let model = scenarioResult.model
     let fallbacks: string[] = scenarioResult.fallbacks
-    if (mode === 'quota-aware' && inRollout) {
+    if (chain !== null) {
       const requestedModel = typeof req.body.model === 'string' ? req.body.model : undefined
       const quotaAware = await resolveQuotaAwareSelection({
         requestedModel,
         isSubagent: scenarioResult.isSubagent,
         scenario: scenarioResult.scenarioType,
         requestTokenCount: tokenCount,
-        profileKey
+        profileKey,
+        profile: chain.profile
       })
       if (quotaAware.selection.primary !== null) {
         model = quotaAware.selection.primary
@@ -206,7 +239,14 @@ export async function routeScenario(req: RouterRequest, ctx: RouterContext): Pro
     // Shadow path: run the quota-aware selector alongside the primary
     // path and log divergence without affecting routing. Skipped when
     // the primary path already IS the quota-aware selector.
-    if (shadow === 'quota-aware' && !(mode === 'quota-aware' && inRollout)) {
+    //
+    // The scenario it asks for is the one the RULES path classified —
+    // the shadow must not widen the gate above, or observing would start
+    // changing what routes. On an install that has configured a chain
+    // lane the slots leave empty, the preview is therefore conservative:
+    // it reports what the chain would answer for the scenario the rules
+    // reached, not for the one the chain would have reached.
+    if (shadow === 'quota-aware' && chain === null) {
       const requestedModel = typeof req.body.model === 'string' ? req.body.model : undefined
       const quotaAware = await resolveQuotaAwareSelection({
         requestedModel,

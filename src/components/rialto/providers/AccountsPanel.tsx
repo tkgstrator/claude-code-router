@@ -81,9 +81,7 @@ export function AccountsPanel({
   return (
     <div className='border-r border-border'>
       <div className='px-6 pt-5 pb-2'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('providers.accounts.title')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('providers.accounts.title')}</h3>
       </div>
       {accounts.length === 0 ? (
         <div className='px-6 pb-5 text-[11px] text-muted-foreground'>{t('providers.accounts.empty')}</div>

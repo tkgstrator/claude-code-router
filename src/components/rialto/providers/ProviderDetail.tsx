@@ -22,7 +22,7 @@ import {
 } from './derive'
 import { ModelsTable } from './ModelsTable'
 import { ApiKeyRequestShape, SubscriptionRequestShape } from './RequestShape'
-import type { CatalogEntry, Provider, SubscriptionWire, TransformerWire } from './types'
+import type { CatalogEntry, Provider, ReasoningEffort, SubscriptionWire, Tier, TransformerWire } from './types'
 
 /**
  * Which slice of a long model list to show. The default hides rows that
@@ -151,11 +151,15 @@ function FilterBox({ value, onChange, wide }: { value: string; onChange: (v: str
 function ModelsSection({
   provider,
   rows,
-  onToggle
+  onToggle,
+  onTier,
+  onEffort
 }: {
   provider: Provider
   rows: ModelRow[]
   onToggle: (model: string, next: boolean) => void
+  onTier: (model: string, next: Tier | null) => void
+  onEffort: (model: string, next: ReasoningEffort | null) => void
 }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -173,9 +177,7 @@ function ModelsSection({
   return (
     <>
       <div className='flex items-center gap-3 px-6 pt-5 pb-3'>
-        <h3 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-          {t('providers.models.title')}
-        </h3>
+        <h3 className='text-sm font-semibold'>{t('providers.models.title')}</h3>
         <span className='text-[11px] text-muted-foreground'>
           {t('providers.models.enabledCount', {
             enabled: enabledCountOf(provider),
@@ -196,7 +198,7 @@ function ModelsSection({
           <FilterBox value={query} onChange={setQuery} wide={isApiKey} />
         </div>
       </div>
-      <ModelsTable rows={visible} withOverride={isApiKey} onToggle={onToggle} />
+      <ModelsTable rows={visible} withOverride={isApiKey} onToggle={onToggle} onTier={onTier} onEffort={onEffort} />
       {hidden > 0 ? (
         <div className='px-6 py-4'>
           <button
@@ -225,6 +227,10 @@ export interface ProviderDetailProps {
   now: number
   busy: boolean
   onToggleModel: (model: string, next: boolean) => void
+  /** Per-model tier override; null clears it back to name inference. */
+  onModelTier: (model: string, next: Tier | null) => void
+  /** Per-model reasoning effort; null clears it back to the vendor default. */
+  onModelEffort: (model: string, next: ReasoningEffort | null) => void
   onSaveKey: (key: string) => void
   onTestAll: () => void
   onSync: () => void
@@ -263,7 +269,14 @@ export function ProviderDetail(props: ProviderDetailProps) {
       </div>
       {/* Keyed on the provider: the filter, the Show mode and how far the
           list has been expanded are all about THIS provider's models. */}
-      <ModelsSection key={provider.name} provider={provider} rows={rows} onToggle={props.onToggleModel} />
+      <ModelsSection
+        key={provider.name}
+        provider={provider}
+        rows={rows}
+        onToggle={props.onToggleModel}
+        onTier={props.onModelTier}
+        onEffort={props.onModelEffort}
+      />
     </div>
   )
 }

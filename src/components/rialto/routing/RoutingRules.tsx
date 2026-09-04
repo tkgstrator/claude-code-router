@@ -7,7 +7,7 @@
  * a lie about what the runtime does.
  */
 import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useConfig } from '@/components/ConfigProvider'
 import { Pill, RButton } from '@/components/rialto/primitives'
@@ -17,10 +17,10 @@ import { addRule, emptyRule, removeRule, updateRule } from '@/lib/routing-map/ed
 import { cn } from '@/lib/utils'
 import type { RouterConfig } from '@/schemas/domain/router'
 import { useEnabledTargets, useSurfaces } from './data'
-import { splitTarget } from './derive'
-import { RoutingViewTabs } from './RoutingTabs'
+import { activeSelector, splitTarget } from './derive'
 import { RuleDetail } from './RuleDetail'
 import { allRules, type RuleScope, ruleLabel, type ScopedRule, sameScope, summarizePredicate } from './rules'
+import { SelectorBar } from './SelectorBar'
 
 function RuleRow({ scoped, active, onSelect }: { scoped: ScopedRule; active: boolean; onSelect: () => void }) {
   const { t } = useTranslation()
@@ -162,8 +162,10 @@ export function RoutingRules() {
 
   return (
     <Screen
-      title={t('routing.rules.title')}
-      subtitle={t('routing.rules.subtitle', { n: rules.length })}
+      subtitle={t(
+        activeSelector(config?.ROUTER_MODE) === 'chain' ? 'routing.rules.subtitleChain' : 'routing.rules.subtitleRules',
+        { n: rules.length }
+      )}
       actions={
         <>
           <RButton variant='ghost' onClick={() => setDraft(null)} disabled={draft === null}>
@@ -175,12 +177,12 @@ export function RoutingRules() {
         </>
       }
     >
-      <RoutingViewTabs active='rules' ruleCount={rules.length} />
+      <SelectorBar />
 
       <div className='grid h-full grid-cols-[20rem_1fr]'>
         <aside className='min-w-0 overflow-y-auto border-r border-border'>
           <div className='flex items-center gap-2 px-4 pt-5 pb-2'>
-            <h2 className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+            <h2 className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
               {t('routing.common.rules')}
             </h2>
             <span className='text-[11px] text-muted-foreground'>{t('routing.rules.firstMatchWins')}</span>
@@ -198,7 +200,9 @@ export function RoutingRules() {
           </div>
 
           <div className='border-t border-border px-4 py-4'>
-            <p className='text-[11px] leading-relaxed text-muted-foreground'>{t('routing.rules.explainer')}</p>
+            <p className='text-[11px] leading-relaxed text-muted-foreground'>
+              <Trans i18nKey='routing.rules.explainer' components={{ mono: <span className='font-mono' /> }} />
+            </p>
           </div>
         </aside>
 

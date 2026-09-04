@@ -229,7 +229,6 @@ export function SettingsLogging() {
   return (
     <SettingsLayout
       active='logging'
-      title={t('settings.rail.logging')}
       subtitle={t('settings.logging.subtitle', { level, captured })}
       headerNote={t('settings.logging.headerNote')}
       headerActions={
